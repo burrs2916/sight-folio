@@ -1,0 +1,6238 @@
+{
+  "lang": {
+    "en": "English",
+    "zh": "中文",
+    "toggleToEn": "切换到英文",
+    "toggleToZh": "切换到中文"
+  },
+  "app": {
+    "title": "Sight Folio",
+    "tagline": "创作工作台",
+    "taglineFull": "小说 / 长文创作编辑器"
+  },
+  "nav": {
+    "productName": "Sight Folio",
+    "analysis": "项目分析",
+    "main": "主导航",
+    "dashboard": "总览",
+    "analyzer": "分析器",
+    "datasource": "数据源",
+    "entities": "实体图鉴",
+    "published": "已导出报告",
+    "ai": "AI 助手",
+    "myAnalyses": "我的分析",
+    "newAnalysis": "新建分析",
+    "newAnalysisName": "分析 {n}",
+    "analysisName": "分析名称",
+    "rename": "重命名",
+    "renameTitle": "重命名分析",
+    "cancel": "取消",
+    "confirm": "确定",
+    "copy": "复制",
+    "delete": "删除",
+    "fileCount": "{n} 文件",
+    "lineCount": "{n} 行"
+  },
+  "search": {
+    "placeholder": "搜索分析、符号、文件、代码...",
+    "open": "打开",
+    "locate": "定位",
+    "jump": "跳转",
+    "symbolHit": "搜索命中符号 {label}",
+    "symbolNotFound": "符号「{label}」在 {path}:{line}",
+    "codeHit": "搜索命中：{label}",
+    "codeNotFound": "代码命中：{path}:{line}"
+  },
+  "footer": {
+    "desc": "Sight Folio · 小说 / 长文创作编辑器",
+    "analysisTitle": "项目分析数量",
+    "analysisCount": "{n} 个分析",
+    "criticalTitle": "{n} 个严重问题",
+    "findingsCount": "{n} 个发现",
+    "dataSource": "数据源",
+    "connected": "{n} 个已连接",
+    "techStack": "SQLite + Tauri"
+  },
+  "ui": {
+    "notifications": "通知",
+    "settings": "设置",
+    "enabled": "启用",
+    "disabled": "禁用",
+    "save": "保存",
+    "retry": "重试",
+    "cancel": "取消"
+  },
+  "settings": {
+    "title": "设置",
+    "appearancePreset": "外观预设",
+    "colorMode": "颜色模式",
+    "themeColor": "主题色彩",
+    "fontSize": "字体大小",
+    "borderRadius": "圆角风格",
+    "layoutPreset": "布局预设",
+    "reset": "重置主题设置",
+    "saved": "已保存 ✓",
+    "confirm": "✓ 确认设置",
+    "customPrimary": "自定义主色",
+    "modeLight": "浅色",
+    "modeDark": "深色",
+    "modeSystem": "跟随",
+    "presetDefault": "默认",
+    "presetBlue": "蓝色",
+    "presetGreen": "绿色",
+    "presetOrange": "橙色",
+    "presetPurple": "紫",
+    "presetCustom": "自定义",
+    "fontSmall": "小",
+    "fontMedium": "中",
+    "fontLarge": "大",
+    "radiusNone": "直角",
+    "radiusSmall": "小圆",
+    "radiusMedium": "中圆",
+    "radiusLarge": "大圆",
+    "radiusRound": "全圆",
+    "layoutStandard": "标准",
+    "layoutCompact": "紧凑",
+    "layoutWide": "宽屏",
+    "profileDark": "深色",
+    "profileLight": "浅色",
+    "profileSystem": "跟随"
+  },
+  "dashboard": {
+    "title": "项目分析仪表盘",
+    "subtitle": "查看所有项目分析的状态与统计",
+    "newAnalysis": "新建项目分析",
+    "statAnalyses": "项目分析",
+    "statFiles": "扫描文件",
+    "statLines": "代码行数 (估算)",
+    "statLanguages": "编程语言",
+    "intervalAll": "全部",
+    "intervalKind": "种",
+    "overview": "分析概览",
+    "review": "审查与发现",
+    "langDistribution": "项目语言分布",
+    "filesLine": "各项目扫描文件数",
+    "filesSeries": "文件数",
+    "findingsChart": "审查结果统计",
+    "severityCritical": "严重",
+    "severityWarning": "警告",
+    "severityInfo": "提示",
+    "quickActions": "快速操作",
+    "qaAnalyzerTitle": "项目分析器",
+    "qaAnalyzerDesc": "导入项目代码，生成架构拓扑图与依赖分析",
+    "qaCore": "核心",
+    "qaDatasourceTitle": "数据源管理",
+    "qaDatasourceDesc": "配置项目目录、Git 仓库等分析数据来源",
+    "qaComponentsTitle": "实体管理",
+    "qaComponentsDesc": "管理项目实体类型注册与分类",
+    "newAnalysisBtn": "新建分析",
+    "publishedBtn": "已导出报告",
+    "noData": "暂无数据"
+  },
+  "time": {
+    "justNow": "刚刚",
+    "minutesAgo": "{n} 分钟前",
+    "hoursAgo": "{n} 小时前",
+    "daysAgo": "{n} 天前",
+    "notScanned": "未扫描"
+  },
+  "datasource": {
+    "statusTitle": "数据源状态",
+    "testAll": "测试全部连接",
+    "connected": "已连接",
+    "error": "错误",
+    "typeHttp": "HTTP",
+    "typeWebsocket": "WebSocket",
+    "typeMqtt": "MQTT",
+    "typeDatabase": "数据库",
+    "typeProjectDir": "项目目录",
+    "typeGitRepo": "Git 仓库",
+    "statusConnected": "已连接",
+    "statusDisconnected": "未连接",
+    "statusFailed": "连接失败",
+    "statusError": "错误",
+    "statusConnecting": "连接中",
+    "none": "暂无数据源",
+    "unnamed": "未命名",
+    "addDataSource": "添加数据源",
+    "newName": "数据源 {n}",
+    "pageTitle": "数据源管理",
+    "total": "总数",
+    "connectedCount": "已连接",
+    "errorCount": "错误",
+    "emptyTitle": "暂无数据源",
+    "emptyHint": "点击\"添加数据源\"创建您的第一个数据源",
+    "addButton": "添加数据源",
+    "lastFetched": "最近获取",
+    "testApis": "测试 API: {n} 个",
+    "typeHttpRest": "HTTP REST",
+    "typeWebsocketFull": "WebSocket",
+    "typeMqttFull": "MQTT",
+    "testConnection": "测试连接",
+    "typeDescTitle": "数据源类型说明",
+    "typeDesc": {
+      "http": "支持 GET/POST/PUT/DELETE 请求",
+      "websocket": "双向实时通信",
+      "mqtt": "实时消息订阅",
+      "database": "直连数据库查询",
+      "projectDir": "本地项目文件目录作为分析数据源",
+      "gitRepo": "远程 Git 仓库作为分析数据源"
+    }
+  },
+  "published": {
+    "title": "已导出报告",
+    "subtitle": "点击卡片即可打开查看已导出的项目分析报告",
+    "count": "{n} 个已导出",
+    "noneTitle": "暂无已导出报告",
+    "noneHint": "在项目分析器中导出分析报告后，将在此处显示",
+    "chip": "已导出",
+    "exportedOn": "导出于 {date}",
+    "reDownload": "重新下载报告",
+    "revoke": "撤销导出",
+    "downloading": "正在下载报告「{name}」",
+    "revoked": "报告「{name}」已撤销导出",
+    "reportSuffix": "分析报告"
+  },
+  "scan": {
+    "selectRoot": "选择项目根目录",
+    "startScan": "开始扫描项目",
+    "readyTitle": "已选择项目根目录，准备扫描",
+    "readyDesc": "根目录已就绪。点击下方按钮，我们将逐文件解析结构、度量复杂度、检测重复与风险，并自动绘制架构画像。",
+    "startTitle": "开始你的第一次项目扫描",
+    "startDesc": "选择项目根目录后，我们将自动识别语言、解析代码结构、度量复杂度，并生成可交互的架构可视化。整个过程在你的本机完成，代码不会上传。",
+    "step1": "选择根目录",
+    "step2": "扫描并可视化",
+    "scanning": "扫描中…",
+    "toolbarHint": "提示：也可在顶部工具栏点击文件夹图标随时更换根目录"
+  },
+  "preview": {
+    "notFoundTitle": "分析未找到",
+    "notFoundDesc": "该分析可能已被删除",
+    "loadingComponents": "正在加载组件...",
+    "loadingDevices": "正在加载设备...",
+    "loading": "正在加载...",
+    "preview": "预览",
+    "exitFullscreen": "退出全屏",
+    "fullscreen": "全屏",
+    "close": "关闭",
+    "winTitle": "{name} - 预览",
+    "exportJson": "_分析报告.json",
+    "exportSvg": "_架构画像.svg",
+    "exportHtml": "_分析报告.html"
+  },
+  "entities": {
+    "title": "实体图鉴",
+    "searchPlaceholder": "搜索实体…",
+    "dimAll": "全部",
+    "dimCategory": "按类别",
+    "dimSource": "按来源",
+    "dimLayer": "架构分层",
+    "dimLanguage": "按语言",
+    "shapeLegend": "实体形状",
+    "shapeFile": "文件",
+    "shapeFolder": "文件夹",
+    "shapeModule": "模块",
+    "shapeClass": "类",
+    "shapeInterface": "接口",
+    "shapeFunction": "函数",
+    "shapeImage": "图片",
+    "shapeAsset": "资源文件",
+    "allEntities": "全部实体",
+    "other": "其他",
+    "catCore": "核心实体",
+    "catSymbol": "代码符号",
+    "catAnalysis": "分析元素",
+    "catView": "分析视图",
+    "catCommon": "公用实体",
+    "builtin": "内置实体",
+    "noLayers": "暂无分层（扫描项目后自动生成）",
+    "noFilesInLayer": "该层暂无文件",
+    "noMatching": "没有匹配的实体",
+    "filesCount": "{n} 个文件",
+    "lines": "{n} 行",
+    "inProject": "项目内：",
+    "applicableLang": "适用语言：",
+    "properties": "属性：",
+    "itemCount": "{n} 项",
+    "noProps": "该实体未声明属性",
+    "role": "实体作用",
+    "propDef": "属性定义",
+    "usage": "使用方式",
+    "usageDesc": "在「项目分析」画布的左侧实体面板中，将该实体拖拽到画布即可创建实例；扫描项目后可在画布中查看其实例的依赖关系、架构分层与审查结果。",
+    "units": {
+      "sourceFiles": "个源文件",
+      "dirs": "个目录",
+      "deps": "条依赖关系（相关）",
+      "circularDeps": "条循环依赖",
+      "layeredFiles": "个已分层文件（相关）",
+      "findings": "条审查记录（相关）",
+      "assets": "个资源文件"
+    },
+    "folderPortrait": {
+      "container": "可嵌套容器",
+      "dynamicProps": "属性由项目结构运行时动态派生，无静态配置",
+      "structStats": "结构统计",
+      "contains": "包含关系",
+      "containsDesc": "包含 {files} 个源文件与 {folders} 个子文件夹",
+      "statDirCount": "目录数",
+      "statFileCount": "源文件数",
+      "statMaxDepth": "最大嵌套深度",
+      "statAvgDepth": "平均嵌套深度",
+      "statDeepestDir": "最深目录",
+      "statLargestDir": "含文件最多目录",
+      "unitsLayers": "层"
+    },
+    "typesFallback": "「{name}」是 {type} 类型实体，由分析器插件提供。",
+    "types": {
+      "file": "表示项目中的单个源文件，携带路径、语言、大小、行数等扫描属性，是画布上最基础的实体。",
+      "folder": "表示项目中的目录节点，用于组织同一职责的源文件。",
+      "module": "表示聚合了多个相关文件的逻辑单元（如按目录/入口聚合），是依赖分析的基本单位。",
+      "package": "表示语言级的包/命名空间，是跨文件复用与可见性控制的边界。",
+      "crate": "表示 Rust 的 crate —— 编译与依赖分发的最小单元，一个 crate 内含多个模块。",
+      "class": "表示面向对象结构中的类，内聚相关的数据与行为。",
+      "struct": "表示结构体：以字段聚合为主的纯数据类型，与「类」的区别在于行为通常不内聚在自身。",
+      "trait": "表示 Trait / Protocol —— 只声明行为契约不含实现，由具体类型分别实现。",
+      "function": "表示一段可复用的函数逻辑，可被多处调用。",
+      "interface": "表示一组契约/抽象，约束实现方的行为。",
+      "pattern-node": "表示识别出的设计模式节点，用于在画布上标记模式参与角色。",
+      "architecture": "视图型实体：一整张架构总览图，按分层聚合展示项目全貌。",
+      "dependency": "视图型实体：一整张依赖关系图，展示模块间引用与循环依赖。",
+      "layering": "视图型实体：一整张分层视图，按表现/业务/领域/基础设施归置文件。",
+      "inheritance": "视图型实体：一整张继承关系图，展示类型间的派生链。",
+      "interface-impl": "视图型实体：接口与其实现方的对应关系图。",
+      "call-graph": "视图型实体：函数调用图，展示调用方向与深度。",
+      "coroutine-flow": "视图型实体：协程流程图，展示挂起点与并发结构。",
+      "component-tree": "视图型实体：组件树，展示 UI 组件的父子嵌套结构。",
+      "complexity": "视图型实体：复杂度热力图，圈复杂度越高色温越高。",
+      "coupling": "视图型实体：耦合主序图，按扇入扇出定位高耦合文件。",
+      "unsafe-risk": "视图型实体：unsafe 风险视图，聚合标记了 unsafe 的代码位置。",
+      "dependency-edge": "表示两个实体之间的依赖关系连线（import/use 等），循环依赖会被标记。",
+      "layer-marker": "表示架构分层标记，用于在画布上标注表现/业务/领域/基础设施层。",
+      "annotation-text": "表示画布上的标注文本，用于补充说明。",
+      "code-preview": "表示代码预览实体，内嵌展示源文件内容。"
+    }
+  },
+  "ai": {
+    "respondZh": "请使用简体中文回复所有结论、标题与说明。",
+    "respondEn": "Please reply in English for all conclusions, titles and explanations.",
+    "promptContextLabel": "上下文获取方式",
+    "scanHint": {
+      "symbolLookup": "> 需要某个符号的定义、引用或调用链，请用工具 symbol_lookup / impact_assess 精准取，不要全文搜索。"
+    },
+    "dq": {
+      "ok": "可信",
+      "partial": "部分覆盖",
+      "empty": "无对象",
+      "unavailable": "不可用"
+    }
+  },
+  "panel": {
+    "entityInfo": {
+      "title": "实体详情",
+      "selectHint": "选中一个实体查看详情与审查结果",
+      "language": "语言",
+      "path": "路径",
+      "size": "大小",
+      "depCount": "依赖数",
+      "layer": "架构层",
+      "position": "位置",
+      "dimensions": "尺寸",
+      "reviewTitle": "审查结果 ({n})",
+      "suggestion": "建议",
+      "noReview": "暂无审查结果",
+      "depSection": "依赖关系",
+      "depImports": "导入（{n}）",
+      "depImportedBy": "被导入（{n}）",
+      "depDepth": "拓扑深度",
+      "depModule": "所属模块",
+      "depInCycle": "处于循环依赖（环大小 {n}）",
+      "depNotInCycle": "无循环依赖",
+      "depNone": "该文件无依赖关系",
+      "depFocusBtn": "聚焦此文件",
+      "depMore": "等 {n} 个",
+      "depRowHint": "点击在画布定位"
+    },
+    "entityType": {
+      "file": "文件",
+      "folder": "文件夹",
+      "module": "模块",
+      "dependency-edge": "依赖关系",
+      "layer-marker": "架构分层",
+      "annotation-text": "标注文本",
+      "code-preview": "代码预览"
+    },
+    "review": {
+      "title": "审查结果",
+      "prefix": "审查",
+      "severityCritical": "严重",
+      "severityWarning": "警告",
+      "severityInfo": "提示",
+      "suggestion": "建议",
+      "target": "目标",
+      "locateHint": "点击定位到画布",
+      "noResults": "暂无审查结果",
+      "scanHint": "扫描项目后将自动执行代码审查",
+      "notFileOrModule": "审查项「{msg}」的目标不是文件或模块，无法跳转源码",
+      "aiDiagnose": "AI 诊断",
+      "diagnoseNoFile": "审查项「{msg}」无法解析出具体文件，无法发起诊断",
+      "inlineToggle": "内联",
+      "inlineToggleHint": "在编辑器中以行内标记显示按本筛选条件过滤后的审查发现（与面板筛选共享）"
+    },
+    "layers": {
+      "title": "架构分层管理",
+      "newName": "新分层名称",
+      "placeholder": "例如：表现层 / 业务层 / 数据层",
+      "create": "新建",
+      "noTitle": "尚无架构分层",
+      "noHint": "建议先创建表现层、业务层、数据层三类基础分层",
+      "files": "{n} 文件",
+      "close": "关闭",
+      "tip": "提示：创建分层后，扫描的文件可在画布属性面板中归入对应分层。也可以在审查规则中设置 glob pattern（如 src/components/**）自动归类。"
+    },
+    "events": {
+      "title": "事件绑定",
+      "triggerEvent": "触发事件",
+      "targetEntity": "目标实体",
+      "action": "执行动作",
+      "condition": "条件表达式（可选）",
+      "conditionPlaceholder": "例如：${data.value} > 100",
+      "cancel": "取消",
+      "save": "保存",
+      "selectHint": "选择实体后配置事件联动",
+      "add": "添加",
+      "noBindings": "暂无事件绑定",
+      "asSource": "触发事件 ({n})",
+      "asTarget": "被触发 ({n})",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "eventGroup": {
+      "interaction": "交互",
+      "analysis": "分析",
+      "display": "显示",
+      "navigation": "导航",
+      "data": "数据"
+    },
+    "eventLabel": {
+      "onClick": "点击",
+      "onDblClick": "双击",
+      "onMouseEnter": "鼠标进入",
+      "onMouseLeave": "鼠标离开",
+      "onScanComplete": "扫描完成",
+      "onReviewComplete": "审查完成",
+      "onFileChange": "文件变更",
+      "onLayerChange": "分层变更",
+      "onDependencyUpdate": "依赖更新",
+      "highlight": "高亮",
+      "hide": "隐藏",
+      "show": "显示",
+      "toggleVisible": "切换可见",
+      "switchView": "切换视图",
+      "setVariable": "设置变量",
+      "navigate": "打开链接",
+      "setData": "设置数据",
+      "reScan": "重新扫描",
+      "reReview": "重新审查",
+      "updateDependencies": "更新依赖",
+      "exportReport": "导出报告",
+      "notify": "发送通知",
+      "onDataChange": "数据变化",
+      "onThreshold": "阈值越限",
+      "onTimer": "定时触发",
+      "onStateChange": "状态切换",
+      "onFindingsUpdated": "审查更新",
+      "onCircularDependency": "循环依赖",
+      "onLayerChanged": "分层变更(旧)"
+    },
+    "menu": {
+      "operation": "操作",
+      "openInSource": "在源码中打开",
+      "openSymbolDef": "打开符号定义",
+      "openModuleFile": "打开模块内文件",
+      "impactView": "查看影响面（调用者 / 被调用者）",
+      "copy": "复制",
+      "paste": "粘贴",
+      "arrange": "排列",
+      "bringForward": "上移一层",
+      "sendBackward": "下移一层",
+      "bringToFront": "置顶",
+      "sendToBack": "置底",
+      "display": "显示",
+      "lock": "锁定",
+      "unlock": "解锁",
+      "hide": "隐藏",
+      "show": "显示",
+      "danger": "危险",
+      "delete": "删除",
+      "toastOpenCanvas": "从画布打开 {path}",
+      "toastOpenSymbol": "打开符号 {name}（{kind}）定义",
+      "toastOpenModule": "从画布打开模块 {mod} → {file}",
+      "toastOpenEntity": "在源码中定位实体 {name}",
+      "aiDiagnose": "AI 诊断此文件"
+    },
+    "actionLabel": {
+      "navigateToScene": "跳转场景",
+      "navigate": "打开链接",
+      "highlight": "高亮",
+      "hide": "隐藏",
+      "show": "显示",
+      "toggleVisible": "切换可见性",
+      "setData": "设置数据",
+      "toggleData": "切换数据",
+      "setVariable": "设置变量",
+      "switchView": "切换视图",
+      "playSound": "播放声音",
+      "openDialog": "打开对话框",
+      "closeDialog": "关闭对话框",
+      "callApi": "调用接口",
+      "executeScript": "执行脚本",
+      "reanalyze": "重新分析",
+      "reScan": "重新扫描",
+      "runReview": "运行审查",
+      "reReview": "重新审查",
+      "updateDependencies": "更新依赖",
+      "exportReport": "导出报告",
+      "notify": "发送通知",
+      "syncToCanvas": "同步画布"
+    }
+  },
+  "agent": {
+    "brand": "AI助手",
+    "brandSub": "智能分析核心",
+    "sidebar": {
+      "selectAgent": "选择 Agent",
+      "noAgent": "暂无 Agent，请先配置",
+      "openConfig": "打开配置",
+      "newChat": "新建对话",
+      "noConversations": "暂无对话记录",
+      "clickToStart": "点击上方按钮开始新对话",
+      "config": "AI 配置",
+      "panelError": "AI 面板渲染出错: {error}",
+      "retry": "重试"
+    },
+    "welcome": {
+      "greeting": "AI助手",
+      "desc": "选择或创建一个对话，开始与 AI 进行智能交互。支持代码审查、架构分析、影响评估等功能。",
+      "codeReview": "代码审查",
+      "archOpt": "架构优化",
+      "impact": "影响评估"
+    },
+    "chat": {
+      "thinking": "正在思考...",
+      "ready": "就绪",
+      "startMessage": "开始新的对话，输入消息与 AI 交互",
+      "thinkingShort": "思考中...",
+      "placeholder": "输入消息... (Shift+Enter 换行)"
+    },
+    "settings": {
+      "title": "AI 配置",
+      "close": "关闭"
+    },
+    "section": {
+      "provider": "供应商",
+      "endpoint": "端点",
+      "model": "模型",
+      "agent": "Agent",
+      "providerDesc": "管理 AI 服务提供商（OpenAI、Anthropic 等）",
+      "endpointDesc": "配置 API 接入地址和认证方式",
+      "modelDesc": "注册可用的 AI 模型及其参数",
+      "agentDesc": "创建 AI Agent，绑定模型和工具"
+    },
+    "form": {
+      "addProvider": "添加 Provider",
+      "editProvider": "编辑 Provider",
+      "newProvider": "新建 Provider",
+      "noProvider": "暂无 Provider，点击上方按钮添加",
+      "addEndpoint": "添加 Endpoint",
+      "editEndpoint": "编辑 Endpoint",
+      "newEndpoint": "新建 Endpoint",
+      "noEndpoint": "暂无 Endpoint，点击上方按钮添加",
+      "addModel": "添加 Model",
+      "editModel": "编辑 Model",
+      "newModel": "新建 Model",
+      "noModel": "未绑定模型",
+      "addAgent": "添加 Agent",
+      "editAgent": "编辑 Agent",
+      "newAgent": "新建 Agent",
+      "noAgent": "暂无 Agent，点击上方按钮添加",
+      "save": "保存",
+      "cancel": "取消",
+      "enabled": "启用",
+      "disabled": "禁用",
+      "test": "测试",
+      "edit": "编辑",
+      "delete": "删除",
+      "name": "名称",
+      "apiKey": "API Key",
+      "showKey": "显示密钥",
+      "hideKey": "隐藏密钥",
+      "colorLabel": "标识颜色（不选则随机生成）",
+      "apiType": "API 类型",
+      "baseUrl": "Base URL",
+      "authType": "认证方式",
+      "bearer": "Bearer Token",
+      "xApiKey": "X-API-Key",
+      "customHeader": "自定义 Header",
+      "customHeaderName": "自定义 Header 名",
+      "refKey": "Ref Key",
+      "contextWindow": "上下文窗口",
+      "maxTokens": "最大输出 Token",
+      "reasoning": "推理模型",
+      "systemPrompt": "System Prompt",
+      "temperature": "Temperature: {value}",
+      "maxIterations": "最大迭代次数",
+      "enableTools": "启用工具",
+      "runCommandWarning": "已启用 run_command：该助手可在项目目录执行真实终端命令。已启用危险命令黑名单 + 超时保护，但仍请谨慎——仅在你信任的助手上开启。",
+      "noKey": "未配置 Key",
+      "unknown": "未知",
+      "testFailed": "失败: {msg}",
+      "args": "参数",
+      "result": "结果",
+      "defaultSystemPrompt": "你是 Sight Folio 的 AI 助手，帮助用户分析代码架构、解释审查结果、评估变更影响。",
+      "desc": "描述",
+      "customColor": "自定义颜色",
+      "reasoningShort": "推理",
+      "toolCount": "{n} 工具",
+      "tools": {
+        "code_search": "代码搜索",
+        "file_read": "文件读取",
+        "symbol_lookup": "符号查找",
+        "architecture_query": "架构查询",
+        "review_explain": "审查解释",
+        "impact_assess": "影响评估",
+        "project_context": "项目上下文",
+        "context_insight": "洞察沉淀",
+        "scan_records": "扫描记录",
+        "apply_change": "应用代码修改（写回文件，自动备份 .bak）",
+        "run_command": "运行命令（高危）"
+      }
+    },
+    "tool": {
+      "running": "执行中",
+      "done": "完成",
+      "error": "失败",
+      "denied": "已拒绝"
+    },
+    "panel": {
+      "chat": "对话",
+      "config": "配置",
+      "noAgent": "暂无 AI Agent",
+      "configHint": "请先在「配置」标签中添加 Provider、Model 和 Agent"
+    }
+  },
+  "severity": {
+    "critical": "严重",
+    "high": "高",
+    "medium": "中",
+    "low": "低",
+    "info": "提示",
+    "warning": "警告"
+  },
+  "aiPanel": {
+    "assistantBtn": "AI 助手",
+    "openAssistant": "打开 AI 助手",
+    "diagnoseSelected": "诊断选中文件",
+    "diagnoseSelectedHint": "在画布中选中一个文件后可一键诊断",
+    "diagnoseFile": "AI 诊断此文件",
+    "kind": {
+      "finding": "发现",
+      "recommendation": "建议",
+      "risk": "风险",
+      "summary": "综述",
+      "roadmap": "路线图",
+      "fallback": "结论"
+    },
+    "freshness": {
+      "current": "当前",
+      "stale": "已过期",
+      "orphaned": "已失联",
+      "unanchored": "无锚点",
+      "unknown": "未知"
+    },
+    "insights": {
+      "title": "AI 洞察",
+      "pending": "{n} 条待处理结论",
+      "resolved": "{n} 条已解决",
+      "empty": "Agent 分析后的结论会沉淀在这里",
+      "emptyNoScope": "请先选择或扫描一个项目分析。",
+      "canvasOn": "画布上正在标注被 AI 点名的文件与目录（点此关闭）",
+      "canvasOff": "在画布上标注被 AI 点名的文件与目录",
+      "refresh": "刷新洞察",
+      "filterEmpty": "当前筛选下没有洞察，点上方标签切换或选「全部」。",
+      "unresolvedTip": "未能对齐到实体的引用：",
+      "unresolvedCount": "{n} 条引用未能定位到具体文件（路径歧义或已删除），未在画布上标注",
+      "refPositions": "{n} 处位置",
+      "confirmedTimes": "确认 {n} 次",
+      "confirmedTip": "该结论已被多轮分析反复确认（去重沉淀，非重复新建）",
+      "stableLine": "稳定结论 · 首次 {first} · 最近 {last}",
+      "evidenceChanged": "证据已变化（需复核）：",
+      "evidenceGone": "证据已消失：",
+      "morePlaces": " 等 {n} 处",
+      "locateCanvas": "画布定位",
+      "locateCanvasTip": "在画布中框选这条洞察涉及的所有实体",
+      "openSourceTip": "打开源码并定位",
+      "resolvedAt": "已解决 · {time}",
+      "resolvedBy": " · 由 {name}",
+      "noReason": "（未记录理由）",
+      "resolvePlaceholder": "写明你在当前代码里核实到了什么，例如：重复实现已合并到 src/config/load.ts",
+      "confirmBtn": "确认",
+      "markResolved": "标记已解决",
+      "markResolvedTip": "复核后确认这条结论已经不成立：它会退出列表与画布角标，但保留备查；若问题再次出现，Agent 重新保存即自动重开",
+      "refLocateToast": "AI 洞察引用位置"
+    },
+    "verify": {
+      "resolved": "已自动核验并收口 {n} 条诊断洞察"
+    },
+    "filter": {
+      "all": "待处理",
+      "review": "待复核",
+      "current": "证据未变",
+      "unanchored": "无锚点",
+      "unknown": "无从比对",
+      "resolved": "已解决",
+      "allTip": "全部未收口的结论",
+      "resolvedTip": "已复核关闭的结论（保留备查，不再上画布）",
+      "only": "只看「{label}」"
+    },
+    "outcome": {
+      "pending": "进行中",
+      "completed": "有产出",
+      "noOutput": "无结论",
+      "error": "对话失败",
+      "interrupted": "已中断"
+    },
+    "reason": {
+      "ok": "数据已变",
+      "auto": "自动",
+      "manual": "手动",
+      "rotateGap": "补维度",
+      "focusGap": "补文件",
+      "regressionGap": "追责劣化",
+      "recheckGap": "补复核",
+      "gapBacklog": "补欠账",
+      "unchanged": "数据未变",
+      "cooling": "冷却中",
+      "busy": "对话占用",
+      "disabled": "已停用",
+      "triggerMismatch": "触发不符",
+      "moduleMismatch": "模块不符",
+      "scopeMismatch": "作用域不符",
+      "agentMissing": "Agent 缺失",
+      "agentNoTool": "未授权工具",
+      "noProvider": "无供给者",
+      "noData": "无上下文",
+      "noPreset": "预设缺失",
+      "buildFailed": "构建失败"
+    },
+    "coverage": {
+      "never": "未分析",
+      "staleData": "已过期",
+      "staleTime": "待复看",
+      "fresh": "新鲜"
+    },
+    "coverageDetail": {
+      "never": "从未分析过这个维度",
+      "fresh": "{age}分析过，依据的数据与当前一致",
+      "staleData": "{age}分析过，但之后数据已更新，结论可能已对不上当前代码",
+      "staleTime": "{age}分析过；数据未变，但已超过 {hours} 小时",
+      "noDigest": "{age}分析过（该轮未记录数据指纹，无法判断是否过期）"
+    },
+    "time": {
+      "days": "{n} 天",
+      "hours": "{n} 小时",
+      "minutes": "{n} 分钟",
+      "agoMinutes": "{n} 分钟前",
+      "agoHours": "{n} 小时前",
+      "agoDays": "{n} 天前"
+    },
+    "timeNever": "从未",
+    "auto": {
+      "title": "扫描后自动分析",
+      "activeCount": "{n} 条生效",
+      "desc": "数据更新后自动交给指定 Agent 解读，结论沉淀到洞察列表。冷却与指纹去重可防止频繁重扫反复消耗 token。",
+      "noRules": "尚未配置规则——目前每次扫描完都需要手动发起分析。",
+      "agentDeleted": "（Agent 已删除：{id}）",
+      "deleteRule": "删除规则",
+      "agentLabel": "执行 Agent",
+      "noContextTool": "（未启用上下文工具）",
+      "presetLabel": "分析预设",
+      "rotateOption": "自动轮转（每轮补最缺的维度）",
+      "rotateTip": "每次触发时查一次覆盖台账：优先补「从未分析」的维度，其次是「数据已变、结论过期」的，跑上几轮各个方面就都被看过一遍。",
+      "triggerLabel": "触发时机",
+      "triggerFull": "仅全量扫描后",
+      "triggerIncremental": "含文件变更重扫",
+      "cooldownLabel": "冷却(分)",
+      "skipUnchanged": "内容未变时跳过",
+      "scopeAll": "对所有分析生效",
+      "saveRule": "保存规则",
+      "errSelectAgent": "请选择一个已配置的 Agent",
+      "errNoTool": "Agent「{name}」未启用 {tool} 工具，自动分析会失败",
+      "checkNone": "巡检完成：当前没有需要补跑的分析",
+      "checkFailed": "巡检失败：{msg}",
+      "coverageHeader": "分析维度覆盖（{fresh}/{total} 仍新鲜{never}）",
+      "coverageHeaderNever": " · {never} 个从未分析",
+      "nextGap": "下一个最该补的维度：{title}。配「自动轮转」规则可由系统按此顺序自动补齐。",
+      "runsTitle": "运行轨迹（{n}）",
+      "checkNow": "立即检查",
+      "checking": "检查中…",
+      "checkNowTip": "立刻巡检一次：把因冷却 / Agent 忙碌而错过的那一轮补上（没有欠账时什么也不做）",
+      "runsEmpty": "暂无记录。扫描完成后这里会显示每次判定结果（含跳过原因）；调度心跳每 {n} 分钟还会自动补跑一次错过的分析。",
+      "triggerAny": "全量+增量",
+      "triggerOnlyFull": "仅全量扫描",
+      "cooldown": "冷却 {n} 分",
+      "skip": "内容未变跳过",
+      "noDedup": "不去重",
+      "scopeThis": "仅本分析",
+      "scopeAllAnalysis": "所有分析",
+      "lastRun": "上次 {time}",
+      "coverageAllFresh": "各维度结论均与当前数据一致，暂时不需要重跑。",
+      "reasonTitle": "判定原因：{reason}",
+      "newRule": "新增自动分析规则",
+      "rotateBase": "自动轮转",
+      "rotateNext": "（下一个：{title}）"
+    },
+    "diagnose": {
+      "convTitle": "诊断：{title}",
+      "started": "已发起 AI 诊断：{title}",
+      "noAgent": "尚未配置 AI Agent，请先在设置中创建",
+      "noAnalysis": "当前没有已加载的分析，无法发起诊断",
+      "enabledTools": "已为该 Agent 启用诊断所需工具：{tools}"
+    },
+    "autoDetail": {
+      "disabled": "规则已停用",
+      "moduleMismatch": "规则监听模块 {rule}，本次来自 {ctx}",
+      "scopeMismatch": "规则仅对作用域 {scope} 生效",
+      "triggerMismatch": "规则设定为「仅全量扫描后」触发，本次为增量重扫",
+      "cooling": "冷却中，还需 {left} 分钟（窗口 {window} 分钟）",
+      "rotateGap": "上下文未变化，但仍有维度从未分析过，本轮用于补齐",
+      "regressionGap": "上下文未变化，但有文件相对上一次扫描明显变坏，本轮用于追责",
+      "focusGap": "上下文未变化，但共振榜上仍有文件从未被巡查，本轮用于点名补齐",
+      "recheckGap": "上下文未变化，但已有结论依据的代码已改动，本轮用于复核",
+      "unchanged": "上下文内容指纹与上次一致，跳过重复分析",
+      "ok": "满足触发条件",
+      "rotateNote": "轮转补齐：{title}（{detail}）",
+      "revisitNote": "各维度均新鲜，复看最久未分析的：{title}"
+    },
+    "focus": {
+      "title": "多维共振",
+      "resonantFiles": "{n} 个共振文件",
+      "noResonance": "无共振",
+      "resonantTip": "在 {scored} 个有风险信号的文件中，{resonant} 个在 ≥2 个维度同时高位",
+      "patrolLabel": "巡查 {patrolled}/{total}",
+      "patrolTipBase": "共振榜 {total} 个目标中，{patrolled} 个已派单巡查且数据未变、{stale} 个数据已变待复巡、{never} 个从未被点名",
+      "patrolTipRecheck": "、{recheck} 个已有 AI 结论但结论依据的代码之后被改过（待复核：可能已修复，也可能已恶化）",
+      "patrolTipRegressed": "、{regressed} 个相对上一次扫描明显变坏且尚未追责（再扫一次就会滚进基线，届时查不到了）",
+      "patrolTipFailed": "、{failed} 个点名后对话失败（实际未被巡查，会重新排队{exhausted}）",
+      "patrolTipExhausted": "；其中 {exhausted} 个已达重试上限，请检查 Agent 配置",
+      "patrolTipEnd": "。自动分析每轮优先复核过期结论，其次点名从未被巡查过的目标。",
+      "introResonant": "全量交叉（非 Top-N 求交集）：{scored} 个文件有风险信号，其中 {resonant} 个在 ≥2 维度同时高位；参与维度 {dims} 个，高位 = 前 {hot} 名。共振维度数比综合分更可信。",
+      "introSingle": "暂无多维共振目标（{scored} 个有信号文件中没有 ≥2 维度同时高位的）。下方为单维热点：",
+      "recheckTip": "{recheck} 个目标的既有 AI 结论，其依据的代码在结论给出后又被改过 —— 下一轮自动分析会优先复核（逐条判定已修复 / 仍存在 / 已恶化），无需手动干预。",
+      "regressedTip": "{regressed} 个目标相对上一次扫描明显变坏，尚未追责 —— 下一轮会带着「哪一维、从多少到多少」去问；再扫一次这笔劣化就滚进基线，届时无从追问。",
+      "blankTip": "{blank} 个目标尚无 AI 结论，其中排名最前的是 {path}（{reso} 维共振）—— 下方选预设发起一次分析，或检查自动规则是否总在别处打转。",
+      "dimsCount": "{n} 维",
+      "toAnalyze": "待分析",
+      "noConclusionTip": "该目标目前没有任何现存 AI 结论（已收口的不计）。若它长期空白，说明历次分析没被引导到这里。",
+      "aiCount": "AI {n}",
+      "aiConclusionTip": "已有 {count} 条 AI 结论（最高 {sev}）：{titles}",
+      "scoreTip": "加权分位综合分（仅用于同共振数内部排序，共振数优先）",
+      "cooccurrenceTitle": "系统性病灶（哪两类问题总落在同一文件）",
+      "cooccurrenceItem": "· {a} × {b}：{count} 个文件共现",
+      "blindSpots": "盲区（{labels}）未参与打分，其共振看不见——不等于没有。",
+      "dimTip": "{label}：本维度分位 P{pct}（分母含零值文件），绝对名次第 {rank} 名",
+      "dimInline": "{label} {value}{unit}(第{rank}名)"
+    },
+    "trend": {
+      "title": "指标走势",
+      "verdict": {
+        "improving": "在变好",
+        "regressing": "在变坏",
+        "mixed": "有升有降",
+        "flat": "基本持平",
+        "insufficient": "首次基线"
+      },
+      "direction": {
+        "improved": "改善",
+        "worsened": "恶化",
+        "flat": "持平",
+        "moved": "变动",
+        "incomparable": "不可比"
+      },
+      "firstTip": "这是第一个时间点，还没有可比的历史。下次扫描后即可给出变化——注意这不等于「指标没有变化」。",
+      "compareTip": "与 {when} 的基线相比（间隔 {span}）：改善 {improved} 项、恶化 {worsened} 项、不可比 {incomparable} 项。库内共 {points} 个时间点。",
+      "worsenedTip": "上一轮之后有 {n} 个{label}变坏了。这是全项目最值得先看的一批——它们刚被改动过，改动内容还在最近的提交里，追问成本最低。再扫一次这笔劣化就滚进基线，届时无从追问。",
+      "worsenedCount": "{n} 个变坏",
+      "incomparableTip": "这些项的基线或本次是维度盲区，数值变化没有意义——不要读成改善",
+      "incomparableCount": "{n} 项不可比",
+      "firstIntro": "本次已建立第一个基线（当前数值已入库）。下一次扫描起，这里会逐项给出变化方向与幅度。现在还没有任何走势结论可下。",
+      "intro": "{when1} → {when2}（间隔 {span}，库内 {points} 个时间点）。带密度的指标按密度判方向，项目长大导致的总量增长不算恶化。",
+      "dirDensity": "密度 {from} → {to}（{unit}），按密度判定方向",
+      "dirAbs": "按绝对值判定方向",
+      "whoRegressed": "谁在变坏",
+      "entityDefault": "对象",
+      "appearedTip": "首次进入榜单的对象。它们没有可比的上一轮取值，不算「变坏」——把新增混进恶化，等于每加一个功能就刷一屏假警报。",
+      "appeared": "新上榜 {n}",
+      "removedTip": "这一轮不存在了（被删除或重命名）。删文件不是质量改善，所以只记数、不计入改善项。",
+      "removed": "已消失 {n}",
+      "noWorsened": "上一轮之后没有对象变坏（榜单本身有增减）。",
+      "regressedReasonDefault": "较上一轮变坏",
+      "dimChangeOne": "{label} {from}{unit} → {to}{unit}",
+      "scoreIncomparable": "两端可用维度不同，综合分不可比，仅按原始维度判定。",
+      "moreRows": "还有 {n} 个，完整队列见焦点面板",
+      "blindDims": "盲区维度（只在一端可用，未参与判定）：{labels}",
+      "levelOf": "{label}级"
+    },
+    "quality": {
+      "title": "数据可信度",
+      "hint": {
+        "ok": "各分析维度均有数据，AI 的结论可以直接采信。",
+        "partial": "部分维度只覆盖了一部分对象，AI 的结论仅在覆盖范围内成立。",
+        "empty": "部分维度在本项目没有可分析对象，属正常情况。",
+        "unavailable": "存在数据盲区：这些维度的「未发现问题」是没查到，不是没问题。"
+      },
+      "blind": "{n} 个盲区",
+      "partialCov": "{n} 项部分覆盖",
+      "allOk": "全维度可信",
+      "status": {
+        "ok": "可信",
+        "partial": "部分",
+        "empty": "无对象",
+        "unavailable": "盲区"
+      },
+      "caveat": "禁止据此断言：{caveat}",
+      "dimTrusted": "{n} 条记录，可直接采信",
+      "blindNote": "盲区维度已随上下文一并告知 AI，它会显式声明未知而不是给出「没问题」。"
+    },
+    "launcher": {
+      "needAgent": "深度分析需要先配置 AI Agent",
+      "openConfig": "打开 AI 配置",
+      "title": "项目扫描深度分析",
+      "subtitle": "用已配置的 Agent 解读扫描数据",
+      "agentLabel": "AI Agent",
+      "analysisLabel": "分析对象",
+      "noAnalysis": "暂无分析",
+      "presetTitle": "分析预设",
+      "groupDiagnose": "问题诊断",
+      "groupRequirements": "需求与演进",
+      "warnNoTool": "「{name}」未启用 {tool} 工具，将无法加载扫描上下文。请在 Agent 配置中开启该工具。",
+      "enableBtn": "去启用",
+      "tipInsight": "提示：启用「洞察沉淀」工具后，Agent 的结论会自动写回本次分析，可在洞察列表中查看并跳转到代码。",
+      "tipRecords": "提示：分节明细只给各维度 Top-N。启用「扫描记录」工具后，Agent 可按条件下钻全量原始记录（技术债、克隆、热点、耦合、度量等），结论才能给出准确的全局数量。",
+      "launching": "正在发起深度分析...",
+      "launch": "开始深度分析",
+      "noScanHint": "请先在分析页完成一次扫描，再回来发起深度分析",
+      "warnStaleData": "扫描数据可能不是最新（最后扫描于 {last}），之后项目已变更 {added} 新增 / {removed} 删除 / {modified} 改动 个文件。AI 将基于过时快照作答，建议先重新扫描。",
+      "rescanBtn": "重新扫描"
+    },
+    "patrol": {
+      "never": "从未巡查",
+      "failed": "派单失败",
+      "recheck": "待复核",
+      "regressed": "刚变坏",
+      "staleData": "待复巡",
+      "patrolled": "已巡查"
+    }
+  },
+  "editor": {
+    "unknownEntityType": "未知实体类型: {type}",
+    "chainSide": {
+      "root": "选中",
+      "upstream": "受我影响",
+      "downstream": "我所依赖",
+      "both": "双向（环）"
+    },
+    "chainJump": "{label} · 第 {depth} 跳",
+    "drillFold": "折叠模块内部结构",
+    "drillExpand": "展开模块内部结构（文件 + 内部依赖）",
+    "drillCollapsed": "已折叠模块子图（移除 {n} 个实体）",
+    "drillNoSub": "该模块没有展开的子图",
+    "drillUnknown": "无法识别该实体对应的模块",
+    "patternNoFile": "该设计模式命中没有关联到具体文件，无法打开源码",
+    "drillNoFiles": "模块「{name}」下没有可展开的文件（请先扫描项目）",
+    "drillPersistFail": "子图落库失败（画布未就绪）",
+    "drillExpanded": "模块「{name}」已展开：{files} 个文件 · {edges} 条内部依赖{trunc} · {ext} 条外部耦合",
+    "drillTrunc": "（共 {total} 条，按权重取前 {shown}）",
+    "heatHover": "**{name}** · 圈复杂度 {cc}",
+    "deadHover": "死代码：{name}（{confidence}）{reason}",
+    "cloneType2": "参数化克隆",
+    "cloneVerbatim": "逐字重复",
+    "cloneHover": "克隆片段 · 本组 {n} 处 · {type}{snippet}",
+    "deadMark": "未被引用：{name}（{reason}）",
+    "cloneMark": "重复代码 {n} 行（同组 {m} 处）",
+    "moduleWorstFile": "模块「{moduleName}」下问题最集中的文件",
+    "codePreviewPlaceholder": "// 选择文件后显示代码",
+    "annotationGroup": "分组",
+    "annotationDemo": "示例标注文本",
+    "schemaNotSet": "未设置",
+    "schemaOn": "✓ 开启",
+    "schemaOff": "✗ 关闭",
+    "schemaNoFile": "未选择文件",
+    "schemaCustom": "自定义组件",
+    "schemaConfig": "配置",
+    "schemaNoConfig": "暂无配置项",
+    "drillFrameTitle": "模块下钻 · {name}",
+    "drillFrameText": "{name}　内部结构（{files} 文件 · {deps} 内部依赖 · {ext} 外部耦合）",
+    "scanningTitle": "正在扫描项目结构…",
+    "syncingTitle": "正在将文件结构同步到画布…",
+    "scanStage": "当前阶段：{stage}",
+    "scanProgress": "{scanned} / {total} 文件 · {pct}%",
+    "toastOpenSymbolShort": "打开符号 {name} 定义",
+    "placeEntity": "放置实体",
+    "chainDepthTip": "影响链传播跳数：改动选中实体会沿调用/依赖关系波及多远。点击循环 1→2→3→关",
+    "chainOn": "影响链 · {depth} 跳",
+    "chainOff": "影响链 · 关",
+    "impactSymbol": "符号级",
+    "impactFile": "文件级",
+    "impactSymbolTip": "基于函数调用图传播，精确到具体函数",
+    "impactFileTip": "调用图未覆盖该文件，已降级为文件级 import 传播",
+    "prunedLabel": "剪枝 {n}",
+    "prunedTip": "数据流分析发现 {n} 处「吃进去不吐出来」的函数（如只做日志/断言），污染在此终止，其上游未再展开 —— 影响面比纯调用可达更贴近真实",
+    "testImpactLabel": "回归 {n} 个测试 · 点击展开命令",
+    "noTestCoverage": "影响面内无测试覆盖",
+    "testImpactTip": "这次改动的影响面里没有任何测试文件，改完没有回归保护",
+    "tiaAlert": "这次改动的影响面里没有任何测试文件 —— 改完没有回归保护，建议先补测试。",
+    "tiaTitle": "测试影响分析（TIA）· 仅跑影响面内 {n} 个用例",
+    "copyCmdOk": "已复制 {label} 命令",
+    "copyCmdFail": "{label} 命令复制失败",
+    "copy": "复制",
+    "copyAllOk": "已复制全部回归命令",
+    "copyFail": "复制失败",
+    "allCommands": "全部命令",
+    "ciScriptOk": "已复制 CI 脚本（bash）",
+    "ciScript": "CI 脚本",
+    "ghActionsOk": "已复制 GitHub Actions 步骤",
+    "lodCompactTip": "简卡模式：缩放较小，实体显示名称与目录路径（放大到 65% 以上恢复完整卡片）",
+    "lodBlockTip": "色块模式：缩放很小，实体只画色块以保证全览流畅（放大到 32% 以上恢复简卡）",
+    "lodCompact": "简卡",
+    "lodBlock": "色块",
+    "fit": "适应",
+    "emptyTitle": "画布还是空的",
+    "emptySyncedHint": "项目已扫描，点击下方按钮将文件结构同步到画布",
+    "emptyUnsyncedHint": "先选择项目根目录并执行扫描，分析完成后即可同步到画布",
+    "syncNow": "立即同步到画布",
+    "searchNoMatch": "画布中没有名称含「{q}」的实体",
+    "searchUnsynced": "尚未同步到画布，请先点「同步到画布」",
+    "dirSortSize": "规模",
+    "dirSortName": "名称",
+    "dirSortPath": "路径",
+    "dirSortView": "目录排序",
+    "dirSortToast": "已按「{label}」重排目录排序视图",
+    "exportJsonOk": "JSON 报告已成功导出",
+    "exportSvgOk": "SVG 架构画像已成功导出",
+    "exportOk": "报告已成功导出",
+    "exportFail": "导出报告失败",
+    "savedOk": "已保存",
+    "saveFail": "保存失败",
+    "noAnalysis": "请先在左侧选择一个项目分析",
+    "undo": "撤销 (Ctrl+Z)",
+    "redo": "重做 (Ctrl+Y)",
+    "save": "保存",
+    "hideFiles": "隐藏文件",
+    "showFiles": "显示文件（双击目录可下钻查看子树）",
+    "filesShown": "已显示文件叶子（双击目录可在旁下钻子树）",
+    "filesHidden": "已隐藏文件叶子",
+    "searchDirTip": "在目录树中搜索目录（按路径匹配，命中项高亮、其余淡显）",
+    "searchDirPlaceholder": "搜索目录…",
+    "sortDimTip": "排序维度：当前「{label}」（点击切换）",
+    "collapseLeft": "收起实体面板",
+    "expandLeft": "展开实体面板",
+    "published": "已导出",
+    "exportReport": "导出分析报告",
+    "htmlReport": "HTML 报告",
+    "htmlReportDesc": "可视化，浏览器直接打开",
+    "jsonReport": "JSON 报告",
+    "jsonReportDesc": "结构化数据，含符号/引用/度量/技术债",
+    "svgReport": "SVG 架构画像",
+    "svgReportDesc": "一屏可视化架构分层与依赖",
+    "pluginMain": "主插件：{name} v{version}（另有 {count} 个已激活插件）",
+    "pluginAnalyzer": "分析器插件：{name} v{version}",
+    "unsaved": "未保存",
+    "notExported": "未导出",
+    "tabDetails": "详情",
+    "tabReview": "审查",
+    "tabLayers": "分层",
+    "tabHealth": "健康",
+    "tabImpact": "影响面",
+    "tabAi": "AI 助手",
+    "layerTitle": "架构分层",
+    "noLayers": "暂无分层，扫描项目后自动生成",
+    "fileCount": "{n} 文件",
+    "manageLayers": "管理分层",
+    "statusLang": "语言: {lang}",
+    "statusEntities": "实体: {n}",
+    "statusViolations": "规则违规: {n}",
+    "statusCritical": "（严重 {n}）",
+    "statusModules": "模块: {m} / 文件: {f}",
+    "statusLayers": "分层: {n}",
+    "statusHint": "选中实体可高亮依赖子图 · 双击打开源码 · 拖拽移动",
+    "chainJumpShort": "第 {d} 跳",
+    "testItem": "{depth} 跳 · {path}",
+    "zoomOut": "缩小",
+    "zoomIn": "放大",
+    "fitCanvas": "适应画布",
+    "actualSize": "按 1:1 实际大小显示",
+    "gridSize": "网格",
+    "canvasResized": "画布尺寸已变更：{w} × {h} · 当前缩放 {s}%",
+    "drillFail": "模块下钻失败，请查看控制台",
+    "category": {
+      "basic": "基础组件",
+      "chart": "图表组件",
+      "line-chart": "折线图",
+      "map": "地图组件",
+      "media": "媒体组件",
+      "decoration": "装饰组件",
+      "decoration-title": "标题栏",
+      "custom": "自定义组件"
+    },
+    "searchSymbolTip": "在代码结构画像内按符号名过滤（输入即重画）",
+    "searchSymbolPlaceholder": "过滤符号…",
+    "resizePanel": "拖拽调整面板宽度",
+    "depLayoutForce": "聚簇",
+    "depLayoutLayered": "分层",
+    "depFilterAll": "全部",
+    "depFilterCycles": "仅环",
+    "depFilterCross": "跨模块",
+    "depOverview": "总览",
+    "depFilterEmpty": "当前筛选无匹配实体（依赖图中没有环 / 跨模块边），已恢复全图显示",
+    "depFocusResetTip": "当前为文件焦点高亮（全局图保留，点左侧项目树任意文件可切换焦点），点此返回纯 top-90 总览",
+    "depFocusActive": "焦点",
+    "quadFocus": "已聚焦「{zone}」象限：高亮该象限全部文件，其余淡化",
+    "quadFocusReset": "已复位象限聚焦，回到全局散点图",
+    "quadFocusActive": "聚焦",
+    "quadFocusResetTip": "当前为象限聚焦（该象限文件高亮、其余淡化），点此回到全局四象限散点图",
+    "quadOverview": "象限复位",
+    "quadZoneCount": "该象限 {n} 个文件",
+    "depEdgeClick": "依赖边：{from} → {to}{symbols}",
+    "couplingFilterAll": "全部",
+    "couplingFilterHidden": "仅隐性",
+    "couplingFilterHighRisk": "仅高风险",
+    "couplingFilterCrossModule": "仅跨模块",
+    "couplingWindowAll": "全量",
+    "couplingWindowM3": "近 3 月",
+    "couplingWindowM6": "近 6 月",
+    "couplingWindowY1": "近 1 年",
+    "couplingOverview": "总览",
+    "couplingFocusResetTip": "返回全图（清空焦点）",
+    "couplingFocusActive": "焦点",
+    "couplingLayoutForce": "力导向",
+    "couplingLayoutCluster": "按模块",
+    "callChainExpanded": "已展开 {name} 的调用链：+{n} 个多跳符号（再次单击收起）",
+    "callChainCollapsed": "已收起 {name} 的调用链展开",
+    "callChainNoMore": "{name} 无更多跨文件调用邻居可展开"
+  },
+  "filesPanel": {
+    "markerTODO": "待办",
+    "markerFIXME": "缺陷",
+    "markerHACK": "临时",
+    "markerXXX": "存疑",
+    "markerOPTIMIZE": "优化",
+    "markerDEPRECATED": "弃用",
+    "complexity": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "extreme": "极高"
+    },
+    "ccEstimated": "圈复杂度 {cc}（{level}）· 行级估算，未做语法解析",
+    "ccHotFunction": "\n最复杂函数：{fn}()，CC {cc}",
+    "ccAst": "圈复杂度 {cc}（{level}）· AST 精确解析\n{count} 个函数，最大嵌套 {nesting} 层{hot}",
+    "marker": {
+      "TODO": "待办",
+      "FIXME": "缺陷",
+      "HACK": "临时",
+      "XXX": "存疑",
+      "OPTIMIZE": "优化",
+      "DEPRECATED": "弃用"
+    },
+    "emptyTitle": "暂无项目文件",
+    "emptyHint": "请在顶部选择项目根目录并执行扫描",
+    "noScopeHint": "（先在左侧选择项目分析）",
+    "totalFiles": "共 {n} 个文件",
+    "focusLang": " · 聚焦 {lang}",
+    "onlyLang": "仅 {lang}",
+    "expand": "展开",
+    "collapse": "折叠",
+    "viewSourceTip": "点击文件查看源码（问题行已标注）",
+    "canvasSync": "，画布同步定位",
+    "langFocusing": "（语言聚焦中）",
+    "nodeTip": "{path}（点击查看源码{cc}）",
+    "nodeTipCc": " · 圈复杂度 {cc}",
+    "clonesTip": "{n} 处重复代码片段",
+    "symbolsTip": "{n} 个符号（类/函数/接口）",
+    "findingsTip": "{n} 项审查发现",
+    "techDebtTip": "{n} 处技术债标记（TODO/FIXME 等）",
+    "browseToast": "文件浏览 · {path}"
+  },
+  "viewTab": {
+    "templateLabel": "{name} · 视角模板",
+    "newView": "新建视图",
+    "customView": "自定义视图",
+    "customViewDesc": "空白画布，自由编辑",
+    "noPortraitToast": "视角「{name}」暂无对应画像（模板 type={type}），画布为空，可用顶部「更多画像」手动出图",
+    "viewN": "视图 {n}",
+    "nameExists": "名称已存在",
+    "addViewTip": "添加视图（支持插件视角模板）",
+    "deleteTitle": "删除视图",
+    "deleteConfirm": "确定要删除视图\"{name}\"吗？该视图中的所有组件将被删除，此操作不可撤销。",
+    "cancel": "取消",
+    "delete": "删除",
+    "defaultView": "目录树",
+    "defaultLayer": "默认图层"
+  },
+  "leftPanel": {
+    "capScan": "扫描",
+    "capDeps": "依赖",
+    "capRules": "规则",
+    "capRender": "渲染",
+    "symbolKind": {
+      "class": "类",
+      "function": "函数",
+      "interface": "接口",
+      "struct": "结构体",
+      "enum": "枚举",
+      "trait": "特征",
+      "type_alias": "类型别名",
+      "module": "模块",
+      "const": "常量"
+    },
+    "sev": {
+      "critical": "严重",
+      "warning": "警告",
+      "info": "提示"
+    },
+    "marker": {
+      "TODO": "待办",
+      "FIXME": "缺陷",
+      "HACK": "临时方案",
+      "XXX": "存疑",
+      "OPTIMIZE": "待优化",
+      "DEPRECATED": "已弃用"
+    },
+    "highlightNotSynced": "命中的文件/模块尚未同步到画布，请先点「同步到画布」",
+    "highlighted": "已在画布高亮 {n} 个实体（视野已收敛到命中集合）",
+    "symbolOpen": "{kind} {name}",
+    "refOpen": "引用 {name}{text}",
+    "reviewOpen": "审查：{msg}",
+    "reviewNotTarget": "审查项「{msg}」的目标不是文件或模块，无法跳转",
+    "deadOpen": "未被引用：{name} —— {reason}",
+    "cloneOpen": "重复代码 {lines} 行{others}",
+    "cloneOthers": " · 另见 {others}",
+    "cloneStart": "重复片段起始（{lines} 行）",
+    "cloneEnd": "重复片段结束",
+    "couplingOpen": "与 {file} 共变 {n} 次（{cross}{kind}耦合）",
+    "couplingCross": "跨模块 ",
+    "couplingHidden": "隐性",
+    "couplingStruct": "结构",
+    "statModules": "模块 {n}",
+    "statFiles": "文件 {n}",
+    "statSymbols": "符号 {n}",
+    "statRefs": "引用 {n}",
+    "statRefsTip": "符号级引用点总数（import 语句匹配到的符号引用）",
+    "statHighRisk": "高风险 {n}",
+    "statHighRiskTip": "圈复杂度为高/极高的文件数（复杂度热力图）",
+    "statFindings": "发现 {n}",
+    "statDead": "死代码 {n}",
+    "statDeadTip": "零引用符号数（死代码检测：从未被任何代码引用）",
+    "statClones": "重复 {n}",
+    "statClonesTip": "克隆组数（重复代码检测）；可消除冗余约 {n} 行",
+    "statCoupling": "耦合 {n}",
+    "statCouplingTip": "变更耦合（无静态依赖却总一起改的隐式架构耦合）：{hidden} 处隐性 / {cross} 处跨模块",
+    "searchPlaceholder": "搜索模块 / 符号 / 发现 / 路径…",
+    "searchAria": "搜索分析结果",
+    "clearSearch": "清除搜索",
+    "highlightTip": "把搜索命中的文件/模块在画布上批量高亮，并把视野收敛到它们",
+    "groupModules": "模块",
+    "groupTree": "项目树",
+    "treeCount": "{dirs} 目录 · {files} 文件",
+    "noMatchTree": "无匹配的文件或目录",
+    "projectTreeHint": "单击展开/选中 · 双击关联右侧画布 · 右键复制路径",
+    "locateFileAutoShown": "已开启目录树「显示文件」并定位到 {name}",
+    "locateFallbackAncestor": "「{name}」未在画布单独渲染，已定位到最近的已渲染目录「{dir}」",
+    "locateMissing": "当前画布视图未渲染「{name}」对应的实体",
+    "locateFocusHighlight": "已在依赖图中高亮「{name}」的 1 跳依赖邻居（节点+边点亮，其余淡化但保留在画布上，未重绘）",
+    "groupSymbols": "代码结构",
+    "groupFindings": "审查发现",
+    "groupTechDebt": "技术债",
+    "groupDead": "死代码",
+    "groupClones": "重复代码",
+    "groupCoupling": "变更耦合",
+    "groupTypes": "实体类型（拖拽）",
+    "noModules": "暂无模块（检测依赖后生成）",
+    "noMatchModules": "无匹配模块",
+    "noSymbols": "暂无符号（结构分析在扫描后自动执行）",
+    "noMatchSymbols": "无匹配符号",
+    "noFindings": "暂无审查发现",
+    "noMatchFindings": "无匹配的审查发现",
+    "noTechDebt": "暂无技术债标记（TODO/FIXME/HACK 等）",
+    "noMatchTechDebt": "无匹配的技术债标记",
+    "noDead": "暂无零引用符号（死代码检测在扫描后自动执行）",
+    "noMatchDead": "无匹配的零引用符号",
+    "noClones": "未检测到重复代码块（克隆检测在扫描后自动执行）",
+    "noCoupling": "暂无变更耦合（需在 git 仓库中扫描，分析“总一起改”的共变关系）",
+    "noMatchCoupling": "无匹配的变更耦合",
+    "noInstances": "暂无分析实例",
+    "noInstancesHint": "在顶部选择项目根目录并扫描后，这里将展示\n模块 / 类 / 函数 / 接口 等真实分析结果",
+    "modSubtitle": "{n} 文件 · 依赖 {dep} · 被依赖 {beDep}",
+    "symbolRefCount": " · 被引用 {n} 处",
+    "unreferenced": "未引用",
+    "unreferencedTip": "零引用符号（死代码）：从未被任何代码引用",
+    "refTip": "被 {n} 处代码引用（点击展开引用点）",
+    "noRefPoints": "无引用点（被引用于其他文件但未匹配到符号，或未被引用）",
+    "moreRefs": "… 其余 {n} 处引用",
+    "showFirst": "（显示前 {n}）",
+    "deadConfidence": "{conf}置信",
+    "confHigh": "高",
+    "confMedium": "中",
+    "confLow": "低",
+    "cloneGroup": "{n} 处副本 × {lines} 行 · 冗余 {waste} 行",
+    "cloneParametric": "参数化 {n}",
+    "cloneParametricTip": "Type-2 参数化克隆：标识符重命名后的近重复（改过变量/函数名的复制粘贴）",
+    "cloneTitle": "{file}:{start}-{end}（参数化克隆）",
+    "cloneSubParametric": "参数化 · ",
+    "cloneWasteSummary": "合计可消除冗余约 {n} 行 · 按「冗余行数 = 块行数 ×（副本数-1）」降序",
+    "couplingSubtitle": "共变 {n} 次 · 耦合度 {pct}% · {kind}{cross}",
+    "couplingCrossBadge": "跨顶层模块耦合",
+    "couplingHiddenTip": "隐性耦合：无静态依赖却总一起改，常是隐藏的跨模块坏味道",
+    "pluginSummary": "{n} 个分析器插件 · 已激活 {active} 个",
+    "noPlugins": "暂无分析器插件",
+    "setPrimary": "已将 {name} 设为主插件 ({lang})，左侧面板按 {lang} 聚焦",
+    "pluginSwitched": "插件已切换",
+    "primaryCannotDeactivate": "主插件不可取消激活",
+    "deactivated": "已取消激活 {name}",
+    "activated": "已激活 {name} ({lang})",
+    "primary": "主",
+    "deactivate": "取消激活",
+    "activatePlugin": "激活插件",
+    "stFiles": "{n} 文件",
+    "stSymbols": "{n} 符号",
+    "stDeps": "{n} 依赖边",
+    "stFindings": "{n} 发现",
+    "stTechDebt": "{n} 技术债",
+    "stTechDebtTip": "该语言文件中的 TODO/FIXME/HACK 等技术债标记",
+    "focused": "聚焦中",
+    "pluginStats": "实体 {entities} · 视角 {views} · 图层 {layers} · 规则 {rules}",
+    "treeEmpty": "画布暂无实体",
+    "treeEmptyHint": "同步到画布或运行画像后，这里会按图层 / 类型列出全部实体，点击可定位并选中",
+    "statEntities": "实体 {n}",
+    "statLayers": "图层 {n}",
+    "orphanLayer": "未分层",
+    "tabEntities": "实体",
+    "tabFiles": "文件",
+    "tabPlugins": "插件",
+    "tabLayers": "图层",
+    "tabTree": "实体树",
+    "expand": "展开",
+    "collapse": "收起"
+  },
+  "projectTree": {
+    "clickHintDir": "单击展开/收起\n双击定位到画布对应目录",
+    "copyHeader": "复制路径",
+    "copyDir": "复制目录路径",
+    "copyFile": "复制文件路径",
+    "copyRel": "复制相对路径",
+    "copyName": "复制名称",
+    "copied": "已复制{kind}",
+    "openSource": "打开源码",
+    "locateOnCanvas": "在画布中定位",
+    "secActions": "操作",
+    "secAi": "AI",
+    "secSystem": "系统",
+    "toastOpen": "正在打开 {name} 源码",
+    "revealToast": "已在文件管理器显示 {name}",
+    "aiDiagnoseTitle": "AI 诊断 {name}",
+    "clickHintFile": "单击选中\n双击定位到画布对应文件（画布未渲染时定位到所属目录）"
+  },
+  "editorPage": {
+    "noProjectRoot": "未选择项目根目录",
+    "selectRoot": "选择项目根目录",
+    "scanSettingsTip": "扫描设置（排除无关目录 / 资源文件）",
+    "layerManageTip": "架构分层管理",
+    "watchingTip": "正在监视项目文件变更，改动将自动重新分析",
+    "watching": "监视中",
+    "recentChanges": "最近 {n} 次文件变更",
+    "stopWatch": "停止监视",
+    "scanSettingsTitle": "扫描设置",
+    "scanSettingsSaved": "已保存 {n} 个排除目录，重新扫描生效",
+    "scanSettingsSavedPlain": "已保存扫描设置，重新扫描生效",
+    "scanSettingsSaveFail": "保存扫描设置失败",
+    "changeCreated": "新增",
+    "changeRemoved": "删除",
+    "changeModified": "修改",
+    "fileChanged": "文件{kind}：{name}（自动重新分析中）",
+    "noAnalysisTitle": "请选择或新建项目分析",
+    "noAnalysisHint": "在左侧导航栏顶部选择已有分析，或点击“新建项目分析”创建",
+    "dirPickDesktopOnly": "目录选择仅在桌面应用中可用，请用 tauri dev 或打包后的应用打开",
+    "rootSet": "项目根目录已设置",
+    "selectDirFail": "选择目录失败：{msg}",
+    "scanExcludeHint": "，手动排除 {n} 个目录",
+    "scanStart": "开始扫描项目（{git}{ignoreHint}）...",
+    "gitignoreUsed": "已按 .gitignore 过滤",
+    "gitignoreMissing": "未检测到 .gitignore",
+    "activatedAnalyzers": "已自动识别并激活 {names} 分析器",
+    "noPluginFor": "暂无对应插件：{names}",
+    "langsDetected": "识别到 {n} 种语言（{langs}），{parts}",
+    "scanDone": "项目扫描完成",
+    "scanFail": "项目扫描失败",
+    "syncNoFiles": "没有可同步的文件",
+    "syncFail": "同步失败：画布未生成任何实体（请检查是否已有默认图层）",
+    "syncDone": "已同步 {files} 个文件 + {folders} 个目录到画布（树深度 {depth}{dep}）",
+    "syncDeps": "，{n} 条依赖连线",
+    "incremental": "增量模式 · 变更 {n} 文件",
+    "incrementalPlain": "增量模式",
+    "fullScan": "全量扫描",
+    "eta": "预计 {eta}",
+    "covSummary": "{files} 文件 · {lines} 行 · {langs} 语言",
+    "covDeepUnsupported": " · {n} 文件无深度分析",
+    "covExcluded": " · 已排除 {n} 类目录",
+    "covIncremental": " · 增量：变更 {changed} / 未变 {unchanged}",
+    "covFullNew": " · 全量新增 {n}",
+    "cancel": "取消",
+    "save": "保存",
+    "refreshTip": "刷新扫描结果",
+    "scanProject": "扫描项目",
+    "syncTip": "把扫描的文件按目录分组画到画布上",
+    "syncToCanvas": "同步到画布",
+    "morePortraitsTip": "切换其它分析视角：依赖图 / 分层图 / 复杂度 / 技术债 / 变更热点 / 死代码 / 风险 / 调用链 / 设计模式",
+    "morePortraits": "更多画像",
+    "freshness": {
+      "checking": "正在比对磁盘与上次扫描，校验数据是否最新…",
+      "rescan": "重新扫描",
+      "staleTitle": "扫描数据可能不是最新",
+      "staleBody": "最后扫描于 {last}，之后项目变更了 {added} 个新增 / {removed} 个删除 / {modified} 个改动文件。{dirHint}画像与 AI 分析基于的是过时快照，建议重新扫描后再用。",
+      "addedDirs": "含新增目录：{dirs}",
+      "unknown": "未知时间"
+    },
+    "openSourceTip": "打开独立代码工作台，浏览整个已扫描项目的源码文件树",
+    "openSource": "打开源码",
+    "openSourceFail": "打开源码失败：{error}",
+    "totalFiles": "共 {n} 个文件",
+    "totalFindings": "{n} 审查项",
+    "portraitFail": "画像「{name}」渲染失败：{msg}",
+    "unknownError": "未知错误",
+    "gitignoreFound": "已检测到 .gitignore —— 扫描将按其规则自动过滤 node_modules、构建产物等无关目录；手动排除列表是叠加的第二层过滤。",
+    "gitignoreNotFound": "未检测到 .gitignore —— 当前会渲染项目全部文件（仅排除内置的依赖/构建目录）。建议在项目根目录配置 .gitignore 声明无关目录，或在下边手动排除。",
+    "excludeDirsLabel": "手动排除目录（逗号分隔目录名，如：legacy, docs, assets）",
+    "excludeDirsHelper": "排除后重新扫描生效；匹配目录名（任意层级）",
+    "excludeResources": "排除非代码资源文件（图片 / 字体 / 媒体 / 压缩包 / 二进制 / 锁文件 / *.min.* / *.map）",
+    "builtinExcludes": "内置始终排除：node_modules、.git、target、dist、build、out、.next、coverage、__pycache__、.venv、.idea、.vscode、logs 等（这些目录对代码分析无意义）。",
+    "stage": {
+      "enumerate": "枚举",
+      "deps": "依赖",
+      "review": "审查",
+      "structure": "结构",
+      "symbol": "符号",
+      "callGraph": "调用图",
+      "dataFlow": "数据流",
+      "metrics": "度量",
+      "techDebt": "技术债",
+      "clones": "克隆",
+      "coupling": "耦合",
+      "deadCode": "死代码",
+      "index": "索引"
+    },
+    "portrait": {
+      "h1": "结构视角 · 项目长什么样",
+      "h2": "质量视角 · 哪里有问题",
+      "h3": "工程 & 团队维度",
+      "directory": {
+        "label": "目录结构",
+        "desc": "缩进冰柱图，宽度=代码量，颜色=复杂度"
+      },
+      "symbols": {
+        "label": "代码结构",
+        "desc": "类/函数/接口符号级实体，按文件分组，双击定位定义行"
+      },
+      "dependency": {
+        "label": "依赖关系图",
+        "desc": "力导向聚簇，自动浮现模块簇 + 循环环标红"
+      },
+      "changeCoupling": {
+        "label": "变更耦合",
+        "desc": "无静态依赖却总一起改的隐式耦合，紫色!为跨模块坏味道"
+      },
+      "coupling": {
+        "label": "耦合主序图",
+        "desc": "抽象度 × 不稳定性，定位痛苦区与无用区"
+      },
+      "layering": {
+        "label": "分层视图",
+        "desc": "文件归入架构分层，检出分层违规"
+      },
+      "architecture": {
+        "label": "架构总览",
+        "desc": "模块按分层排布，模块级依赖连线，循环依赖标红"
+      },
+      "callGraph": {
+        "label": "调用链",
+        "desc": "同心环布局，内环=高频被调基础设施"
+      },
+      "dataFlow": {
+        "label": "数据流",
+        "desc": "函数摘要三区：红=汇点(写外部状态) 橙=透传(影响链高速路) 绿=阻断(改动安全区)"
+      },
+      "executionFlow": {
+        "label": "执行流",
+        "desc": "全量调用边按执行顺序分层：左=入口，右=被调，双击定位实现"
+      },
+      "apiTrace": {
+        "label": "API 调用链路",
+        "desc": "前端调用→API路由→后端方法 纵向单列：双击定位实现，每条依赖占一行"
+      },
+      "taintFlow": {
+        "label": "污点传播路径",
+        "desc": "不可信数据从哪进→经过哪些函数→第几个参数→落到哪个危险调用，双击直达出事那一行"
+      },
+      "patterns": {
+        "label": "设计模式",
+        "desc": "按创建/结构/行为/架构角色分区，置信度环+证据悬浮"
+      },
+      "hotspotFunctions": {
+        "label": "函数热点",
+        "desc": "AST 逐函数风险排序，直接指到该改哪个函数（双击跳定义行）"
+      },
+      "quadrant": {
+        "label": "重构四象限",
+        "desc": "变更热度 × 复杂度交叉，右上角=先重构谁"
+      },
+      "complexity": {
+        "label": "复杂度热力",
+        "desc": "按圈复杂度降序，绿→黄→橙→红"
+      },
+      "risk": {
+        "label": "风险画像",
+        "desc": "按审查发现严重度加权分降序"
+      },
+      "techDebt": {
+        "label": "技术债",
+        "desc": "按 TODO/FIXME/HACK 标记数降序"
+      },
+      "churn": {
+        "label": "变更热点",
+        "desc": "按 git 变更热度降序，红=优先重构"
+      },
+      "duplication": {
+        "label": "重复代码",
+        "desc": "克隆检测，按重复率降序（复制粘贴的账单）"
+      },
+      "deadCode": {
+        "label": "死代码",
+        "desc": "按零引用符号数降序"
+      },
+      "testCoverage": {
+        "label": "测试配对",
+        "desc": "按文件配对判断源文件是否有同名测试（*.test/*.spec），红=无配对测试保护（非行级覆盖率）"
+      },
+      "security": {
+        "label": "安全",
+        "desc": "密钥硬编码 / 不安全 API 调用检测"
+      },
+      "apiSurface": {
+        "label": "接口暴露面",
+        "desc": "路由 / handler 中的对外端点，红=端点密集"
+      },
+      "busFactor": {
+        "label": "责任人 / bus-factor",
+        "desc": "git 贡献者数代理，红=单人垄断知识孤岛"
+      },
+      "ripple": {
+        "label": "涟漪影响面",
+        "desc": "调用入度衡量改动波及范围，红=枢纽文件"
+      },
+      "docsCoverage": {
+        "label": "文档覆盖",
+        "desc": "导出符号未写文档的比例，红=过半无说明"
+      },
+      "errorHandling": {
+        "label": "错误处理",
+        "desc": "空 catch / 吞异常盲区，红=错误被静默丢失"
+      },
+      "logging": {
+        "label": "日志卫生",
+        "desc": "console.log/debug 泄漏到生产 + logger.error 吞掉不处理"
+      },
+      "commentRatio": {
+        "label": "注释占比",
+        "desc": "代码注释率过低（<5% 几乎无注释，<15% 偏少）"
+      },
+      "syntax": {
+        "label": "语法错误",
+        "desc": "按语法错误行数排列文件，快速定位无法解析的源码"
+      },
+      "moduleGraph": {
+        "label": "模块依赖",
+        "desc": "模块间调用聚合为边的环形依赖图，方向/权重/循环一目了然"
+      }
+    },
+    "parseCadAssets": "解析 CAD 资产（.cadbin：实体数/图层/版本，用于含 CAD 项目的分析）"
+  },
+  "page": {
+    "cmd": {
+      "catProject": "项目",
+      "catView": "视图",
+      "catPortrait": "画像",
+      "scanProject": "重新扫描项目",
+      "syncCanvas": "同步到画布",
+      "fitView": "适配视图",
+      "portraitDependency": "生成依赖画像",
+      "portraitArchitecture": "生成架构总览画像",
+      "portraitPatterns": "生成设计模式画像",
+      "portraitDuplication": "生成重复代码画像",
+      "portraitComplexity": "生成复杂度热力画像",
+      "portraitCallGraph": "生成调用图画像",
+      "portraitChangeCoupling": "生成变更耦合画像",
+      "portraitSymbols": "生成符号结构画像",
+      "portraitHotspot": "生成函数热点画像",
+      "portraitDataFlow": "生成数据流画像",
+      "portraitTechDebt": "生成技术债画像",
+      "portraitDeadCode": "生成死代码画像",
+      "portraitExecutionFlow": "生成执行流画像",
+      "portraitApiTrace": "生成 API 调用链路（全链路）",
+      "portraitApiTraceOrphan": "生成 API 调用链路（悬空调用）",
+      "portraitApiTraceDead": "生成 API 调用链路（死路由）",
+      "portraitTaintFlow": "生成污点传播路径（全部链路）",
+      "portraitTaintFlowCritical": "生成污点传播路径（仅高危）",
+      "portraitTaintFlowSanitized": "生成污点传播路径（已被净化拦下）"
+    }
+  },
+  "workbench": {
+    "title": "项目代码工作台",
+    "subtitle": "从文件树或画布点击打开源码",
+    "backCanvas": "返回画布",
+    "close": "关闭",
+    "tree": "项目文件",
+    "empty": "暂无扫描文件",
+    "noActive": "从左侧文件树或画布点击打开源码",
+    "symbolKind": {
+      "function": "函数",
+      "method": "方法",
+      "constructor": "构造",
+      "class": "类",
+      "interface": "接口",
+      "enum": "枚举",
+      "struct": "结构",
+      "type": "类型",
+      "module": "模块",
+      "namespace": "命名空间",
+      "variable": "变量",
+      "const": "常量",
+      "let": "变量",
+      "field": "字段",
+      "property": "属性"
+    },
+    "marks": "问题 {n}",
+    "loading": "加载中…",
+    "loadFail": "加载失败：{error}",
+    "diagnoseSelection": "AI 诊断选中代码",
+    "diagnoseSelectionHint": "将选中代码连同精确坐标（{path}:{line}）交给 AI 诊断，结论自动回流画布",
+    "jumpToSymbol": "跳转到符号 {name} 的定义",
+    "findUsages": "查找引用",
+    "findUsagesHint": "查找「{word}」在整个项目中的所有引用位置",
+    "peekTitle": "Peek：{name}",
+    "peekLoading": "读取源码中…",
+    "peekReadError": "无法读取该文件源码",
+    "peekNoDefinition": "未找到「{name}」的定义",
+    "peekOpenHint": "Enter / 单击 在分屏打开 · Esc 关闭",
+    "peekGotoDef": "Peek 定义预览",
+    "noUsages": "未发现引用",
+    "jumpToUsage": "跳转到 {name} 的引用位置",
+    "refsCount": "{n} 处",
+    "refsActiveFile": "（当前文件）",
+    "refsNavHint": "↑/↓ 选择 · Enter 跳转 · Esc 关闭",
+    "refsToggle": "展开/折叠文件分组",
+    "refsCursorHint": "光标所在行的引用以琥珀金边高亮并自动定位",
+    "refsJumpLine": "点击跳到第 {line} 行",
+    "ctxMenu": {
+      "gotoDefinition": "跳转到定义",
+      "findReferences": "查找所有引用",
+      "peekDefinition": "Peek 定义预览",
+      "diagnoseSymbol": "AI 诊断此符号",
+      "renameSymbol": "重命名符号",
+      "deleteLine": "删除行",
+      "insertLineAbove": "在上方插入空行",
+      "insertLineBelow": "在下方插入空行",
+      "transpose": "交换光标左右字符",
+      "indentSelection": "缩进选区",
+      "outdentSelection": "取消缩进选区",
+      "duplicateLineUp": "向上复制行",
+      "moveWordLeft": "左移一个词",
+      "moveWordRight": "右移一个词",
+      "selectWordLeft": "向左扩选一个词",
+      "selectWordRight": "向右扩选一个词",
+      "deleteWordLeft": "向左删除一个词",
+      "deleteWordRight": "向右删除一个词",
+      "moveToEndOfLine": "光标移到行尾",
+      "moveToStartOfLine": "光标移到行首",
+      "deleteToEndOfLine": "删除到行尾",
+      "deleteToStartOfLine": "删除到行首",
+      "cutToEndOfLine": "剪切到行尾",
+      "cutToStartOfLine": "剪切到行首",
+      "addSelectionNext": "加入下一个匹配（多光标）",
+      "addSelectionPrev": "加入上一个匹配（多光标）",
+      "moveToEnclosingBracket": "跳到包围括号",
+      "selectToEnclosingBracket": "选中包围括号"
+    },
+    "filterPlaceholder": "筛选文件…",
+    "quickOpenPlaceholder": "搜索文件 / 符号…（支持 路径:行[:列] 直达）",
+    "quickOpenRecent": "最近打开",
+    "quickOpenLine": "跳到行 {line}",
+    "quickOpenLineHint": "跳到行 {line}:{col}",
+    "commandPalette": "命令面板",
+    "commandPalettePlaceholder": "输入命令…",
+    "commandPaletteEmpty": "无匹配命令",
+    "gotoLine": "转到行",
+    "gotoLinePlaceholder": "行（如 12 或 12:3，+5 / -3 / f / b 相对当前）",
+    "gotoLineHelpCurrent": "当前行 {line} / 共 {total} 行（列 {col}）",
+    "gotoLineHelpRelative": "跳转到第 {line} 行（相对当前 {offset}）",
+    "gotoLineHelpLine": "跳转到第 {line} 行",
+    "gotoLineHelpLineColumn": "跳转到第 {line} 行，第 {col} 列",
+    "gotoLineInvalid": "无法解析「{query}」",
+    "gotoLineUnavailable": "无可用的编辑器，请先打开一个文件",
+    "gotoLineFooter": "↵ 跳转 · Esc 取消",
+    "gotoSymbolPlaceholder": "搜索符号（函数 / 类 / 接口…）",
+    "noMatchSymbol": "无匹配符号",
+    "gotoSymbolFooter": "↵ 打开 · Alt+↵ 右/下分屏 · Ctrl+Alt+↵ 上/左分屏 · Esc 取消",
+    "gotoSymbolSplitRight": "右分屏打开",
+    "gotoSymbolSplitDown": "下分屏打开",
+    "gotoSymbolSplitUp": "上分屏打开",
+    "gotoSymbolSplitLeft": "左分屏打开",
+    "defPickerTitle": "转到定义：{name}",
+    "defPickerCount": "{n} 处定义",
+    "defPickerPlaceholder": "筛选定义…",
+    "defPickerEmpty": "无匹配定义",
+    "defPickerJumpLine": "点击跳到第 {line} 行",
+    "defPickerToggleGroup": "折叠或展开此文件的定义",
+    "rename": {
+      "title": "重命名符号",
+      "placeholder": "新名称",
+      "confirm": "重命名",
+      "cancel": "取消",
+      "busy": "重命名中…",
+      "summary": "共 {count} 处引用，涉及 {files} 个文件",
+      "currentFileOnly": "未找到项目级引用，仅在当前文件内重命名（{count} 处）",
+      "noTarget": "未找到符号「{name}」的索引条目",
+      "readOnly": "当前文件为只读，无法重命名",
+      "emptyName": "请输入新名称",
+      "done": "已将「{old}」重命名为「{new}」（{count} 处，{files} 个文件）",
+      "fail": "重命名失败：{error}",
+      "ledgerReason": "重命名 {old} → {new}",
+      "note": "每个定位点将按词边界在对应行重写；写盘自动 .bak 备份并触发增量重扫，可经改动评审台账撤销。"
+    },
+    "status": {
+      "cursor": "行 {line} · 列 {column}",
+      "cursorHint": "转到行:列",
+      "selSelections": "{count} 个选区",
+      "selLines": "{count} 行",
+      "selChars": "{count} 字符",
+      "multiCursor": "{count} 光标",
+      "multiCursorHint": "多光标编辑中：输入将同步到所有光标，点击退出（Esc）",
+      "columnSelection": "列选择",
+      "columnSelectionHint": "列选择模式：按住 Alt 拖拽可选矩形块，点击关闭",
+      "fontSizeHint": "编辑器字号：− 缩小 / 点击数字重置默认 / + 放大（对标 Zed 字号缩放，跨会话保留）",
+      "increaseFont": "放大字号",
+      "decreaseFont": "缩小字号",
+      "resetFont": "重置字号",
+      "wordWrap": "软换行",
+      "wordWrapHint": "软换行已开启：长行折行显示，点击关闭（改为水平滚动）",
+      "language": "语言",
+      "eolToggleHint": "点击切换 LF / CRLF（可撤销）",
+      "encodingHint": "编辑器以 UTF-8 文本模式读取文件",
+      "problems": "{errors} 错误 · {warnings} 警告",
+      "problemsHint": "点击打开问题面板"
+    },
+    "problems": {
+      "title": "问题",
+      "empty": "工作区无问题",
+      "noErrors": "无错误",
+      "showWarnings": "显示 {count} 条警告",
+      "errorsCount": "{count} 个错误",
+      "warningsCount": "{count} 个警告",
+      "line": "行 {line}:{col}",
+      "source": "来源：{source}",
+      "copyDiagnostic": "复制诊断",
+      "warnToggleTip": "显示/隐藏警告"
+    },
+    "search": {
+      "title": "在项目中搜索",
+      "placeholder": "搜索代码内容…",
+      "hint": "↵ 下一处 · Shift+↵ 上一处 · Esc 关闭",
+      "noQuery": "输入关键字以在项目代码中搜索",
+      "noResults": "未找到匹配「{query}」",
+      "matches": "处匹配",
+      "files": "个文件",
+      "error": "搜索失败：{error}",
+      "caseSensitive": "区分大小写",
+      "caseSensitiveHint": "仅匹配大小写完全一致的结果（Aa）· ⌘⌥C",
+      "wholeWord": "全字匹配",
+      "wholeWordHint": "仅匹配完整单词边界的结果（W）· ⌘⌥W",
+      "regex": "正则表达式",
+      "regexHint": "将查询作为正则表达式解析（.*）· ⌘⌥X",
+      "regexInvalid": "正则表达式无效，请检查语法",
+      "diagnose": "AI 诊断此命中",
+      "diagnoseHint": "用 AI 诊断这一处代码命中（D）",
+      "diagnoseTitle": "搜索命中「{query}」",
+      "diagnoseBatch": "AI 诊断替换",
+      "diagnoseBatchHint": "用 AI 诊断本次替换涉及的代码（{n} 个文件）",
+      "diagnoseBatchTitle": "替换影响：{file}（{count} 处）",
+      "diagnoseBatchToast": "已对 {n} 个文件发起 AI 诊断",
+      "diagnoseBatchNone": "没有可诊断的匹配",
+      "diagnoseBatchCap": "文件过多，仅诊断匹配数最多的前 {n} 个",
+      "replaceMode": "替换模式",
+      "replaceToggleHint": "切换替换模式（⌘⇧H）",
+      "replacePlaceholder": "替换为…",
+      "replaceNext": "替换下一个",
+      "replaceNextHint": "替换当前行的匹配（↵）",
+      "replaceAll": "替换全部",
+      "replaceAllHint": "跨文件替换全部匹配（⌘↵）",
+      "replaceConfirm": "将替换 {files} 个文件中的 {count} 处匹配？会修改磁盘文件（可在改动评审中撤销）。",
+      "replaceConfirmYes": "替换",
+      "replaceConfirmNo": "取消",
+      "replaceDone": "已在 {files} 个文件中替换 {count} 处",
+      "replaceNone": "没有可替换的匹配",
+      "replaceReadFail": "无法读取 {file}，已跳过",
+      "replaceSkipped": "已跳过 {n} 个无法读取的文件",
+      "replaceLedgerReason": "搜索替换「{query}」→「{replacement}」"
+    },
+    "cmd": {
+      "catNav": "导航",
+      "catAi": "AI",
+      "catView": "视图",
+      "catFile": "文件",
+      "catSelection": "选区",
+      "gotoFile": "转到文件…",
+      "gotoLine": "转到行…",
+      "searchProject": "在项目中搜索…",
+      "toggleAi": "切换 AI 助手面板",
+      "openRequirements": "打开需求分析",
+      "toggleTerminal": "切换集成终端",
+      "toggleProblems": "切换问题面板",
+      "toggleOutline": "切换大纲面板",
+      "toggleInlineAi": "切换内联 AI",
+      "copyPath": "复制当前文件路径",
+      "locateFile": "在文件树中定位当前文件",
+      "closeCurrentTab": "关闭当前标签",
+      "nextTab": "下一个标签",
+      "prevTab": "上一个标签",
+      "lastTab": "最后一个标签",
+      "closeOthers": "关闭其他标签",
+      "closeLeft": "关闭左侧标签",
+      "closeRight": "关闭右侧标签",
+      "closeAll": "关闭全部标签",
+      "pinTab": "钉住/取消钉住标签",
+      "goToTab": "跳到标签 {n}",
+      "resetLayout": "重置窗格布局",
+      "gotoSymbol": "转到符号（项目）…",
+      "goToDefinition": "跳转到定义",
+      "findReferences": "查找所有引用",
+      "peekDefinition": "Peek 定义预览",
+      "goToTypeDefinition": "跳转到类型定义",
+      "goToImplementation": "跳转到实现",
+      "goToDeclaration": "跳转到声明",
+      "renameSymbol": "重命名符号…",
+      "addCursorAbove": "在上方插入光标",
+      "addCursorBelow": "在下方插入光标",
+      "selectAllMatches": "选中全部相同文本",
+      "addSelectionNext": "加入下一个匹配（多光标）",
+      "addSelectionPrev": "加入上一个匹配（多光标）",
+      "toggleColumnSelection": "切换列选择模式",
+      "increaseFont": "放大编辑器字号",
+      "decreaseFont": "缩小编辑器字号",
+      "resetFont": "重置编辑器字号",
+      "expandSelection": "按语法扩展选区",
+      "shrinkSelection": "按语法收缩选区",
+      "catPane": "窗格",
+      "catDiagnostic": "诊断",
+      "catEdit": "编辑",
+      "catConvert": "大小写转换",
+      "catTabs": "标签",
+      "catFold": "折叠",
+      "fold": "折叠（光标处）",
+      "unfold": "展开（光标处）",
+      "toggleFold": "切换折叠",
+      "foldRecursively": "递归折叠",
+      "unfoldRecursively": "递归展开",
+      "foldAll": "全部折叠",
+      "unfoldAll": "全部展开",
+      "foldSelection": "折叠所选区域",
+      "foldLevel": "折叠到 {level} 级",
+      "toggleWordWrap": "切换软换行",
+      "foldFunctionBodies": "折叠全部函数体",
+      "toggleLineComment": "切换行注释",
+      "toggleBlockComment": "切换块注释",
+      "formatDocument": "格式化文档",
+      "duplicateLine": "向下复制行/选区",
+      "moveLineUp": "上移行",
+      "moveLineDown": "下移行",
+      "joinLines": "合并行",
+      "goToMatchingBracket": "跳到匹配括号",
+      "moveToEnclosingBracket": "跳到包围括号",
+      "selectToEnclosingBracket": "选中包围括号",
+      "deleteLine": "删除行",
+      "insertLineAbove": "在上方插入空行",
+      "insertLineBelow": "在下方插入空行",
+      "transpose": "交换光标左右字符",
+      "indentSelection": "缩进选区",
+      "outdentSelection": "取消缩进选区",
+      "duplicateLineUp": "向上复制行",
+      "moveWordLeft": "左移一个词",
+      "moveWordRight": "右移一个词",
+      "selectWordLeft": "向左扩选一个词",
+      "selectWordRight": "向右扩选一个词",
+      "deleteWordLeft": "向左删除一个词",
+      "deleteWordRight": "向右删除一个词",
+      "moveSubwordLeft": "左移一个子词",
+      "moveSubwordRight": "右移一个子词",
+      "selectSubwordLeft": "向左扩选一个子词",
+      "selectSubwordRight": "向右扩选一个子词",
+      "deleteSubwordLeft": "向左删除一个子词",
+      "deleteSubwordRight": "向右删除一个子词",
+      "deleteToNextWordStart": "删除到下一个词首",
+      "deleteToPreviousWordEnd": "删除到上一个词尾",
+      "moveToEndOfLine": "光标移到行尾",
+      "moveToStartOfLine": "光标移到行首",
+      "deleteToEndOfLine": "删除到行尾",
+      "deleteToStartOfLine": "删除到行首",
+      "cutToEndOfLine": "剪切到行尾",
+      "cutToStartOfLine": "剪切到行首",
+      "convertUpper": "转为大写 (UPPER CASE)",
+      "convertLower": "转为小写 (lower case)",
+      "convertTitle": "转为标题大小写 (Title Case)",
+      "convertSnake": "转为 snake_case",
+      "convertKebab": "转为 kebab-case",
+      "convertPascal": "转为 PascalCase",
+      "convertCamel": "转为 camelCase",
+      "convertSentence": "转为 Sentence case",
+      "goToNextProblem": "跳到下一个问题",
+      "goToPrevProblem": "跳到上一个问题",
+      "problemNone": "当前文件没有诊断问题",
+      "focusPaneLeft": "聚焦左侧窗格",
+      "focusPaneRight": "聚焦右侧窗格",
+      "focusPaneUp": "聚焦上方窗格",
+      "focusPaneDown": "聚焦下方窗格",
+      "focusPaneNext": "下一个窗格",
+      "focusPanePrev": "上一个窗格",
+      "swapPaneLeft": "与左侧窗格交换",
+      "swapPaneRight": "与右侧窗格交换",
+      "swapPaneUp": "与上方窗格交换",
+      "swapPaneDown": "与下方窗格交换",
+      "catBookmarks": "书签",
+      "toggleBookmark": "切换书签",
+      "nextBookmark": "下一个书签",
+      "prevBookmark": "上一个书签",
+      "viewBookmarks": "查看书签",
+      "catLines": "行排序/去重",
+      "sortLinesCI": "按字母排序行（忽略大小写）",
+      "sortLinesCS": "按字母排序行（区分大小写）",
+      "sortLinesLen": "按长度排序行",
+      "uniqueLinesCI": "去除重复行（忽略大小写）",
+      "uniqueLinesCS": "去除重复行（区分大小写）"
+    },
+    "tabMenu": {
+      "close": "关闭",
+      "closeOthers": "关闭其他",
+      "closeLeft": "关闭左侧",
+      "closeRight": "关闭右侧",
+      "closeAll": "关闭全部",
+      "pin": "钉住标签",
+      "unpin": "取消钉住",
+      "copyPath": "复制路径",
+      "copyRelativePath": "复制相对路径",
+      "openInTerminal": "在终端中打开",
+      "revealInFileManager": "在文件管理器中显示",
+      "makeReadOnly": "设为只读",
+      "makeEditable": "取消只读"
+    },
+    "diff": {
+      "compareWithSaved": "与已保存版本对比",
+      "compareWithOpenTab": "与已打开的文件对比…",
+      "savedOnDisk": "磁盘已保存",
+      "working": "工作区（未保存）",
+      "identical": "无差异",
+      "hasChanges": "有差异",
+      "noOtherTabs": "没有其他已打开的文件"
+    },
+    "pane": {
+      "splitRight": "向右拆分",
+      "splitDown": "向下拆分",
+      "closePane": "关闭窗格",
+      "resizeHint": "拖拽调整窗格大小 · 双击均分",
+      "syncScrollOn": "已开启窗格同步滚动（关闭）",
+      "syncScrollOff": "窗格同步滚动（开启后多窗格按相同比例联动）"
+    },
+    "layout": {
+      "resetToast": "窗格布局已重置"
+    },
+    "drop": {
+      "splitLeft": "向左拆分",
+      "splitRight": "向右拆分",
+      "splitUp": "向上拆分",
+      "splitDown": "向下拆分",
+      "moveToPane": "移动到此窗格"
+    },
+    "breadcrumb": {
+      "toggleOutlineTip": "点击切换大纲 · 右键打开分析菜单",
+      "revealSymbolTip": "跳转到该符号所在行 · 右键 AI 诊断此符号",
+      "up": "上一级",
+      "empty": "空目录",
+      "diagnoseFile": "AI 诊断此文件",
+      "diagnoseSymbol": "AI 诊断此符号",
+      "copyPath": "复制路径"
+    },
+    "treeMenu": {
+      "openInSplit": "在分栏中打开"
+    },
+    "mark": {
+      "title": "审查发现",
+      "diagnose": "AI 诊断此发现",
+      "copyMsg": "复制消息"
+    },
+    "noMatch": "无匹配文件",
+    "askAi": "问 AI",
+    "askAiHint": "将选中代码交给内嵌 AI 面板对话（解释 / 重构 / 提问）",
+    "aiToggle": "AI 面板",
+    "terminalToggle": "集成终端（Ctrl+` 切换）",
+    "problemsToggle": "问题面板",
+    "terminal": {
+      "title": "终端",
+      "clear": "清屏",
+      "close": "关闭终端",
+      "addTab": "新建终端",
+      "tabPrefix": "终端",
+      "empty": "没有终端，点左上 + 新建一个"
+    },
+    "aiExplainFile": "解释当前文件",
+    "aiGenTest": "生成单元测试",
+    "aiReviewFile": "审查当前文件",
+    "aiExplainSelection": "解释选中",
+    "aiFixSelection": "修复选中",
+    "aiConvTitle": "工作台 · {file}",
+    "aiDiag": {
+      "errorCount": "错误 {n}",
+      "warnCount": "警告 {n}",
+      "fix": "修复此错误"
+    },
+    "outlineToggle": "符号大纲",
+    "outlineTitle": "符号大纲",
+    "outlineJump": "跳转到符号 {name}",
+    "outlineFilter": "过滤符号…",
+    "outlineExpandAll": "展开全部",
+    "outlineCollapseAll": "折叠全部",
+    "outlineViewTree": "层级",
+    "outlineViewKind": "类型",
+    "outlineToggleView": "切换大纲视图（层级树 / 按类型聚类）",
+    "noSymbols": "当前文件暂无解析符号",
+    "autoSaved": "已自动保存 {file}",
+    "saveFail": "自动保存失败：{error}",
+    "diskChanged": "磁盘文件已被外部（或 AI）修改：{file}",
+    "discardMine": "重新加载磁盘版本",
+    "keepMine": "保留我的修改",
+    "aiPanelTitle": "AI 助手",
+    "aiApproval": {
+      "title": "允许运行这条命令吗？",
+      "warning": "AI 助手想要在你的项目中执行一条 shell 命令。请仔细确认——只放行你完全理解的命令。",
+      "allow": "允许",
+      "deny": "拒绝"
+    },
+    "aiEmpty": "选择文件或输入问题开始对话",
+    "aiNoAgent": "尚未配置 AI Agent，请先在 AI 设置中创建",
+    "aiOnboard": {
+      "title": "配置 AI 助手即可开始",
+      "desc": "这是你的代码 AI 助手（对标 VS Code Copilot）。先在 AI 设置里创建一个助手并绑定模型与 API Key，就能在右侧随时问、随手改。",
+      "cta": "去配置助手",
+      "pick": "从顶部「助手」下拉选择一个助手，开始对话"
+    },
+    "aiStarter": {
+      "explain": "解释当前文件",
+      "fix": "修复报错",
+      "refactor": "重构选中代码",
+      "tests": "写单元测试"
+    },
+    "reqStarter": {
+      "essence": "定义项目本质与愿景",
+      "users": "锁定目标用户与场景",
+      "functional": "拆解功能需求",
+      "nonfunctional": "列出非功能需求",
+      "boundary": "划清范围边界",
+      "acceptance": "写出验收标准"
+    },
+    "reqBaseline": {
+      "save": "保存需求基线",
+      "saveTip": "把对话产出的结构化需求文档存为项目需求基线（requirements-spec），与代码反推的语义面并列",
+      "dialogTitle": "保存需求基线",
+      "dialogHint": "在此粘贴或整理需求文档（项目本质/愿景/目标用户/功能需求/非功能需求/范围边界/验收标准）。保存后它将作为需求驱动分析的客观基线，与代码实际承诺的语义面对照。",
+      "placeholder": "在此输入结构化需求文档…可先在上方对话让 AI 引导产出，再把正文粘贴到这里。",
+      "cancel": "取消",
+      "saved": "需求基线已保存",
+      "empty": "需求基线内容为空，无法保存",
+      "emptySummary": "需求基线",
+      "noAnalysis": "当前没有已分析的项目，无法保存需求基线",
+      "saveFailed": "需求基线保存失败，请重试"
+    },
+    "aiThinking": "思考中…",
+    "aiStopped": "已停止 · 保留了已生成的部分",
+    "aiInput": {
+      "placeholder": "问点什么…",
+      "workspacePlaceholder": "问整个项目…"
+    },
+    "aiContext": {
+      "selection": "选区 L{start}-{end}",
+      "attach": "添加 # 附件"
+    },
+    "aiContextBar": {
+      "title": "分析上下文",
+      "count": "{n} 项",
+      "impact": "影响 {n} 文件",
+      "insights": "{n} 洞察",
+      "noFile": "未选择文件"
+    },
+    "aiSlash": "斜杠命令",
+    "aiAttach": {
+      "placeholder": "搜索文件 / 符号…",
+      "empty": "无匹配项"
+    },
+    "aiCode": {
+      "insert": "插入光标",
+      "apply": "应用到文件",
+      "currentFile": "当前文件",
+      "copy": "复制",
+      "copied": "已复制",
+      "applyOnlyCurrent": "仅支持应用到当前打开的文件",
+      "applyNeedRange": "无法确定应用位置：请给出「path:起始行-结束行」形式的代码块，或在编辑器中选中要替换的代码",
+      "inserted": "已插入光标处",
+      "applied": "已应用改动并写回磁盘",
+      "applyFail": "应用失败：{error}",
+      "diffTitle": "应用改动预览",
+      "keep": "保留改动",
+      "discard": "丢弃",
+      "insertNeedEditor": "请在代码工作台中打开该文件后再插入光标",
+      "readSkipped": "无法读取文件原文：{reason}",
+      "readFail": "读取文件失败：{error}"
+    },
+    "aiThread": {
+      "newChat": "新对话",
+      "history": "对话历史",
+      "historyEmpty": "暂无历史对话",
+      "current": "（当前）",
+      "loading": "加载中…"
+    },
+    "aiMore": {
+      "label": "更多",
+      "newChat": "新对话",
+      "history": "历史对话"
+    },
+    "aiModel": {
+      "label": "模型",
+      "tooltip": "覆盖此会话使用的模型（默认跟随助手）",
+      "follow": "跟随助手",
+      "menuLabel": "模型（默认跟随助手）"
+    },
+    "aiConfig": {
+      "open": "打开 AI 设置"
+    },
+    "aiOpenPath": {
+      "notFound": "未找到文件：{path}"
+    },
+    "aiFacts": {
+      "title": "本文件扫描事实（已随上下文注入）",
+      "cc": "复杂度 {cc}",
+      "dead": "死代码 {n}",
+      "clone": "克隆 {n} 组"
+    },
+    "aiScope": {
+      "label": "画布作用域：{label}",
+      "focusTip": "你正在画布上查看此实体；点击让画布重新居中到它（AI 已带着它的分析事实作答）"
+    },
+    "aiSuggest": {
+      "title": "AI 建议",
+      "cc": "复杂度 {n} 偏高",
+      "ccPrompt": "请针对画布作用域「{loc}」给出重构方案：该实体最高函数复杂度约 {n}，建议拆分过长函数、降低嵌套与分支。先通过 project_context / scan_records 读取真实实现，不要凭空猜测。",
+      "dead": "死代码 {n} 处",
+      "deadPrompt": "请针对画布作用域「{loc}」安全删除 {n} 处死代码：先确认无外部引用（含反射/动态调用、字符串调度），再给出删除补丁，并说明删除后如何验证无回归。",
+      "clone": "克隆 {n} 组",
+      "clonePrompt": "请针对画布作用域「{loc}」处理 {n} 个代码克隆组：识别重复片段、抽取公共函数或工具并保持行为一致，给出改动后在画布上验证无回归的方法。",
+      "findings": "审查发现 {n} 条",
+      "findingsPrompt": "请针对画布作用域「{loc}」解释并修复 {n} 条未修复的审查发现：逐条给出根因、风险与最小修复补丁，避免引入新问题。",
+      "launchTitle": "发起 AI 建议",
+      "launchBody": "将基于画布作用域的分析事实直接发起分析：{label}。AI 会先读取真实代码再作答。",
+      "launchOk": "发起",
+      "launchCancel": "取消"
+    },
+    "aiFollowup": {
+      "title": "接下来",
+      "explainChange": "解释这段改动",
+      "writeTests": "为改动写测试",
+      "checkRisk": "检查改动风险",
+      "whyError": "为什么报错",
+      "minFix": "给出最小修复",
+      "reviewPath": "审查此路径",
+      "impactFiles": "查看影响面文件",
+      "refactor": "重构这个实体",
+      "reconfirm": "用真实代码再确认",
+      "listImprove": "列出后续优化"
+    },
+    "aiImpact": {
+      "title": "影响面（改此文件可能波及 {n} 个文件）",
+      "hint": "按调用图反向闭包计算：这些文件直接或间接调用了该实体，改动时需注意连带影响。",
+      "canvasBadge": "波及",
+      "canvasTip": "AI 推算：改动此实体会波及该文件（爆炸半径）。点击画布上的「波及」药丸可查看完整影响面。",
+      "canvasDirTip": "AI 推算：该目录子树内有文件落在当前焦点的爆炸半径内。",
+      "canvasToggleTip": "在画布上高亮影响面（关闭则清掉画布标注）",
+      "legend": "画布上靛蓝描边 = 受此焦点改动波及的文件"
+    },
+    "aiInsights": {
+      "title": "本文件相关洞察（{n}）",
+      "loading": "加载本文件洞察…",
+      "stale": "需复核",
+      "resolved": "已收口",
+      "confirmed": "已确认 {n} 次",
+      "cite": "引用到对话"
+    },
+    "aiChanges": {
+      "title": "AI 改动（{n}）",
+      "keepAll": "全部保留",
+      "keptAll": "已保留 {n} 处改动",
+      "revertedFull": "已还原 {file}",
+      "revertedFragment": "已还原 {file} 的这一处（文件其余修改保留）",
+      "refresh": "刷新",
+      "fullHint": "整文件重写：无片段可对比，请打开文件查看",
+      "full": "整文",
+      "approxHint": "锚点近似匹配（已做空白/CRLF 归一），请核对",
+      "approx": "近似",
+      "viewDiff": "查看差异",
+      "inlineDiff": "内联预览 diff",
+      "keep": "保留",
+      "undo": "撤销",
+      "diffTitle": "改动差异",
+      "fullNoDiff": "整文件重写（{before} → {after} 行），无片段级差异可展示，请打开文件查看完整内容。",
+      "openFile": "打开文件",
+      "reasonApplied": "应用 AI 在 {range} 处的改动",
+      "reasonInline": "在内联对话应用 {range} 处的改动",
+      "kept": "已保留",
+      "revertSession": "回退本会话",
+      "revertSessionTitle": "回退本次 AI 会话的全部改动",
+      "revertSessionConfirm": "将撤销当前会话产生的 {n} 处 AI 改动（逐文件回滚到改动前）。此操作会写回磁盘，请确认。",
+      "revertSessionCancel": "取消",
+      "revertSessionOk": "回退全部",
+      "revertedSession": "已回退 {n} 处改动"
+    },
+    "aiInline": {
+      "title": "内联对话",
+      "binding": "⌘I",
+      "placeholder": "就选中的代码提问，或描述你想要的修改…（Enter 发送，Shift+Enter 换行，Esc 关闭）",
+      "empty": "选中代码后按 ⌘I / ⌘K 即可在此直接问 AI，不离开编辑器；输入 /fix 改盘、/explain 解释、/doc 写文档、/generate 生成",
+      "hint": "默认问答模式 · 输入 /fix 直接改盘、/explain 解释、/doc 写文档、/generate 生成代码",
+      "thinking": "正在思考…",
+      "openPanel": "在右侧面板展开完整对话",
+      "close": "关闭内联对话"
+    },
+    "aiApply": {
+      "preview": "改动已写入编辑器（红=删除，绿=新增），确认后保留，否则放弃",
+      "accept": "保留改动",
+      "reject": "放弃改动",
+      "applied": "已保留改动（将自动保存并触发重扫）",
+      "rejected": "已放弃改动",
+      "composerTitle": "改动清单 · 本次共 {n} 处",
+      "composerApplyAll": "全部应用",
+      "composerApplyOne": "应用",
+      "composerSkipAll": "忽略全部",
+      "composerSkip": "跳过",
+      "composerNoSummary": "（空改动）",
+      "composerCrossTag": "其他文件",
+      "composerCrossNote": "跨文件改动将写入对应文件并触发重新分析（已打开的标签会原地刷新）",
+      "composerCrossNotFound": "未找到文件 {path}（不在已扫描项目内）",
+      "composerNeedEditor": "请先在代码工作台打开当前文件，再批量应用",
+      "composerApplied": "已应用 {n} 处改动（将自动保存并触发重新分析）"
+    },
+    "aiView": {
+      "chat": "对话",
+      "edits": "改动"
+    },
+    "aiAgent": {
+      "none": "未配置助手",
+      "manage": "管理助手…"
+    },
+    "aiMode": {
+      "ask": "问答：只回答，不改动文件",
+      "edit": "直接改：AI 直接用改动工具修改文件",
+      "agent": "代理：自动编排多步任务并调用工具"
+    },
+    "tab": {
+      "ai": "AI 助手",
+      "requirements": "需求分析"
+    },
+    "requirements": {
+      "title": "需求分析",
+      "subtitle": "上帝视角引擎的业务入口",
+      "current": "当前需求基线",
+      "meta": "字数 {words} · 更新于 {time}",
+      "edit": "编辑",
+      "emptyHint": "还没有需求基线。点击右上「保存需求基线」开始陈述项目需求。",
+      "assistTitle": "用 AI 协助梳理",
+      "consumeHint": "AI 在诊断 / 分析时会自动读取这份基线，并对照代码反推的语义面给出缺口（requirements-capture 预设）。需求分析是独立业务功能，不占用 AI 面板的对话模式。"
+    },
+    "aiQueue": {
+      "queued": "已排队，流式结束后自动发送",
+      "badge": "已排队 {n} 条"
+    },
+    "aiEdits": {
+      "title": "AI 改动工作台",
+      "intro": "描述你想做的改动，AI 会用改动工具直接修改文件，改动按文件列在这里，供你逐条「保留 / 撤销」。这与 VS Code Copilot Edits 的工作方式一致——先看到改动，再决定是否定植。",
+      "placeholder": "描述改动（如：把 handleSubmit 抽成独立函数并加上错误边界）…（输入 # 引用文件/符号，Enter 发送）",
+      "empty": "还没有待审改动。在上方描述改动，或切到「对话」让 AI 先分析再改。",
+      "emptyLedger": "还没有改动。若 AI 在「对话」里直接返回了代码块（无写盘权限），可在那里逐条应用；或在此描述改动，让 AI 用工具修改后逐条审阅。"
+    },
+    "aiVerify": {
+      "title": "改动验证",
+      "tip": "AI 改完自动回读扫描台账，量化本次改动对代码健康度的影响——通用 IDE 插件没有的闭环。",
+      "verifying": "正在验证 {file} 的指标变化…",
+      "done": "已应用并验证",
+      "noChange": "已应用，指标无显著变化",
+      "dismiss": "忽略",
+      "cc": "复杂度",
+      "lines": "行数",
+      "fns": "函数数",
+      "dead": "死代码",
+      "clones": "克隆组",
+      "findings": "审查发现",
+      "summaryTitle": "本轮改动总账",
+      "summaryFiles": "改动 {n} 文件",
+      "summaryCcDown": "复杂度↓{n}",
+      "summaryCcUp": "复杂度↑{n}",
+      "summaryDeadDown": "死代码↓{n}",
+      "summaryDeadUp": "死代码↑{n}",
+      "summaryCloneDown": "克隆↓{n}",
+      "summaryCloneUp": "克隆↑{n}",
+      "summaryFindingsDown": "审查发现↓{n}",
+      "summaryFindingsUp": "审查发现↑{n}",
+      "canvasOn": "验证角标已在画布显示",
+      "canvasOff": "验证角标已在画布隐藏",
+      "legendImproved": "改动后变好",
+      "legendWorsened": "改动后变差"
+    },
+    "aiParticipant": {
+      "label": "工作区",
+      "tooltip": "@workspace：让 AI 跨整个项目调查，用 file:line 引用任意文件，而非只看当前打开的文件",
+      "terminalLabel": "终端",
+      "terminalTooltip": "@terminal：让 AI 直接运行并展示终端命令（构建 / 测试 / lint / 格式化），在对话里就能看到验证结果，像传统 IDE 的 Agent 模式",
+      "terminalNoTool": "当前助手未启用 run_command 工具，无法运行终端命令——请在助手设置里勾选 run_command 后重试"
+    },
+    "aiTerminal": {
+      "title": "终端",
+      "cwd": "目录",
+      "exit": "退出",
+      "refused": "命令被拒绝",
+      "output": "输出"
+    },
+    "aiTool": {
+      "file_read": "读取文件",
+      "code_search": "搜索代码库",
+      "symbol_lookup": "查找符号",
+      "architecture_query": "查询架构",
+      "review_explain": "解读审查发现",
+      "impact_assess": "评估影响面",
+      "project_context": "读取项目上下文",
+      "scan_records": "下钻扫描记录",
+      "context_insight": "读写分析洞察",
+      "apply_change": "改动文件"
+    },
+    "aiToolStep": {
+      "summary": "AI 执行了 {n} 个步骤",
+      "summaryWithError": "AI 执行了 {n} 个步骤（{e} 个失败）",
+      "expand": "展开入参与结果",
+      "collapse": "收起",
+      "args": "入参",
+      "result": "结果",
+      "truncated": "结果已截断（共 {n} 字）",
+      "open": "在编辑器打开"
+    },
+    "aiUserMsg": {
+      "tagMode": "模式指令",
+      "tagWorkspace": "工作区",
+      "tagTerminal": "终端",
+      "tagContext": "上下文",
+      "tagScope": "画布作用域",
+      "showRaw": "查看发给模型的完整提示词",
+      "hideRaw": "只看我的提问"
+    },
+    "aiMsgAction": {
+      "copy": "复制",
+      "copied": "已复制到剪贴板",
+      "copyFailed": "复制失败",
+      "retry": "重试这轮（替换上一次回答）",
+      "retryFailed": "重试失败",
+      "edit": "编辑并重发（回填到输入框）",
+      "editFailed": "编辑重发失败"
+    },
+    "previewZoomIn": "放大",
+    "previewZoomOut": "缩小",
+    "previewReset": "重置",
+    "previewFit": "适应",
+    "previewViewSource": "查看源码",
+    "previewViewPreview": "预览",
+    "previewLoadError": "加载失败：{msg}",
+    "previewEmpty": "空文件"
+  },
+  "viewer": {
+    "sourceCode": "源码",
+    "lineLabel": "第 {n} 行",
+    "totalLines": " · {n} 行",
+    "marks": "{n} 处标记",
+    "prevMark": "上一处标记",
+    "nextMark": "下一处标记",
+    "copyPath": "复制绝对路径",
+    "copiedPath": "已复制路径：{path}",
+    "copyFail": "复制失败（剪贴板不可用）",
+    "loading": "正在读取源码…",
+    "loadFail": "读取源码失败：{error}",
+    "truncated": "文件共 {total} 行，仅展示前 {shown} 行",
+    "editMode": "编辑模式（Monaco）",
+    "viewMode": "返回只读查看",
+    "loadingEditor": "加载编辑器内核…",
+    "saved": "已保存（{delta} 行）{backup}",
+    "saveFail": "保存失败: {error}",
+    "saveHint": "保存（Ctrl+S）",
+    "noChange": "没有改动，无需保存",
+    "backupHint": "· 原文件已备份 .bak",
+    "savedNoWatch": "已保存。当前未开启文件监视，改动不会自动重扫——可在工具栏开启文件监视"
+  },
+  "portrait": {
+    "type": {
+      "file": "文件",
+      "image": "图片",
+      "asset": "资源文件",
+      "folder": "文件夹",
+      "module": "模块",
+      "class": "类",
+      "function": "函数",
+      "interface": "接口",
+      "dependencyEdge": "依赖关系",
+      "layerMarker": "架构分层",
+      "annotationText": "标注文本",
+      "codePreview": "代码预览"
+    },
+    "pattern": {
+      "title": "设计模式",
+      "symbol": "命中符号",
+      "location": "位置",
+      "evidence": "判定依据",
+      "openSource": "打开源码",
+      "openTitle": "设计模式命中：{name}",
+      "aiDiagnose": "AI 诊断此模式",
+      "aiDiagnoseTitle": "设计模式 {pattern}（{symbol}）",
+      "aiDiagnoseDetail": "该处被识别为 {pattern}（分类：{category}，置信度 {confidence}%），命中符号 {symbol}，位于 {location}。请结合真实代码确认这是否为有意使用的设计模式、实现是否规范、有无更优写法。"
+    },
+    "quadrant": {
+      "title": "重构象限",
+      "complexityLabel": "圈复杂度",
+      "churnLabel": "变更热度",
+      "riskLabel": "审查风险",
+      "dupLabel": "重复率",
+      "sizeLabel": "文件规模",
+      "proxyNote": "（代理估算）",
+      "openSource": "打开源码",
+      "openTitle": "重构象限命中：{name}",
+      "aiDiagnose": "AI 诊断此文件",
+      "aiDiagnoseTitle": "重构象限文件 {name}",
+      "aiDiagnoseDetail": "该文件位于重构象限「{zone}」：{hint} 其圈复杂度为 {complexity}{proxy}，{axisName}为 {axisVal}，审查风险分 {risk}。请结合真实代码给出可落地的重构建议，重点降低圈复杂度、控制高频变更带来的回归风险。",
+      "search": "在象限中查找文件",
+      "searchTip": "输入文件名即可把四象限散点收敛到匹配文件（按优先级排序全部显示，不被 Top-70 截断）",
+      "rankTitle": "重构优先级 #{n}（越低越优先）"
+    },
+    "taint": {
+      "title": "污点传播节点",
+      "openSource": "打开源码",
+      "openTitle": "污点链路命中：{name}",
+      "aiDiagnose": "AI 诊断此链路",
+      "aiDiagnoseTitle": "污点链路节点 {name}",
+      "aiDiagnoseDetail": "该节点在污点传播路径上的角色是「{role}」，危险类别为「{kind}」，命中的调用是 {rule}，受污染的形参为 {params}，代码位置在 {location}。请结合真实代码判断：这是否构成可利用的安全问题？若构成，给出最小改动的修复方案（优先在污染源或净化点处理，其次在汇点做参数化或转义）；若是误报，说明静态分析的哪一处近似导致了误判。",
+      "severity": "严重度 {n}/5",
+      "location": "代码位置"
+    },
+    "sev": {
+      "critical": "严重",
+      "warning": "警告",
+      "info": "提示"
+    },
+    "noDeps": "暂无依赖数据（需先扫描项目）",
+    "depIn": "被依赖 {n}",
+    "depOut": "依赖 {n}",
+    "depNavTitle": "依赖节点：{name}",
+    "depLegendDir": "← 被依赖 · 依赖 →",
+    "depClickHint": "点击节点打开源码",
+    "depType": {
+      "import": "import 依赖",
+      "extends": "继承",
+      "implements": "实现",
+      "calls": "调用",
+      "other": "其它"
+    },
+    "noLayers": "暂无架构分层（扫描后自动生成）",
+    "thisEntity": "本实体",
+    "fileDesc": "「{name}」是项目中的{lang}源文件{path}，共 {n} 行。",
+    "atPath": "（位于 {path}）",
+    "moduleDescAgg": "模块「{name}」聚合了 {n} 个文件{layer}，是项目结构的基本组成单元。",
+    "moduleDesc": "模块「{name}」是项目结构的基本组成单元{layer}。",
+    "atLayer": "，归属「{layer}」层",
+    "classDesc": "类「{name}」{at}，是{lang}结构的基本单元，负责内聚相关的数据与行为。",
+    "definedAt": "定义于 {path}",
+    "oo": "面向对象",
+    "functionDesc": "函数「{name}」{at}，封装一段可复用的逻辑。",
+    "interfaceDesc": "接口「{name}」定义了一组契约/抽象{at}，用于约束实现方的行为。",
+    "declaredAt": "，声明于 {path}",
+    "folderDesc": "文件夹「{name}」{at}，用于组织同一职责的源文件。",
+    "locatedAt": "位于 {path}",
+    "genericDesc": "「{name}」是 {type} 类型实体。",
+    "depOutS": "它直接依赖 {n} 个模块；",
+    "depInS": "被 {n} 个模块引用。",
+    "depNone": "无",
+    "noData": "扫描项目后可展示该实体的依赖关系与审查结果。",
+    "emptyHint": "在画布或实体列表中选中一个实体查看画像",
+    "size": "大小：{size}",
+    "lines": "行数：{n}",
+    "refs": "被引用：{n} · 依赖：{m}",
+    "openSourceTitle": "从实体画像打开 {path}",
+    "openSource": "打开源码",
+    "viewImage": "查看大图",
+    "imageInfo": "图片信息",
+    "imagePath": "文件路径",
+    "assetInfo": "资源信息",
+    "assetHint": "资源文件为二进制内容（字体/媒体/压缩包等），无源代码，不参与结构/依赖/复杂度分析",
+    "assetKind": {
+      "font": "字体文件",
+      "media": "媒体文件",
+      "archive": "压缩包",
+      "other": "二进制文件"
+    },
+    "assetKindTitle": "类型",
+    "purpose": "实体作用",
+    "tabs": {
+      "overview": "概览",
+      "deps": "依赖",
+      "code": "代码",
+      "review": "审查"
+    },
+    "facts": {
+      "title": "关键事实",
+      "language": "语言",
+      "lines": "行数",
+      "path": "路径",
+      "depOut": "出依赖",
+      "depIn": "入依赖",
+      "fileCount": "文件数",
+      "beDepCount": "被依赖",
+      "depCount": "依赖",
+      "avgComplexity": "平均复杂度",
+      "complexity": "复杂度",
+      "maxNesting": "最大嵌套",
+      "riskLevel": "风险级",
+      "methods": "方法数",
+      "noFact": "暂无结构化事实"
+    },
+    "depsTitle": "依赖关系",
+    "layerTitle": "架构分层",
+    "findingsTitle": "审查结果（{n}）",
+    "findingsTitlePlain": "审查结果",
+    "noFindings": "该实体暂无审查发现",
+    "suggestion": "建议：{s}",
+    "metaTitle": "关键指标",
+    "noMeta": "暂无属性数据",
+    "metric": {
+      "complexity": "圈复杂度 {n}（{level}）",
+      "techDebt": "技术债标记 {n} 处（TODO/FIXME/HACK 等）",
+      "churn": "git 变更 {n} 次（{level}）",
+      "deadCode": "零引用符号 {n} 个（{level}，可安全删除）",
+      "deadLevelHigh": "大量死代码，优先清理",
+      "deadLevelMid": "存在死代码",
+      "deadLevelLow": "少量死符号",
+      "deadBadge": "死{n}",
+      "risk": "命中审查 {e} 严重 / {w} 警告（加权风险 {s}）",
+      "duplication": "克隆 {n} 块 / {lines} 行（重复率 {pct}%）",
+      "debtBadge": "债{n}",
+      "churnBadge": "改{n}",
+      "cloneBadge": "重{n}",
+      "testCoverage": "测试覆盖: 模块「{mod}」{state}",
+      "testHas": "已有测试文件",
+      "testMissing": "无任何测试文件（红色=改动无保护）",
+      "testOk": "测✓",
+      "testNone": "无测",
+      "testPaired": "已配对",
+      "testUnpaired": "未配对",
+      "testPairedTitle": "已配对同名测试：{name}",
+      "testUnpairedTitle": "无同名测试文件：{name}（红=改动无保护）",
+      "busFactor": "贡献者 {n} 人{note}",
+      "busSolo": "（单人垄断，知识孤岛：该人离职此文件无人能接）",
+      "busTwo": "（仅 2 人，bus factor 偏低）",
+      "ripple": "调用入度 {n}（被多少处调用；越高改动影响面越广，红=枢纽文件）",
+      "docsCoverage": "文档覆盖: 导出符号 {n} 个，未文档化 {m} 个（红=过半接口无说明）",
+      "docBadge": "文{n}",
+      "docOk": "文✓",
+      "security": "安全命中 {n} 处：{sample}{more}",
+      "apiSurface": "暴露端点 {n} 个{sample}",
+      "apiSample": "（如：{s}）",
+      "errorHandling": "错误处理盲区：空 catch {e} 处、吞异常 {s} 处（错误被静默丢失）",
+      "logging": "泄漏 {l} 处 · 吞错 {s} 处",
+      "commentRatio": "注释 {pct}% · {c}/{t} 行",
+      "commentRatioWithBlocked": "注释 {pct}% · {c}/{t} 行 · 注释掉的代码 {n} 块",
+      "syntax": "{n} 处语法错误——文件无法被正确解析",
+      "couplingNodeTitle": "模块 {module} · 共变 {total} 次 · 耦合伙伴 {partners} 个（其中隐性 {hidden} 个）"
+    },
+    "code": {
+      "title": "代码洞察",
+      "symbols": "符号 {n} 个",
+      "kindChip": "{kind} {n}",
+      "symbolAt": "{name}（第 {line} 行）",
+      "noSymbols": "该实体未关联到可解析符号的文件",
+      "metric": "圈复杂度 {cc}（{level}）· 引擎 {engine} · 函数 {fn} 个",
+      "hot": "最复杂：{name}（CC {cc}）",
+      "dead": "死代码候选 {n} 个",
+      "callers": "调用方（{n}）",
+      "callees": "被调用（{n}）",
+      "noCallers": "无调用方",
+      "noCallees": "未被调用",
+      "openAt": "打开 {name} 第 {line} 行"
+    },
+    "spec": {
+      "complexity": {
+        "label": "复杂度画像",
+        "empty": "暂无度量数据，请先扫描项目",
+        "done": "复杂度画像完成：{n} 个文件按圈复杂度排布（绿=低 黄=中 橙=高 红=极高）{risky}",
+        "risky": "，高风险 {n} 个"
+      },
+      "techDebt": {
+        "label": "技术债画像",
+        "empty": "当前分析未发现技术债标记（TODO/FIXME/HACK 等），可先执行扫描",
+        "done": "技术债画像完成：{n} 个文件含技术债标记，共 {total} 处（TODO/FIXME/HACK 等）{hours}",
+        "hours": "，预计清偿 {h}"
+      },
+      "churn": {
+        "label": "变更热点画像",
+        "empty": "未取到 git 变更历史（非 git 仓库或未安装 git），无法生成变更热点画像",
+        "done": "变更热点画像完成：{n} 个文件、累计 {commits} 次提交{first}",
+        "refactorFirst": "，「高复杂 × 高变更」优先重构 {n} 个（红色）"
+      },
+      "deadCode": {
+        "label": "死代码画像",
+        "empty": "未检测到零引用符号，代码库很干净（或引用分析尚未执行）",
+        "done": "死代码画像完成：{n} 个文件含 {total} 个零引用符号（仅基于 import 引用与调用扫描；反射/动态调用不在判定内，删除前请人工确认）"
+      },
+      "risk": {
+        "label": "风险画像",
+        "empty": "当前分析没有审查发现，未命中任何风险规则（或规则尚未执行）",
+        "done": "风险画像完成：{n} 个文件命中审查规则，严重 {err} 项、警告 {warn} 项（按加权风险分降序排布）"
+      },
+      "duplication": {
+        "label": "重复代码画像",
+        "empty": "未检测到重复代码块（或尚未执行克隆检测，请先扫描项目）",
+        "done": "重复代码画像完成：{n} 个文件含 {blocks} 个克隆块、{lines} 行重复代码{type2}{worst}",
+        "type2": "，其中 {n} 个为参数化克隆（变量改名后的近重复，紫色标记）",
+        "worst": "，最严重「{name}」重复率 {pct}%"
+      },
+      "testCoverage": {
+        "label": "测试覆盖画像",
+        "empty": "未找到可分析的源文件",
+        "done": "测试配对画像完成：{n} 个源文件，已配对 {tested} 个（{pct}%）、未配对 {untested} 个（红=改动无保护）"
+      },
+      "busFactor": {
+        "label": "责任人画像",
+        "empty": "无 git 作者数据（非 git 仓库或未安装 git），无法生成责任人画像",
+        "done": "责任人画像完成：{n} 个有 git 记录的文件，单人垄断 {solo} 个（红=知识孤岛）"
+      },
+      "ripple": {
+        "label": "涟漪影响面画像",
+        "empty": "无调用边数据，请先扫描项目（调用图在符号引用之后生成）",
+        "done": "涟漪影响面画像完成：{n} 个被依赖文件，枢纽(入度≥8) {hubs} 个（红=改动波及最广）"
+      },
+      "docsCoverage": {
+        "label": "文档覆盖画像",
+        "empty": "未检测到导出符号（请先扫描项目以解析符号）",
+        "done": "文档覆盖画像完成：{n} 个含导出符号的文件，过半未文档化 {bad} 个（红=接口说明缺失）"
+      },
+      "security": {
+        "label": "安全画像",
+        "empty": "未检测到密钥硬编码或不安全 API 调用（或尚未扫描源码）",
+        "done": "安全画像完成：扫描 {n} 个源文件，命中 {m} 个文件存在密钥硬编码 / 不安全 API"
+      },
+      "apiSurface": {
+        "label": "接口暴露面画像",
+        "empty": "未从源码中解析到路由 / 接口端点（或尚未扫描源码）",
+        "done": "接口暴露面画像完成：发现 {n} 个文件含路由，共 {total} 个对外端点"
+      },
+      "errorHandling": {
+        "label": "错误处理画像",
+        "empty": "未检测到空 catch / 吞异常（或尚未扫描源码）",
+        "done": "错误处理画像完成：{n} 个文件存在错误处理盲区，共 {total} 处空 catch / 吞异常"
+      },
+      "logging": {
+        "empty": "未发现 console 泄漏或吞掉 error 日志",
+        "done": "{n} 个文件有日志卫生问题，共 {total} 处"
+      },
+      "commentRatio": {
+        "empty": "所有文件注释率正常（≥15%）",
+        "done": "{n} 个文件注释率偏低，其中 {bad} 个几乎无注释",
+        "done2": "{n} 个文件注释需关注，其中 {bad} 个严重，{blocked} 个含注释掉的死代码"
+      },
+      "syntax": {
+        "label": "语法错误",
+        "empty": "没有发现语法错误，所有 AST 文件都能被正确解析",
+        "done": "语法错误画像完成：{n} 个文件共 {total} 处语法错误"
+      }
+    },
+    "msg": {
+      "callGraphNoData": "暂无跨文件调用数据。调用图在符号引用之后生成，请先完整扫描项目，或重新打开「调用链」画像即可自动重算",
+      "callGraphStale": "调用边关联的文件已不在当前扫描结果中",
+      "callGraphDone": "调用链画像完成：{n} 个文件、{edges} 条跨文件调用{hub}{trunc}{chain}",
+      "callHub": "，核心被调 {name}（{n} 次）",
+      "flowNoData": "暂无跨文件调用数据。调用图在符号引用之后生成，请先完整扫描项目，或重新打开「执行流」画像即可自动重算",
+      "flowDone": "执行流画像完成：{n} 个符号、{edges} 条调用线、{entries} 个入口{trunc}",
+      "flowTrunc": "（共 {total} 个符号参与调用分析，按中心度截取前 {keep} 个，其余未展示）",
+      "flowLegend": "执行流（入口→底座）",
+      "flowLegendHint": "左列=入口（执行起点），向右逐级=调用深入；每条线都是一条可双击追踪的代码走线",
+      "flowClean": "已剔除 {n} 条跨语言假边（Rust↔TS 同名错配，非真实调用）",
+      "flowBridge": "前端 invoke → 后端命令桥接 {n} 条（琥珀虚线=运行时派发）",
+      "flowRender": "前端渲染主干 {n} 条（青虚线=入口→页面→组件→invoke 的组件引用链）",
+      "flowUnreached": "末列另有 {n} 个「未接入」节点：它们不被任何已识别入口触达（可能由框架反射/回调唤起，或确为死代码）",
+      "flowStartHere": "从这里开始读（名称·可达节点数）：{list}",
+      "apiTraceNoData": "未扫描到 API 调用点或路由。请在代码里出现 fetch/axios/invoke 或 app.get/@Get/#[tauri::command] 等后再试",
+      "apiTraceNoLink": "已扫描到调用点与路由，但没有任何前端调用能匹配到后端路由（全是悬空调用或死路由）",
+      "apiTraceNoOrphan": "没有悬空调用：所有前端 API 调用都匹配到了后端路由",
+      "apiTraceNoDead": "没有死路由：所有后端注册的路由都有前端调用",
+      "apiTraceDone": "API 调用链路完成：{n} 条链路、{edges} 条连线；悬空调用 {orphan} 个、死路由 {dead} 个{trunc}",
+      "apiTraceTrunc": "（按端点去重截取前若干条，其余未展示）",
+      "apiTraceLegend": "API 调用链路（从上到下读一条）",
+      "apiTraceLegendHint": "蓝=前端调用点，琥珀=API路由，绿=后端方法(入口)，灰=下游方法；每条竖线都是一条可双击追踪的调用走线",
+      "taintNoData": "还没有数据流摘要。请先完成扫描（数据流阶段产出函数级摘要）；注意该摘要目前仅支持 TS/JS/Rust/Python，其余语言不会产出结果",
+      "taintNoEdges": "还没有调用边数据，请先完成扫描（调用图阶段）",
+      "taintNoPath": "已分析 {n} 个函数摘要，但没有找到「外部输入 → 危险调用」的完整传播路径",
+      "taintNoCritical": "没有高危链路：未发现污染数据落到命令执行 / SQL / XSS / 反序列化 / 文件读写 / 外发请求等危险调用",
+      "taintNoSanitized": "没有已被净化函数拦下的链路（可尝试「全部链路」视图）",
+      "taintDone": "污点传播路径完成：{n} 条链路、{edges} 条连线；其中 {sinks} 条落到危险调用、{sanitized} 条被净化拦下；{unresolved} 个调用点无法解析到函数摘要{trunc}",
+      "taintTrunc": "（已按严重度截取前若干条，其余未展示）",
+      "taintLegend": "污点传播路径（从上到下读一条）",
+      "taintLegendHint": "蓝=污染源(外部输入入口) 绿=中转(第 i 个形参→第 j 个实参) 红=危险调用(锚点是出事那一行) 淡绿=已净化(污染到此终止)；双击任意节点直达源码",
+      "truncated": "（共 {total} 个文件参与调用分析，已按入/出度截取前 {keep} 个，其余 {n} 个未展示）",
+      "archNoModules": "暂无模块数据，请先扫描项目（依赖检测后自动生成模块）",
+      "archDone": "架构画像完成：{n} 个模块、{edges} 条依赖连线{cycles}",
+      "archCycles": "、{n} 条循环依赖（红色虚线）",
+      "depNoData": "暂无文件级依赖数据，请先扫描项目（扫描会自动执行依赖检测）",
+      "depDone": "依赖关系画像完成：{n} 个文件力导向聚簇、{edges} 条依赖边{cycles}{trunc}",
+      "depCycles": "；检出 {n} 个循环依赖环（最大 {size} 元，红色虚线），共 {edges} 条环内边",
+      "depClean": "；未发现循环依赖，依赖方向是干净的有向无环图",
+      "depTrunc": "；因画布容量限制按依赖度数截取前 {keep} 个文件，其余 {n} 个未展示",
+      "depFocus": "已在依赖总览中高亮「{name}」：焦点及其 {added} 个 1 跳邻居已并入全局图（共 {files} 个文件、{edges} 条依赖边，点左侧项目树其它文件可切换焦点）",
+      "couplingNone": "未发现显著的变更耦合：项目提交历史较短，或没有文件对达到「共变 ≥3 次且耦合度 ≥35%」的阈值",
+      "couplingNoGit": "变更耦合依赖 git 提交历史，当前项目不是 git 仓库（或未安装 git），无法生成该画像",
+      "couplingStale": "变更耦合数据里的文件已不在当前扫描结果中（可能项目已重构），请重新扫描",
+      "couplingDone": "变更耦合画像完成：{n} 个文件、{edges} 对共变关系{hidden}{worst}",
+      "couplingHidden": "；其中 {n} 对为隐性耦合（无 import 却总一起改，暖色加粗）{cross}",
+      "couplingCross": "，{n} 对跨模块（架构边界被绕过，标「!」）",
+      "couplingNormal": "；均为已有依赖的正常共变",
+      "couplingWorst": "。最强耦合：{name}",
+      "couplingWorstName": "（共变 {n} 次 / {pct}%）",
+      "couplingFilterApplied": "已筛选「{filter}」（{kept}/{total} 条）",
+      "couplingWindowApplied": "时间窗：近 {days} 天",
+      "layerNoData": "暂无架构分层数据，请先扫描项目（扫描会按顶层目录自动生成分层）",
+      "layerDone": "分层画像完成：{n} 个文件归入 {layers} 个分层、{edges} 条跨层依赖{viol}",
+      "layerViol": "，检出 {n} 处分层违规（下层反向依赖上层，红色虚线）",
+      "layerClean": "，未发现分层违规",
+      "unlayered": "未分层",
+      "msNoModules": "暂无模块数据，请先扫描项目",
+      "msNoDeps": "模块之间尚未检出依赖关系，矩形树图需要依赖数据才能计算稳定性",
+      "zonePainful": "痛苦区（稳定又具体）",
+      "zoneUseless": "无用区（抽象却没人用）",
+      "zoneNormal": "正常区（其余模块）",
+      "axisI": "→ 不稳定性 I 增大",
+      "axisIHint": "→ 不稳定性 I 增大（越右越容易改）",
+      "axisA": "↑ 抽象度 A 增大",
+      "treemapTitle": "耦合矩形树图（面积=文件数，颜色=耦合健康度）",
+      "msDone": "矩形树图完成：{n} 个模块按体量铺排，颜色标注耦合健康度",
+      "msPainful": "痛苦区 {n} 个（{names}）",
+      "msUseless": "无用区 {n} 个",
+      "msCycles": "{n} 个循环环、{edges} 条环内边（红色）",
+      "msHealthy": "全部落在主序附近，架构形状健康",
+      "dirNoScan": "尚无扫描结果，请先扫描项目",
+      "dirMissing": "目录 {dir} 不存在或无内容",
+      "dirNoMatch": "未找到包含「{q}」的目录",
+      "dirLeaf": "目录 {dir} 下没有更深层级可展开（已是叶子目录）",
+      "dirNoDepth": "项目没有子目录层级，目录画像无内容可画（可试「架构画像」）",
+      "dirScope": "（范围：{dir}）",
+      "sortSize": "按规模",
+      "sortName": "按名称",
+      "sortPath": "按路径",
+      "sortNote": " · {s}",
+      "dirSearch": " · 搜索「{q}」",
+      "dirFileLeaves": " · 文件叶子 {n} 个{hidden}",
+      "dirHidden": "（另有 {n} 个因上限未显示）",
+      "dirTrunc": " · 目录仅显示前 {a}/{b} 个",
+      "dirDone": "目录结构画像：{n} 个目录{search}{sort}{files}{scope} · 共 {fc} 文件 · {lines} 行",
+      "dirDeep": "（最深 {depth} 层",
+      "dirHottest": "，复杂度最高 {path}（均值 {avg}）",
+      "dirDrill": "，更深层双击目录可下钻",
+      "rootDir": "根目录",
+      "dirView": "{name} 目录",
+      "dirViewN": "{name} 目录 {n}",
+      "treeGuide": "目录层级引导线",
+      "quadNoData": "四象限需要「变更热度」与「圈复杂度」两组数据；已自动重算/重载，若仍为空说明扫描尚未产出度量结果，请重新打开此画像自动重算",
+      "quadNoMatch": "未在象限中找到匹配「{q}」的文件（当前视图仅包含有复杂度/变更/风险信号的文件）",
+      "quadNoDataHint": "请先在顶部运行「扫描项目」以载入文件与度量数据，再打开本画像",
+      "quadNoChurn": "本项目不在 Git 仓库内或无提交历史：缺少「变更热度」轴，但「圈复杂度」轴仍有数据——可凭复杂度维查看高复杂文件（右上角空缺属正常）",
+      "quadDone": "四象限画像完成：{n} 个文件（横轴=变更频率/风险分，纵轴=复杂度）{first}",
+      "quadStats": "。分布：优先重构 {rf} · 稳定遗留 {ls} · 活跃开发 {as} · 健康 {h}",
+      "quadFirst": "；右上角「优先重构」{n} 个，是投入产出比最高的重构目标",
+      "quadHealthy": "；无文件落入「优先重构」区，代码库状态健康",
+      "quadAxisChurn": "横轴 = Git 变更频率 · 纵轴 = 圈复杂度 · 右上角 = 优先重构（高复杂·高频变更）",
+      "quadAxisRisk": "未检测到 Git 变更数据：横轴回退为审查风险分（error×5+warning×2+info）· 纵轴 = 圈复杂度 · 右上角 = 优先重构（高复杂·高风险）",
+      "quadAxisNone": "未检测到 Git 变更与审查数据，横轴不可用（仅按复杂度呈现）；请设置 Git 仓库根目录并运行扫描后重试",
+      "quadAxisDup": "未检测到 Git 变更与审查风险：横轴回退为代码重复率 · 纵轴 = 圈复杂度 · 右上角 = 优先重构（高复杂·高重复）",
+      "quadAxisSize": "未检测到变更/风险/重复信号：横轴回退为文件规模（行数）· 纵轴 = 圈复杂度 · 右上角 = 优先重构（高复杂·大文件）",
+      "quadAxisXChurn": "Git 变更频率",
+      "quadAxisXRisk": "审查风险分",
+      "quadAxisXDup": "代码重复率",
+      "quadAxisXSize": "文件规模（行数）",
+      "quadAxisY": "圈复杂度",
+      "quadAxisFormula": "坐标 = 秩百分位：名次 ÷ 文件总数 → 0~1（高值靠右/靠上），刻度标真实度量值",
+      "quadAxisHint": "↗ 右上角 = 优先重构（高复杂·高频变更）",
+      "quadTopN": "仅绘制 Top-{shown} 高风险文件（共 {total} 个文件参与评估，已省略低复杂度/低变更文件）",
+      "quadTopNMsg": "；仅显示 Top-{shown} 高风险文件（共 {total} 个参与评估，其余低优先级文件未绘制）",
+      "quadRailTitle": "优先重构 Top-{n}（双击卡片打开源码）",
+      "quadSearchHint": "想定位特定文件？用顶部「搜索文件」框按文件名筛选，跳过 Top-N 截断，任意文件必现",
+      "patternNoData": "暂无设计模式识别数据，请先扫描项目（代码结构分析包含设计模式检测）",
+      "patternNoDataAfterRedetect": "已对源码重新检测设计模式，但仍未识别到任何模式（该项目可能未采用典型命名/结构）",
+      "patternNoNode": "设计模式数据已存在但没有可放置的节点",
+      "patternNoRoot": "未配置项目根目录，无法对源码重新检测设计模式。请先在左侧打开项目文件夹（设置项目根目录），或点击顶部「扫描项目」重新扫描。",
+      "patternRedetectError": "重新检测设计模式时出错：{err}。可尝试点击顶部「扫描项目」做完整重扫。",
+      "patternBackendStale": "设计模式检测后端未加载（命令 redetect_design_patterns 不可用）。这通常是因为应用运行的是旧版本——请在终端重新运行「npm run tauri dev」重启应用以载入最新后端，然后再次打开「更多画像 → 设计模式」。",
+      "patternRedetected": "（已对源码重新检测）",
+      "patternRedetecting": "正在对源码重新检测设计模式…（首次可能需数秒，请稍候）",
+      "patternDone": "设计模式画像完成：{n} 个模式命中（按创建/结构/行为/架构角色四类分区）{trunc}{top}；色条=分类，右上角=置信度环，悬浮看判定依据",
+      "patternTrunc": "，置信度前 {keep} 条（共 {total} 条）",
+      "patternTop": "；出现最多：{name}（{n} 处）",
+      "patternOverviewTitle": "🧩 设计模式总览 · {kinds} 种模式 · {n} 处命中",
+      "patternOverviewTop": " ｜ 最多：{name}({n})",
+      "patternOverview": "设计模式画像完成{redetect}：识别 {kinds} 种模式、共 {n} 处命中（按创建/结构/行为/架构四类分区，同类下按模式聚簇）；{breakdown}{trunc}{top}。色块=模式种类，右上角环=置信度，悬浮看判定依据",
+      "patternLowConf": " ｜ ⚠{n} 处低置信命中（<70%），建议人工核对",
+      "docUnavailable": "文档注释数据暂未采集（扫描器未提取符号 doc 字段），文档覆盖画像暂不可用；已记录为待实现项",
+      "symNoData": "暂无代码结构数据，请先扫描项目（结构分析自动提取类/函数/接口等符号）",
+      "symNoNode": "符号数据已存在但没有可渲染的节点（符号对应的文件已不在扫描结果中）",
+      "symModuleDeps": " · →{out} ←{in}",
+      "symCycleBand": " · ⚠环",
+      "symCohesion": " · 内聚 {pct}%",
+      "symCohesionLow": " · ⚠低内聚 {pct}%",
+      "symDone": "代码结构画像完成：覆盖 {dirs} 个目录（模块）、{files} 个文件、{n} 个符号实体（{kinds}）；左侧色条越红=被外部引用越多（结构承重件）{trunc}{edges}{health}；双击符号实体可打开源码定位定义行",
+      "symTrunc": "，另有 {n} 个符号因画布上限未渲染",
+      "symEdges": "；已绘制 {n} 条调用连线（其中 {cross} 条跨文件）{inherit}",
+      "symInheritEdges": "，{n} 条继承连线",
+      "symNoCallGraph": "；暂无调用图数据（扫描时会在符号引用之后生成）",
+      "symHealthPrefix": "；体检：",
+      "symHealthItemCycles": "{n} 个循环依赖",
+      "symHealthItemHubs": "{n} 个枢纽符号",
+      "symHealthItemCohesion": "{n} 个低内聚文件",
+      "symHealthItemCross": "{m} 条跨模块调用",
+      "symHealthCyclesTop": "（先破 {dirs}）",
+      "symHealthHubsTop": "（最重 {name}）",
+      "symHealthCohesionTop": "（最严重 {name}）",
+      "symHealthNone": "；体检：依赖方向清晰、无循环依赖、无枢纽符号",
+      "impactNoData": "暂无函数调用图数据，请先扫描项目（调用图在符号引用分析之后生成）",
+      "targetFile": "目标文件",
+      "impactIsolated": "目标未出现在调用图中：它既没有调用别人，也没有被调用（可能是入口或纯类型定义）",
+      "impactMore": "其余 {n} 个（第 {d} 跳）",
+      "impactDone": "影响面画像完成：「{name}」上游 {up} 个调用者（波及 {files} 个文件，{level}）、下游 {down} 个依赖，{edges} 条调用链",
+      "noAnalysis": "未选择分析",
+      "impactOrphan": "「{name}」在调用图中是孤立节点：无调用者、无依赖",
+      "hotNoAst": "暂无 AST 函数度量。请先完整扫描项目，或重新打开「函数热点」画像即可自动重算",
+      "hotNoNode": "未生成热点节点（{files} 个 AST 文件 / {fns} 个函数均低于阈值）。可重新打开「函数热点」画像即可自动重算",
+      "hotGroup": "{name} · {a}/{b} 个热点函数",
+      "hotSignature": "{name}({params} 参数) · {lines} 行 · CC {cc} · 嵌套 {nesting}",
+      "hotHealthy": "函数热点画像完成：{files} 个文件共 {fns} 个函数**全部处于健康区间**，这里展示风险相对最高的 {n} 个供参考",
+      "hotDone": "函数热点画像完成：从 {files} 个文件 {fns} 个函数中挑出 {n} 个热点（{levels}）{worst}{trunc}；双击卡片直达该函数定义行",
+      "hotWorst": "，最危险的是 {path} 的 {name}()——{reasons}",
+      "hotTrunc": "；另有 {n} 个因画布上限未渲染",
+      "flowNoData": "暂无数据流摘要。函数级数据流依赖 tree-sitter 解析（目前支持 TypeScript/JavaScript/Rust/Python）。请先完整扫描项目，或重新打开「数据流」画像即可自动重算",
+      "flowNoNode": "已解析 {n} 条数据流摘要，但没有可渲染的节点",
+      "flowDone": "数据流画像完成：{summary}；阻断占比 {ratio}%{note}；红=汇点(写外部状态) 橙=透传(影响链高速路) 绿=阻断(改动安全区)，双击卡片直达定义行",
+      "flowPrune": "（影响链剪枝收益显著）",
+      "symNoMatch": "没有匹配「{q}」的符号",
+      "modDone": "模块依赖图完成：{n} 个模块、{edges} 条依赖边（线宽=调用量）{cyc}；模块间调用方向与权重一目了然，环上模块红描边",
+      "modNoData": "暂无模块间依赖（调用图为空或全部调用在单模块内部）",
+      "modCycles": "，{n} 个模块成环（循环依赖）",
+      "symBandSub": "{path} · {b} 符号 · 画布 {a}",
+      "symMigrated": "检测到旧版代码结构画像，已用新布局自动重建",
+      "symTreeDone": "目录树视图：{dirs} 个目录、{files} 个文件、{syms} 个符号{exp}；双击文件展开/收起符号",
+      "symTreeExpanded": "，已展开 {n} 个文件",
+      "depNodeModule": "模块 {module}",
+      "depNodeDepth": "层级 {n}",
+      "depNodeCycle": "在 {n} 元依赖环中",
+      "depMigrated": "检测到旧版依赖画像，已用新布局（模块簇着色）自动重建",
+      "couplingFocus": "已聚焦「{name}」：焦点及其 {neighbors} 个 1-跳耦合伙伴已并入画布（共 {files} 个文件、{edges} 条耦合边，点左侧项目树其它文件可切换焦点）",
+      "callChainDone": "；符号链 {nodes} 个函数节点、{edges} 条调用（入链+出链）",
+      "callChainZoneIn": "符号级调用链（枢纽函数的入链）",
+      "callChainHintIn": "高频被调枢纽函数及其跨文件调用者，下钻到函数粒度的「谁在支撑谁」",
+      "callChainZoneOut": "符号级调用链（枢纽函数的出链）",
+      "callChainHintOut": "高频出度枢纽函数及其跨文件被调者，下钻到函数粒度的「谁扩散到哪」"
+    },
+    "security": {
+      "secretHit": "L{line} hardcoded secret",
+      "unsafeHit": "L{line} unsafe API"
+    },
+    "symbol": {
+      "title": "符号画像",
+      "hub": "⚙ 枢纽",
+      "godClass": "⚠ 上帝类",
+      "cycle": "⚠ 循环依赖",
+      "kind": "类型",
+      "refs": "被引用",
+      "span": "跨度",
+      "linesUnit": "行",
+      "definedAt": "定义行",
+      "inherits": "继承：",
+      "impact": "查看影响面",
+      "openTitle": "打开 {name} 定义",
+      "callsTitle": "{name} 调用关系",
+      "callers": "谁调用它",
+      "callees": "它调用谁",
+      "noCalls": "无调用关系"
+    },
+    "findings": {
+      "openAt": "定位到第 {line} 行的审查发现",
+      "clickHint": "点击定位到源码"
+    },
+    "layer": {
+      "clickHint": "点击在画布上选中该图层全部实体",
+      "noEntity": "画布上没有该图层实体"
+    },
+    "depInList": "被依赖",
+    "depOutList": "依赖",
+    "depsShow": "所属文件依赖 ▸",
+    "depsHide": "收起 ▾",
+    "depsFileTitle": "所属文件依赖",
+    "depMore": "另有 {n} 条 → 见下方全量列表",
+    "externalTip": "外部依赖包（第三方），非项目文件",
+    "externalCount": "×{n}",
+    "depCountSplit": "内部 {internal} · 外部 {external} 包",
+    "cad": {
+      "title": "CAD 资产",
+      "disabled": "可在「分析设置 → 解析 CAD 资产」开启后查看实体/图层/版本",
+      "loading": "解析中…",
+      "entities": "实体",
+      "layers": "图层",
+      "version": "版本",
+      "bounds": "包围盒",
+      "unparseable": "非 CADBIN 或解析失败"
+    }
+  },
+  "impact": {
+    "via": " · 经由 {name}",
+    "receiverTypeTip": "已解析到接收者类型 {type}（joern 动态分派超近似会丢失此信息）",
+    "crossTip": "跨文件调用，影响面外溢",
+    "cross": "跨",
+    "none": "无",
+    "hop": "第 {n} 跳 · {m} 个",
+    "more": "还有 {n} 个…（可用「影响面画像」在画布上查看全量）",
+    "notInScan": "「{name}」所在文件不在当前扫描结果中",
+    "callPoint": "调用点：{via} ← {name}",
+    "target": "目标",
+    "noCallGraph": "暂无函数调用图数据",
+    "noCallGraphHint": "调用图在扫描的符号引用分析之后生成，重新扫描项目即可",
+    "selectFile": "在画布上选中一个文件实体",
+    "selectFileHint": "即可分析「改动它会波及谁」——上游调用者、下游依赖与爆炸半径",
+    "cycleTip": "检测到调用环（递归或相互调用），影响面可能被低估",
+    "flowBlocker": "数据流阻断：输入不流向输出，上述波及数是调用可达上界，实际回归面更小",
+    "flowSink": "数据流汇点：函数写外部状态，改动会产生副作用，务必回归",
+    "flowConduit": "数据流透传：输入变化会一路传导到调用方，波及数可信",
+    "blastSymbols": "波及函数",
+    "blastFiles": "波及文件",
+    "blastDepth": "最深跳数",
+    "participants": "参与符号",
+    "generate": "生成中…",
+    "portraitBtn": "影响面画像（铺到画布）",
+    "fileBlast": "文件级波及（{n}）",
+    "notOnCanvas": "「{path}」不在当前画布上，可先执行「影响面画像」",
+    "places": "{n} 处",
+    "callableSymbols": "文件内可调用符号（{n}）· 点击分析",
+    "noSymbols": "该文件未提取到函数/类符号（可能是配置或类型定义文件）",
+    "symbolTip": "{kind} · 第 {line} 行 · 被 {n} 处直接调用",
+    "flowTip": "\n数据流：{label} —— {hint}",
+    "upstream": "上游调用者",
+    "upstreamHint": "改我 → 他们受影响",
+    "downstream": "下游依赖",
+    "downstreamHint": "我依赖 → 他们变我受影响",
+    "pickSymbol": "选一个符号，查看它的多跳调用链",
+    "summaryNoRefs": "「{name}」没有出现在调用图中：既没有调用者，也没有调用其它函数",
+    "summaryNoCallers": "「{name}」无人调用（可能是入口 / 导出 API / 死代码），但它依赖 {n} 个函数",
+    "summaryBlast": "改动「{name}」将波及 {symbols} 个函数、{files} 个文件（{level}，最深 {depth} 跳）{cycle}",
+    "summaryCycle": "；检测到调用环",
+    "level": {
+      "isolated": "孤立",
+      "local": "局部",
+      "wide": "较广",
+      "critical": "核心",
+      "isolatedHint": "没有调用者，改动只影响自身",
+      "localHint": "影响面局限在少数几处，可放心改",
+      "wideHint": "影响多个文件，改动前先看清调用链",
+      "criticalHint": "被大量代码依赖的核心符号，改动需谨慎并补测试"
+    },
+    "depth": {
+      "root": "根",
+      "hop1": "1 跳",
+      "hop2": "2 跳",
+      "hop3": "3 跳",
+      "hop4": "4+ 跳"
+    },
+    "side": {
+      "root": "选中",
+      "upstream": "受我影响",
+      "downstream": "我所依赖",
+      "both": "双向（环）"
+    },
+    "runner": {
+      "unknown": "未知运行器"
+    }
+  },
+  "health": {
+    "moduleNotOnCanvas": "模块「{name}」未在当前画布上，可先执行「架构画像」或「耦合主序图」",
+    "noModules": "暂无模块数据，扫描项目后自动计算架构健康度",
+    "grade": "等级 {g}",
+    "summary": "{nodes} 个模块 · {edges} 条模块依赖 · 平均主序距离 D={d}",
+    "deductionsTitle": "扣分明细（满分 100）",
+    "cyclesTitle": "循环依赖环{n}",
+    "noCycles": "未发现模块级循环依赖，依赖方向是干净的有向无环图",
+    "cycleSize": "{n} 元环",
+    "cycleDetail": "环内 {n} 条边 · 耦合权重 {w}",
+    "cyclesMore": "还有 {n} 个环，可在「耦合主序图」画像中查看全部",
+    "deviantTitle": "主序偏离模块",
+    "noDeviant": "全部模块落在主序附近，抽象度与稳定性匹配良好",
+    "zoneMetrics": "被依赖 {ca} · 依赖 {ce} · I {i} · A {a}",
+    "deductionCycles": "循环依赖",
+    "cyclesDetail": "{n} 个环、卷入 {m} 个模块，最大环 {size} 元（{names}）",
+    "deductionDistance": "主序偏离",
+    "noDepsToAssess": "模块间尚无依赖关系，无法评估抽象度与稳定性的匹配度",
+    "distanceDetail": "平均主序距离 D={d}；痛苦区 {p} 个{names}、无用区 {u} 个",
+    "deductionComplexity": "复杂度",
+    "noMetrics": "尚无度量数据",
+    "complexityDetail": "{n}/{m} 个文件圈复杂度偏高（占比 {pct}%）",
+    "deductionTechDebt": "技术债密度",
+    "noLines": "尚无行数统计",
+    "techDebtDetail": "{n} 处标记 / {k} KLOC，密度 {d} 处每千行",
+    "deductionDead": "死代码",
+    "noSymbols": "尚无符号数据",
+    "deadDetail": "{n}/{m} 个符号零引用（占比 {pct}%）",
+    "zone": {
+      "painful": "痛苦区",
+      "useless": "无用区",
+      "mainSequence": "主序附近",
+      "painfulHint": "又具体又被大量依赖：改动成本极高，建议抽出接口再让上游依赖接口",
+      "uselessHint": "抽象度高却几乎没人依赖：可能是过度设计或已废弃的抽象层",
+      "mainSequenceHint": "抽象度与稳定性匹配，处于健康的主序区间"
+    },
+    "gradeHint": {
+      "A": "架构健康，依赖方向清晰",
+      "B": "整体良好，有少量待收敛的耦合",
+      "C": "存在明显架构问题，建议优先处理循环依赖",
+      "D": "架构劣化较重，改动风险高",
+      "E": "架构严重失控，建议立项重构"
+    }
+  },
+  "layerPanel": {
+    "renamePrompt": "重命名图层",
+    "hide": "隐藏图层",
+    "show": "显示图层",
+    "unlock": "解锁",
+    "lock": "锁定",
+    "opacity": "透明度 {n}%",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "delete": "删除图层",
+    "opacityLabel": "图层透明度：{n}%",
+    "stats": "图层 {n} · 实体 {m}",
+    "addLayer": "添加图层",
+    "addGroup": "添加分组",
+    "noLayers": "暂无图层，点击右上角「+」新建",
+    "help1": "单击选中图层；双击重命名；锁定图层上的实体不可编辑；",
+    "help2": "隐藏图层整层不可见。上移/下移调整绘制顺序（上层覆盖下层）。"
+  },
+  "pluginSel": {
+    "capScan": "扫描",
+    "capDeps": "依赖",
+    "capRules": "规则",
+    "capRender": "渲染",
+    "analysisDetail": "当前分析 {files} 文件 · {symbols} 符号 · {refs} 引用 · {findings} 发现",
+    "noLangData": "当前分析暂无该语言数据",
+    "switched": "已切换到分析器插件「{name}」，{detail}",
+    "tip": "分析器插件切换（联动左侧面板与画布按语言聚焦）",
+    "noAnalyzer": "未加载分析器",
+    "focusTip": "当前按语言聚焦分析数据（切换插件设置）",
+    "focus": "聚焦 {lang}",
+    "title": "分析器插件（{n}）· 切换后左侧面板与画布按语言聚焦",
+    "noAnalyzers": "暂无已注册的分析器插件",
+    "focused": "聚焦中",
+    "analysisStats": "当前分析：{files} 文件 · {symbols} 符号 · {refs} 引用 · {findings} 发现 · {debt} 技术债",
+    "templateStats": "{e} 实体 · {v} 视角 · {l} 图层 · {r} 规则",
+    "rulesViolation": "⚠ 规则执行：{e}/{t} 条已执行，违规 {n} 处（{f} 条规则命中）",
+    "rulesClean": "✓ 规则执行：{e}/{t} 条已执行，未发现违规",
+    "rulesUnsupported": "；{n} 条需源码级解析",
+    "rulesDetail": "{name} · 规则执行明细（基于当前分析数据）",
+    "plugin": "插件",
+    "unsupported": "不支持",
+    "violations": "{n} 违规",
+    "passed": "通过",
+    "noViolation": "未发现违规",
+    "needsAst": "（需 AST）",
+    "footer": "每种编程语言对应一个分析器插件；切换插件 → 左侧面板/画布按该语言聚焦分析数据；插件规则基于当前分析数据真实执行（复杂度/耦合/分层/死代码等维度）",
+    "capAst": "AST 度量",
+    "capLimited": "基础分析"
+  },
+  "report": {
+    "title": "项目代码分析报告",
+    "generatedAt": "生成时间: {time}",
+    "generatedBy": "由 Sight Folio 创作分析器生成",
+    "sev": {
+      "critical": "严重",
+      "error": "错误",
+      "warning": "警告",
+      "info": "提示",
+      "success": "通过",
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    },
+    "meta": {
+      "scannedFiles": "扫描文件数",
+      "codeLines": "代码行数",
+      "languages": "编程语言",
+      "deps": "依赖关系",
+      "circular": "循环依赖",
+      "findings": "审查发现",
+      "callEdges": "函数调用边",
+      "deadSymbols": "死代码符号",
+      "dupLines": "重复冗余行",
+      "techDebt": "技术债",
+      "aiTodo": "AI 待办结论",
+      "unknownLang": "未识别",
+      "unknown": "未知",
+      "unassigned": "未分配",
+      "files": "个文件",
+      "target": "目标"
+    },
+    "quality": {
+      "stmt": {
+        "ok": "本次扫描各分析维度均有数据支撑，报告结论可直接采信。",
+        "partial": "部分分析维度仅覆盖了一部分对象，相关结论只在覆盖范围内成立。",
+        "empty": "部分分析维度在本项目没有可分析对象，属正常情况。",
+        "unavailable": "本次扫描存在数据盲区：下列维度并未真正跑出结果，其「未发现问题」是没查到，不能作为健康证据。"
+      },
+      "title": "数据可信度声明",
+      "blind": "盲区维度：",
+      "blindNote": "以下维度因数据源不可用而无法评估，结论可能偏乐观",
+      "thDim": "维度",
+      "thStatus": "状态",
+      "thCoverage": "覆盖率",
+      "thNote": "说明",
+      "forbidden": "不得断言{caveat}"
+    },
+    "ai": {
+      "title": "🤖 AI 深度分析结论",
+      "badge": "{n} 条 · 待办 {actionable}",
+      "resolved": " · 已收口 {n}",
+      "unverifiedMark": " ⚠未核实",
+      "changed": " 已变动：{paths}",
+      "missing": " 已消失：{paths}",
+      "confirmed": " · 已被 {n} 轮分析确认",
+      "sourceAgent": " · 来源 Agent: {agent}",
+      "hotTitle": "🎯 被结论点名最多的文件",
+      "thFile": "文件",
+      "thCount": "被点名",
+      "thTopSev": "最高严重度",
+      "unverifiedTitle": "{n} 条引用无法在本次扫描结果中核实",
+      "unverifiedNote": "这些位置未出现在扫描到的文件清单里，可能是路径笔误、扫描范围之外，也可能是模型编造。引用原文：",
+      "resolvedTitle": "✅ 已收口结论（{n} 条 · 不再计入待办）",
+      "resolvedReason": "收口理由：{reason}",
+      "resolvedBy": " · 操作人：{by}",
+      "reviewTitle": "{n} 条结论所引用的代码在产出后已发生变动",
+      "reviewNote": "其中 {stale} 条的引用文件内容已修改、{orphaned} 条的引用文件已不存在。这些结论可能已被修复，也可能已经恶化，采信前请先复核（下列条目上带有标记）。",
+      "intro": "结论由{agents}基于本次扫描数据产出并沉淀；",
+      "introConfirmed": "其中 {n} 条被多轮分析重复确认（可优先排进整改计划），{m} 条为本轮新增。",
+      "introEvidence": "每条结论的证据均已与扫描到的真实文件路径逐条核对，并与结论产出当时的代码快照比对时效。",
+      "agents": "已配置的 Agent（{agents}）",
+      "agentsDefault": "已配置的 AI Agent"
+    },
+    "section": {
+      "lang": "🌐 语言分布",
+      "langBadge": "{n} 种",
+      "layers": "🏗️ 架构分层",
+      "layersBadge": "{n} 层",
+      "modules": "📦 语义模块",
+      "findings": "🔍 审查发现",
+      "findingsBadge": "{n} 条",
+      "findingsClean": "✅ 未发现任何审查问题",
+      "findingsCritical": "严重: {n} 条",
+      "findingsWarning": "警告: {n} 条",
+      "findingsInfo": "提示: {n} 条",
+      "callHot": "🔗 函数调用热点",
+      "callHotBadge": "{n} 条调用边 · {cross} 跨文件",
+      "callHotEmpty": "暂无函数调用图数据（重新扫描项目以生成调用边）",
+      "dead": "💀 死代码（零引用符号）",
+      "deadBadge": "{n} 个",
+      "deadClean": "✅ 未发现零引用符号",
+      "deadLimit": "... 仅显示前 100 个，共 {n} 个",
+      "clones": "⧉ 重复代码",
+      "clonesBadge": "{n} 组 · {m} 处副本 · 可省 {w} 行",
+      "clonesType2": "参数化克隆 {n} 处",
+      "clonesClean": "✅ 未检测到重复代码块",
+      "git": "🔥 git 变更热点与重构象限",
+      "gitBadge": "{n} 个文件有历史",
+      "gitSkip": "项目无 git 历史或非 git 仓库，跳过变更分析",
+      "files": "📄 文件清单",
+      "filesBadge": "{n} 个",
+      "filesLimit": "... 仅显示前 200 个文件，共 {n} 个",
+      "complexity": "🔥 复杂度热力条",
+      "techDebt": "⚠️ 技术债标记",
+      "patterns": "🧩 设计模式命中",
+      "findingsSum": "🔍 审查发现汇总",
+      "moduleHealth": "模块依赖体检"
+    },
+    "th": {
+      "module": "模块名",
+      "layer": "架构层",
+      "fileCount": "文件数",
+      "outDeps": "出依赖",
+      "inDeps": "入依赖",
+      "copyCount": "副本数",
+      "blockLines": "块行数",
+      "waste": "可消除冗余",
+      "type": "类型",
+      "location": "位置",
+      "file": "文件",
+      "churn": "变更热度",
+      "commits": "提交",
+      "authors": "作者",
+      "quadrant": "重构象限",
+      "path": "路径",
+      "lang": "语言",
+      "size": "大小",
+      "lines": "行数"
+    },
+    "callHot": {
+      "target": "⚠ 被调用最多（高 fan-in，改动影响面大）",
+      "source": "↗ 调出最多（高 fan-out，依赖面宽）",
+      "targetShort": "⚠ 被调用最多",
+      "sourceShort": "↗ 调出最多",
+      "badge": "{n} 条调用边 · {cross} 跨文件 · 左：被调用最多（高 fan-in）／右：调出最多（高 fan-out）"
+    },
+    "clone": {
+      "type2": "参数化",
+      "verbatim": "逐字",
+      "note": "「可消除冗余 = 块行数 ×（副本数-1）」，即抽成公共函数后能删掉的行数；共影响 {n} 个文件。",
+      "type2Note": "；参数化克隆 = 改过变量/函数名后的近重复，比逐字复制更隐蔽。",
+      "wasteLines": "{n} 行",
+      "svgTitle": "⧉ 重复代码（克隆检测）",
+      "svgBadge": "{n} 组 · {m} 处副本 · 影响 {f} 个文件 · 抽公共实现可省约 {w} 行",
+      "svgType2": " · 参数化克隆 {n} 处（变量改名后的近重复）",
+      "more": " 等 {n} 处"
+    },
+    "dead": {
+      "badge": "{n} 个 · 置信 high 优先清理（圆点色：红=high 橙=medium 灰=low）",
+      "conf": "置信"
+    },
+    "git": {
+      "note": "「优先重构」(高复杂 × 高变更) 是最该投入重构的目标；「稳定遗留」先别碰，补文档与测试即可。",
+      "badge": "{n} 个文件有历史 · 按变更热度降序 · 「优先重构」最该投入"
+    },
+    "svg": {
+      "subtitle": "项目代码分析报告 · 生成时间 {time}",
+      "langBadge": "{n} 种语言 · 按文件数排序",
+      "layersBadge": "{n} 个模块 · {m} 条文件依赖（聚合为模块级连线）",
+      "unlayered": "未分层",
+      "moduleMeta": "{n} 文件 · {m} 依赖 · {l} 行",
+      "ccAvg": "CC 均值 {n}",
+      "ccPeak": " / 峰值 {n}",
+      "cycle": "循环",
+      "complexityBadge": "{n} 个文件（圈复杂度降序，最多展示 60 个）",
+      "techDebtBadge": "共 {n} 处（TODO/FIXME/HACK/XXX/OPTIMIZE/DEPRECATED），最多展示 40 条",
+      "patternsBadge": "{n} 种模式",
+      "findingsSumBadge": "{n} 条（严重/错误/警告/提示）",
+      "blind": "数据盲区：{list}",
+      "partial": "⚠ 部分覆盖：{list}",
+      "blindNote": "存在数据盲区不代表健康：以下维度数据不可用，结论可能偏乐观",
+      "partialNote": "上述维度仅覆盖部分对象，结论只在覆盖范围内成立",
+      "aiBadge": "{n} 条结论 · 待办 {a} · 多轮确认 {s}",
+      "aiResolved": " · 已收口 {n}",
+      "aiReview": " · 待复核 {n}",
+      "aiAgents": " · 来源 Agent {agents}",
+      "rounds": "{n} 轮确认",
+      "moreInsights": "… 另有 {n} 条结论，见 HTML / JSON 报告",
+      "reviewWarn": "⚠ {n} 条结论所引用的代码在产出后已变动，采信前需复核",
+      "unverifiedWarn": "⚠ {n} 条引用无法在扫描结果中核实，需人工甄别"
+    },
+    "pattern": {
+      "singleton": "单例",
+      "factory": "工厂",
+      "observer": "观察者",
+      "strategy": "策略",
+      "builder": "建造者",
+      "repository": "仓储",
+      "service": "服务层"
+    },
+    "freshnessLabel": {
+      "current": "证据未变",
+      "stale": "证据已变 · 待复核",
+      "orphaned": "证据已消失",
+      "unanchored": "无证据锚点",
+      "unknown": "无从比对"
+    },
+    "freshnessNote": {
+      "current": "所引用的代码自结论产出以来未发生变化，结论继续成立。",
+      "stale": "所引用的代码已被改动，结论可能已被修复、也可能已恶化，需要重新核对。",
+      "orphaned": "所引用的文件已不存在（删除或迁移），结论很可能已随代码一起消失。",
+      "unanchored": "该结论没有可核对的代码位置，无法验证其是否仍然成立。",
+      "unknown": "缺少可比对的基线数据，无法判断结论是否仍然成立。"
+    },
+    "stability": {
+      "new": "本轮新增",
+      "reconfirmed": "复现确认",
+      "stable": "稳定结论"
+    },
+    "moduleHealth": {
+      "summary": "覆盖 {n} 个模块、{e} 条模块间依赖边、{cross} 条跨模块调用",
+      "cycles": "⚠ {n} 个模块成环：{dirs}（循环依赖，优先打破）",
+      "clean": "依赖方向清晰：无模块级循环",
+      "hubs": "⚙ 枢纽符号 {n} 个：{names}"
+    }
+  },
+  "eventReg": {
+    "desc": {
+      "onClick": "组件被点击时触发",
+      "onDblClick": "组件被双击时触发",
+      "onMouseEnter": "鼠标进入组件区域时触发",
+      "onMouseLeave": "鼠标离开组件区域时触发",
+      "onDataChange": "监听的数据字段发生变化时触发",
+      "onThreshold": "数据值越过设定阈值时触发",
+      "onTimer": "按设定的时间间隔自动触发",
+      "onStateChange": "组件状态发生变化时触发",
+      "onScanComplete": "项目扫描完成后触发",
+      "onReviewComplete": "代码审查规则执行完成后触发",
+      "onFileChange": "监视到项目文件创建/修改/删除时触发",
+      "onFindingsUpdated": "代码审查结果更新时触发",
+      "onCircularDependency": "检测到循环依赖时触发",
+      "onLayerChange": "架构分层发生变化时触发",
+      "onLayerChanged": "兼容旧版分层的变更事件",
+      "onDependencyUpdate": "依赖关系图更新后触发",
+      "navigateToScene": "导航到指定分析，可携带变量参数",
+      "navigate": "在新标签页打开外部 URL",
+      "highlight": "高亮目标组件",
+      "hide": "隐藏目标组件",
+      "show": "显示目标组件",
+      "toggleVisible": "切换目标组件的显示/隐藏状态",
+      "setData": "向目标组件设置数据",
+      "toggleData": "在两个值之间切换目标组件属性",
+      "setVariable": "设置场景变量的值",
+      "switchView": "切换到当前分析的指定视图",
+      "playSound": "播放指定的声音文件或内置告警音",
+      "openDialog": "以模态对话框形式打开目标分析",
+      "closeDialog": "关闭当前打开的模态对话框",
+      "callApi": "发送 HTTP 请求到指定 URL",
+      "executeScript": "执行自定义 JavaScript 脚本（沙箱环境）",
+      "reanalyze": "触发对当前项目的重新扫描分析",
+      "reScan": "对当前项目重新执行代码扫描",
+      "runReview": "对已扫描的项目执行代码审查规则",
+      "reReview": "重新执行代码审查规则并刷新结果",
+      "updateDependencies": "重新检测项目依赖关系并刷新依赖图",
+      "exportReport": "将当前分析结果导出为报告文件",
+      "notify": "弹出全局通知提示",
+      "syncToCanvas": "将最新的项目结构同步到画布显示"
+    },
+    "param": {
+      "sceneId": "目标分析",
+      "viewId": "目标视图",
+      "openMode": "打开方式",
+      "variables": "传递变量",
+      "url": "URL 地址",
+      "value": "高亮值",
+      "property": "属性名",
+      "val": "值",
+      "valueA": "值 A",
+      "valueB": "值 B",
+      "variableName": "变量名",
+      "sound": "声音类型",
+      "title": "对话框标题",
+      "width": "宽度(px)",
+      "height": "高度(px)",
+      "method": "请求方法",
+      "body": "请求体(JSON)",
+      "script": "脚本代码",
+      "message": "通知内容",
+      "type": "类型"
+    },
+    "opt": {
+      "replace": "替换当前窗口",
+      "newWindow": "新窗口",
+      "dialog": "弹窗",
+      "alarm": "告警蜂鸣",
+      "beep": "提示音",
+      "success": "成功",
+      "error": "错误",
+      "info": "提示",
+      "warning": "警告"
+    }
+  },
+  "analyzer": {
+    "ts": {
+      "name": "TypeScript 分析器",
+      "entity": {
+        "module": {
+          "name": "模块",
+          "prop": {
+            "name": "模块名"
+          }
+        },
+        "file": {
+          "name": "文件",
+          "prop": {
+            "fileName": "文件名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "function": {
+          "name": "函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "interface": {
+          "name": "接口",
+          "prop": {
+            "name": "接口名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "fileCount": "文件数",
+            "filePath": "路径",
+            "language": "语言",
+            "lineCount": "行数",
+            "methods": "方法数",
+            "complexity": "圈复杂度",
+            "members": "成员数"
+          }
+        },
+        "number": {
+          "prop": {
+            "complexity": "复杂度"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按架构分层展示项目整体结构，模块/文件按层聚合",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层"
+          }
+        },
+        "presentation": {
+          "name": "表现层"
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示模块之间的 import 依赖关系，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "耦合层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按表现/业务/领域/基础设施四层横向排列实体",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层"
+          }
+        },
+        "complexity": {
+          "name": "复杂度热力图",
+          "desc": "按圈复杂度对函数/类着色，红色为高复杂度热点",
+          "layer": {
+            "default": "复杂度层",
+            "coupling": "耦合主序图"
+          }
+        },
+        "coupling": {
+          "name": "耦合主序图",
+          "desc": "横轴不稳定性、纵轴抽象度，定位「痛苦区」（稳定又具体）与「无用区」（抽象却没人依赖）",
+          "layer": {
+            "default": "耦合层"
+          }
+        }
+      },
+      "layerType": {
+        "presentation": {
+          "name": "表现层",
+          "desc": "UI 组件、页面、路由等表现层代码"
+        },
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、用例、服务层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、实体、值对象"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "数据访问、外部接口、基础设施适配"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/行数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "ts-too-many-params": {
+          "name": "参数过多检测",
+          "desc": "单个函数形参超过 5 个，调用方很难记住顺序"
+        },
+        "ts-long-function": {
+          "name": "超长函数检测",
+          "desc": "单个函数超过 80 行，通常意味着职责没有拆开"
+        },
+        "ts-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "控制流嵌套超过 4 层——超过这个深度人脑就跑不完分支了"
+        },
+        "ts-magic-number": {
+          "name": "魔法数字检测",
+          "desc": "检测比较上下文中的裸数字阈值（AST 精确定位到行）"
+        },
+        "ts-unused": {
+          "name": "未使用导出检测",
+          "desc": "检测声明但从未被引用的导出符号"
+        },
+        "ts-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "ts-coupling": {
+          "name": "模块耦合度检测",
+          "desc": "检测高耦合模块（入/出依赖超过阈值）"
+        },
+        "ts-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "函数/方法的圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "rs": {
+      "name": "Rust 分析器",
+      "entity": {
+        "module": {
+          "name": "模块",
+          "prop": {
+            "name": "模块名"
+          }
+        },
+        "struct": {
+          "name": "结构体",
+          "prop": {
+            "name": "结构体名"
+          }
+        },
+        "function": {
+          "name": "函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "crate": {
+          "name": "Crate",
+          "prop": {
+            "name": "Crate 名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "moduleCount": "模块数",
+            "fileCount": "文件数",
+            "fields": "字段数",
+            "methods": "方法数",
+            "complexity": "圈复杂度"
+          }
+        },
+        "number": {
+          "prop": {
+            "visibility": "可见性",
+            "complexity": "复杂度",
+            "hasUnsafe": "含 unsafe"
+          }
+        },
+        "trait": {
+          "name": "Trait",
+          "prop": {
+            "name": "Trait 名"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按 crate/module 结构展示 Rust 项目整体模块树",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 use / crate 之间的依赖关系，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "风险层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按 crate/业务/领域/基础设施层横向排列实体",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "unsafe-risk": {
+          "name": "unsafe 风险视图",
+          "desc": "高亮包含 unsafe 代码的函数与模块，红色为高风险热点",
+          "layer": {
+            "default": "风险层"
+          }
+        }
+      },
+      "layerType": {
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、应用服务层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、结构体、trait、值对象"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "数据访问、外部接口、系统调用适配"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/字段数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 use/crate 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "rs-magic-number": {
+          "name": "魔法数字检测",
+          "desc": "检测比较上下文中的裸数字阈值（AST 精确定位到行）"
+        },
+        "rs-long-function": {
+          "name": "超长函数检测",
+          "desc": "单个 fn 超过 80 行"
+        },
+        "rs-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "match/if let/loop 控制流嵌套超过 4 层"
+        },
+        "rs-unused": {
+          "name": "未使用代码检测",
+          "desc": "检测声明但从未被引用的 pub(crate)/私有符号"
+        },
+        "rs-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "rs-coupling": {
+          "name": "模块耦合度检测",
+          "desc": "检测高耦合模块（use 依赖数超过阈值）"
+        },
+        "rs-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "函数圈复杂度超过阈值（默认 10）时告警"
+        },
+        "rs-unsafe": {
+          "name": "unsafe 代码检测",
+          "desc": "检测函数/模块中的 unsafe 代码块，评估内存安全风险"
+        }
+      }
+    },
+    "py": {
+      "name": "Python 分析器",
+      "entity": {
+        "package": {
+          "name": "包",
+          "prop": {
+            "name": "包名"
+          }
+        },
+        "module": {
+          "name": "模块",
+          "prop": {
+            "name": "模块名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "function": {
+          "name": "函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "moduleCount": "模块数",
+            "lineCount": "行数",
+            "methods": "方法数",
+            "params": "参数数"
+          }
+        },
+        "number": {
+          "prop": {
+            "complexity": "圈复杂度"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按包/模块结构展示 Python 项目整体层次",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示模块之间的 import 依赖关系，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "call-graph": "函数调用图"
+          }
+        },
+        "default": {
+          "name": "调用层"
+        },
+        "call-graph": {
+          "name": "函数调用图",
+          "desc": "展示函数之间的调用关系，定位热点调用链",
+          "layer": {
+            "default": "调用层",
+            "layering": "分层视图"
+          }
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按业务/领域/基础设施层横向排列实体",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        }
+      },
+      "layerType": {
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、应用服务层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、数据类、业务实体"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "数据访问、外部接口、第三方库适配"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/行数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 import 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "py-long-function": {
+          "name": "超长函数检测",
+          "desc": "单个 def 超过 80 行"
+        },
+        "py-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/for/while/try 缩进嵌套超过 4 层"
+        },
+        "py-unused-import": {
+          "name": "未使用导入检测",
+          "desc": "检测已导入但从未被引用的模块/符号"
+        },
+        "py-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "py-coupling": {
+          "name": "模块耦合度检测",
+          "desc": "检测高耦合模块（入/出依赖超过阈值）"
+        },
+        "py-import-cycle": {
+          "name": "循环导入检测",
+          "desc": "检测模块间的循环 import（import cycle）"
+        },
+        "py-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "函数/方法的圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "go": {
+      "name": "Go 分析器",
+      "entity": {
+        "package": {
+          "name": "包",
+          "prop": {
+            "name": "包名"
+          }
+        },
+        "module": {
+          "name": "文件",
+          "prop": {
+            "name": "文件名"
+          }
+        },
+        "struct": {
+          "name": "结构体",
+          "prop": {
+            "name": "结构体名"
+          }
+        },
+        "interface": {
+          "name": "接口",
+          "prop": {
+            "name": "接口名"
+          }
+        },
+        "function": {
+          "name": "函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "fileCount": "文件数",
+            "lineCount": "行数",
+            "fields": "字段数",
+            "methods": "方法数",
+            "complexity": "圈复杂度"
+          }
+        },
+        "number": {
+          "prop": {
+            "methods": "方法数",
+            "hasError": "返回 error"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按 Go package 结构展示项目模块树",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 package 之间的 import 依赖，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "接口层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按业务/领域/基础设施层横向排列实体",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "interface-impl": {
+          "name": "接口实现图",
+          "desc": "展示 interface 与实现 struct 的隐式实现关系（duck typing）",
+          "layer": {
+            "default": "接口层",
+            "business": "业务层"
+          }
+        }
+      },
+      "layerType": {
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、handler、service 层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、struct、interface、值对象"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "数据访问、外部接口、中间件适配"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/字段数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 import 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "go-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/for/switch/select 控制流嵌套超过 4 层"
+        },
+        "go-long-function": {
+          "name": "超长函数检测",
+          "desc": "单个 func 超过 80 行"
+        },
+        "go-unused-import": {
+          "name": "未使用导入检测",
+          "desc": "检测已导入但从未被引用的包（Go 编译器会报错，此处做静态提醒）"
+        },
+        "go-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "go-coupling": {
+          "name": "包耦合度检测",
+          "desc": "检测高耦合包（import 依赖数超过阈值）"
+        },
+        "go-error-handling": {
+          "name": "error 未处理检测",
+          "desc": "检测返回 error 的函数调用后未检查 err 的情况"
+        },
+        "go-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "函数圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "java": {
+      "name": "Java 分析器",
+      "entity": {
+        "package": {
+          "name": "包",
+          "prop": {
+            "name": "包名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "interface": {
+          "name": "接口",
+          "prop": {
+            "name": "接口名"
+          }
+        },
+        "function": {
+          "name": "方法",
+          "prop": {
+            "name": "方法名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "classCount": "类数",
+            "methods": "方法数",
+            "complexity": "圈复杂度"
+          }
+        },
+        "number": {
+          "prop": {
+            "fields": "字段数",
+            "complexity": "复杂度",
+            "isAbstract": "抽象类",
+            "params": "参数数",
+            "visibility": "可见性"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按 Java package 结构展示类/接口层次",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层"
+          }
+        },
+        "presentation": {
+          "name": "表现层"
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 package 之间的 import 依赖，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "继承层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按 Controller/Service/Repository/Domain 分层",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层"
+          }
+        },
+        "inheritance": {
+          "name": "继承关系图",
+          "desc": "展示 class 继承与 interface 实现关系",
+          "layer": {
+            "default": "继承层"
+          }
+        }
+      },
+      "layerType": {
+        "presentation": {
+          "name": "表现层",
+          "desc": "Controller、View、DTO 等表现层代码"
+        },
+        "business": {
+          "name": "业务层",
+          "desc": "Service、业务逻辑、用例层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "Entity、值对象、领域模型"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "Repository、数据访问、外部接口适配"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/方法数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 import 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "java-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/for/while/try 控制流嵌套超过 4 层"
+        },
+        "java-too-many-params": {
+          "name": "参数过多检测",
+          "desc": "单个方法形参超过 5 个"
+        },
+        "java-long-method": {
+          "name": "超长方法检测",
+          "desc": "单个方法超过 80 行"
+        },
+        "java-unused-import": {
+          "name": "未使用导入检测",
+          "desc": "检测已导入但从未被引用的类/包"
+        },
+        "java-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如 Repository 层反向依赖 Controller 层）"
+        },
+        "java-coupling": {
+          "name": "类耦合度检测",
+          "desc": "检测高耦合类（import 依赖数超过阈值）"
+        },
+        "java-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "方法圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "kt": {
+      "name": "Kotlin 分析器",
+      "entity": {
+        "package": {
+          "name": "包",
+          "prop": {
+            "name": "包名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "interface": {
+          "name": "接口",
+          "prop": {
+            "name": "接口名"
+          }
+        },
+        "function": {
+          "name": "函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "classCount": "类数",
+            "methods": "方法数",
+            "complexity": "圈复杂度"
+          }
+        },
+        "number": {
+          "prop": {
+            "properties": "属性数",
+            "complexity": "复杂度"
+          }
+        },
+        "boolean": {
+          "prop": {
+            "isExtension": "扩展函数"
+          }
+        },
+        "struct": {
+          "prop": {
+            "name": "名称"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按 Kotlin package 结构展示类/接口层次",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层"
+          }
+        },
+        "presentation": {
+          "name": "表现层"
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 package 之间的 import 依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "协程层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按表现/业务/领域/基础设施四层横向排列",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层"
+          }
+        },
+        "coroutine-flow": {
+          "name": "协程流程图",
+          "desc": "展示 suspend 函数与协程作用域调用链",
+          "layer": {
+            "default": "协程层"
+          }
+        }
+      },
+      "layerType": {
+        "presentation": {
+          "name": "表现层",
+          "desc": "UI/Compose、ViewModel 等表现层代码"
+        },
+        "business": {
+          "name": "业务层",
+          "desc": "UseCase、业务逻辑、服务层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、data class、接口定义"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "Repository 实现、数据访问、网络层"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/方法数/属性数等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 import 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "kt-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/for/when/try 控制流嵌套超过 4 层"
+        },
+        "kt-too-many-params": {
+          "name": "参数过多检测",
+          "desc": "单个函数形参超过 5 个"
+        },
+        "kt-long-function": {
+          "name": "超长函数检测",
+          "desc": "单个 fun 超过 80 行"
+        },
+        "kt-unused-import": {
+          "name": "未使用导入检测",
+          "desc": "检测已导入但从未被引用的包/类"
+        },
+        "kt-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如 Repository 层反向依赖 ViewModel 层）"
+        },
+        "kt-coupling": {
+          "name": "类耦合度检测",
+          "desc": "检测高耦合类（import 依赖数超过阈值）"
+        },
+        "kt-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "函数圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "cpp": {
+      "name": "C/C++ 分析器",
+      "entity": {
+        "module": {
+          "name": "头文件/源文件",
+          "prop": {
+            "name": "文件名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "struct": {
+          "name": "结构体",
+          "prop": {
+            "name": "结构体名"
+          }
+        },
+        "function": {
+          "name": "函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "interface": {
+          "name": "抽象接口",
+          "prop": {
+            "name": "接口名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "lineCount": "行数",
+            "methods": "纯虚函数数",
+            "fields": "字段数",
+            "complexity": "圈复杂度"
+          }
+        },
+        "number": {
+          "prop": {
+            "fields": "成员变量数",
+            "isAbstract": "抽象类",
+            "hasUnsafe": "含指针操作"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按目录/命名空间展示 C/C++ 项目模块结构",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 #include 头文件依赖关系，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "继承层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按业务/领域/基础设施层横向排列实体",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "inheritance": {
+          "name": "继承关系图",
+          "desc": "展示 class 继承与虚函数多态关系",
+          "layer": {
+            "default": "继承层",
+            "business": "业务层"
+          }
+        }
+      },
+      "layerType": {
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、应用层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、数据结构、类定义"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "系统调用、底层适配、驱动层"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/成员数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 #include 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "cpp-magic-number": {
+          "name": "魔法数字检测",
+          "desc": "检测比较上下文中的裸数字阈值"
+        },
+        "cpp-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/for/while/switch 控制流嵌套超过 4 层"
+        },
+        "cpp-long-function": {
+          "name": "超长函数检测",
+          "desc": "单个函数超过 80 行"
+        },
+        "cpp-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "cpp-coupling": {
+          "name": "头文件耦合度检测",
+          "desc": "检测 #include 依赖过多的头文件"
+        },
+        "cpp-unsafe": {
+          "name": "不安全操作检测",
+          "desc": "检测裸指针操作、malloc/free、类型强转等不安全代码"
+        },
+        "cpp-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "函数圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "cs": {
+      "name": "C# 分析器",
+      "entity": {
+        "module": {
+          "name": "源文件",
+          "prop": {
+            "name": "文件名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "interface": {
+          "name": "接口",
+          "prop": {
+            "name": "接口名"
+          }
+        },
+        "struct": {
+          "name": "结构体",
+          "prop": {
+            "name": "结构体名"
+          }
+        },
+        "function": {
+          "name": "方法",
+          "prop": {
+            "name": "方法名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "lineCount": "行数",
+            "methods": "方法数",
+            "fields": "字段数",
+            "complexity": "圈复杂度"
+          }
+        },
+        "number": {
+          "prop": {
+            "isAbstract": "抽象类"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按命名空间/目录展示 C# 项目结构",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 using 命名空间依赖关系，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "inheritance": "继承关系图"
+          }
+        },
+        "default": {
+          "name": "继承层"
+        },
+        "inheritance": {
+          "name": "继承关系图",
+          "desc": "展示 class/interface 继承与多态关系",
+          "layer": {
+            "default": "继承层",
+            "layering": "分层视图"
+          }
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按业务/领域/基础设施层横向排列实体",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        }
+      },
+      "layerType": {
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、服务层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、类与接口定义"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "数据访问、外部服务封装"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/成员数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 using 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "csharp-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "csharp-coupling": {
+          "name": "依赖耦合度检测",
+          "desc": "检测 using 依赖过多的文件"
+        },
+        "csharp-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/for/while/switch/foreach 控制流嵌套超过 4 层"
+        },
+        "csharp-long-method": {
+          "name": "超长方法检测",
+          "desc": "单个方法超过 80 行"
+        },
+        "csharp-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "方法圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "swift": {
+      "name": "Swift 分析器",
+      "entity": {
+        "module": {
+          "name": "源文件",
+          "prop": {
+            "name": "文件名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "struct": {
+          "name": "结构体",
+          "prop": {
+            "name": "结构体名"
+          }
+        },
+        "interface": {
+          "name": "协议",
+          "prop": {
+            "name": "协议名"
+          }
+        },
+        "function": {
+          "name": "函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "lineCount": "行数",
+            "methods": "方法数",
+            "fields": "属性数",
+            "complexity": "圈复杂度"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按目录/模块展示 Swift 项目结构",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 import 模块依赖关系，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "依赖层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按业务/领域/基础设施层横向排列实体",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        }
+      },
+      "layerType": {
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、视图模型代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、结构体与协议定义"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "底层适配、系统框架封装"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/成员数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 import 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "swift-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "swift-coupling": {
+          "name": "依赖耦合度检测",
+          "desc": "检测 import 依赖过多的文件"
+        },
+        "swift-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/for/while/guard/switch 控制流嵌套超过 4 层"
+        },
+        "swift-long-function": {
+          "name": "超长函数检测",
+          "desc": "单个函数超过 80 行"
+        },
+        "swift-force-unwrap": {
+          "name": "强制解包检测",
+          "desc": "检测！强制解包、try! 等不安全操作"
+        },
+        "swift-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "函数圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "rb": {
+      "name": "Ruby 分析器",
+      "entity": {
+        "module": {
+          "name": "源文件",
+          "prop": {
+            "name": "文件名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "interface": {
+          "name": "Module 混入",
+          "prop": {
+            "name": "模块名"
+          }
+        },
+        "function": {
+          "name": "方法",
+          "prop": {
+            "name": "方法名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "lineCount": "行数",
+            "methods": "方法数",
+            "complexity": "圈复杂度"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按目录/命名空间展示 Ruby 项目模块结构",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 require/require_relative 依赖关系，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "依赖层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按业务/领域/基础设施层横向排列实体",
+          "layer": {
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        }
+      },
+      "layerType": {
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、控制器代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、类与模块定义"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "底层适配、外部服务封装"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/方法数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 require 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "ruby-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "ruby-coupling": {
+          "name": "依赖耦合度检测",
+          "desc": "检测 require 依赖过多的文件"
+        },
+        "ruby-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/while/until/for/block 控制流嵌套超过 4 层"
+        },
+        "ruby-long-method": {
+          "name": "超长方法检测",
+          "desc": "单个方法超过 60 行"
+        },
+        "ruby-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "方法圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "vue": {
+      "name": "Vue 分析器",
+      "entity": {
+        "module": {
+          "name": "页面/视图",
+          "prop": {
+            "name": "页面名"
+          }
+        },
+        "file": {
+          "name": "组件文件",
+          "prop": {
+            "fileName": "文件名"
+          }
+        },
+        "class": {
+          "name": "组件",
+          "prop": {
+            "name": "组件名"
+          }
+        },
+        "function": {
+          "name": "组合式函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "interface": {
+          "name": "Store/类型",
+          "prop": {
+            "name": "名称"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "componentCount": "子组件数",
+            "filePath": "路径",
+            "lineCount": "行数",
+            "methods": "方法数",
+            "complexity": "圈复杂度",
+            "members": "成员数"
+          }
+        },
+        "number": {
+          "prop": {
+            "props": "Props 数",
+            "emits": "Emits 数"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按 Vue 页面/组件/store 结构展示项目层次",
+          "layer": {
+            "presentation": "视图层",
+            "business": "逻辑层",
+            "domain": "数据层"
+          }
+        },
+        "presentation": {
+          "name": "视图层"
+        },
+        "business": {
+          "name": "逻辑层"
+        },
+        "domain": {
+          "name": "数据层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示组件之间的 import/引用依赖",
+          "layer": {
+            "default": "依赖层",
+            "component-tree": "组件树"
+          }
+        },
+        "default": {
+          "name": "依赖层"
+        },
+        "component-tree": {
+          "name": "组件树",
+          "desc": "展示 Vue 组件的父子嵌套关系（模板维度）",
+          "layer": {
+            "presentation": "组件层",
+            "layering": "分层视图"
+          }
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按视图/逻辑/数据/基础设施四层横向排列",
+          "layer": {
+            "presentation": "视图层",
+            "business": "逻辑层",
+            "domain": "数据层"
+          }
+        }
+      },
+      "layerType": {
+        "presentation": {
+          "name": "视图层",
+          "desc": "Vue 组件、页面、布局等视图层代码"
+        },
+        "business": {
+          "name": "逻辑层",
+          "desc": "组合式函数、业务逻辑、服务层"
+        },
+        "domain": {
+          "name": "数据层",
+          "desc": "Pinia Store、类型定义、领域模型"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "API 请求、路由、插件适配"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/Props/Emits 等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到组件循环引用时高亮相关连线"
+        }
+      },
+      "rule": {
+        "vue-deep-nesting": {
+          "name": "模板深层嵌套检测",
+          "desc": "template 内 DOM 嵌套超过 5 层"
+        },
+        "vue-too-many-props": {
+          "name": "Props 过多检测",
+          "desc": "单个组件 defineProps 超过 8 个"
+        },
+        "vue-long-component": {
+          "name": "超长组件检测",
+          "desc": "单个 .vue 文件超过 300 行（含 template + script + style）"
+        },
+        "vue-unused-component": {
+          "name": "未使用组件检测",
+          "desc": "检测声明但从未被引用的组件"
+        },
+        "vue-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如视图层直接操作数据层）"
+        },
+        "vue-coupling": {
+          "name": "组件耦合度检测",
+          "desc": "检测高耦合组件（import/引用依赖超过阈值）"
+        },
+        "vue-complexity": {
+          "name": "组件复杂度检测",
+          "desc": "组件圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "js": {
+      "name": "JavaScript 分析器",
+      "entity": {
+        "module": {
+          "name": "模块",
+          "prop": {
+            "name": "模块名"
+          }
+        },
+        "file": {
+          "name": "文件",
+          "prop": {
+            "fileName": "文件名"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名"
+          }
+        },
+        "function": {
+          "name": "函数",
+          "prop": {
+            "name": "函数名"
+          }
+        },
+        "string": {
+          "prop": {
+            "path": "路径",
+            "fileCount": "文件数",
+            "filePath": "路径",
+            "lineCount": "行数",
+            "methods": "方法数",
+            "complexity": "圈复杂度"
+          }
+        },
+        "number": {
+          "prop": {
+            "complexity": "复杂度"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按模块/文件结构展示 JS 项目整体架构",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层"
+          }
+        },
+        "presentation": {
+          "name": "表现层"
+        },
+        "business": {
+          "name": "业务层"
+        },
+        "domain": {
+          "name": "领域层"
+        },
+        "infra": {
+          "name": "基础设施层"
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示模块之间的 require/import 依赖，高亮循环依赖",
+          "layer": {
+            "default": "依赖层",
+            "layering": "分层视图"
+          }
+        },
+        "default": {
+          "name": "复杂度层"
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按表现/业务/领域/基础设施四层横向排列实体",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层"
+          }
+        },
+        "complexity": {
+          "name": "复杂度热力图",
+          "desc": "按圈复杂度对函数/类着色，红色为高复杂度热点",
+          "layer": {
+            "default": "复杂度层"
+          }
+        }
+      },
+      "layerType": {
+        "presentation": {
+          "name": "表现层",
+          "desc": "UI 组件、页面、路由等表现层代码"
+        },
+        "business": {
+          "name": "业务层",
+          "desc": "业务逻辑、服务层代码"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "领域模型、实体、值对象"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "数据访问、外部接口、工具函数"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/行数/复杂度等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "js-too-many-params": {
+          "name": "参数过多检测",
+          "desc": "单个函数形参超过 5 个"
+        },
+        "js-long-function": {
+          "name": "超长函数检测",
+          "desc": "单个函数超过 80 行"
+        },
+        "js-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "控制流嵌套超过 4 层"
+        },
+        "js-unused": {
+          "name": "未使用导出检测",
+          "desc": "检测声明但从未被引用的导出符号"
+        },
+        "js-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如基础设施层反向依赖领域层）"
+        },
+        "js-coupling": {
+          "name": "模块耦合度检测",
+          "desc": "检测高耦合模块（入/出依赖超过阈值）"
+        },
+        "js-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "函数/方法的圈复杂度超过阈值（默认 10）时告警"
+        }
+      }
+    },
+    "php": {
+      "name": "PHP 分析器",
+      "entity": {
+        "package": {
+          "name": "命名空间",
+          "prop": {
+            "name": "命名空间",
+            "classCount": "类数"
+          }
+        },
+        "class": {
+          "name": "类",
+          "prop": {
+            "name": "类名",
+            "properties": "属性数",
+            "isAbstract": "抽象类"
+          }
+        },
+        "interface": {
+          "name": "接口",
+          "prop": {
+            "name": "接口名"
+          }
+        },
+        "function": {
+          "name": "方法/函数",
+          "prop": {
+            "name": "函数名",
+            "visibility": "可见性"
+          }
+        },
+        "string": {
+          "prop": {
+            "name": "命名空间",
+            "path": "路径",
+            "methods": "方法数",
+            "complexity": "圈复杂度"
+          }
+        },
+        "number": {
+          "prop": {
+            "complexity": "复杂度"
+          }
+        }
+      },
+      "view": {
+        "architecture": {
+          "name": "架构总览",
+          "desc": "按 PHP namespace/目录结构展示项目层次",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "dependency": {
+          "name": "依赖关系图",
+          "desc": "展示 namespace/类之间的 use 依赖",
+          "layer": {
+            "default": "依赖层"
+          }
+        },
+        "layering": {
+          "name": "分层视图",
+          "desc": "按 Controller/Service/Repository/Model 分层",
+          "layer": {
+            "presentation": "表现层",
+            "business": "业务层",
+            "domain": "领域层",
+            "infra": "基础设施层"
+          }
+        },
+        "inheritance": {
+          "name": "继承关系图",
+          "desc": "展示 class 继承与 interface 实现关系",
+          "layer": {
+            "default": "继承层"
+          }
+        }
+      },
+      "layerType": {
+        "presentation": {
+          "name": "表现层",
+          "desc": "Controller、View、Blade 模板等"
+        },
+        "business": {
+          "name": "业务层",
+          "desc": "Service、业务逻辑、中间件"
+        },
+        "domain": {
+          "name": "领域层",
+          "desc": "Model、Entity、值对象"
+        },
+        "infra": {
+          "name": "基础设施层",
+          "desc": "Repository、数据库、外部 API 适配"
+        },
+        "default": {
+          "name": "默认分层",
+          "desc": "未归类的通用分层"
+        }
+      },
+      "handler": {
+        "navigate-to-source": {
+          "name": "跳转到源码位置",
+          "desc": "点击实体后跳转到对应代码行"
+        },
+        "show-detail": {
+          "name": "显示详情悬浮卡",
+          "desc": "悬停实体时显示路径/方法数/属性数等详情"
+        },
+        "open-file": {
+          "name": "打开文件",
+          "desc": "双击实体打开对应源代码文件"
+        },
+        "highlight-cycle": {
+          "name": "高亮循环依赖",
+          "desc": "检测到 use 循环依赖时高亮相关连线"
+        }
+      },
+      "rule": {
+        "php-complexity": {
+          "name": "圈复杂度检测",
+          "desc": "方法圈复杂度超过阈值（默认 10）时告警"
+        },
+        "php-coupling": {
+          "name": "类耦合度检测",
+          "desc": "检测高耦合类（use 依赖数超过阈值）"
+        },
+        "php-layering": {
+          "name": "分层违规检测",
+          "desc": "检测跨层引用（如 Repository 层反向依赖 Controller 层）"
+        },
+        "php-unused-import": {
+          "name": "未使用导入检测",
+          "desc": "检测已 use 但从未被引用的类/命名空间"
+        },
+        "php-long-method": {
+          "name": "超长方法检测",
+          "desc": "单个方法超过 80 行"
+        },
+        "php-deep-nesting": {
+          "name": "深层嵌套检测",
+          "desc": "if/for/foreach/while/switch 控制流嵌套超过 4 层"
+        }
+      }
+    },
+    "entityProvidedBy": "{analyzer} 提供的「{entity}」实体",
+    "svelte": {
+      "name": "Svelte",
+      "entity": {
+        "module": {
+          "name": "Svelte 组件",
+          "prop": {
+            "name": "组件名",
+            "path": "路径",
+            "lineCount": "行数"
+          }
+        }
+      },
+      "entity.string": {
+        "prop": {
+          "path": "路径",
+          "lineCount": "行数"
+        }
+      }
+    }
+  },
+  "taint": {
+    "role": {
+      "source": "污染源：形参没有上游喂入却往下游传 —— 外部输入进入系统的入口",
+      "hop": "中转节点：污染从第 i 个形参流入，又从第 j 个实参流出",
+      "sink": "危险汇点：污染数据最终落到这里",
+      "sanitized": "已净化：污染在这里被校验/转义函数拦下，不再往下游传播"
+    },
+    "hint": {
+      "source": "排查优先级最高：先确认这里是否对外部输入做了校验",
+      "hop": "改这个函数的形参语义会沿链路影响下游，属于爆炸半径的一部分",
+      "sink": "这是真正会出事的那一行，双击直接跳到源码",
+      "sanitized": "这条链路已被拦下，通常无需处理；列出它是为了让你确认净化确实生效"
+    },
+    "kind": {
+      "rce": "代码执行 / 命令注入（最高危）",
+      "sql": "SQL 注入",
+      "deser": "不安全反序列化",
+      "xss": "跨站脚本 / 模板注入",
+      "path": "路径穿越 / 任意文件读写",
+      "ssrf": "任意外发请求（SSRF）",
+      "sideEffect": "写入外部状态（副作用）",
+      "sanitized": "已被净化函数拦下"
+    },
+    "badge": {
+      "source": "源",
+      "hop": "中转",
+      "sink": "汇点",
+      "sanitized": "已净化",
+      "rce": "⚠执行",
+      "sql": "⚠SQL",
+      "deser": "⚠反序列化",
+      "xss": "⚠XSS",
+      "path": "⚠文件",
+      "ssrf": "⚠外发",
+      "sideEffect": "副作用"
+    }
+  },
+  "canvasTip": {
+    "taintKind": "危险类别",
+    "taintRule": "命中调用",
+    "taintParams": "受污染形参",
+    "cxLow": "低",
+    "cxMid": "中",
+    "cxHigh": "高",
+    "cxExtreme": "极高",
+    "aiDir": "AI 洞察：子树内 {n} 条（最高 {sev}）{files}",
+    "aiDirFiles": " · 涉及 {n} 个文件",
+    "aiFile": "AI 洞察：{n} 条（最高 {sev}）",
+    "dirFilesLines": "{n} 个文件 · {lines} 行",
+    "dirDirect": "直属 {n} 文件 / {d} 子目录 · 深度 {depth}",
+    "dirComplexity": "平均圈复杂度 {avg}（{lv}）· 峰值 {max}",
+    "noComplexity": "无复杂度数据",
+    "dirDebt": "技术债 {debt} · 审查发现 {f} · 重复片段 {c}",
+    "dirLang": "语言构成：{langs}",
+    "dirDblClick": "单击展开子树 · 双击定位",
+    "items": "{n} 项",
+    "fileLang": "语言: {lang}",
+    "fileLines": "行数: {n}",
+    "fileSymbols": "符号: {n} 个",
+    "filePatterns": "设计模式: {names}",
+    "fileRefs": "被引用: {n} 处",
+    "fileCallOut": "调用出度: {n}（本文件函数调出目标数）",
+    "fileCallIn": "调用入度: {n}（被多少处调用；高 fan-in 改动影响面广{hub}）",
+    "callHub": "，已是调度枢纽",
+    "fileComplexity": "圈复杂度: {n}（{lv}）",
+    "fileTechDebt": "技术债: {n} 处标记（TODO/FIXME 等）",
+    "fileChurn": "git 变更热度: {n}（{lv}）",
+    "fileDead": "死代码: {n} 个零引用符号（仅基于 import 引用与调用扫描；反射/动态调用等不在判定内，删除前请人工确认）",
+    "fileClone": "重复代码: {n} 个克隆块 / {lines} 行（重复率 {pct}%，{lv}）{type2}",
+    "cloneType2": "，其中 {n} 个为参数化克隆（改过变量/函数名的近重复）",
+    "refactorFirst": "四象限: 优先重构（高复杂 × 高变更）",
+    "focusOut": "（语言聚焦 {lang} 中，非该语言文件已淡化）",
+    "linesShort": "{n} 行",
+    "badgePattern": "设计模式：{name}",
+    "badgeRefs": "被引用 {n} 处",
+    "badgeCallOut": "调用出度 {n}（本文件函数调出目标数）",
+    "badgeCallIn": "调用入度 {n}（被多少处调用{hub}）",
+    "callHubTip": "；已是调度枢纽，改动影响面广",
+    "badgeTechDebt": "{n} 处技术债标记（TODO/FIXME/HACK 等）",
+    "badgeChurn": "git 变更热度 {n}（{lv}）",
+    "churnBadge": "热{n}",
+    "badgeDead": "{n} 个零引用符号（死代码）",
+    "badgeClone": "{n} 个重复代码块 / {lines} 行，重复率 {pct}%",
+    "badgeComplexity": "圈复杂度 {n}（{lv}）",
+    "badgeDupRatio": "重复率 {pct}%（{lv}）：{lines} 行落在 {n} 个克隆块中",
+    "estimatedSuffix": "（行级估算）",
+    "badgeSyntax": "{n} 处语法错误（第 {lines} 行）",
+    "badgeSyntaxTitle": "语法错误 ×{n}",
+    "badgeComplexityTitle": "圈复杂度 {n}",
+    "diagnoseHint": "点击交给 AI 诊断",
+    "fileSyntax": "语法错误: {n} 处（第 {lines} 行）——文件无法被正确解析",
+    "minimapExpand": "展开小地图（全局俯瞰 + 风险热区）",
+    "minimapTitle": "全局俯瞰",
+    "minimapRiskHint": "当前：风险热区配色，点击切换为架构分层配色",
+    "minimapLayerHint": "当前：架构分层配色，点击切换为风险热区配色",
+    "minimapTierTip": "{label}：{n} 个实体 —— 点击选中并把视野收敛到它们",
+    "minimapRiskShort": "风险",
+    "minimapLayerShort": "分层",
+    "minimapCollapse": "折叠",
+    "minimapNavigate": "点击/拖拽导航",
+    "moduleFiles": "{n} 文件",
+    "moduleCycleTip": "· 循环依赖环上",
+    "moduleInOut": "· 被依赖 {ca} / 依赖 {ce}",
+    "moduleDeps": "· {n} 依赖",
+    "moduleLines": "{n} 行",
+    "moduleCycleBadge": "⟳ 环",
+    "modulePeak": "· 峰 {n}",
+    "fnParams": "{n} 参数",
+    "fnNesting": "嵌套 {n}",
+    "fnRefs": "引用 {n}",
+    "fnReasons": "上榜原因：{reasons}",
+    "fnRisk": "综合风险分 {risk}",
+    "fnDblClick": "双击打开源码定位定义行",
+    "classMethods": "· {n} 方法",
+    "classComplexity": "· 复杂度 {n}",
+    "ifaceMembers": "· {n} 成员",
+    "hotspot": {
+      "low": "健康",
+      "medium": "关注",
+      "high": "偏危险",
+      "extreme": "急需重构"
+    },
+    "hubBadge": "⚙枢纽",
+    "hubTip": "枢纽符号：被外部引用最多（结构承重墙），改动影响面大",
+    "entryBadge": "▶入口",
+    "entryTip": "入口符号：执行流起点（无调用方或引导名），从此向右展开调用走线",
+    "entryReach": "→{n}",
+    "entryReachTip": "可达 {n} 个下游节点：数值越大，从这个入口能读到的代码越多",
+    "entryTier": {
+      "T0": {
+        "badge": "T0应用",
+        "tip": "应用入口：main.rs 的 main / main.tsx 引导 / App.tsx 根组件 / 路由定义 —— 整个项目的启动点"
+      },
+      "T1": {
+        "badge": "T1命令",
+        "tip": "边界入口：后端 #[tauri::command] 命令，前端跨语言调用的真正落点"
+      },
+      "T2": {
+        "badge": "T2事件",
+        "tip": "前端事件入口：on*/handle* 命名且无调用方的事件处理器"
+      }
+    },
+    "apiRole": {
+      "call": "前端调用点：代码里发起的 API 请求（fetch/axios/invoke）",
+      "route": "API 路由：后端注册的接口端点",
+      "handler": "后端方法：路由落到的处理函数（执行流入口）",
+      "downstream": "下游方法：处理函数继续调用的函数"
+    },
+    "cycleTip": "位于调用环上（循环依赖），重构时应优先打破",
+    "godClassBadge": "⚠上帝类",
+    "godClassTip": "上帝类候选：{lines} 行 × 被引用 {refs} 次——体量过大且被广泛依赖，建议拆分",
+    "tierCritical": "严重",
+    "tierWarning": "偏高",
+    "tierWatch": "关注",
+    "tierHealthy": "健康",
+    "tierNeutral": "无数据",
+    "fnCallIn": "扇入 {n}",
+    "fnChurn": "churn {n}"
+  },
+  "coverage": {
+    "stage": {
+      "enumerate": "文件枚举",
+      "structure": "代码结构（符号）",
+      "deps": "依赖检测",
+      "symbolRefs": "符号引用",
+      "review": "规则审查",
+      "callGraph": "调用图",
+      "dataFlow": "数据流",
+      "metrics": "文件度量",
+      "techDebt": "技术债标记",
+      "clones": "重复代码",
+      "git": "Git 历史",
+      "changeCoupling": "变更耦合",
+      "deadCode": "死代码",
+      "patterns": "设计模式"
+    }
+  },
+  "risk": {
+    "dim": {
+      "complexity": "复杂度",
+      "complexity.unit": "CC",
+      "churn": "变更频率",
+      "churn.unit": "次提交",
+      "fanIn": "被引用面",
+      "fanIn.unit": "个引用方",
+      "findings": "审查发现",
+      "findings.unit": "加权条",
+      "clones": "重复代码",
+      "clones.unit": "重复行",
+      "techDebt": "技术债",
+      "techDebt.unit": "加权条",
+      "coupling": "隐性耦合",
+      "coupling.unit": "组",
+      "deadCode": "死代码",
+      "deadCode.unit": "个符号"
+    }
+  },
+  "regression": {
+    "entityLabel": "文件",
+    "verdict": {
+      "regressing": "在变坏",
+      "improving": "在变好",
+      "mixed": "有变坏也有改善",
+      "flat": "没有实质变化",
+      "insufficient": "尚无可比历史"
+    },
+    "change": {
+      "worsened": "**恶化**",
+      "improved": "改善",
+      "appeared": "新进榜",
+      "removed": "已删除",
+      "flat": "持平",
+      "incomparable": "不可比"
+    },
+    "entityFallback": "实体"
+  },
+  "trend": {
+    "metric": {
+      "files": "代码文件数",
+      "codeLines": "代码行数",
+      "avgComplexity": "平均圈复杂度",
+      "maxComplexity": "单文件最高圈复杂度",
+      "highComplexityFiles": "高复杂度文件数",
+      "commentRatio": "注释率",
+      "findings": "审查发现",
+      "criticalFindings": "严重审查发现",
+      "techDebt": "技术债标记",
+      "cloneLines": "重复代码行数",
+      "deadSymbols": "疑似死代码符号",
+      "hiddenCoupling": "高危隐性耦合对",
+      "churnHotspots": "高频变更文件",
+      "blockedSuffix": "·{n}块",
+      "unit": {
+        "files": "个",
+        "codeLines": "行",
+        "findings": "条",
+        "techDebt": "处",
+        "deadSymbols": "个",
+        "hiddenCoupling": "对"
+      },
+      "basis": {
+        "perKLine": "每千行",
+        "perKFiles": "每千文件"
+      }
+    },
+    "verdict": {
+      "improving": "在变好",
+      "regressing": "在变坏",
+      "mixed": "有升有降",
+      "flat": "基本持平",
+      "insufficient": "尚无可比历史"
+    },
+    "direction": {
+      "improved": "改善",
+      "worsened": "恶化",
+      "flat": "持平",
+      "moved": "变动",
+      "incomparable": "不可比"
+    }
+  },
+  "entityProj": {
+    "file": {
+      "name": "文件",
+      "desc": "源代码文件节点，显示文件名、语言类型、大小等信息"
+    },
+    "image": {
+      "name": "图片",
+      "desc": "项目中的图片资源（png/jpg/jpeg/gif/webp/svg/ico/bmp 等），以专属图标与配色在图鉴与画布上呈现"
+    },
+    "asset": {
+      "name": "资源文件",
+      "desc": "项目中的二进制资源（字体 ttf/otf/woff、音视频、压缩包、pdf/wasm 等），以专属图标与配色在图鉴与画布上呈现"
+    },
+    "folder": {
+      "name": "文件夹",
+      "desc": "目录节点，包含子文件/子文件夹结构"
+    },
+    "module": {
+      "name": "模块",
+      "desc": "模块/包节点，聚合相关文件的高级单元"
+    },
+    "class": {
+      "name": "类",
+      "desc": "类符号节点，显示类名、方法数、复杂度与被引用数"
+    },
+    "function": {
+      "name": "函数",
+      "desc": "函数/方法符号节点，显示签名、复杂度与被引用数"
+    },
+    "interface": {
+      "name": "接口",
+      "desc": "接口/trait 符号节点，显示名称、成员数与被引用数"
+    },
+    "dependencyEdge": {
+      "name": "依赖关系",
+      "desc": "模块/文件之间的依赖连线"
+    },
+    "patternNode": {
+      "name": "设计模式",
+      "desc": "设计模式命中节点，显示模式名、命中类、置信度与判定依据"
+    },
+    "treemapCell": {
+      "name": "耦合树图单元格",
+      "desc": "耦合矩形树图（treemap）的承载实体：面积编码模块文件数，颜色编码耦合健康度（痛苦区红/无用区紫/主序带绿）"
+    },
+    "layerMarker": {
+      "name": "架构分层",
+      "desc": "架构分层标记，标识代码所属的架构层级（表现层/业务层/数据层等）"
+    },
+    "annotationText": {
+      "name": "标注文本",
+      "desc": "用于在项目结构图上添加文字标注"
+    },
+    "codePreview": {
+      "name": "代码预览",
+      "desc": "源代码预览块，支持语法高亮"
+    },
+    "quadrantZoneBg": {
+      "name": "重构象限背景",
+      "desc": "重构四象限画像的底部分区色块，按变更热度×复杂度划分四象限（优先重构/稳定遗留/活跃开发/健康），pointer-events:none 纯装饰"
+    },
+    "quadrantAxis": {
+      "name": "重构象限坐标轴",
+      "desc": "重构四象限画像的十字坐标轴 + 5 档刻度数值 + 秩百分位公式，与分区边界对齐，pointer-events:none 纯装饰"
+    },
+    "unknownPattern": "未知模式",
+    "unnamedLayer": "未命名层",
+    "cat": {
+      "creational": "创建型",
+      "structural": "结构型",
+      "behavioral": "行为型",
+      "architectural": "架构角色"
+    },
+    "conf": {
+      "high": "高",
+      "medium": "中",
+      "low": "偏低"
+    },
+    "confidenceTip": "置信度 {pct}%",
+    "oldDataSignals": "旧扫描数据无判定依据，重新扫描可获得完整证据链",
+    "unnamedLayerFallback": "未命名分层"
+  },
+  "icon": {
+    "cat": {
+      "0": "通用",
+      "1": "数据可视化",
+      "2": "地图与空间",
+      "3": "媒体与内容",
+      "4": "文件与传输"
+    },
+    "folder": "文件夹",
+    "category": "分类",
+    "widgets": "实体",
+    "extension": "扩展",
+    "settings": "设置",
+    "dashboard": "仪表盘",
+    "layers": "图层",
+    "grid_on": "网格",
+    "search": "搜索",
+    "add": "添加",
+    "edit": "编辑",
+    "delete": "删除",
+    "refresh": "刷新",
+    "check": "确认",
+    "check_circle": "完成",
+    "info": "信息",
+    "warning": "警告",
+    "error": "错误",
+    "help": "帮助",
+    "star": "收藏",
+    "visibility": "可见",
+    "close": "关闭",
+    "arrow_back": "后退",
+    "arrow_forward": "前进",
+    "bar_chart": "柱状图",
+    "insert_chart": "插入图表",
+    "pie_chart": "饼图",
+    "show_chart": "折线图",
+    "timeline": "时间线",
+    "bubble_chart": "气泡图",
+    "scatter_plot": "散点图",
+    "donut_large": "环形图",
+    "stacked_bar_chart": "堆叠图",
+    "waterfall_chart": "瀑布图",
+    "table_chart": "表格",
+    "speed": "仪表",
+    "map": "地图",
+    "architecture": "CAD图纸",
+    "wallpaper": "蓝图",
+    "public": "地球",
+    "whatshot": "热力图",
+    "view_in_ar": "3D视图",
+    "text_fields": "文本",
+    "image": "图片",
+    "crop_square": "形状",
+    "videocam": "视频",
+    "music_note": "音乐",
+    "palette": "调色板",
+    "auto_awesome": "特效",
+    "timer": "计时器",
+    "upload": "上传",
+    "download": "下载",
+    "emoji": {
+      "auth": "身份认证",
+      "system": "系统工具",
+      "communication": "通信信息",
+      "business": "商务机构",
+      "people": "目标用户",
+      "nature": "自然物品",
+      "gesture": "手势动作"
+    },
+    "customIcon": "自定义图标",
+    "notSet": "未设置",
+    "restoreDefault": "恢复默认图标",
+    "searchPlaceholder": "搜索图标名称或关键词...",
+    "tabCustom": "📁 自定义"
+  },
+  "compField": {
+    "type": {
+      "text": "文本",
+      "number": "数字",
+      "select": "选择",
+      "color": "颜色",
+      "toggle": "开关",
+      "slider": "滑块",
+      "textarea": "多行文本",
+      "json": "JSON",
+      "file": "文件"
+    },
+    "group": {
+      "config": "配置"
+    },
+    "err": {
+      "nameRequired": "请输入组件名称",
+      "invalidName": "实体名称无效，请使用英文或数字",
+      "typeExists": "实体类型 \"{type}\" 已存在"
+    },
+    "title": "创建自定义组件",
+    "nameLabel": "组件名称",
+    "namePlaceholder": "例如: 温度计",
+    "categoryLabel": "分类",
+    "iconLabel": "图标",
+    "descLabel": "描述",
+    "descPlaceholder": "组件功能描述（可选）",
+    "widthLabel": "默认宽度",
+    "heightLabel": "默认高度",
+    "fieldsTitle": "配置字段",
+    "addField": "添加字段",
+    "fieldKey": "字段Key",
+    "fieldKeyPlaceholder": "例如: temperature",
+    "fieldLabel": "标签",
+    "fieldLabelPlaceholder": "例如: 温度",
+    "typeLabel": "类型",
+    "deleteField": "删除字段",
+    "groupLabel": "分组",
+    "groupPlaceholder": "配置",
+    "defaultValueLabel": "默认值",
+    "hintLabel": "提示",
+    "hintPlaceholder": "占位文本",
+    "optionsLabel": "选项（逗号分隔，label:value）",
+    "optionsPlaceholder": "低温:low, 中温:mid, 高温:high",
+    "minLabel": "最小值",
+    "maxLabel": "最大值",
+    "cancel": "取消",
+    "create": "创建组件",
+    "creating": "创建中...",
+    "errCreateFailed": "创建失败，请检查输入",
+    "errCreate": "创建失败: {msg}"
+  },
+  "asset": {
+    "loading": "加载中...",
+    "preview": "预览",
+    "fileName": "文件名: {name}",
+    "size": "大小: {size}",
+    "type": "类型: {type}",
+    "modified": "修改: {date}",
+    "canvasBg": "画布背景图片",
+    "videoBg": "画布背景视频",
+    "layerBgImage": "图层「{name}」背景图片",
+    "layerBgVideo": "图层「{name}」背景视频",
+    "compProp": "实体「{name}」属性 {key}",
+    "pickImage": "选择背景图片",
+    "pickVideo": "选择背景视频",
+    "uploadImage": "上传图片",
+    "uploadVideo": "上传视频",
+    "searchPlaceholder": "搜索资源...",
+    "refresh": "刷新",
+    "noMatch": "未找到匹配的资源",
+    "empty": "暂无{kind}资源，点击上方按钮上传",
+    "kindImage": "图片",
+    "kindVideo": "视频",
+    "rename": "重命名",
+    "delete": "删除"
+  },
+  "previewDlg": {
+    "errPickImage": "请选择图片文件 (PNG / JPG / SVG)",
+    "errNotReady": "预览区未就绪",
+    "errScreenshotFailed": "截图失败",
+    "errPickFirst": "请先选择图片",
+    "errEnterText": "请输入文字或 emoji",
+    "sample": "示例",
+    "noFile": "未选择文件",
+    "loading": "加载中...",
+    "noRenderer": "无可用渲染器",
+    "settingsTitle": "设置图标 / 元数据",
+    "exitFullscreen": "退出全屏",
+    "fullscreen": "全屏",
+    "restoreDefault": "恢复为默认",
+    "name": "名称",
+    "desc": "描述",
+    "renderSize": "渲染尺寸",
+    "lockAspect": "已锁定横竖比",
+    "unlockAspect": "未锁定",
+    "screenshotStyle": "截图样式",
+    "bgColor": "背景色",
+    "transparentBg": "透明背景（PNG）",
+    "padding": "内边距",
+    "radius": "圆角",
+    "outputOpts": "输出选项",
+    "pixelRatio": "像素比",
+    "outputSize": "· 输出 {w}×{h}",
+    "fill": "填充",
+    "contain": "Contain 完整",
+    "cover": "Cover 铺满",
+    "uploadImage": "上传图片",
+    "uploadHint": "支持 PNG / JPG / SVG，文件会覆盖缩略图。",
+    "livePreview": "实时预览（应用后保存为图标）",
+    "iconUpdated": "✓ 图标已更新",
+    "saving": "保存中...",
+    "apply": "应用",
+    "sizeHint": "{w}×{h} · {fit} · 内边距 {pad} · 圆角 {r} · {trans} · {ratio}x",
+    "chooseMuiIcon": "选择 MUI 图标",
+    "modeAuto": "自动",
+    "modeIcon": "图标",
+    "modeUpload": "上传",
+    "modeText": "文本",
+    "modeColor": "颜色",
+    "loadingRenderer": "加载渲染器...",
+    "rendererUnavailable": "无法加载渲染器",
+    "modeAutoShot": "自动截图",
+    "modePickIcon": "选择图标"
+  },
+  "entityCat": {
+    "projectEntity": {
+      "name": "项目实体",
+      "desc": "项目代码实体（文件、模块、依赖关系等）"
+    }
+  },
+  "compStore": {
+    "errBuiltinDelete": "无法删除内置分组",
+    "errCategoryNotEmpty": "分组「{name}」下还有 {n} 个组件，请先移除或移动组件后再删除"
+  },
+  "flow": {
+    "role": {
+      "sink": "汇点 · 写外部状态",
+      "conduit": "透传 · 输入直达输出",
+      "blocker": "阻断 · 吃进去不吐出来"
+    },
+    "hint": {
+      "sink": "数据在这里落地（写全局/字段/日志/IO）—— 副作用与安全审计的入口",
+      "conduit": "输入变化会传导到输出 —— 影响链沿这批函数向上游扩散",
+      "blocker": "输入进去没有出口 —— 影响链在这里终止，改内部实现基本不波及调用方"
+    }
+  },
+  "insight": {
+    "quad": {
+      "refactorFirst": "优先重构",
+      "legacyStable": "稳定遗留",
+      "activeSimple": "活跃开发",
+      "healthy": "健康"
+    },
+    "quadHint": {
+      "refactorFirst": "高复杂 × 高变更，投入产出比最高的重构目标",
+      "legacyStable": "高复杂 × 低变更，别主动碰，补文档与测试即可",
+      "activeSimple": "低复杂 × 高变更，正常的活跃开发区",
+      "healthy": "低复杂 × 低变更，无需关注"
+    },
+    "quadHintRisk": {
+      "refactorFirst": "高复杂 × 高风险，投入产出比最高的重构目标",
+      "legacyStable": "高复杂 × 低风险，别主动碰，补文档与测试即可",
+      "activeSimple": "低复杂 × 高风险，正常活跃开发区但带审查风险",
+      "healthy": "低复杂 × 低风险，无需关注"
+    },
+    "quadHintDup": {
+      "refactorFirst": "高复杂 × 高重复，复制粘贴最严重的重构重灾区",
+      "legacyStable": "高复杂 × 低重复，逻辑独特难复用，先补测试锁定行为",
+      "activeSimple": "低复杂 × 高重复，可抽公共函数/模块消除重复",
+      "healthy": "低复杂 × 低重复，保持即可"
+    },
+    "quadHintSize": {
+      "refactorFirst": "高复杂 × 大文件，体量与管理难度双高，优先拆分",
+      "legacyStable": "高复杂 × 小文件，单点复杂但范围可控，谨慎重构",
+      "activeSimple": "低复杂 × 大文件，大但简单，按模块切分即可",
+      "healthy": "低复杂 × 小文件，理想单元，无需关注"
+    },
+    "pattern": {
+      "singleton": "单例",
+      "factory": "工厂",
+      "builder": "建造者",
+      "observer": "观察者",
+      "strategy": "策略",
+      "adapter": "适配器",
+      "decorator": "装饰器",
+      "facade": "门面",
+      "command": "命令",
+      "visitor": "访问者",
+      "template_method": "模板方法",
+      "repository": "仓储",
+      "service": "服务层",
+      "store": "状态容器",
+      "provider": "提供方",
+      "controller": "控制器",
+      "middleware": "中间件",
+      "plugin": "插件",
+      "hook": "自定义 Hook",
+      "hoc": "高阶组件",
+      "factory_fn": "函数式工厂"
+    },
+    "dup": {
+      "none": "可接受",
+      "low": "轻度",
+      "medium": "中度",
+      "high": "重度",
+      "extreme": "几乎是复制品"
+    }
+  },
+  "layerType": {
+    "tile": "瓦片地图",
+    "vector": "矢量数据",
+    "geojson": "GeoJSON",
+    "cad": "工程图纸",
+    "image": "图片叠加",
+    "3d-model": "三维模型",
+    "devices": "设备标注",
+    "topology": "拓扑网络",
+    "heatmap": "热力图",
+    "chart": "图表",
+    "metric": "指标",
+    "table": "表格",
+    "text": "文本",
+    "video": "视频"
+  },
+  "mapView": {
+    "crs": "{type}坐标系",
+    "opacity": "透明度 {pct}%",
+    "layerMgmt": "图层管理",
+    "fullscreen": "全屏",
+    "zoomOut": "缩小",
+    "zoomIn": "放大",
+    "locate": "定位",
+    "title": "地图预览",
+    "crsType": {
+      "geographic": "经纬度",
+      "projected": "投影",
+      "local": "局部"
+    }
+  },
+  "appearance": {
+    "profile": {
+      "office": {
+        "name": "标准办公",
+        "desc": "清爽明亮，适合日常办公"
+      },
+      "monitor": {
+        "name": "大屏监控",
+        "desc": "深色科技风，适合数据监控"
+      },
+      "editor": {
+        "name": "编辑模式",
+        "desc": "紧凑布局，高效编辑"
+      },
+      "night": {
+        "name": "夜间模式",
+        "desc": "柔和暗色，护眼舒适"
+      }
+    }
+  },
+  "echart": {
+    "emptyHint": "图表未配置数据（option 为空）"
+  },
+  "sourceNav": {
+    "syntaxError": "语法错误（文件无法被正确解析）"
+  },
+  "imagePreview": {
+    "title": "图片详情",
+    "close": "关闭",
+    "notFound": "无法加载该图片（路径缺失、文件已被移动，或不在资源访问范围内）",
+    "previewUnavailable": "此格式在当前视图无法预览（浏览器不支持解码）",
+    "format": "格式",
+    "dimensions": "尺寸",
+    "size": "大小",
+    "path": "路径",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "copyPath": "复制路径",
+    "copied": "已复制",
+    "openOriginal": "新窗口打开",
+    "vector": "矢量图（尺寸取自 viewBox）",
+    "vectorShort": "矢量"
+  },
+  "legend": {
+    "title": "画像图例",
+    "bandTitle": "横带（代码结构画像）",
+    "bandDir": "天蓝 = 目录横带（模块）",
+    "bandFile": "石板灰 = 文件子带",
+    "bandCycle": "红 = 环上目录（循环依赖）",
+    "bandCohesion": "橙 = 低内聚文件",
+    "bandDeps": "→N ←M = 出/入依赖调用量",
+    "badgeTitle": "符号徽标",
+    "badgeHub": "⚙ 枢纽：被引用最多（承重墙）",
+    "badgeGod": "⚠ 上帝类：超大且被广泛依赖",
+    "badgeCycle": "⚠ 环上符号（红虚线描边）",
+    "edgeTitle": "连线语义",
+    "edgeImport": "灰 = import 依赖",
+    "edgeCall": "绿/紫 = 调用（跨文件紫）",
+    "edgeInherit": "紫 = 继承（extends 实线 / implements 虚线）",
+    "edgeCircular": "红虚线 = 循环依赖",
+    "edgeWeight": "线宽 = 调用量（模块图）",
+    "badgeDepDeg": "→N ←M 依赖度数（⭕=在环中）",
+    "edgeImportInner": "模块内依赖（淡化）",
+    "edgeImportCross": "跨模块依赖（深色加粗：架构边界被绕过）"
+  },
+  "acp": {
+    "presets": "Agent 预设",
+    "addPreset": "新增预设",
+    "noPresets": "暂无预设。",
+    "presetName": "名称",
+    "presetDesc": "描述",
+    "presetPolicy": "默认策略",
+    "policyAsk": "每次询问",
+    "policyDeny": "除非允许否则拒绝",
+    "allowedTools": "允许的工具",
+    "allowedToolsCount": "个工具",
+    "save": "保存",
+    "cancel": "取消",
+    "sessions": "会话",
+    "noActiveSessions": "暂无活动会话。",
+    "mountedAnalysis": "已挂载分析",
+    "preset": "预设",
+    "pastSessions": "历史会话（已持久化）"
+  }
+}

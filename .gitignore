@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+target/
+
+# IDE and editor
+.vscode/
+.idea/
+.codebuddy/
+.workbuddy/
+*.swp
+*.swo
+*~
+
+# Runtime data
+data/
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Lock files (optional - uncomment if you don't want to commit)
+# pnpm-lock.yaml
+# package-lock.json
+
+# Test and temporary files
+#
+# 这一段本意是挡掉根目录下的一次性验证脚本（test-*.js / analyze_*.py / *.disabled）,
+# 但 *.test.ts(x) 把**正式测试套件**一起误伤了：R37 时工作树里已经有 26 个测试
+# 文件 / 4913 行 / 329 个用例，却一个都没进版本库 —— 一条 `git clean -fdx` 就全没。
+# 下面用定向豁免把 __tests__ / __bench__ 目录下的正式套件放回版本控制，
+# 散落在其它位置的临时验证脚本仍然被忽略。
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+!**/__tests__/*.test.ts
+!**/__tests__/*.test.tsx
+!**/__tests__/*.spec.ts
+!**/__tests__/*.spec.tsx
+!**/__bench__/*.test.ts
+!**/__bench__/*.test.tsx
+test-*.js
+test-*.ts
+analyze_*.py
+*.disabled
+
+# Generated files
+src-tauri/gen/
+
+# Documentation drafts and working files
+docs/工作总结/
+docs/需求分析/
+deliverables/
+*.md.backup
+
+# CAD test files
+*.dwg
+*.dxf
+*.cadbin
+
+# Temporary reports and analysis
+TEST_REPORT-*.md
+cad_*_report.md
+cad_*_analysis.md
+
+# All documentation
+docs/
+
+# Temporary i18n verification build output
+dist-i18n/

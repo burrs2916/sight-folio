@@ -1,0 +1,110 @@
+/*
+ * project-sight: 画布实体外壳的静态样式（R37 卡顿攻坚）
+ *
+ * 为什么单独开一个 CSS 文件：实体外壳的 left/top/width/height 每个实体都不同，
+ * 用 MUI 的 sx 写就意味着**每个实体一条独立的 emotion 规则** —— 500 个实体
+ * 就是 500 次 serialize + hash + insertRule，且缓存永远命不中。
+ *
+ * 现在几何量走 inline style（浏览器直接写 style 属性，零序列化），只有 :hover
+ * 这类伪类留在真正的 CSS 里 —— 伪类是 inline style 表达不了的唯一一类，
+ * 而它恰好是完全静态的，一条规则全体复用。
+ *
+ * ─── 描边为什么绕一层 CSS 变量 ───────────────────────────────────────────
+ * inline style 的优先级高于任何普通 CSS 规则，如果把 `outline` 直接写进
+ * inline style，`:hover` 规则就永远打不过它，悬浮反馈会整个失效。
+ * 所以 inline 只写自定义属性 `--ps-outline`，真正的 `outline` 声明留在下面：
+ * 基础规则读 `--ps-outline`，`:hover` 规则直接覆盖 `outline` —— 同为
+ * 样式表规则，后者特异性更高，悬浮照常生效，且零 JS 参与。
+ */
+
+.ps-entity {
+  position: absolute;
+  box-sizing: border-box;
+  /* 画布统一 10px premium 圆角（见 canvasTheme.ts CV_RADIUS），与内层 shellStyle 一致 */
+  border-radius: 10px;
+  outline: var(--ps-outline, 1px solid transparent);
+  outline-offset: 0;
+  transition: opacity 0.15s, box-shadow 0.2s;
+}
+
+/* treemap-cell：紧凑铺满色块，自身渲染器已画 zone 底色+白边+圆角，
+   外壳的 10px 圆角/hover 蓝边/悬浮阴影会破坏紧凑视觉，且与图鉴预览（同渲染器）不一致。
+   这里清零外壳装饰，让渲染器完整呈现。 */
+.ps-entity--treemap {
+  border-radius: 0;
+  outline: none;
+}
+.ps-entity--treemap:hover {
+  outline: none;
+  box-shadow: none;
+}
+
+.ps-entity:hover {
+  outline: var(--ps-outline-hover, 1.5px solid var(--template-palette-primary-light, #42a5f5));
+  /* 抬升反馈：卡片在密集网格里「浮起」，层级与可交互感更清晰（纯静态 CSS，零成本）。
+     不与 selected 的脉冲光环冲突 —— selected+hovered 走 .ps-entity--selected:hover
+     （未声明 box-shadow，故保留 .ps-entity--selected 的呼吸光环）。 */
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.16);
+}
+
+/* 选中实体：脉冲光环，让「当前联动目标」在一屏里立刻跳出来。
+   描边沿用 inline --ps-outline（2px primary），这里只补一圈呼吸光 + 抬升层级。 */
+.ps-entity--selected {
+  z-index: 4;
+  box-shadow: 0 0 0 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.18),
+    0 0 10px 2px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.3);
+  animation: ps-selected-pulse 1.8s ease-in-out infinite;
+}
+
+.ps-entity--selected:hover {
+  outline: 2px solid var(--template-palette-primary, #1976d2);
+}
+
+@keyframes ps-selected-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.14),
+      0 0 8px 1px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.1),
+      0 0 16px 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.4);
+  }
+}
+
+/* 尊重「减少动态效果」系统偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .ps-entity--selected {
+    animation: none;
+  }
+}
+
+/* 下钻子图外框：纯装饰，不能吃掉框内文件实体的点击/拖拽 */
+.ps-entity--frame {
+  pointer-events: none;
+}
+
+/* 模块下钻角标（+/−），唯一需要伪类的角标 */
+.ps-drill {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 5;
+  user-select: none;
+  color: #fff;
+  transition: transform 0.1s;
+}
+
+.ps-drill:hover {
+  transform: scale(1.15);
+}
