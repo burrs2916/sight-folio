@@ -43,7 +43,10 @@ function mountHost() {
   return { container, root: createRoot(container) };
 }
 
-describe("画布实体渲染成本基准", () => {
+// 基准测试用大超时：200 实体的多轮挂载在慢机 / 全量并行负载下会逼近 vitest 默认 5s
+// 上限（本机单跑 1.3s，CI 慢机约 3–4s），而这里只做「是否可用」的相对比较，
+// 不应因机器快慢判失败。
+describe("画布实体渲染成本基准", { timeout: 60_000 }, () => {
   it(`对照组：${N} 个裸 div（jsdom 地板价）`, async () => {
     const { container, root } = mountHost();
     const t0 = performance.now();
@@ -142,7 +145,7 @@ describe("画布实体渲染成本基准", () => {
 // 这组用例把 LOD 的收益钉死成数字：同样 200 个实体，三个档位各要多少 DOM
 // 节点、多少毫秒。有了它，以后任何人往渲染器里加一行 <span>，回归就看得见。
 // ─────────────────────────────────────────────────────────────────────────────
-describe("LOD 分级渲染收益", () => {
+describe("LOD 分级渲染收益", { timeout: 60_000 }, () => {
   const TIERS: CanvasLod[] = ["full", "compact", "block"];
 
   it("单实体 DOM 节点数随档位下降，且不超过预算", async () => {

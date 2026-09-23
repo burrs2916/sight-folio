@@ -1,4 +1,4 @@
-// project-sight: AI Agent 专用工具集
+// sight-folio: AI Agent 专用工具集
 // 这些工具让 AI 能够查询项目代码结构、搜索符号、读取文件、分析架构
 
 use async_trait::async_trait;

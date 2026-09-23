@@ -1,4 +1,4 @@
-// project-sight: 实体自绘 SVG 图标集合（glyphs）
+// sight-folio: 实体自绘 SVG 图标集合（glyphs）
 // 全部为手写矢量 path —— 不引用任何 Material 图标/图片资源。
 // 每个图标贴合实体实际含义：
 //   file     → 文档折角

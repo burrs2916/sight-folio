@@ -1,11 +1,9 @@
 import type { DatabaseConnectionConfig, DatabaseTestConfig } from "./database";
 import { createDefaultDatabaseConfig, createDefaultDatabaseTest } from "./database";
-import type { MqttConnectionConfig } from "./mqtt";
-import { createDefaultMqttConfig } from "./mqtt";
 import type { WebSocketConfig } from "./websocket";
 import { createDefaultWebSocketConfig } from "./websocket";
 
-export type DataSourceType = "http" | "websocket" | "mqtt" | "database" | "project-dir" | "git-repo";
+export type DataSourceType = "http" | "websocket" | "database" | "project-dir" | "git-repo";
 export type DataSourceStatus = "disconnected" | "connecting" | "connected" | "failed" | "error";
 
 export interface ConnectionStatusInfo {
@@ -43,7 +41,6 @@ export interface DataSourceConnection {
   timeout: number;
   database?: DatabaseConnectionConfig;
   databaseTest?: DatabaseTestConfig;
-  mqtt?: MqttConnectionConfig;
   websocket?: WebSocketConfig;
 }
 
@@ -83,8 +80,6 @@ export function createDefaultDataSource(partial?: Partial<DataSource>): DataSour
       timeout: 10000,
       ...(type === "database"
         ? { database: createDefaultDatabaseConfig(), databaseTest: createDefaultDatabaseTest() }
-        : type === "mqtt"
-        ? { mqtt: createDefaultMqttConfig() }
         : type === "websocket"
         ? { websocket: createDefaultWebSocketConfig() }
         : {}),

@@ -1,4 +1,4 @@
-// project-sight: 画布渲染顺序辅助
+// sight-folio: 画布渲染顺序辅助
 //
 // ─── 历史教训（2026-08-19）───
 // SceneEditor 的画布 .map() 必须让 dependency-edge 排在非边前面（让实体 DOM

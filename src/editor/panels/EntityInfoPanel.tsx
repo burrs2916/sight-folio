@@ -1,4 +1,4 @@
-// project-sight: 实体详情 + 审查结果面板
+// sight-folio: 实体详情 + 审查结果面板
 // 映射 biosphere 属性面板 → 项目实体详情 + 审查结果
 import { useMemo } from "react";
 import Box from "@mui/material/Box";

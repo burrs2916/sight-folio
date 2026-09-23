@@ -1,4 +1,4 @@
-// project-sight: 报告生成器「模块依赖体检」单测
+// sight-folio: 报告生成器「模块依赖体检」单测
 import { describe, it, expect } from "vitest";
 import { buildModuleHealth } from "../reportGenerator";
 import type { ProjectFile, CallEdge, ProjectSymbol, ProjectSymbolRef } from "../../services/tauri";

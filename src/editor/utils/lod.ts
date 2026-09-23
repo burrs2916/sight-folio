@@ -1,4 +1,4 @@
-// project-sight: 画布实体的 LOD（Level of Detail）分级渲染
+// sight-folio: 画布实体的 LOD（Level of Detail）分级渲染
 //
 // ─── 为什么需要 LOD（R37 卡顿攻坚的第五刀）─────────────────────────────────
 //

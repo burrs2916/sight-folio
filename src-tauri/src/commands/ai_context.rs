@@ -1,4 +1,4 @@
-// project-sight: AI 上下文包持久化命令
+// sight-folio: AI 上下文包持久化命令
 // 前端模块供给者（scanContextProvider 等）构建好 AiContextPack 后调用 save_ai_context_pack 落库，
 // Agent 工具 project_context 读取这些包（按 pack / 按单分节）以省 token。
 

@@ -1,5 +1,5 @@
-// project-sight: Agent Engine — agentic loop + 工具注册
-// 参考 biosphere-terminal-app 的 engine.rs，适配 project-sight 的代码分析场景
+// sight-folio: Agent Engine — agentic loop + 工具注册
+// 参考 biosphere-terminal-app 的 engine.rs，适配 sight-folio 的代码分析场景
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

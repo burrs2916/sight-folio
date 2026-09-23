@@ -1,4 +1,4 @@
-// project-sight: 轻量、零依赖、XSS 安全的 Markdown 渲染（专供 AI 消息）
+// sight-folio: 轻量、零依赖、XSS 安全的 Markdown 渲染（专供 AI 消息）
 //
 // 设计取舍：
 // - 为什么不用现成库（react-markdown / marked）？工作台侧栏要保持轻量，且这些库默认走

@@ -1085,8 +1085,8 @@ fn replay_unreachable_const_prop() {
             &["c", "h", "cpp", "java"],
         ),
         (
-            "project-sight(rust)",
-            "/Users/liwenchao/GithubProSpace/project-sight/src-tauri/src",
+            "sight-folio(rust)",
+            "/Users/liwenchao/GithubProSpace/sight-folio/src-tauri/src",
             &["rs"],
         ),
     ];

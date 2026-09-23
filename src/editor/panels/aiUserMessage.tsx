@@ -1,4 +1,4 @@
-// project-sight: 用户消息气泡的「人读视图」（对标 VS Code Copilot Chat 的用户气泡）
+// sight-folio: 用户消息气泡的「人读视图」（对标 VS Code Copilot Chat 的用户气泡）
 //
 // 为什么需要这个文件（Round 48 复盘结论之二）：
 // 发给模型的用户消息由 `buildUserMessage` 拼装 —— 模式指令（edit 模式光指令就约 500 字）、

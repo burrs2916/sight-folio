@@ -1,4 +1,4 @@
-// project-sight: AI 改动评审条（R47 P2-A，对标 VS Code Copilot 的 "Changed files" / Keep · Undo）
+// sight-folio: AI 改动评审条（R47 P2-A，对标 VS Code Copilot 的 "Changed files" / Keep · Undo）
 //
 // 为什么必须有这一块 UI
 // -------------------

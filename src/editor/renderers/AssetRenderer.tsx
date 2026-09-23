@@ -1,4 +1,4 @@
-// project-sight: 资源文件实体渲染器（画布轻量实体，零 Emotion）
+// sight-folio: 资源文件实体渲染器（画布轻量实体，零 Emotion）
 //
 // 资源文件（字体 ttf/otf/woff…、音视频 mp4/mp3…、压缩包 zip/tar…、其它二进制 pdf/wasm…）
 // 没有代码结构 / 依赖 / 复杂度画像，与图片同属「资源」一族：不挂任何代码洞察叠层，

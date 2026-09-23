@@ -1,4 +1,4 @@
-// project-sight：代码工作台集成终端（底部多 tab 容器）
+// sight-folio：代码工作台集成终端（底部多 tab 容器）
 //
 // 对标 VS Code 的集成终端多开：底部一排 tab，可新建 / 关闭 / 切换，用户可双击改名（localStorage 持久）。
 // 每个 tab 是一个独立后端 PTY 会话（由本组件负责 spawn + kill），渲染交给 WorkbenchTerminalPane。

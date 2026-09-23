@@ -1,13 +1,9 @@
 pub mod asset;
 pub mod auth;
-pub mod cad;
-pub mod dwg;
 pub mod component_plugin;
 pub mod datasource;
 pub mod icons;
 pub mod logger;
-pub mod map_library;
-pub mod mqtt;
 pub mod analysis;
 pub mod settings;
 pub mod project_scan;
@@ -47,14 +43,10 @@ pub use acp_ws::*;
 
 pub use asset::*;
 pub use auth::*;
-pub use cad::*;
-pub use dwg::*;
 pub use component_plugin::*;
 pub use datasource::*;
 pub use icons::*;
 pub use logger::*;
-pub use map_library::*;
-pub use mqtt::*;
 pub use analysis::*;
 pub use settings::*;
 pub use project_scan::*;
@@ -76,3 +68,8 @@ pub use ai_context::*;
 pub use parser_capabilities::*;
 pub use code_write::*;
 pub use terminal::*;
+/// 写作域命令（Sight Folio：书籍与章节 CRUD）
+pub mod writing;
+pub use writing::*;
+pub mod corpus;
+pub use corpus::*;

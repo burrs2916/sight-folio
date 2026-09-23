@@ -1,4 +1,4 @@
-// project-sight: Svelte 分析器插件
+// sight-folio: Svelte 分析器插件
 // 后端支持：语言识别（detect_language 支持 .svelte），暂无符号/依赖/AST 分析
 // （SvelteParser capabilities 全 false → 前端显示「基础分析」徽标）。
 // 插件通过 AnalyzerManifest 向核心引擎声明能力，由 analyzerRegistry 注册。

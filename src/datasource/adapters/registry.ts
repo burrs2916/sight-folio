@@ -2,7 +2,6 @@ import type { DataSourceAdapter } from "./types";
 import { HttpAdapter } from "./HttpAdapter";
 import { WebSocketAdapter } from "./WebSocketAdapter";
 import { DatabaseAdapter } from "./DatabaseAdapter";
-import { MqttAdapter } from "./MqttAdapter";
 import { ProjectDirAdapter } from "./ProjectDirAdapter";
 import { GitRepoAdapter } from "./GitRepoAdapter";
 import type { DataSourceType } from "../../types/dataSource";
@@ -15,7 +14,6 @@ class AdapterRegistry {
     this.registerFactory("http", () => new HttpAdapter());
     this.registerFactory("websocket", () => new WebSocketAdapter());
     this.registerFactory("database", () => new DatabaseAdapter());
-    this.registerFactory("mqtt", () => new MqttAdapter());
     this.registerFactory("project-dir", () => new ProjectDirAdapter());
     this.registerFactory("git-repo", () => new GitRepoAdapter());
   }

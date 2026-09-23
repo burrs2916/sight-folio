@@ -1,13 +1,13 @@
 [package]
-name = "project-sight"
+name = "sight-folio"
 version = "0.1.0"
 description = "Sight Folio - Desktop novel & long-form writing editor"
 authors = ["you"]
 edition = "2021"
-default-run = "project-sight"
+default-run = "sight-folio"
 
 [lib]
-name = "project_sight_lib"
+name = "sight_folio_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -27,8 +27,13 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 base64 = "0.22"
-rumqttc = "0.24"
 tokio = { version = "1", features = ["full"] }
+# EPUB 导出：zip 打包（deflate 压缩正文，mimetype 用 STORED）
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# 语料库导入：epub/docx 的 OPF/container.xml 与 document.xml 轻量 XML 解析（复用 zip 解包）
+quick-xml = "0.37"
+# 语料库导入：MOBI/AZW3（Kindle）解析。仅能导入无 DRM 的文件；有 DRM 的 AZW/AZW4 本就不支持。
+mobi = "0.8"
 
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "mysql", "tls-rustls"] }
 redis = { version = "0.27", features = ["tokio-comp"] }
@@ -37,7 +42,6 @@ reqwest = { version = "0.12", features = ["json"] }
 async-trait = "0.1"
 urlencoding = "2"
 
-acadrust = "0.3"
 encoding_rs = "0.8"
 walkdir = "2.4"
 notify = "6"

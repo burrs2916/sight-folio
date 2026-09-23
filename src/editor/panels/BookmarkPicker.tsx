@@ -11,7 +11,14 @@
  *  ③ 点击即跳、键盘可达（↑/↓/Enter），让「列出书签」真正可行动而非死列表。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Dialog, IconButton, List, ListItemButton, TextField, Typography } from "@mui/material";
+// 大包导入改子路径（避免与 @mui/material/* 预构建双实例 split-brain，2026-09-14）
+import Box from "@mui/material/Box";
+import Dialog from "@mui/material/Dialog";
+import IconButton from "@mui/material/IconButton";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import BookmarkIcon from "@mui/icons-material/Bookmark";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import { t } from "../../i18n";

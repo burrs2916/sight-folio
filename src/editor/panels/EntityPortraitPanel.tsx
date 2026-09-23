@@ -1,4 +1,4 @@
-// project-sight: 实体画像卡
+// sight-folio: 实体画像卡
 // 对选中实体进行详细介绍与解释，让用户理解实体的作用。
 // 画像全部数据驱动：依赖关系图为 SVG 动态渲染，架构分层条随 layers 配置动态生成。
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -36,7 +36,6 @@ import type { ProjectFile } from "../../services/tauri";
 import { EntityRendererPreview } from "../components/EntityRendererPreview";
 import { navigateToSource, navigateToSourceByPath, readLineFromMetadata } from "../utils/sourceNavigate";
 import { projectScanApi } from "../../services/tauri";
-import { parseCadFile, type CadFileInfo } from "../../analysis/cad";
 import { openDirectorySubtree, runImpactPortraitFor } from "../utils/portraits";
 import { useSceneStore } from "../../store/sceneStore";
 import { assetFormatLabel, assetKindOf, type AssetKind } from "../utils/fileKind";
@@ -1093,130 +1092,6 @@ function TaintPortraitSection({ info }: { info: TaintInfo }) {
   );
 }
 
-/** v2.15/2.16 CAD 资产区块：.cadbin（前端解析）与 .dwg（后端 acadrust）展示实体/图层/版本/类型分布/包围盒 */
-function CadAssetSection({ file }: { file: ProjectFile }) {
-  const [info, setInfo] = useState<{
-    entityCount: number;
-    layerCount: number;
-    version?: number;
-    typeBreakdown?: { name: string; count: number }[];
-    bounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const parseCadEnabled = useMemo(() => {
-    const st = useSceneStore.getState();
-    const scene = st.scenes.find((x) => x.id === st.activeSceneId);
-    return (scene?.metadata as Record<string, unknown> | undefined)?.parseCadAssets === true;
-  }, []);
-
-  useEffect(() => {
-    if (!parseCadEnabled) return;
-    let cancelled = false;
-    setLoading(true);
-    (async () => {
-      try {
-        if (file.extension === "cadbin") {
-          // 自有 CADBIN 格式：前端解析
-          const bytes = await projectScanApi.readFileBytes(file.path);
-          const r = parseCadFile(file.path, bytes);
-          if (!cancelled)
-            setInfo(
-              r
-                ? {
-                    entityCount: r.entityCount,
-                    layerCount: r.layerCount,
-                    version: r.version,
-                    bounds: r.bounds,
-                  }
-                : null
-            );
-        } else {
-          // 真实 CAD 资产 .dwg：后端 acadrust 解析
-          const r = await projectScanApi.parseDwgMetadata(file.path);
-          if (!cancelled)
-            setInfo(
-              r
-                ? {
-                    entityCount: r.entityCount,
-                    layerCount: r.layerCount,
-                    typeBreakdown: r.typeBreakdown,
-                    bounds: r.bounds,
-                  }
-                : null
-            );
-        }
-      } catch {
-        if (!cancelled) setInfo(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [file.path, file.extension, parseCadEnabled]);
-
-  return (
-    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-      <SectionTitle icon={<CodeIcon sx={{ fontSize: 13, color: "primary.main" }} />}>
-        {t("portrait.cad.title")}
-      </SectionTitle>
-      {!parseCadEnabled ? (
-        <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary", display: "block", lineHeight: 1.6 }}>
-          {t("portrait.cad.disabled")}
-        </Typography>
-      ) : loading ? (
-        <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>
-          {t("portrait.cad.loading")}
-        </Typography>
-      ) : info ? (
-        <>
-          <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center", mb: 0.5 }}>
-            <StatItem label={t("portrait.cad.entities")} value={String(info.entityCount)} />
-            <StatItem label={t("portrait.cad.layers")} value={String(info.layerCount)} />
-            {info.version !== undefined && <StatItem label={t("portrait.cad.version")} value={`v${info.version}`} />}
-            {info.bounds && (
-              <StatItem
-                label={t("portrait.cad.bounds")}
-                value={`${Math.round(info.bounds.minX)},${Math.round(info.bounds.minY)} ~ ${Math.round(info.bounds.maxX)},${Math.round(info.bounds.maxY)}`}
-              />
-            )}
-          </Box>
-          {/* DWG 实体类型分布：哪些几何占主导（Line/Circle/Polyline…） */}
-          {info.typeBreakdown && info.typeBreakdown.length > 0 && (
-            <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-              {info.typeBreakdown.slice(0, 6).map((b) => (
-                <Chip
-                  key={b.name}
-                  size="small"
-                  label={`${b.name} ${b.count}`}
-                  sx={{ height: 18, fontSize: 9, bgcolor: "#0ea5e918", color: "#0369a1", fontWeight: 600 }}
-                />
-              ))}
-            </Box>
-          )}
-        </>
-      ) : (
-        <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>
-          {t("portrait.cad.unparseable")}
-        </Typography>
-      )}
-    </Paper>
-  );
-}
-
-function StatItem({ label, value }: { label: string; value: string }) {
-  return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-      <Typography variant="caption" sx={{ fontSize: 9, color: "text.disabled" }}>
-        {label}
-      </Typography>
-      <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, fontFamily: "monospace" }}>
-        {value}
-      </Typography>
-    </Box>
-  );
-}
 
 /** 符号级调用关系卡：谁调用它（callers）↑ / 它调用谁（callees）↓，点击打开源码 */
 /** 区块标题 */
@@ -1870,10 +1745,6 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
             {/* v2.25 污点传播节点：角色/命中规则/受污染形参/落点 + 跳源码 + AI 诊断 */}
             {taintInfo && <TaintPortraitSection info={taintInfo} />}
             <KeyFacts entity={entity} cfg={cfg} matchedFile={matchedFile} matchedModule={matchedModule} inDeps={inDeps} outDeps={outDeps} />
-            {/* v2.15 按需 CAD 资产：.cadbin 文件展示实体/图层/版本元数据 */}
-            {matchedFile && (matchedFile.extension === "cadbin" || matchedFile.extension === "dwg") && (
-              <CadAssetSection file={matchedFile} />
-            )}
             <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
               <SectionTitle icon={<InfoOutlinedIcon sx={{ fontSize: 13, color: "text.secondary" }} />}>{t("portrait.metaTitle")}</SectionTitle>
               {metricRows.length === 0 ? (
@@ -2014,6 +1885,19 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
           </Paper>
         )}
       </Box>
+    </Box>
+  );
+}
+
+function StatItem({ label, value }: { label: string; value: string }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+      <Typography variant="caption" sx={{ fontSize: 9, color: "text.disabled" }}>
+        {label}
+      </Typography>
+      <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, fontFamily: "monospace" }}>
+        {value}
+      </Typography>
     </Box>
   );
 }

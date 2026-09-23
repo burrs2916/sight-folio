@@ -40,7 +40,6 @@ export default function ScenePreviewPage() {
   const [sceneNotFound, setSceneNotFound] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [pluginsReady, setPluginsReady] = useState(false);
-  const [devicesReady, setDevicesReady] = useState(false);
   const [currentScene, setCurrentScene] = useState<SceneDSL | null>(null);
 
   // 解析导航传递的变量
@@ -93,74 +92,16 @@ export default function ScenePreviewPage() {
     loadScenes();
   }, [loadScenes]);
 
-  // 初始化数据源和设备适配器（与 App.tsx 一致），确保设备数据链路完整
+  // 初始化数据源（与 App.tsx 一致）
   useEffect(() => {
     const initDataStores = async () => {
       try {
         const { useDataSourceStore } = await import("../store/datasourceStore");
-        const { useDeviceAdapterStore } = await import("../store/deviceAdapterStore");
-        await Promise.all([
-          useDataSourceStore.getState().loadFromBackend(),
-          useDeviceAdapterStore.getState().loadFromBackend(),
-        ]);
+        await useDataSourceStore.getState().loadFromBackend();
         logger.info("ScenePreviewPage", "Data stores initialized");
       } catch (err) {
         logger.warn("ScenePreviewPage", "Data stores init failed", { error: String(err) });
       }
-
-      // 添加调试：检查组件注册表状态
-      const { componentRegistry } = await import("../editor/registry");
-      const deviceTypesBefore = componentRegistry.getByCategory("device").map(d => d.type);
-      logger.info("ScenePreviewPage", "Component registry state before device init", {
-        deviceTypes: deviceTypesBefore,
-        allTypes: componentRegistry.getAll().map(d => d.type)
-      });
-      
-      // 数据源和适配器就绪后，加载设备数据
-      try {
-        const { ensureDevicesLoaded } = await import("../store/deviceStore");
-        await ensureDevicesLoaded();
-        logger.info("ScenePreviewPage", "Devices loaded");
-      } catch (err) {
-        logger.warn("ScenePreviewPage", "Devices load failed", { error: String(err) });
-      }
-
-      // 保底：无论设备数据是否成功加载，都把静态产品定义注入到 deviceStore.products
-      // 这样即使没有网络/适配器/数据源，组件也能正常渲染（与编辑模式表现一致）
-      try {
-        const { useDeviceStore } = await import("../store/deviceStore");
-        const { generateStaticProductDefinitions } = await import("../devices/edgeConductorDefaults");
-        const staticProducts = generateStaticProductDefinitions();
-        const productMap: Record<string, import("../types/device").ProductDefinition> = {};
-        for (const p of staticProducts) productMap[p.productCode] = p;
-        // 只在当前 products 为空时填充，避免覆盖真实数据
-        const current = useDeviceStore.getState().products;
-        if (Object.keys(current).length === 0) {
-          useDeviceStore.setState({ products: productMap });
-          logger.info("ScenePreviewPage", "Static product definitions injected", {
-            count: staticProducts.length,
-          });
-          
-          // ✅ 修复：手动注册设备组件到组件库
-          try {
-            const { registerDeviceComponents } = await import("../editor/registry");
-            registerDeviceComponents(staticProducts);
-            logger.info("ScenePreviewPage", "Device components registered successfully", {
-              count: staticProducts.length,
-            });
-          } catch (regErr) {
-            logger.error("ScenePreviewPage", "Failed to register device components", { error: String(regErr) });
-          }
-        } else {
-          logger.info("ScenePreviewPage", "Skipped static product injection (already populated)", {
-            existing: Object.keys(current).length,
-          });
-        }
-      } catch (err) {
-        logger.warn("ScenePreviewPage", "Static product injection failed", { error: String(err) });
-      }
-
-      setDevicesReady(true);
     };
     initDataStores();
   }, []);
@@ -321,8 +262,8 @@ export default function ScenePreviewPage() {
     );
   }
 
-  // 等待插件系统、设备数据和场景数据加载完成
-  if (!pluginsReady || !devicesReady || !loaded) {
+  // 等待插件系统和场景数据加载完成
+  if (!pluginsReady || !loaded) {
     return (
       <Box
         sx={{
@@ -335,7 +276,7 @@ export default function ScenePreviewPage() {
       >
         <CircularProgress size={24} />
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          {!pluginsReady ? t("preview.loadingComponents") : !devicesReady ? t("preview.loadingDevices") : t("preview.loading")}
+          {!pluginsReady ? t("preview.loadingComponents") : t("preview.loading")}
         </Typography>
       </Box>
     );

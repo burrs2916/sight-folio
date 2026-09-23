@@ -10,7 +10,7 @@ interface LogEntry {
   timestamp?: number;
 }
 
-let logQueue: LogEntry[] = [];
+const logQueue: LogEntry[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 const FLUSH_INTERVAL = 1000;
 const MAX_QUEUE_SIZE = 20;

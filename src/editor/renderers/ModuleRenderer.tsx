@@ -1,4 +1,4 @@
-// project-sight: 模块实体渲染器（架构画像与主序图的主角）
+// sight-folio: 模块实体渲染器（架构画像与主序图的主角）
 //
 // R37 与 FileRenderer 一起改为「零 Emotion」：原本 12 个 <Box sx> + 9 个
 // <Typography sx>，架构画像一屏几十上百个模块，emotion 序列化的开销是实打实的。

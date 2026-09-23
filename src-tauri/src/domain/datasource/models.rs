@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 pub enum DataSourceType {
     Http,
     WebSocket,
-    Mqtt,
     Database,
 }
 
@@ -19,7 +18,6 @@ impl From<String> for DataSourceType {
     fn from(s: String) -> Self {
         match s.to_lowercase().as_str() {
             "websocket" => Self::WebSocket,
-            "mqtt" => Self::Mqtt,
             "database" => Self::Database,
             _ => Self::Http,
         }
@@ -31,7 +29,6 @@ impl From<DataSourceType> for String {
         match t {
             DataSourceType::Http => "http".to_string(),
             DataSourceType::WebSocket => "websocket".to_string(),
-            DataSourceType::Mqtt => "mqtt".to_string(),
             DataSourceType::Database => "database".to_string(),
         }
     }
@@ -243,111 +240,6 @@ impl Default for DatabaseTestConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum MqttProtocol {
-    Mqtt,
-    Mqtts,
-    Ws,
-    Wss,
-}
-
-impl Default for MqttProtocol {
-    fn default() -> Self {
-        Self::Mqtt
-    }
-}
-
-impl From<String> for MqttProtocol {
-    fn from(s: String) -> Self {
-        match s.to_lowercase().as_str() {
-            "mqtts" => Self::Mqtts,
-            "ws" => Self::Ws,
-            "wss" => Self::Wss,
-            _ => Self::Mqtt,
-        }
-    }
-}
-
-impl From<MqttProtocol> for String {
-    fn from(p: MqttProtocol) -> Self {
-        match p {
-            MqttProtocol::Mqtt => "mqtt".to_string(),
-            MqttProtocol::Mqtts => "mqtts".to_string(),
-            MqttProtocol::Ws => "ws".to_string(),
-            MqttProtocol::Wss => "wss".to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum MqttVersion {
-    #[serde(rename = "3.1.1")]
-    V311,
-    #[serde(rename = "5.0")]
-    V5,
-}
-
-impl Default for MqttVersion {
-    fn default() -> Self {
-        Self::V311
-    }
-}
-
-impl From<String> for MqttVersion {
-    fn from(s: String) -> Self {
-        match s.as_str() {
-            "5.0" => Self::V5,
-            _ => Self::V311,
-        }
-    }
-}
-
-impl From<MqttVersion> for String {
-    fn from(v: MqttVersion) -> Self {
-        match v {
-            MqttVersion::V311 => "3.1.1".to_string(),
-            MqttVersion::V5 => "5.0".to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MqttConnectionConfig {
-    pub protocol: MqttProtocol,
-    pub host: String,
-    pub port: u32,
-    pub username: String,
-    pub password: String,
-    pub client_id: String,
-    pub keep_alive: u32,
-    pub clean_session: bool,
-    pub version: MqttVersion,
-    pub reconnect: bool,
-    pub reconnect_interval: u32,
-    pub reconnect_attempts: u32,
-}
-
-impl Default for MqttConnectionConfig {
-    fn default() -> Self {
-        Self {
-            protocol: MqttProtocol::Mqtt,
-            host: "localhost".to_string(),
-            port: 1883,
-            username: String::new(),
-            password: String::new(),
-            client_id: format!("edgeview_{}", &uuid::Uuid::new_v4().to_string()[..8]),
-            keep_alive: 60,
-            clean_session: true,
-            version: MqttVersion::V311,
-            reconnect: true,
-            reconnect_interval: 5000,
-            reconnect_attempts: 10,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebSocketConfig {
@@ -375,8 +267,6 @@ pub struct DataSourceConnection {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub database_test: Option<DatabaseTestConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mqtt: Option<MqttConnectionConfig>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub websocket: Option<WebSocketConfig>,
 }
 
@@ -388,7 +278,6 @@ impl Default for DataSourceConnection {
             timeout: 10000,
             database: None,
             database_test: None,
-            mqtt: None,
             websocket: None,
         }
     }

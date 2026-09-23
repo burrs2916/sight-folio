@@ -3,63 +3,42 @@ import { analyzerRegistry } from "../analyzerRegistry";
 import { registerDefaultAnalyzers } from "../index";
 
 /**
- * 前后端语言覆盖一致性测试（R45 插件化后补强）。
+ * 分析器注册契约（业务收口后）。
  *
- * 后端 ParserRegistry（src-tauri/src/parser/）detect_language 能输出的语言 id，
- * 前端 analyzerRegistry 必须都能匹配到插件（manifest.language 或 languageAliases），
- * 否则出现「后端识别了语言、前端激活不了插件」的脱节（历史：svelte 缺口）。
+ * Sight Folio = 小说写作平台：registerDefaultAnalyzers 只注册 writing-analyzer。
+ * 语言分析器（TypeScript/Rust/Python/…）的 manifest 定义保留在源文件中，
+ * 但不再随应用注册 —— 与写作业务无关的代码分析能力不进实体图鉴/插件面板
+ * （业务收口决策，见 analyzer/index.ts 注释）。
  *
- * 后端语言集合与 parser 能力矩阵的对应关系见：
- * docs/解析器插件架构与新增语言指南.md「已支持的解析器清单」。
+ * 本测试守住两条业务底线：
+ * 1. writing-analyzer 必须注册，且 novel/novel-zh/writing 三种语言标记都可匹配；
+ * 2. 注册表里不再出现代码语言分析器（防止收口被无意回退）。
  */
-describe("前后端语言覆盖一致性（R45）", () => {
-  // 后端 ParserRegistry detect 输出的全部语言 id（含细分：javascript/kotlin/cpp 等）
-  const BACKEND_LANGUAGES = [
-    "typescript",
-    "javascript",
-    "vue",
-    "rust",
-    "python",
-    "go",
-    "java",
-    "kotlin",
-    "c",
-    "cpp",
-    "csharp",
-    "php",
-    "ruby",
-    "swift",
-    "svelte",
-  ];
-
+describe("分析器注册契约（业务收口）", () => {
   beforeAll(() => {
     registerDefaultAnalyzers();
   });
 
-  it("后端能识别的每种语言，前端都有插件可匹配", () => {
+  it("writing-analyzer 已注册，novel / novel-zh / writing 均可匹配", () => {
     const analyzers = analyzerRegistry.getAllAnalyzers();
-    for (const lang of BACKEND_LANGUAGES) {
+    const writing = analyzers.find((a) => a.id === "writing-analyzer");
+    expect(writing, "writing-analyzer 必须随应用注册").toBeDefined();
+    for (const lang of ["novel", "novel-zh", "writing"]) {
       const matched = analyzers.find((a) => {
         const l = lang.toLowerCase();
         if (a.language.toLowerCase() === l) return true;
         return (a.languageAliases ?? []).some((al) => al.toLowerCase() === l);
       });
-      expect(matched, `后端语言 "${lang}" 在前端无插件可匹配`).toBeDefined();
+      expect(matched, `写作语言标记 "${lang}" 无插件可匹配`).toBeDefined();
     }
   });
 
-  it("前端插件语言都能被后端识别（反向：无孤儿插件）", () => {
+  it("注册表中不再出现代码语言分析器（收口不回退）", () => {
     const analyzers = analyzerRegistry.getAllAnalyzers();
-    for (const a of analyzers) {
-      const langs = [a.language, ...(a.languageAliases ?? [])].map((l) =>
-        l.toLowerCase().replace(/\//g, "").replace("#", "sharp")
-      );
-      // c/c++ 归一为 cpp，c# 归一为 csharp
-      const normalized = langs.map((l) =>
-        l === "c/c++" ? "cpp" : l === "c#" ? "csharp" : l
-      );
-      const hit = normalized.some((l) => BACKEND_LANGUAGES.includes(l));
-      expect(hit, `前端插件 "${a.id}" 的语言不在后端识别范围内`).toBe(true);
-    }
+    const nonWriting = analyzers.filter((a) => a.id !== "writing-analyzer");
+    expect(
+      nonWriting.map((a) => a.id),
+      "发现代码语言分析器被注册回注册表，违背业务收口决策"
+    ).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-// project-sight: Monaco 装配（懒加载，独立分包）
+// sight-folio: Monaco 装配（懒加载，独立分包）
 //
 // 这是 monaco-editor 与 @monaco-editor/react 的唯一入口：
 // - 把 monaco + worker + loader.config 集中在这里，让 vite 把整个编辑器内核
@@ -84,13 +84,13 @@ const rustGrammar: monaco.languages.IMonarchLanguage = {
         },
       ],
       // 分隔符与括号
-      [/[{}()\[\]<>]/, "@brackets"],
+      [/[[\]{}()<>]/, "@brackets"],
       [/@symbols/, { cases: { "@operators": "operator", "@default": "" } }],
       // 空白
       [/\s+/, "white"],
     ],
     comment: [
-      [/[^\/*]+/, "comment"],
+      [/[^/*]+/, "comment"],
       [/\*\//, "comment", "@pop"],
       [/[/*]/, "comment"],
     ],
@@ -101,7 +101,7 @@ const rustGrammar: monaco.languages.IMonarchLanguage = {
       [/"/, "string", "@pop"],
     ],
     rawstring: [
-      [/[^\"]+/, "string"],
+      [/[^"]+/, "string"],
       [/"/, "string", "@pop"],
     ],
     numbers: [
@@ -144,14 +144,14 @@ function registerCustomLanguages(m: typeof monaco) {
     tokenizer: {
       root: [
         [/#.*$/, "comment"],
-        [/\$\(\s*[\w.\-\/]+\s*\)/, "variable"],
-        [/\$\{[\w.\-\/]+\}/, "variable"],
+        [/\$\(\s*[\w.\-/]+\s*\)/, "variable"],
+        [/\$\{[\w.\-/]+\}/, "variable"],
         [
           /\b(ifdef|ifndef|ifeq|ifneq|else|endif|include|sinclude|-include|define|endef|export|unexport|override|vpath)\b/,
           "keyword",
         ],
-        [/^\s*[\w.\-\/]+\s*(\+|:|\?)?=/, "variable"],
-        [/^[ \t]*[\w.\-\/%]+:(\s|$)/, "type"],
+        [/^\s*[\w.\-/]+\s*(\+|:|\?)?=/, "variable"],
+        [/^[ \t]*[\w.\-/%]+:(\s|$)/, "type"],
         [/^\t.*$/, "string"],
       ],
     },
@@ -201,7 +201,7 @@ function registerCustomLanguages(m: typeof monaco) {
           /[a-zA-Z_$][\w$]*/,
           { cases: { "@keywords": "keyword", "@default": "identifier" } },
         ],
-        [/[{()\[\].;,:?+\-*/%=&|<>!~^]/, "delimiter"],
+        [/[[{()\].;,:?+\-*/%=&|<>!~^]/, "delimiter"],
       ],
       comment: [
         [/[^/*]+/, "comment"],

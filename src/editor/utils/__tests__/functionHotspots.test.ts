@@ -1,4 +1,4 @@
-// project-sight: 函数热点布局引擎单测（functionHotspots.ts）
+// sight-folio: 函数热点布局引擎单测（functionHotspots.ts）
 import { describe, it, expect } from "vitest";
 import type { FileMetric, ProjectFile, ProjectSymbol } from "../../../services/tauri";
 import {

@@ -1,4 +1,4 @@
-// project-sight: 聊天区代码块语法高亮（对标 VS Code Copilot Chat 的代码块观感）
+// sight-folio: 聊天区代码块语法高亮（对标 VS Code Copilot Chat 的代码块观感）
 //
 // 设计取舍（与 aiMarkdown.tsx 同源约束）：
 // - 为什么不用 react-markdown / react-syntax-highlighter / highlight.js？工作台侧栏要保持轻量，

@@ -1,4 +1,4 @@
-// project-sight: 左侧面板联动单测
+// sight-folio: 左侧面板联动单测
 // 验证「实体/文件/插件与画布分析数据联动」核心逻辑：
 //   1. findComponentForFile / findComponentForModule：按 config.filePath/moduleName 匹配画布实体
 //   2. locateFileInCanvas / focusComponent：定位时选中 + 发出居中请求
@@ -81,20 +81,13 @@ describe("findComponentForFile / findComponentForModule（实体↔画布匹配�
     expect(comp).toBeUndefined();
   });
 
-  it("模块按 moduleName/name 匹配画布 module 实体", () => {
+  it("业务收口守护：module 类型已不再注册，addComponent 返回 null（不静默建实体）", () => {
+    // Sight Folio = 写作平台，代码分析专属类型（module/dependency-edge/…）
+    // 已从 registerProjectEntities 收口移除。此断言守住「未注册类型不落库」语义，
+    // 同时防止有人无意恢复代码实体注册。
     const st = useEditorStore.getState();
-    const mod = st.addComponent("module", undefined, { x: 10, y: 10 });
-    if (!mod) throw new Error("addComponent failed");
-    useEditorStore.setState((s: any) => {
-      const found = s.components.find((c: any) => c.id === mod.id);
-      if (found) {
-        found.name = "src";
-        found.config = { ...found.config, name: "src", moduleName: "src" };
-      }
-    });
-    const comp = findComponentForModule("src");
-    expect(comp).toBeDefined();
-    expect(comp!.type).toBe("module");
+    expect(st.addComponent("module", undefined, { x: 10, y: 10 })).toBeNull();
+    expect(findComponentForModule("src")).toBeUndefined();
   });
 });
 

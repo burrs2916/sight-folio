@@ -24,6 +24,7 @@ import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNone
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import DataObjectIcon from "@mui/icons-material/DataObject";
+import AutoStoriesRoundedIcon from "@mui/icons-material/AutoStoriesRounded";
 import CodeIcon from "@mui/icons-material/Code";
 import ClearIcon from "@mui/icons-material/Clear";
 import { useLayoutStore } from "../../store/layoutStore";
@@ -31,12 +32,14 @@ import { useSceneStore } from "../../store/sceneStore";
 import { useProjectStore } from "../../store/projectStore";
 import { useToastStore } from "../../store/toastStore";
 import { useEditorStore } from "../../store/editorStore";
+import { useWritingStore } from "../../store/writingStore";
 import { t } from "../../i18n";
 import { aiButtonSx } from "../../ai/aiBrand";
 import LanguageToggle from "../i18n/LanguageToggle";
 import { projectScanApi, type ProjectSymbol, type CodeIndexEntry } from "../../services/tauri";
 import { locateFileInCanvas } from "../../editor/utils/canvasLink";
 import { navigateToSourceByPath } from "../../editor/utils/sourceNavigate";
+import { openWritingDesk } from "../../utils/writingDeskWindow";
 
 interface AppNavbarProps {
   onSettingsClick?: () => void;
@@ -93,6 +96,11 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
       navigate("/ai");
     }
   };
+
+  // 写作台全局入口：拉起独立写作台窗口，打开当前活跃书（无活跃书则进入选书）
+  const handleOpenDesk = useCallback(() => {
+    void openWritingDesk({ bookId: useWritingStore.getState().activeBookId });
+  }, []);
   const [searchText, setSearchText] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -419,6 +427,28 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
 
         {/* 语言切换（右上角中/英） */}
         <LanguageToggle />
+
+        {/* 写作台入口（全局常驻，主行动：拉起独立写作台窗口，打开当前活跃书） */}
+        <Tooltip title={t("writing.openInWritingDesk")}>
+          <Button
+            size="small"
+            onClick={handleOpenDesk}
+            startIcon={<AutoStoriesRoundedIcon sx={{ fontSize: 16 }} />}
+            sx={{
+              px: 1.2,
+              py: 0.4,
+              borderRadius: 5,
+              fontSize: 12,
+              ml: 0.5,
+              color: "primary.contrastText",
+              backgroundColor: "primary.main",
+              whiteSpace: "nowrap",
+              "&:hover": { backgroundColor: "primary.dark" },
+            }}
+          >
+            {t("writing.launchDesk")}
+          </Button>
+        </Tooltip>
 
         {/* AI 助手入口（全局常驻，靛紫渐变，统一 AI 视觉） */}
         <Tooltip title={t("aiPanel.openAssistant")}>

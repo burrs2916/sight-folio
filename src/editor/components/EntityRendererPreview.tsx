@@ -1,4 +1,4 @@
-// project-sight: 实体渲染器预览（通用组件）
+// sight-folio: 实体渲染器预览（通用组件）
 // 用实体自身的渲染器（SVG 矢量）渲染真实外观 —— 与场景画布一致：
 // 实体在画布上长什么样，这里就长什么样；config 一变 SVG 跟着变，完全动态。
 // 静态映射覆盖核心实体，其余类型通过 rendererCache 动态加载插件渲染器。
@@ -19,6 +19,12 @@ import { ImageRenderer } from "../renderers/ImageRenderer";
 import { AssetRenderer } from "../renderers/AssetRenderer";
 import { TreemapCellRenderer } from "../renderers/TreemapCellRenderer";
 import { QuadrantAxisRenderer } from "../renderers/QuadrantAxisRenderer";
+import {
+  WritingChapterRenderer,
+  WritingCharacterRenderer,
+  WritingOutlineRenderer,
+  WritingWorldviewRenderer,
+} from "../renderers/WritingEntityRenderer";
 import { rendererCache } from "../plugins/PluginLoader";
 import { resolveEntityIcon } from "../entityIconMap";
 
@@ -53,6 +59,12 @@ const STATIC_RENDERERS: Record<string, React.ComponentType<any>> = {
   "treemap-cell": TreemapCellRenderer,
   // ── 重构四象限坐标轴（v2.41）：与画布 RENDERERS 一致，避免预览区落占位 ──
   "quadrant-axis": QuadrantAxisRenderer,
+  // ── 写作实体（H1）：与 SceneEditor 画布 RENDERERS 对齐 —— 图鉴预览直接
+  //    显示真实写作卡片外观，而不是走 rendererCache 异步加载转圈/落代码形状 ──
+  "writing-chapter": WritingChapterRenderer,
+  "writing-character": WritingCharacterRenderer,
+  "writing-outline": WritingOutlineRenderer,
+  "writing-worldview": WritingWorldviewRenderer,
 };
 
 interface EntityRendererPreviewProps {
@@ -115,7 +127,11 @@ export function EntityRendererPreview({
       .load(type)
       .then((r) => {
         if (cancelled) return;
-        setDynamicRenderer(r);
+        // 关键：不能写 setDynamicRenderer(r) —— r 是函数组件，React 会把它当
+        // functional updater 调用 r(prevState)，prevState=null 时渲染器读
+        // props.config 直接抛 TypeError（/entities 页白屏根因）。
+        // 与 EditorCanvasComponent 的 setRenderer(() => cached) 同一约定。
+        setDynamicRenderer(() => r);
         if (!r) setLoadFailed(true);
       })
       .catch(() => {

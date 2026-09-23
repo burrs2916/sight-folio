@@ -12,7 +12,14 @@
  * 组件保持数据驱动、零业务耦合，可被任意页面（代码工作台 / 分析页）复用。
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Dialog, InputAdornment, TextField, Typography } from "@mui/material";
+// 2026-09-14：大包导入改子路径。@mui/material 大包与 @mui/material/* 子路径在 Vite
+// 预构建里是两个 entry、各含一份组件内部实例（含 Tabs/Dialog 的 context），
+// 混用会让同屏组件 split-brain（右栏 tabs 点击无效的根因之一）。
+import Box from "@mui/material/Box";
+import Dialog from "@mui/material/Dialog";
+import InputAdornment from "@mui/material/InputAdornment";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import SearchIcon from "@mui/icons-material/Search";
 import type { ReactNode } from "react";
 

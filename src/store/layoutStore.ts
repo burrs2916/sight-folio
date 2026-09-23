@@ -68,8 +68,8 @@ const _persist = (config: LayoutConfig) => {
 };
 
 const migrateConfig = (parsed: Partial<LayoutConfig>): LayoutConfig => {
-  let preset: LayoutPreset = (parsed.preset as string) === "focus" ? "default" : (parsed.preset || DEFAULT_LAYOUT_CONFIG.preset);
-  let navbarStyle: NavbarStyle = (parsed.navbarStyle as string) === "hidden" ? "standard" : (parsed.navbarStyle || DEFAULT_LAYOUT_CONFIG.navbarStyle);
+  const preset: LayoutPreset = (parsed.preset as string) === "focus" ? "default" : (parsed.preset || DEFAULT_LAYOUT_CONFIG.preset);
+  const navbarStyle: NavbarStyle = (parsed.navbarStyle as string) === "hidden" ? "standard" : (parsed.navbarStyle || DEFAULT_LAYOUT_CONFIG.navbarStyle);
 
   return {
     preset,

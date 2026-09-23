@@ -1,4 +1,4 @@
-// project-sight: 工作台 AI 上下文协议（对标 VS Code Copilot Chat 的隐式上下文）
+// sight-folio: 工作台 AI 上下文协议（对标 VS Code Copilot Chat 的隐式上下文）
 //
 // 根因：原工作台把分析页的通用 Agent 对话框塞进侧栏，AI 完全不知道用户在看哪个文件、
 // 选了哪段代码。本协议把「当前文件 / 选区 / 显式附件」标准化为可注入 prompt 的上下文，
@@ -8,6 +8,7 @@
 
 import { L } from "../../ai/aiLang";
 import type { EditorSelectionInfo } from "./MonacoCodeEditor";
+import type { WritingSetting } from "../../services/tauri";
 
 /** 对话模式：决定给模型的指令前缀，并驱动单次工具白名单（WORKBENCH_MODE_TOOLS → run_agent 的 allowed_tools） */
 export type WorkbenchMode = "ask" | "edit" | "agent";
@@ -103,6 +104,18 @@ export interface WorkbenchContext {
   hasRunCommand?: boolean;
   /** 当前文件的实时诊断（VS Code 式「修复此错误」的数据源）：让模型在每次对话都带着真实语法/类型错误作答，而非只看扫描台账。 */
   diagnostics?: WorkbenchContextDiagnostic[];
+  /** 书场景下，AI 角色随左栏题材 tab 切换：characters=人物 / worldview=世界观 / catalog=大纲 / timeline=时间线 / overview=全书统筹。null/undefined=未限定题材（沿用通用写作人设）。 */
+  bookTopic?: "characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview" | null;
+  /** 当前书名（书场景注入，让 AI 知道在写哪本书）。 */
+  bookTitle?: string | null;
+  /** 当前选中的具体设定项（人物/世界观卡），钻入详情时带上，让 AI 聚焦这一个。setting = 完整档案（正文/结构化字段/关系），不只是名字。 */
+  focusSetting?: { name: string; kind: "character" | "worldbuilding"; setting?: WritingSetting | null } | null;
+  /** 题材语料（双语）：worldview=设定库；timeline=时间线档案；overview=全书跨维度总览。每轮消息都带上真实数据，避免模型凭空猜测；其它题材为 null。 */
+  bookSettingCorpus?: { zh: string; en: string } | null;
+  /** 聚焦设定语料（双语）：右栏选中某个具体人物/世界观设定（钻入详情）时注入，带该设定完整档案。 */
+  focusSettingCorpus?: { zh: string; en: string } | null;
+  /** 全书跨维度总览语料（与右栏《全书总览》同一口径，单一事实来源）。对所有书题材注入，让 AI 始终带全书快照作答。 */
+  bookOverviewCorpus?: { zh: string; en: string } | null;
 }
 
 /** 画布作用域：标签 + 该实体的扫描事实（对标 VS Code 没有的「AI 认知画布」） */
@@ -128,8 +141,56 @@ export interface WorkbenchContextDiagnostic {
   source?: string;
 }
 
-/** 各模式的系统/指令前缀（双语，随 UI 语言切换） */
-export function modeInstruction(mode: WorkbenchMode): string {
+/** 书场景下，AI 角色随左栏题材 tab 切换（人物设计 / 世界观设计 / 大纲设计 / 时间线助手 / 全书统筹）——辅助创作者做该题材的设计。 */
+export function bookTopicRoleInstruction(mode: WorkbenchMode, bookTopic: "characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview"): string {
+  const topicLabel = bookTopic === "characters" ? L("人物", "character") : bookTopic === "worldview" ? L("世界观", "worldbuilding") : bookTopic === "catalog" ? L("大纲", "outline") : bookTopic === "storylines" ? L("剧情线", "storyline") : bookTopic === "foreshadowing" ? L("伏笔", "foreshadowing") : bookTopic === "inspiration" ? L("灵感", "idea") : bookTopic === "proofread" ? L("校对", "proofread") : bookTopic === "stats" ? L("统计", "stats") : bookTopic === "writing" ? L("正文写作", "manuscript") : bookTopic === "overview" ? L("全书统筹", "whole-book strategist") : L("时间线", "timeline");
+  switch (mode) {
+    case "ask":
+      return L(
+        `你是一个${topicLabel}设计助手。只回答、分析、给${topicLabel}设计建议，不要修改任何文件，也不要输出代码补丁。可以对照人设卡 / 世界观设定 / 全书结构给出建议，并优先围绕用户当前正在设计的${topicLabel}内容。`,
+        `You are a ${topicLabel} design assistant. Only answer, analyze and give ${topicLabel} design suggestions. Do NOT modify any file and do NOT propose code patches. Reference character cards / worldbuilding / the book structure, and focus on the ${topicLabel} content the user is currently designing.`,
+      );
+    case "edit":
+      return L(
+        `你是一个${topicLabel}设计编辑助手。优先用 apply_change 工具直接修改正文或设定：给 file_path（章节相对路径）+ old_text（从 file_read 原文逐字复制的待替换片段，必须全文唯一）+ new_text。改动会登记进「改动」台账，用户在面板里逐条「保留 / 撤销」。重点围绕用户当前正在设计的${topicLabel}内容（人物塑造 / 设定自洽 / 情节结构）给出可落地的修改。`,
+        `You are a ${topicLabel} design editor. PREFER the apply_change tool to edit prose or settings: pass file_path (chapter-relative), old_text (the exact snippet to replace, copied verbatim from file_read, must be unique), and new_text. Each change is recorded in the change ledger; the user reviews and Keeps or Undoes them. Focus on the ${topicLabel} content the user is designing (characterization / setting coherence / plot structure) and give actionable edits.`,
+      );
+    case "agent":
+      return L(
+        `你是一个${topicLabel}设计代理助手，可跨章节分析与修改。优先用 project_context 读取写作台上下文（人设卡 / 世界观设定 / 全书结构），用 file_read 读取真实正文，不要凭空猜测。重点围绕用户当前正在设计的${topicLabel}内容给出分析与修改。`,
+        `You are an agentic ${topicLabel} design assistant that can analyze and edit across chapters. PREFER project_context to read the writing-desk context (character cards / worldbuilding / book structure), and file_read to read the real prose; never guess. Focus on the ${topicLabel} content the user is designing.`,
+      );
+  }
+}
+
+/** 各模式的系统/指令前缀（双语，随 UI 语言切换）。
+ *  isBookScene=true 时切换为「小说写作助手」人设，不出现代码分析/构建/lint 等术语；
+ *  进一步：bookTopic 命中（人物/世界观/大纲）时切换为对应题材的「设计助手」人设，随左栏 tab 切换。 */
+export function modeInstruction(mode: WorkbenchMode, isBookScene = false, bookTopic?: "characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview" | null): string {
+  if (isBookScene && bookTopic) return bookTopicRoleInstruction(mode, bookTopic);
+  if (isBookScene) {
+    switch (mode) {
+      case "ask":
+        return L(
+          "你是一个小说写作助手。只回答、分析、给写作建议，不要修改任何文件，也不要输出代码补丁。可以对照人设卡、世界观设定与全书结构给出建议。",
+          "You are a fiction-writing assistant. Only answer, analyze and give writing suggestions. Do NOT modify any file and do NOT propose code patches. You may reference character cards, worldbuilding and the book structure.",
+        );
+      case "edit":
+        return L(
+          "你是一个写作编辑助手。优先用 apply_change 工具直接修改正文：给 file_path（章节相对路径）+ old_text（从 file_read 原文逐字复制的待替换片段，必须全文唯一，不唯一就多带几行上下文）+ new_text（替换内容，留空即删除）。改动会登记进「改动」台账，用户在面板里逐条「保留 / 撤销」——改完自查返回的行号与上下文预览，确认改在了预期位置。\n" +
+            "涉及多个章节就逐个调用 apply_change。绝不要输出整章全文（优先锚点补丁）。\n" +
+            "只有当确实无法调用写盘工具时（无写权限），才退而用文本块给出改动让用户手动应用：替换某段用 ```语言 path:起始行-结束行，插入用 ```语言 path:行号，针对用户选区用 ```语言（无 path）。path 必须是章节相对路径，只给变动的行。",
+          "You are a writing editor. PREFER the apply_change tool to edit the prose directly: pass file_path (chapter-relative), old_text (the exact snippet to replace, copied verbatim from file_read, must be unique — include surrounding lines if not), and new_text (replacement; empty string deletes it). Each change is recorded in the change ledger; the user reviews and Keeps or Undoes them per chapter in the panel. After editing, check the returned line range and context preview to confirm the edit landed where intended.\n" +
+            "Edit multiple chapters with one apply_change call each. Never emit the whole chapter (prefer anchored patches).\n" +
+            "ONLY if you genuinely cannot call the write tool (no write permission), fall back to presenting the edit as a text block for manual apply: replace with ```lang path:startLine-endLine, insert with ```lang path:line, or for the user's selection use ```lang (no path). path must be the chapter-relative path; give only the changed lines.",
+        );
+      case "agent":
+        return L(
+          "你是一个写作代理助手，可跨章节分析与修改。优先用 project_context 读取写作台上下文（人设卡 / 世界观设定 / 全书结构），用 file_read 读取真实正文，不要凭空猜测。改动用文本块给出，由用户确认后应用：替换用 ```语言 path:起始行-结束行，插入用 ```语言 path:行号，针对用户选区则 ```语言（无 path）。",
+          "You are an agentic writing assistant that can analyze and edit across chapters. PREFER project_context to read the writing-desk context (character cards / worldbuilding / book structure), and file_read to read the real prose; never guess. Present edits as text blocks for the user to review and apply: replace with ```lang path:startLine-endLine, insert with ```lang path:line, or for the user's selection use ```lang (no path).",
+        );
+    }
+  }
   switch (mode) {
     case "ask":
       return L(
@@ -157,8 +218,51 @@ export function modeInstruction(mode: WorkbenchMode): string {
  * 把当前上下文格式化为一段注入 prompt 正文的「上下文」区块。
  * 位置：放在用户问题之后、模型作答之前；事实只放摘要，细节让模型用 scan_records 下钻。
  */
-export function buildContextBlock(ctx: WorkbenchContext): string {
+export function buildContextBlock(ctx: WorkbenchContext, isBookScene = false): string {
   const lines: string[] = [];
+  // 书场景：把当前书 + 题材 + 聚焦设定灌进上下文，让 AI 自动带上业务背景（与右栏要素/详情两栏口径一致）。
+  if (isBookScene && (ctx.bookTitle || ctx.bookTopic || ctx.focusSetting)) {
+    const topicLabel =
+      ctx.bookTopic === "characters" ? L("人物", "characters")
+        : ctx.bookTopic === "worldview" ? L("世界观", "worldbuilding")
+        :       ctx.bookTopic === "catalog" ? L("大纲", "outline")
+        : ctx.bookTopic === "timeline" ? L("时间线", "timeline")
+        : ctx.bookTopic === "storylines" ? L("剧情线", "storylines")
+        : ctx.bookTopic === "foreshadowing" ? L("伏笔", "foreshadowing")
+        : ctx.bookTopic === "inspiration" ? L("灵感", "ideas")
+        : ctx.bookTopic === "proofread" ? L("校对", "proofread")
+        : ctx.bookTopic === "stats" ? L("统计", "stats")
+        : ctx.bookTopic === "writing" ? L("正文写作", "manuscript")
+        : ctx.bookTopic === "overview" ? L("全书总览", "whole-book overview")
+        : null;
+    const parts: string[] = [];
+    if (ctx.bookTitle) parts.push(L(`书《${ctx.bookTitle}》`, `book "${ctx.bookTitle}"`));
+    if (topicLabel) parts.push(L(`当前题材：${topicLabel}`, `current topic: ${topicLabel}`));
+    if (ctx.focusSetting) {
+      parts.push(
+        L(
+          `聚焦：${ctx.focusSetting.name}（${ctx.focusSetting.kind === "character" ? "人物" : "世界观"}）`,
+          `focus: ${ctx.focusSetting.name} (${ctx.focusSetting.kind === "character" ? "character" : "worldbuilding"})`,
+        ),
+      );
+    }
+    if (parts.length > 0) lines.push(L(`- 创作上下文：${parts.join(" · ")}`, `- Creative context: ${parts.join(" · ")}`));
+  }
+  // 题材语料：世界观=设定库、时间线=时间线档案，直接灌进上下文，AI 每轮都带真实数据作答。
+  // characters=人物卡、catalog=大纲骨架、writing=正文语料 等同理（补齐此前零语料视图）。
+  if ((ctx.bookTopic === "worldview" || ctx.bookTopic === "timeline" || ctx.bookTopic === "storylines" || ctx.bookTopic === "foreshadowing" || ctx.bookTopic === "inspiration" || ctx.bookTopic === "proofread" || ctx.bookTopic === "stats" || ctx.bookTopic === "writing" || ctx.bookTopic === "characters" || ctx.bookTopic === "catalog") && ctx.bookSettingCorpus) {
+    lines.push(L(ctx.bookSettingCorpus.zh, ctx.bookSettingCorpus.en));
+  }
+  // 全书总览语料：对所有书题材注入（含 characters/catalog 等当前无题材语料的视图），
+  // 让 AI 始终带全书跨维度快照，避免「只见一隅不知全貌」。
+  if (isBookScene && ctx.bookOverviewCorpus) {
+    lines.push(L(ctx.bookOverviewCorpus.zh, ctx.bookOverviewCorpus.en));
+  }
+  // 聚焦设定语料：右栏钻入某个具体人物/世界观设定时，把该设定完整档案灌进上下文，
+  // 让 AI 围绕这一个设定作答（排在全书总览之后，最具体者最后，语义优先级最高）。
+  if (isBookScene && ctx.focusSettingCorpus) {
+    lines.push(L(ctx.focusSettingCorpus.zh, ctx.focusSettingCorpus.en));
+  }
   if (ctx.activeFile) {
     const f = ctx.activeFile;
     const loc = f.totalLines ? L(`（${f.language ?? "未知"}，${f.totalLines} 行）`, `(${f.language ?? "unknown"}, ${f.totalLines} lines)`) : `（${f.language ?? "未知"}）`;
@@ -189,11 +293,67 @@ export function buildContextBlock(ctx: WorkbenchContext): string {
     lines.push(L(`- 本文件扫描事实：${parts.join(" · ")}`, `- Scan facts of this file: ${parts.join(" · ")}`));
   }
   if (lines.length === 0) return "";
-  return L("[上下文]\n" + lines.join("\n") + "\n\n先通过 project_context / scan_records 读取真实代码与扫描台账，不要凭空猜测。\n", "[Context]\n" + lines.join("\n") + "\n\nFirst read the real code and scan facts via project_context / scan_records. Do not guess.\n");
+  if (isBookScene) {
+    // 世界观题材：设定库已内联进 [上下文]，无需再让模型去 project_context 重读世界观；只提示可用 file_read 对照真实正文。
+    const footerZh =
+      ctx.bookTopic === "worldview"
+        ? "上面的[上下文]已包含当前书的「世界观设定库」（世界观设定 + 人物卡 + 关系），直接基于它作答；如需对照真实正文，用 file_read 读取对应章节，不要凭空猜测。\n"
+        : ctx.bookTopic === "timeline" || ctx.bookTopic === "storylines"
+        ? "上面的[上下文]已包含当前书的「时间线档案」（章节骨架 + 剧情线 + 事件全表 + 冲突 + 待补全草稿），直接基于它作答；时点以作者原文为准（自由文本，混合尺度是正当创作，不要强行换算成日期）；如需对照真实正文，用 file_read 读取对应章节，不要凭空猜测。\n"
+        : ctx.bookTopic === "foreshadowing"
+        ? "上面的[上下文]已包含当前书的「伏笔档案」（埋设/回收承诺 + 状态 + 跨章预警），直接基于它作答；预警仅为规划提示；如需对照真实正文，用 file_read 读取对应章节，不要凭空猜测。\n"
+        : ctx.bookTopic === "inspiration"
+        ? "上面的[上下文]已包含当前书的「灵感念头池」（未落章节拍 + 分发状态），直接基于它作答；标记〔已入…〕的念头不要重复建议，脑暴时尊重已有念头的语气与题材；如需对照真实正文，用 file_read 读取对应章节，不要凭空猜测。\n"
+        : ctx.bookTopic === "proofread"
+        ? "上面的[上下文]已包含当前书的「校对体检报告」（章文本/章账/伏笔/时间线/剧情线/念头池六组发现），直接基于它作答；体检是本地派生软提示，错别字与连贯性等语义层问题请用 file_read 逐章细读后再下结论，不要凭空猜测。\n"
+        : ctx.bookTopic === "stats"
+        ? "上面的[上下文]已包含当前书的「写作统计」（体量 KPI + 卷分布 + 章节体量离群），直接基于它作答；离群与节奏建议是 advisory 软提示，尊重创作者意图，不要催更施压，不要凭空猜测。\n"
+        : ctx.bookTopic === "writing"
+        ? "上面的[上下文]已包含当前书的「正文写作语料」（章节骨架 + 当前章全文 + 前情提要），直接基于它作答；续写衔接上文语气与节奏，改写建议给理由不整章重写，不要凭空猜测。\n"
+        : ctx.bookTopic === "characters"
+        ? "上面的[上下文]已包含当前书的「人物卡」（姓名 + 副标题 + 外貌/性格/动机/口头禅 + 关系），直接基于它作答；先读这些已有角色再给设计建议，不要凭空捏造人设；如需对照真实正文，用 file_read 读取对应章节。\n"
+        : ctx.bookTopic === "catalog"
+        ? "上面的[上下文]已包含当前书的「大纲骨架」（卷 → 章节结构 + 字数 + 状态 + 未落章节拍），直接基于它作答；规划分卷分章或节拍时以此为准，不要凭空编造章节；如需对照真实正文，用 file_read 读取对应章节。\n"
+        : ctx.bookTopic === "overview"
+        ? "上面的[上下文]已包含当前书的「全书总览」跨维度快照（体量 KPI + 人物 / 世界观 / 时间线 / 剧情线 / 伏笔 / 灵感 / 校对 / 日更趋势 + 风险预警）。你是本书的全书统筹助手：据此整体评估健康度、风险优先级与叙事连续性（时间线冲突 / 跨章伏笔 / 孤立设定 / 未落章节拍 / 校对问题），并给出可执行处置建议；需要具体章节细节时用 file_read 对照真实正文后再下结论，不要凭空猜测。\n"
+        : "先通过 project_context 读取写作台上下文（人设卡 / 世界观设定 / 全书结构），用 file_read 读取真实正文，不要凭空猜测。\n";
+    const footerEn =
+      ctx.bookTopic === "worldview"
+        ? "The [Context] above already contains the book's worldbuilding bible (worldbuilding + character cards + relations); answer directly from it. To cross-check the real prose, read the relevant chapter via file_read. Do not guess.\n"
+        : ctx.bookTopic === "timeline" || ctx.bookTopic === "storylines"
+        ? "The [Context] above already contains the book's timeline dossier (chapter skeleton + storylines + full event list + conflicts + drafts); answer directly from it. Treat the \"when\" values as the author's verbatim text (free-form; mixed scales are legitimate creative choices — do not force-convert them into dates). To cross-check the real prose, read the relevant chapter via file_read. Do not guess.\n"
+        : ctx.bookTopic === "foreshadowing"
+        ? "The [Context] above already contains the book's foreshadowing dossier (plant/payoff promises + status + overdue warnings); answer directly from it. Warnings are planning hints. To cross-check the real prose, read the relevant chapter via file_read. Do not guess.\n"
+        : ctx.bookTopic === "inspiration"
+        ? "The [Context] above already contains the book's idea pool (unanchored beats + dispatch state); answer directly from it. Do not re-suggest ideas already marked [in …], and respect the tone and genre of existing ideas. To cross-check the real prose, read the relevant chapter via file_read. Do not guess.\n"
+        : ctx.bookTopic === "proofread"
+        ? "The [Context] above already contains the book's proofread report (findings across chapter text / chapter account / foreshadowing / timeline / storylines / idea pool); answer directly from it. Findings are locally derived soft hints; for typos and coherence read the chapters via file_read before concluding. Do not guess.\n"
+        : ctx.bookTopic === "stats"
+        ? "The [Context] above already contains the book's writing stats (size KPIs + volume distribution + chapter-size outliers); answer directly from it. Outlier and pacing suggestions are advisory soft hints — respect the creator's intent, never nag about quotas. Do not guess.\n"
+        : ctx.bookTopic === "writing"
+        ? "The [Context] above already contains the book's manuscript corpus (chapter skeleton + current chapter full text + previously-summary); answer directly from it. Continue in the existing voice and pacing; give reasons for revision suggestions instead of rewriting whole chapters. Do not guess.\n"
+        : ctx.bookTopic === "characters"
+        ? "The [Context] above already contains the book's character cards (name + subtitle + appearance/personality/motivation/catchphrase + relations); answer directly from it. Read these existing characters before suggesting design changes — do not invent personas from nothing. To cross-check the real prose, read the relevant chapter via file_read. Do not guess.\n"
+        : ctx.bookTopic === "catalog"
+        ? "The [Context] above already contains the book's outline skeleton (volumes → chapter structure + word counts + status + unanchored beats); answer directly from it. Plan volumes/chapters/beats against it — do not invent chapters. To cross-check the real prose, read the relevant chapter via file_read. Do not guess.\n"
+        : ctx.bookTopic === "overview"
+        ? "The [Context] above already contains the book's [Book Overview] cross-dimension snapshot (size KPIs + characters / worldbuilding / timeline / storylines / foreshadowing / ideas / proofread / daily trend + risk warnings). You are the book's whole-book strategist: assess overall health, risk priority and narrative continuity (timeline conflicts / cross-chapter foreshadowing / orphan settings / unanchored beats / proofread issues) and give actionable fixes. For chapter-level specifics, read the real prose via file_read before concluding. Do not guess.\n"
+        : "First read the writing-desk context (character cards / worldbuilding / book structure) via project_context, and the real prose via file_read. Do not guess.\n";
+    const overviewNoteZh = ctx.bookOverviewCorpus ? "（需要时也可据上面的「全书总览」跨维度快照，整体评估本书健康度与风险。）" : "";
+    const overviewNoteEn = ctx.bookOverviewCorpus ? " (When useful, also reason about the book's overall health and risks from the [Book Overview] cross-dimension snapshot above.)" : "";
+    return L(
+      "[上下文]\n" + lines.join("\n") + "\n\n" + footerZh + overviewNoteZh,
+      "[Context]\n" + lines.join("\n") + "\n\n" + footerEn + overviewNoteEn,
+    );
+  }
+  return L(
+        "[上下文]\n" + lines.join("\n") + "\n\n先通过 project_context / scan_records 读取真实代码与扫描台账，不要凭空猜测。\n",
+        "[Context]\n" + lines.join("\n") + "\n\nFirst read the real code and scan facts via project_context / scan_records. Do not guess.\n",
+      );
 }
 
 /** 把画布作用域（含分析事实）格式化为一段注入 prompt 的「作用域」区块（VS Code 没有的能力） */
-export function buildScopeBlock(scope: WorkbenchContextScope | null | undefined): string {
+export function buildScopeBlock(scope: WorkbenchContextScope | null | undefined, isBookScene = false): string {
   if (!scope) return "";
   const f = scope.facts;
   const parts: string[] = [];
@@ -210,16 +370,21 @@ export function buildScopeBlock(scope: WorkbenchContextScope | null | undefined)
           `(impact surface: changes may ripple to ${scope.impact.length} files: ${scope.impact.slice(0, 12).map((f) => f.relPath).join(", ")}${scope.impact.length > 12 ? "…" : ""})`,
         )
       : "";
-  return L(
-    `[画布作用域]\n- 用户正在画布上查看实体「${scope.label}」（${scope.relPath}）${factLine ? " " + factLine : ""}${impactLine ? " " + impactLine : ""}\n- 请以此作用域为优先作答背景：涉及该实体相关逻辑、改动影响或重构时，先依据上面的分析事实判断，而不是只看编辑器当前打开的文件。\n`,
-    `[Canvas scope]\n- The user is currently viewing entity "${scope.label}" (${scope.relPath}) on the canvas${factLine ? " " + factLine : ""}${impactLine ? " " + impactLine : ""}\n- Treat this scope as the priority context: when discussing logic, change impact or refactoring related to it, reason from the scan facts above rather than only the file open in the editor.\n`,
-  );
+  return isBookScene
+    ? L(
+        `[创作作用域]\n- 用户正在画布上查看实体「${scope.label}」（${scope.relPath}）${factLine ? " " + factLine : ""}${impactLine ? " " + impactLine : ""}\n- 请以此作用域为优先作答背景：涉及该角色 / 章节的情节、人设或设定时，先依据上面的创作上下文判断，而不是只看编辑器当前打开的文件。\n`,
+        `[Creative scope]\n- The user is currently viewing entity "${scope.label}" (${scope.relPath}) on the canvas${factLine ? " " + factLine : ""}${impactLine ? " " + impactLine : ""}\n- Treat this scope as the priority context: when discussing plot, character or setting related to it, reason from the creative context above rather than only the file open in the editor.\n`,
+      )
+    : L(
+        `[画布作用域]\n- 用户正在画布上查看实体「${scope.label}」（${scope.relPath}）${factLine ? " " + factLine : ""}${impactLine ? " " + impactLine : ""}\n- 请以此作用域为优先作答背景：涉及该实体相关逻辑、改动影响或重构时，先依据上面的分析事实判断，而不是只看编辑器当前打开的文件。\n`,
+        `[Canvas scope]\n- The user is currently viewing entity "${scope.label}" (${scope.relPath}) on the canvas${factLine ? " " + factLine : ""}${impactLine ? " " + impactLine : ""}\n- Treat this scope as the priority context: when discussing logic, change impact or refactoring related to it, reason from the scan facts above rather than only the file open in the editor.\n`,
+      );
 }
 
 /** 工作区区块（对标 VS Code 的 @workspace）：告诉模型它拥有整个工作区的访问权限，用 workspace 级工具主动跨文件调查。
  *  项目自身目录默认就在上下文里（导入项目即默认可用），故该区块始终注入，无需用户手动切 @workspace participant。
  *  复用后端既有的 code_search / project_context / scan_records / symbol_lookup / file_read（均为跨文件/跨项目规模，零后端改动）。 */
-export function buildParticipantBlock(workspace?: WorkspaceFacts): string {
+export function buildParticipantBlock(workspace?: WorkspaceFacts, isBookScene = false): string {
   const parts: string[] = [];
   if (workspace && workspace.fileCount > 0) {
     const langLine =
@@ -245,10 +410,15 @@ export function buildParticipantBlock(workspace?: WorkspaceFacts): string {
     if (dirLine) parts.push(dirLine);
   }
   parts.push(
-    L(
-      "- 你拥有整个工作区的访问权限：用 code_search（跨文件检索）/ project_context（项目结构与扫描台账）/ scan_records（Top-N 下钻）/ symbol_lookup / file_read 主动调查相关文件，必要时读取多个文件再作答。回答中引用「file:line」证据，不要只停留在当前打开的文件。",
-      "- You have access to the whole workspace: use code_search (cross-file search) / project_context (project structure & scan facts) / scan_records (Top-N drill-down) / symbol_lookup / file_read to actively investigate relevant files, reading multiple files if needed. Cite \"file:line\" evidence and do not limit yourself to the open file.",
-    ),
+    isBookScene
+      ? L(
+          "- 你拥有整本书的访问权限：用 project_context（写作台上下文：人设卡 / 世界观设定 / 全书结构）/ file_read（读取真实正文）/ 主动调查相关章节，必要时读取多个章节再作答。引用具体章节与行号作为证据，不要只停留在当前打开的章节。",
+          "- You have access to the whole book: use project_context (writing-desk context: character cards / worldbuilding / book structure) / file_read (read the real prose) to actively investigate relevant chapters, reading multiple chapters if needed. Cite specific chapters and line numbers as evidence and do not limit yourself to the open chapter.",
+        )
+      : L(
+          "- 你拥有整个工作区的访问权限：用 code_search（跨文件检索）/ project_context（项目结构与扫描台账）/ scan_records（Top-N 下钻）/ symbol_lookup / file_read 主动调查相关文件，必要时读取多个文件再作答。回答中引用「file:line」证据，不要只停留在当前打开的文件。",
+          "- You have access to the whole workspace: use code_search (cross-file search) / project_context (project structure & scan facts) / scan_records (Top-N drill-down) / symbol_lookup / file_read to actively investigate relevant files, reading multiple files if needed. Cite \"file:line\" evidence and do not limit yourself to the open file.",
+        ),
   );
   return L("[Workspace]\n" + parts.join("\n") + "\n", "[Workspace]\n" + parts.join("\n") + "\n");
 }
@@ -272,7 +442,7 @@ export function buildTerminalParticipantBlock(hasRunCommand: boolean): string {
 }
 
 /** 把当前文件的实时诊断格式化为一段注入 prompt 的「诊断」区块（VS Code 式「修复此错误」：模型始终知道活代码的真实报错） */
-export function buildDiagnosticsBlock(diags?: WorkbenchContextDiagnostic[] | null): string {
+export function buildDiagnosticsBlock(diags?: WorkbenchContextDiagnostic[] | null, isBookScene = false): string {
   if (!diags || diags.length === 0) return "";
   const lines = diags.map((d) =>
     L(
@@ -280,20 +450,25 @@ export function buildDiagnosticsBlock(diags?: WorkbenchContextDiagnostic[] | nul
       `- L${d.line} [${d.severity === "error" ? "error" : "warning"}${d.source ? ` · ${d.source}${d.code ? " " + d.code : ""}` : ""}] ${d.message}`,
     ),
   );
-  return L(
-    "[当前文件诊断]\n" + lines.join("\n") + "\n\n优先修复「错误」级诊断；修改前先通过 file_read / project_context 读取真实代码确认上下文，不要凭空猜测。\n",
-    "[Current file diagnostics]\n" + lines.join("\n") + "\n\nFix error-level diagnostics first; read the real code via file_read / project_context before editing, do not guess.\n",
-  );
+  return isBookScene
+    ? L(
+        "[当前章节批注]\n" + lines.join("\n") + "\n\n优先处理「错误」级批注；修改前先通过 file_read 读取真实正文确认上下文，不要凭空猜测。\n",
+        "[Current chapter annotations]\n" + lines.join("\n") + "\n\nAddress error-level annotations first; read the real prose via file_read before editing, do not guess.\n",
+      )
+    : L(
+        "[当前文件诊断]\n" + lines.join("\n") + "\n\n优先修复「错误」级诊断；修改前先通过 file_read / project_context 读取真实代码确认上下文，不要凭空猜测。\n",
+        "[Current file diagnostics]\n" + lines.join("\n") + "\n\nFix error-level diagnostics first; read the real code via file_read / project_context before editing, do not guess.\n",
+      );
 }
 
 /** 组装最终发给模型的用户消息 */
-export function buildUserMessage(ctx: WorkbenchContext, userText: string): string {
-  const ctxBlock = buildContextBlock(ctx);
-  const scopeBlock = buildScopeBlock(ctx.scope);
-  const participantBlock = buildParticipantBlock(ctx.workspace);
-  const terminalBlock = buildTerminalParticipantBlock(!!ctx.hasRunCommand && ctx.mode === "agent");
-  const diagBlock = buildDiagnosticsBlock(ctx.diagnostics);
-  const head = modeInstruction(ctx.mode);
+export function buildUserMessage(ctx: WorkbenchContext, userText: string, isBookScene = false): string {
+  const ctxBlock = buildContextBlock(ctx, isBookScene);
+  const scopeBlock = buildScopeBlock(ctx.scope, isBookScene);
+  const participantBlock = buildParticipantBlock(ctx.workspace, isBookScene);
+  const terminalBlock = buildTerminalParticipantBlock(!!ctx.hasRunCommand && ctx.mode === "agent" && !isBookScene);
+  const diagBlock = buildDiagnosticsBlock(ctx.diagnostics, isBookScene);
+  const head = modeInstruction(ctx.mode, isBookScene, ctx.bookTopic);
   return [head, "", participantBlock, terminalBlock, userText, "", ctxBlock, scopeBlock, diagBlock].filter(Boolean).join("\n").trim() + "\n";
 }
 

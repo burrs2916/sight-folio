@@ -1,4 +1,4 @@
-// project-sight: 文件实体渲染器（画布上数量最多的实体，性能敏感）
+// sight-folio: 文件实体渲染器（画布上数量最多的实体，性能敏感）
 //
 // R37 重写为「零 Emotion」实现：原版是 18 个 <Box sx> + 4 个 <Typography sx> +
 // 4 个 <Tooltip>，单实体 26 个 emotion styled 组件。画布同步几百个文件后，

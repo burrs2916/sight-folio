@@ -1,4 +1,4 @@
-// project-sight：代码工作台集成终端的「单 tab 实例」
+// sight-folio：代码工作台集成终端的「单 tab 实例」
 //
 // 一个 WorkbenchTerminalPane 持有一个后端 PTY 会话（sessionId 由父组件 WorkbenchTerminalTabs 负责 spawn），
 // 自管 xterm 渲染 + 键盘输入 + resize + 卸载回收。多 tab 时所有 pane 常驻（隐藏用 display:none），

@@ -1334,6 +1334,288 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // ─── 写作域（Sight Folio）：书籍 + 章节 ───
+    // 纯新增，不影响既有分析器表。书 = 一个创作项目；章 = 写作基本单元，
+    // content 存 TipTap HTML。sort_order 由前端维护（插入/拖拽后重排写回）。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_books (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            genre TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'draft',
+            cover_color TEXT NOT NULL DEFAULT '#4A338F',
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_chapters (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            word_count INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'draft',
+            parent_id TEXT,
+            kind TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_chapters_book \
+         ON writing_chapters(book_id, sort_order)",
+        [],
+    )?;
+    // 创作设定库：kind = character（人设卡）| worldbuilding（世界观）。
+    // subtitle 对人设卡存「身份/角色」、对世界观存「分类（地点/组织/物品…）」；
+    // extra 为 JSON 透传字段（关系/时间线等 P2 扩展走这里，加字段零迁移）。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_settings (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            name TEXT NOT NULL,
+            subtitle TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            extra TEXT NOT NULL DEFAULT '{}',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_settings_book \
+         ON writing_settings(book_id, kind, sort_order)",
+        [],
+    )?;
+    // 写作统计：每日一个快照点（save_chapter 时自动 upsert 当天快照），
+    // day 为本地日期 YYYY-MM-DD；word_count 为该日结束时全书总字数，
+    // 日更量 = 相邻两日差值（前端计算）。历史不可追补，所以从第一天就开始记。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_daily_stats (
+            book_id TEXT NOT NULL,
+            day TEXT NOT NULL,
+            word_count INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            PRIMARY KEY (book_id, day)
+        )",
+        [],
+    )?;
+    // 大纲：与章节可双向关联的结构规划。chapter_id 可空绑定（NULL=未落章），
+    // 无外键（删章解绑由前端负责）；删书时级联清理。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_outlines (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            summary TEXT NOT NULL DEFAULT '',
+            chapter_id TEXT,
+            extra TEXT NOT NULL DEFAULT '{}',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_outlines_book \
+         ON writing_outlines(book_id, sort_order)",
+        [],
+    )?;
+    // 时间线事件（D）：全书级实体，独立于设定卡 extra.timeline。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_timeline_events (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            setting_id TEXT,
+            at TEXT NOT NULL DEFAULT '',
+            event TEXT NOT NULL DEFAULT '',
+            chapter_id TEXT,
+            storyline_id TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_timeline_events_book \
+         ON writing_timeline_events(book_id, setting_id)",
+        [],
+    )?;
+    // 剧情线（多线叙事实体）：事件通过 storyline_id 挂线（见上方 timeline 表）。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_storylines (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            color TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_storylines_book \
+         ON writing_storylines(book_id, sort_order)",
+        [],
+    )?;
+    // 旧库升级：时间线事件加 storyline_id 列（只 ALTER 不 DROP；新库建表已含，PRAGMA 检查幂等）。
+    let event_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(writing_timeline_events)")?
+        .query_map([], |row| row.get(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    if !event_cols.is_empty() && !event_cols.contains(&"storyline_id".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_timeline_events ADD COLUMN storyline_id TEXT",
+            [],
+        )?;
+    }
+    // 伏笔（「埋设 → 回收」承诺）：status 三态 pending/paidoff/abandoned；回收章可空。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_foreshadowings (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            plant_chapter_id TEXT,
+            payoff_chapter_id TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            storyline_id TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_foreshadowings_book \
+         ON writing_foreshadowings(book_id, sort_order)",
+        [],
+    )?;
+    // 章节版本快照（批次④）：切章/手动时对正文存档，origin = auto | manual。
+    // 每章只保留最近 N 份（仓储层 save_chapter_snapshot 事务内裁剪）。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_chapter_snapshots (
+            id TEXT PRIMARY KEY,
+            chapter_id TEXT NOT NULL,
+            book_id TEXT NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            word_count INTEGER NOT NULL DEFAULT 0,
+            origin TEXT NOT NULL DEFAULT 'auto',
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_chapter_snapshots_chapter \
+         ON writing_chapter_snapshots(chapter_id, created_at)",
+        [],
+    )?;
+    // P6：章节卷分组（volume='' = 未分卷）与书级日更目标。幂等 ALTER（migrate 每次启动都会跑）。
+    let chapter_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(writing_chapters)")?
+        .query_map([], |row| row.get(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    if !chapter_cols.is_empty() && !chapter_cols.contains(&"volume".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_chapters ADD COLUMN volume TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+    // 章头图等 P2 扩展走 extra JSON 透传（与 settings/outlines 同范式，加字段零迁移）。
+    // 幂等 ALTER；旧库建表无此列，新库建表已有（init_tables 同步见 commands/writing.rs 导入样板）。
+    if !chapter_cols.is_empty() && !chapter_cols.contains(&"extra".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_chapters ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'",
+            [],
+        )?;
+    }
+
+    let book_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(writing_books)")?
+        .query_map([], |row| row.get(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    if !book_cols.is_empty() && !book_cols.contains(&"daily_goal".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_books ADD COLUMN daily_goal INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+    // P1 体裁×载体：载体列（serial 连载 / standalone 单本 / collection 篇目集）。
+    // 幂等 ALTER（migrate 每次启动都会跑）；体裁列 genre 建表即有，无需补。
+    if !book_cols.is_empty() && !book_cols.contains(&"medium".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_books ADD COLUMN medium TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+
+    // 设计视图节拍挂载：outline.extra JSON 透传（出场人物/场景 id 集合）。
+    // 幂等 ALTER；旧库建表时无此列，新库建表即有。
+    let outline_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(writing_outlines)")?
+        .query_map([], |row| row.get(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    if !outline_cols.is_empty() && !outline_cols.contains(&"extra".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_outlines ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'",
+            [],
+        )?;
+    }
+
+    // ─── auth 域表（fork 遗留缺口：auth_repository 引用 auth_config / auth_config_presets，
+    //     但 init_tables 从未建表 → "no such table: auth_config"）───
+    // 列结构对齐 auth_repository.rs 的 SELECT/UPDATE；默认值取 AuthConfig::default()。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS auth_config (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled INTEGER NOT NULL DEFAULT 0,
+            preset TEXT NOT NULL DEFAULT 'custom',
+            base_url TEXT NOT NULL DEFAULT '',
+            auth_params TEXT NOT NULL DEFAULT '[]',
+            endpoints TEXT NOT NULL DEFAULT '[]',
+            header_config TEXT NOT NULL DEFAULT '[]',
+            user_display_config TEXT NOT NULL DEFAULT '[]',
+            timeout INTEGER NOT NULL DEFAULT 10000,
+            token_storage TEXT NOT NULL DEFAULT 'localStorage',
+            token_key TEXT NOT NULL DEFAULT 'auth_token',
+            token_header TEXT NOT NULL DEFAULT 'Authorization',
+            token_prefix TEXT NOT NULL DEFAULT 'Bearer ',
+            refresh_enabled INTEGER NOT NULL DEFAULT 1,
+            refresh_threshold INTEGER NOT NULL DEFAULT 300,
+            login_redirect_path TEXT NOT NULL DEFAULT '/login',
+            login_redirect_param TEXT NOT NULL DEFAULT 'redirect',
+            login_auto_redirect INTEGER NOT NULL DEFAULT 1,
+            whitelist TEXT NOT NULL DEFAULT '[\"/login\",\"/public/*\"]',
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    // update_config/reset_config 都是 UPDATE ... WHERE id = 1，必须有种子行。
+    conn.execute("INSERT OR IGNORE INTO auth_config (id) VALUES (1)", [])?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS auth_config_presets (
+            preset TEXT PRIMARY KEY,
+            config TEXT NOT NULL DEFAULT '{}',
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+
     // ─── 内置 4 个默认审查规则 ───
     seed_default_review_rules(conn)?;
     // ─── 语言专属内置审查规则（§4.2 RuleRegistry ↔ 引擎：按语言分发的种子规则）───
@@ -1378,6 +1660,57 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute("ALTER TABLE icon_groups ADD COLUMN parent_id TEXT", [])?;
     }
 
+    // ─── 结构树（parent_id + kind）：旧书 volume 串 → 卷父节点 ───
+    // 创作者自定义任意层级（部/卷/章/节/幕/场…），底层只是一张带 parent_id 的节点表。
+    // 幂等 ALTER（migrate 每次启动都跑）；新库建表即有这两列，旧库补 ALTER。
+    let ch_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(writing_chapters)")?
+        .query_map([], |row| row.get(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    if !ch_cols.is_empty() && !ch_cols.contains(&"parent_id".to_string()) {
+        conn.execute("ALTER TABLE writing_chapters ADD COLUMN parent_id TEXT", [])?;
+    }
+    if !ch_cols.is_empty() && !ch_cols.contains(&"kind".to_string()) {
+        conn.execute("ALTER TABLE writing_chapters ADD COLUMN kind TEXT NOT NULL DEFAULT ''", [])?;
+    }
+    // 回填：parent_id 仍为 NULL 且带了旧 volume 的章，按 volume 归并成 卷 父节点后 reparent。
+    // 幂等：只动 parent_id IS NULL 的行；首跑后这些章已挂到 卷 下，后续启动不再触发。
+    let legacy_books: Vec<String> = conn
+        .prepare("SELECT DISTINCT book_id FROM writing_chapters WHERE parent_id IS NULL AND volume != ''")?
+        .query_map([], |row| row.get(0))?
+        .filter_map(|r| r.ok())
+        .collect();
+    for book_id in legacy_books {
+        let vols: Vec<(String, i64)> = conn
+            .prepare(
+                "SELECT DISTINCT volume, MIN(sort_order) FROM writing_chapters \
+                 WHERE book_id = ?1 AND parent_id IS NULL AND volume != '' GROUP BY volume",
+            )?
+            .query_map([&book_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .filter_map(|r| r.ok())
+            .collect();
+        for (vol, min_so) in vols {
+            let vol_id = format!("vol_{}_{}", book_id, vol);
+            conn.execute(
+                "INSERT OR IGNORE INTO writing_chapters \
+                 (id, book_id, title, sort_order, kind, parent_id) VALUES (?1,?2,?3,?4,'卷',NULL)",
+                rusqlite::params![vol_id, book_id, vol, min_so],
+            )?;
+            conn.execute(
+                "UPDATE writing_chapters SET parent_id = ?1, kind = '章' \
+                 WHERE book_id = ?2 AND parent_id IS NULL AND volume = ?3",
+                rusqlite::params![vol_id, book_id, vol],
+            )?;
+        }
+        // 剩余：父为 NULL 且 volume 为空 的旧章 → 标记为根级 章（kind 默认空时补 '章'）
+        conn.execute(
+            "UPDATE writing_chapters SET kind = '章' \
+             WHERE book_id = ?1 AND parent_id IS NULL AND (kind = '' OR kind IS NULL)",
+            rusqlite::params![book_id],
+        )?;
+    }
+
     let ds_columns: Vec<String> = conn
         .prepare("PRAGMA table_info(data_sources)")?
         .query_map([], |row| row.get::<_, String>(1))?
@@ -1418,8 +1751,20 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute("ALTER TABLE data_sources ADD COLUMN last_sync_at INTEGER", [])?;
     }
 
-    if !ds_columns.is_empty() && ds_columns.contains(&"response_mapping".to_string()) {
-        // 旧字段保留但不强制使用，由上层代码迁移
+    // fork 遗留失配修复：datasource repository 的 SELECT/INSERT 引用 response_mapping / test_apis
+    // （均为 Vec<T> 的 JSON 序列化），但 data_sources 建表从未包含这两列 → 旧库上
+    // "no such column: response_mapping"。幂等 ALTER（migrate 每次启动都会跑）。
+    if !ds_columns.is_empty() && !ds_columns.contains(&"response_mapping".to_string()) {
+        conn.execute(
+            "ALTER TABLE data_sources ADD COLUMN response_mapping TEXT NOT NULL DEFAULT '[]'",
+            [],
+        )?;
+    }
+    if !ds_columns.is_empty() && !ds_columns.contains(&"test_apis".to_string()) {
+        conn.execute(
+            "ALTER TABLE data_sources ADD COLUMN test_apis TEXT NOT NULL DEFAULT '[]'",
+            [],
+        )?;
     }
 
     // ─── component_plugins 字段清理 ───
@@ -1617,6 +1962,38 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
+    // 数据迁移（D）：旧版落在设定卡 extra.timeline 的事件按确定性 ID 灌入本表（零丢失、幂等）。
+    // 必须在 migrate 里（每次启动跑），而非 init_tables（建表），否则旧数据的 timeline 不会被迁移。
+    // INSERT OR IGNORE（ID = ev_{settingId}_{index}）保证重启不重复；剥离 extra.timeline
+    // 后该设定不再被上述 SELECT 命中，删空事件也不会"重启复活"（尊重创作者删除）。
+    // 纯 SQL JSON1，单独容错：extra 偶发非法 JSON 不应拖垮整次 migrate。
+    let tl_import = "
+        INSERT OR IGNORE INTO writing_timeline_events
+            (id, book_id, setting_id, at, event, chapter_id, sort_order, created_at, updated_at)
+        SELECT
+            'ev_' || s.id || '_' || j.key,
+            s.book_id,
+            s.id,
+            COALESCE(json_extract(j.value, '$.at'), ''),
+            COALESCE(json_extract(j.value, '$.event'), ''),
+            NULLIF(json_extract(j.value, '$.chapterId'), ''),
+            CAST(j.key AS INTEGER),
+            strftime('%s', 'now'),
+            strftime('%s', 'now')
+        FROM writing_settings s, json_each(s.extra, '$.timeline') j
+        WHERE json_array_length(s.extra, '$.timeline') > 0
+          AND COALESCE(json_extract(j.value, '$.event'), '') <> ''
+    ";
+    if let Err(e) = conn.execute(tl_import, []) {
+        eprintln!("[migration] timeline_events import skipped: {e}");
+    }
+    let tl_strip = "UPDATE writing_settings \
+        SET extra = json_remove(extra, '$.timeline') \
+        WHERE json_array_length(extra, '$.timeline') > 0";
+    if let Err(e) = conn.execute(tl_strip, []) {
+        eprintln!("[migration] timeline_events extra strip skipped: {e}");
+    }
+
     Ok(())
 }
 
@@ -1753,7 +2130,7 @@ fn seed_component_categories(conn: &Connection) -> Result<(), rusqlite::Error> {
 
 /// 初始化 7 个项目实体内建 plugin
 ///
-/// project-sight 把 biosphere 的 100+ 图表/装饰/设备渲染器压缩为 7 个核心项目实体：
+/// sight-folio 把 biosphere 的 100+ 图表/装饰/设备渲染器压缩为 7 个核心项目实体：
 ///   - file: 文件节点
 ///   - folder: 文件夹节点
 ///   - module: 模块节点（语义聚合：相关文件组）

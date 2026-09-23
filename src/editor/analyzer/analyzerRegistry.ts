@@ -1,4 +1,4 @@
-// project-sight: 分析器插件注册表（核心引擎侧）
+// sight-folio: 分析器插件注册表（核心引擎侧）
 // 对应需求文档 §4.2 插件架构图中的"Analyzer 插件注册表"：
 //   ├─ ComponentTypeRegistry（实体类型注册）→ 桥接 componentRegistry
 //   ├─ ViewTemplateRegistry（视角模板注册）
@@ -177,7 +177,10 @@ class AnalyzerRegistryImpl {
           : [manifest.language.toLowerCase()],
         defaultSize: { width: 200, height: 80 },
         defaultConfig: {
-          name: et.name,
+          // 解引用为显示文本（IA 修复）：此前存 i18n key，凡落卡未带 name 覆盖的
+          // （大纲/便签模板、建档失败降级的壳卡），画布卡标题直接裸显
+          // analyzer.writing.entity.*.name。display 侧 resolveFragments 对纯文本原样放行，双向安全。
+          name: resolveFragments(et.name),
           entityType: et.type,
           color: et.color,
           layerType: et.defaultLayer,

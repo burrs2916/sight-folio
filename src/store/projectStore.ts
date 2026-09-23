@@ -8,6 +8,24 @@ import { useInsightOverlayStore } from "../store/insightOverlayStore";
 import { useToastStore } from "./toastStore";
 import { t } from "../i18n";
 
+/**
+ * projectRoot 是否是「真实文件系统路径」。
+ *
+ * 书场景的 projectRoot 是 `writing://{bookId}/` 这类**伪 URI** —— 书 = 场景，
+ * 一本书的"文件"是 writing_chapters / writing_settings 里的行，磁盘上**没有**
+ * 对应的目录。任何拿它去 stat / read_dir 的 Rust 命令都只会得到
+ * 「路径不存在: writing://book_xxx/」，而且每切一次场景报一次。
+ *
+ * 判定用 scheme（`://`）而不是列白名单：以后再加别的虚拟场景（比如云端书稿）
+ * 会自动豁免，不必回来补名单。Windows 盘符 `C:\...` 与 UNC 路径都不含 `://`，
+ * 不受影响。
+ */
+export function isFilesystemProjectRoot(root: string | null | undefined): boolean {
+  const r = (root ?? "").trim();
+  if (!r) return false;
+  return !r.includes("://");
+}
+
 // ─── 模块级单例：文件监视监听（防重复注册）───
 let watcherUnlisten: UnlistenFn | null = null;
 let watcherInitPromise: Promise<void> | null = null;
@@ -435,6 +453,15 @@ export const useProjectStore = create<ProjectStoreState>()(
         const projectRoot = analysis?.projectRoot;
         if (!projectRoot) {
           set((s) => { s.scanFreshnessChecking = false; });
+          return;
+        }
+        // 书场景（`writing://{bookId}/` 伪 URI）磁盘上没有目录可体检 —— 直接跳过 invoke。
+        // 不跳的话每次切场景都会往控制台灌一条
+        // `checkScanFreshness failed – 路径不存在: writing://book_xxx/`。
+        // 书的新鲜度由 openBookInStudio 的幂等重扫保证，这里顺手清掉上一次的新鲜度，
+        // 免得把别的场景的「数据已过时」横幅带到书场景上。
+        if (!isFilesystemProjectRoot(projectRoot)) {
+          set((s) => { s.scanFreshness = null; s.scanFreshnessChecking = false; });
           return;
         }
         const fresh = await projectScanApi.checkScanFreshness(analysisId, projectRoot);

@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { resolveFragments } from "../i18n";
 
 export type BackgroundType = "solid" | "gradient" | "image" | "video";
 export type GradientDirection = "to-right" | "to-left" | "to-bottom" | "to-top" | "to-bottom-right" | "to-bottom-left" | "to-top-right" | "to-top-left" | "radial";
@@ -275,17 +276,8 @@ export interface ComponentDefinition {
 export interface ConfigField {
   key: string;
   label: string;
-  type?: "number" | "text" | "select" | "color" | "toggle" | "slider" | "textarea" | "json" | "file" | "group" | "mapLibrary" | "datasource" | "datafield" | "deviceSelect" | "tagMultiSelect" | "dbTable" | "dbColumn" | "action" | "deviceMultiSelect" | "keyValueMapping";
+  type?: "number" | "text" | "select" | "color" | "toggle" | "slider" | "textarea" | "json" | "file" | "group" | "datasource" | "datafield" | "tagMultiSelect" | "dbTable" | "dbColumn" | "action" | "keyValueMapping";
   defaultValue?: unknown;
-  /**
-   * deviceMultiSelect 专用：设备过滤条件
-   * productCode：只显示指定产品码的设备（如只显示集控器）
-   */
-  deviceFilter?: { productCode?: string[] };
-  /**
-   * deviceMultiSelect 专用：最大可选数量（用于实现单选限制，如 maxSelectable: 1）
-   */
-  maxSelectable?: number;
   options?: { label: string; value: unknown }[];
   /**
    * 字段说明文字（显示在输入框下方）
@@ -476,7 +468,7 @@ export function getLayerDescendants(layers: LayerNode[], layerId: string): strin
   return ids;
 }
 
-// ── project-sight: 分析器实体工厂（兼容性命名保留） ──
+// ── sight-folio: 分析器实体工厂（兼容性命名保留） ──
 export function createDefaultAnalysisComponent(
   definition: ComponentDefinition,
   layerId: string,
@@ -485,7 +477,9 @@ export function createDefaultAnalysisComponent(
   return {
     id: `comp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
     type: definition.type,
-    name: definition.name,
+    // 注册名是 i18n key（analyzer.*.entity.*.name）：创建即解引用为显示文本，
+    // 否则凡落卡未带 name 覆盖的（模板卡/壳卡），画布与目录树直接裸显 key。
+    name: resolveFragments(definition.name),
     transform: createDefaultTransform({
       ...definition.defaultSize,
       ...position,

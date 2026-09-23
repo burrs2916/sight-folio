@@ -1,4 +1,4 @@
-// project-sight: file_dossier —— 单个文件的跨维度档案
+// sight-folio: file_dossier —— 单个文件的跨维度档案
 //
 // 为什么需要它
 // ------------

@@ -1,4 +1,4 @@
-// project-sight: 工作台斜杠命令（对标 VS Code Copilot Chat 的命令式交互）
+// sight-folio: 工作台斜杠命令（对标 VS Code Copilot Chat 的命令式交互）
 //
 // 设计原则：斜杠命令是「动作」，不是「模板预填」。
 //  - 输入 /fix → 自动吃当前文件真实诊断、强制 edit 模式、用 apply_change 真实改盘。
@@ -36,8 +36,92 @@ export interface WorkbenchSlashCommand {
 const refOf = (ctx: SlashCommandContext, sel: EditorSelectionInfo): string =>
   sel ? `${ctx.activeFile!.relPath}:${sel.startLine}-${sel.endLine}` : ctx.activeFile!.relPath;
 
-/** 调用期返回完整命令清单（L() 在每次调用时按当前 UI 语言求值，切换语言即时刷新） */
-export function getSlashCommands(): WorkbenchSlashCommand[] {
+/** 调用期返回完整命令清单（L() 在每次调用时按当前 UI 语言求值，切换语言即时刷新）。
+ *  书场景（novel-zh）与代码场景返回不同清单：书场景没有「当前文件 / 诊断」，代码命令（fix/explain/…）
+ *  无意义，换成写作域命令（全书体检 / 连续性审查 / 人物 / 伏笔 / 时间线 / 脑暴），直接吃注入的全书语料与题材语料。 */
+export function getSlashCommands(isBookScene?: boolean): WorkbenchSlashCommand[] {
+  // 写作域命令（书场景专用）：仅诊断、不直接改稿（mode=ask），尊重创作者主权（advisory 软提示）。
+  const bookCommands: WorkbenchSlashCommand[] = [
+    {
+      cmd: "体检",
+      label: () => L("全书体检", "Health check"),
+      description: () => L("基于全书总览快照，整体评估健康度与风险优先级", "Assess whole-book health and risk priority from the overview snapshot"),
+      mode: "ask",
+      buildText: (args) => {
+        const focus = args ? L(`额外关注：${args}`, `Focus: ${args}`) : "";
+        return L(
+          `基于上面的全书总览，给我一份全书健康度体检${focus ? "（" + focus + "）" : ""}：① 体量进度与叙事节奏是否健康；② 各维度（人物/世界观/时间线/剧情线/伏笔/灵感/校对）分别处于什么状态、最该优先补哪一块；③ 列出 3 个最值得立刻处理的风险点，每条给一句话处置建议。只诊断不直接改稿。`,
+          `Based on the book overview above, give me a health check${focus ? " (" + focus + ")" : ""}: ① is size/progress/pacing healthy; ② the state of each dimension and which to prioritise; ③ the 3 most urgent risks, each with a one-line fix. Diagnose only, don't rewrite.`,
+        );
+      },
+    },
+    {
+      cmd: "连续性",
+      label: () => L("连续性审查", "Continuity audit"),
+      description: () => L("跨章审查时间线冲突、伏笔回收与人物一致性", "Audit cross-chapter timeline conflicts, foreshadowing payoff and character consistency"),
+      mode: "ask",
+      buildText: (args) => {
+        const focus = args ? L(`额外关注：${args}`, `Focus: ${args}`) : "";
+        return L(
+          `做一份全书叙事连续性审查${focus ? "（" + focus + "）" : ""}：① 时间线同轨冲突与跨章时间倒挂；② 伏笔埋设与回收是否对得上、有无长期未回收的悬空伏笔；③ 主要人物是否出现性格/动机矛盾或行为 OOC；④ 各章骨架衔接是否断裂。逐条给出证据（章节/事件）与修法；需要细节时用 file_read 对照真实正文。`,
+          `Run a whole-book narrative-continuity audit${focus ? " (" + focus + ")" : ""}: ① same-track timeline conflicts and cross-chapter inversions; ② foreshadowing plants vs payoffs, any long-unpaid floating plants; ③ character personality/motivation contradictions or OOC; ④ chapter-skeleton hand-offs that break. Cite evidence (chapter/event) and fixes; use file_read for specifics.`,
+        );
+      },
+    },
+    {
+      cmd: "人物",
+      label: () => L("人物关系", "Characters"),
+      description: () => L("梳理人物关系网、冲突与一致性问题", "Map character relationships, conflicts and consistency issues"),
+      mode: "ask",
+      buildText: (args) => {
+        const focus = args ? L(`重点关注：${args}`, `Focus: ${args}`) : "";
+        return L(
+          `基于上面注入的人设卡与全书总览，梳理本书的人物关系网${focus ? "（" + focus + "）" : ""}：① 每位主要角色的动机、羁绊与潜在冲突；② 是否出现性格/动机矛盾或行为 OOC；③ 给出 2-3 处可强化的人物弧光建议。先读已有角色再给建议，不要凭空捏造人设；需要细节时用 file_read 对照真实正文。`,
+          `From the injected character cards and book overview, map the relationship network${focus ? " (" + focus + ")" : ""}: ① each main character's motivation, bonds and potential conflicts; ② any personality/motivation contradictions or OOC; ③ 2-3 suggestions to strengthen character arcs. Read existing characters first; use file_read for specifics.`,
+        );
+      },
+    },
+    {
+      cmd: "伏笔",
+      label: () => L("伏笔回收", "Foreshadowing"),
+      description: () => L("审查伏笔埋设与回收，规划回收场景", "Review foreshadowing plants and payoffs, plan payoff scenes"),
+      mode: "ask",
+      buildText: (args) => {
+        const focus = args ? L(`重点关注：${args}`, `Focus: ${args}`) : "";
+        return L(
+          `基于上面注入的伏笔档案与全书总览，审查本书伏笔${focus ? "（" + focus + "）" : ""}：① 哪些待回收伏笔埋得太重或太轻、哪些跨度太大易被遗忘；② 为每条待回收伏笔设计回收场景（在计划回收章如何自然兑现、需要哪些人物在场、与剧情线如何交织）；③ 已弃置/长期未回收的伏笔是否值得捡回。只建议不替我定稿；需要细节时用 file_read 对照真实正文。`,
+          `From the injected foreshadowing dossier and book overview, review the book's foreshadowing${focus ? " (" + focus + ")" : ""}: ① which pending plants are too heavy/subtle or span too long; ② design a payoff scene for each pending plant (how to pay it off naturally, who must be present, how it weaves into storylines); ③ whether abandoned/long-pending plants are worth reviving. Suggest only; use file_read for specifics.`,
+        );
+      },
+    },
+    {
+      cmd: "时间线",
+      label: () => L("时间线体检", "Timeline"),
+      description: () => L("审查时间线同轨冲突与覆盖缺口", "Audit timeline same-track conflicts and coverage gaps"),
+      mode: "ask",
+      buildText: (args) => {
+        const focus = args ? L(`重点关注：${args}`, `Focus: ${args}`) : "";
+        return L(
+          `基于上面注入的时间线档案与全书总览，审查本书时间线${focus ? "（" + focus + "）" : ""}：① 同轨时点碰撞与跨章时间倒挂，逐条说明矛盾与修法；② 覆盖缺口——哪些章还没有锚定事件、哪些区段过密或过疏，给出补齐优先级。时点是你的原文自由文本，不要强行换算成日期；需要细节时用 file_read 对照真实正文。`,
+          `From the injected timeline dossier and book overview, audit the book's timeline${focus ? " (" + focus + ")" : ""}: ① same-track when-collisions and cross-chapter inversions, each with a fix; ② coverage gaps — chapters lacking anchored events, stretches too dense/sparse, and what to fill first. Treat "when" as your verbatim text; don't force dates; use file_read for specifics.`,
+        );
+      },
+    },
+    {
+      cmd: "脑暴",
+      label: () => L("灵感脑暴", "Brainstorm"),
+      description: () => L("基于全书题材与念头池脑暴新念头", "Brainstorm new ideas from the book's genre and idea pool"),
+      mode: "ask",
+      buildText: (args) => {
+        const focus = args ? L(`主题约束：${args}`, `Constraint: ${args}`) : "";
+        return L(
+          `基于上面注入的念头池与全书总览，脑暴 8-10 个新念头（一句一个）${focus ? "（" + focus + "）" : ""}，标注每个的类型（情节/人物/世界观/桥段），不与已有念头重复，尊重本书题材与已有念头的语气。只列念头不要展开成章节。`,
+          `From the injected idea pool and book overview, brainstorm 8-10 new ideas (one line each)${focus ? " (" + focus + ")" : ""}, tag each by type (plot/character/worldbuilding/trope), avoid duplicating existing ideas, and respect the book's genre and the tone of existing ideas. List ideas only, don't expand into chapters.`,
+        );
+      },
+    },
+  ];
+  if (isBookScene) return bookCommands;
   return [
     {
       cmd: "fix",
@@ -186,14 +270,15 @@ export function getSlashCommands(): WorkbenchSlashCommand[] {
   ];
 }
 
-/** 解析行首斜杠命令：命中已注册命令则返回其定义 + 余下参数，否则返回 null（按普通文本发送） */
-export const SLASH_CMD_RE = /^\/(\w+)\s*([\s\S]*)$/;
+/** 解析行首斜杠命令：命中已注册命令则返回其定义 + 余下参数，否则返回 null（按普通文本发送）。
+ *  命令名支持中英（\w 覆盖 ASCII，\u4e00-\u9fa5 覆盖常用汉字），故中文命令（如 /连续性）也能识别。 */
+export const SLASH_CMD_RE = /^\/([\w\u4e00-\u9fa5]+)\s*([\s\S]*)$/;
 
-export function parseSlashCommand(text: string): { def: WorkbenchSlashCommand; args: string } | null {
+export function parseSlashCommand(text: string, isBookScene?: boolean): { def: WorkbenchSlashCommand; args: string } | null {
   const m = text.trim().match(SLASH_CMD_RE);
   if (!m) return null;
-  const cmd = m[1].toLowerCase();
+  const cmd = m[1];
   const args = m[2].trim();
-  const def = getSlashCommands().find((c) => c.cmd === cmd);
+  const def = getSlashCommands(isBookScene).find((c) => c.cmd === cmd);
   return def ? { def, args } : null;
 }

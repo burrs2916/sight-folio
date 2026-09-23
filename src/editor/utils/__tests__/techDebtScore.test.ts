@@ -1,4 +1,4 @@
-// project-sight: 技术债量化评分单测（techDebtScore.ts）
+// sight-folio: 技术债量化评分单测（techDebtScore.ts）
 import { describe, it, expect } from "vitest";
 import type { TechDebtItem } from "../../../services/tauri";
 import { summarizeTechDebt, formatDebtHours, hoursOf } from "../techDebtScore";

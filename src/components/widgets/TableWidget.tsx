@@ -36,8 +36,6 @@ export default function TableWidget({
   const [orderBy, setOrderBy] = useState<string | null>(null);
   const [order, setOrder] = useState<Order>("asc");
 
-  if (!visible) return null;
-
   const handleRequestSort = (property: string) => {
     const isAsc = orderBy === property && order === "asc";
     setOrder(isAsc ? "desc" : "asc");
@@ -63,6 +61,10 @@ export default function TableWidget({
       return 0;
     });
   }, [filteredRows, orderBy, order]);
+
+  // 早退必须放在所有 Hook 之后：visible 翻转时 Hook 调用数量保持一致，否则 React 会抛
+  // "Rendered fewer hooks than expected"。不可见时只是多算一次纯派生数据，无副作用。
+  if (!visible) return null;
 
   const paginatedRows = pagination
     ? sortedRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)

@@ -45,7 +45,7 @@ const TOP_PAIRS = 8;
 
 export interface RiskDimensionDef {
   key: string;
-  /** 语言包键（risk.dim.<key>.label），消费点 t() 取当前语言 */
+  /** 语言包键（risk.dim.<key>），消费点 t() 取当前语言 */
   labelKey: string;
   /** 加权综合分里的权重（仅用于同共振数内部排序） */
   weight: number;
@@ -53,7 +53,13 @@ export interface RiskDimensionDef {
   minSignal: number;
   /** 供养该维度的扫描阶段 key（与 buildStageCoverage 对齐），阶段不可用则整维度排除 */
   stage: string;
-  /** 单位语言包键（risk.dim.<key>.unit），消费点 t() 取当前语言 */
+  /**
+   * 单位语言包键（risk.dim.unit.<key>），消费点 t() 取当前语言。
+   *
+   * 必须走点分下钻：语言包里 unit 是 dim 下的一个子对象，写成
+   * `risk.dim.<key>.unit` 会把 <key> 当成父节点而整支查不到（t() 只能
+   * 整键扁平命中或逐层下钻），原始 key 会直接漏到界面上。
+   */
   unitKey: string;
 }
 
@@ -67,14 +73,14 @@ export interface RiskDimensionDef {
  *   死代码最低：清理成本低，但收益也低，不该把它顶到榜首。
  */
 export const RISK_DIMENSIONS: RiskDimensionDef[] = [
-  { key: "complexity", labelKey: "risk.dim.complexity", weight: 1.0, minSignal: 10, stage: "metrics", unitKey: "risk.dim.complexity.unit" },
-  { key: "churn", labelKey: "risk.dim.churn", weight: 1.0, minSignal: 5, stage: "git", unitKey: "risk.dim.churn.unit" },
-  { key: "fanIn", labelKey: "risk.dim.fanIn", weight: 0.9, minSignal: 5, stage: "symbolRefs", unitKey: "risk.dim.fanIn.unit" },
-  { key: "findings", labelKey: "risk.dim.findings", weight: 0.8, minSignal: 2, stage: "review", unitKey: "risk.dim.findings.unit" },
-  { key: "clones", labelKey: "risk.dim.clones", weight: 0.7, minSignal: 20, stage: "clones", unitKey: "risk.dim.clones.unit" },
-  { key: "techDebt", labelKey: "risk.dim.techDebt", weight: 0.6, minSignal: 2, stage: "techDebt", unitKey: "risk.dim.techDebt.unit" },
-  { key: "coupling", labelKey: "risk.dim.coupling", weight: 0.6, minSignal: 1, stage: "changeCoupling", unitKey: "risk.dim.coupling.unit" },
-  { key: "deadCode", labelKey: "risk.dim.deadCode", weight: 0.4, minSignal: 1, stage: "deadCode", unitKey: "risk.dim.deadCode.unit" },
+  { key: "complexity", labelKey: "risk.dim.complexity", weight: 1.0, minSignal: 10, stage: "metrics", unitKey: "risk.dim.unit.complexity" },
+  { key: "churn", labelKey: "risk.dim.churn", weight: 1.0, minSignal: 5, stage: "git", unitKey: "risk.dim.unit.churn" },
+  { key: "fanIn", labelKey: "risk.dim.fanIn", weight: 0.9, minSignal: 5, stage: "symbolRefs", unitKey: "risk.dim.unit.fanIn" },
+  { key: "findings", labelKey: "risk.dim.findings", weight: 0.8, minSignal: 2, stage: "review", unitKey: "risk.dim.unit.findings" },
+  { key: "clones", labelKey: "risk.dim.clones", weight: 0.7, minSignal: 20, stage: "clones", unitKey: "risk.dim.unit.clones" },
+  { key: "techDebt", labelKey: "risk.dim.techDebt", weight: 0.6, minSignal: 2, stage: "techDebt", unitKey: "risk.dim.unit.techDebt" },
+  { key: "coupling", labelKey: "risk.dim.coupling", weight: 0.6, minSignal: 1, stage: "changeCoupling", unitKey: "risk.dim.unit.coupling" },
+  { key: "deadCode", labelKey: "risk.dim.deadCode", weight: 0.4, minSignal: 1, stage: "deadCode", unitKey: "risk.dim.unit.deadCode" },
 ];
 
 export interface RiskDimensionState extends RiskDimensionDef {

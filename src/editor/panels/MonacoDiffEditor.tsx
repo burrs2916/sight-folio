@@ -1,4 +1,4 @@
-// project-sight: 只读对比视图编辑器（对标 Zed DiffEditor 双 buffer 对照）
+// sight-folio: 只读对比视图编辑器（对标 Zed DiffEditor 双 buffer 对照）
 //
 // 设计（代码工作台·窗格差异对照，2026-08-27）：
 // - 复用 @monaco-editor/react 的 DiffEditor（与 MonacoCodeEditor 共用同一 monaco chunk）；

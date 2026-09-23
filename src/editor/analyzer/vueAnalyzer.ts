@@ -1,4 +1,4 @@
-// project-sight: Vue 分析器插件
+// sight-folio: Vue 分析器插件
 // 后端支持：Tier 1（与 TypeScript 共享 tree-sitter Tsx dialect，
 //   <script setup> / <script> 内的符号提取 + import 解析）
 // 插件通过 AnalyzerManifest 向核心引擎声明能力，由 analyzerRegistry 注册。

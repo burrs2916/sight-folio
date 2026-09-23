@@ -1,4 +1,4 @@
-// project-sight: 插件规则执行引擎单测（ruleEngine.ts）
+// sight-folio: 插件规则执行引擎单测（ruleEngine.ts）
 import { describe, it, expect } from "vitest";
 import type { AnalyzerManifest } from "../../analyzer/types";
 import type { FileMetric } from "../../../services/tauri";

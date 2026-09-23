@@ -1,10 +1,10 @@
-// project-sight: 左面板 - 实体实例 + 扫描文件 + 分析器插件
+// sight-folio: 左面板 - 实体实例 + 扫描文件 + 分析器插件
 // 实体 Tab 从「静态实体类型」升级为「分析实例联动」：
 //   - 模块（project_modules）→ 点击在画布定位
 //   - 符号（project_symbols，类/函数/接口/结构体/枚举）→ 点击定位到源文件实体
 //   - 审查发现（findings）→ 点击定位到目标文件实体
 //   - 实体类型（可拖拽模板）保留为底部折叠组，不丢失拖拽能力
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Tabs from "@mui/material/Tabs";
@@ -33,9 +33,14 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import CallMadeIcon from "@mui/icons-material/CallMade";
 import BuildIcon from "@mui/icons-material/Build";
 import BlockIcon from "@mui/icons-material/Block";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import PersonIcon from "@mui/icons-material/Person";
+import PublicIcon from "@mui/icons-material/Public";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
+import { WritingEntitiesTab } from "./WritingLeftTabs";
+import { WritingStructureTreeTab } from "./WritingTreeTab";
 import HighlightAltIcon from "@mui/icons-material/HighlightAlt";
 import InputBase from "@mui/material/InputBase";
 import { componentRegistry } from "../registry";
@@ -1391,260 +1396,6 @@ function EntityInstancesTab() {
   );
 }
 
-/** 插件管理 Tab（对齐 biosphere PluginManagerTab 风格：统计行 + 卡片列表） */
-function AnalyzerPluginTab() {
-  useAnalyzerVersion();
-  const showToast = useToastStore((s) => s.showToast);
-  const files = useProjectStore((s) => s.files);
-  const symbols = useProjectStore((s) => s.symbols);
-  const findings = useProjectStore((s) => s.findings);
-  const dependencies = useProjectStore((s) => s.dependencies);
-  const techDebt = useProjectStore((s) => s.techDebt);
-  const setFocusLanguage = useProjectStore((s) => s.setFocusLanguage);
-  const focusLanguage = useProjectStore((s) => s.focusLanguage);
-
-  const analyzers = analyzerRegistry.getAllAnalyzers();
-  const activeIds = analyzerRegistry.getActiveAnalyzerIds();
-  const primaryId = analyzerRegistry.getActiveAnalyzerId();
-
-  // ─── 插件 ↔ 分析数据联动：按插件语言统计当前分析数据 ───
-  const statsFor = (lang: string) => {
-    const l = lang.toLowerCase();
-    const langFiles = files.filter((f) => !f.isDirectory && (f.language || "").toLowerCase() === l);
-    const langFileIds = new Set(langFiles.map((f) => f.id));
-    const langSymbols = symbols.filter((s) => langFileIds.has(s.fileId));
-    const langFindings = findings.filter((f) => langFileIds.has(f.targetId));
-    const langDeps = dependencies.filter((d) => langFileIds.has(d.fromId));
-    const langDebt = techDebt.filter((d) => langFileIds.has(d.fileId));
-    return { files: langFiles.length, symbols: langSymbols.length, findings: langFindings.length, deps: langDeps.length, techDebt: langDebt.length };
-  };
-
-  const handleActivate = (id: string, language: string) => {
-    if (analyzerRegistry.setActiveAnalyzer(id)) {
-      const m = analyzerRegistry.getAnalyzer(id);
-      // 插件 ↔ 分析数据联动：激活即设置语言焦点
-      setFocusLanguage(language.toLowerCase());
-      showToast(
-        m ? t("leftPanel.setPrimary", { name: t(m.name), lang: m.language }) : t("leftPanel.pluginSwitched"),
-        "success"
-      );
-    }
-  };
-
-  const handleToggle = (id: string) => {
-    const m = analyzerRegistry.getAnalyzer(id);
-    if (!m) return;
-    if (analyzerRegistry.isAnalyzerActive(id)) {
-      if (id === primaryId) {
-        showToast(t("leftPanel.primaryCannotDeactivate"), "warning");
-        return;
-      }
-      analyzerRegistry.deactivateAnalyzer(id);
-      showToast(t("leftPanel.deactivated", { name: t(m.name) }), "info");
-    } else {
-      analyzerRegistry.activateAdditionalAnalyzer(id);
-      showToast(t("leftPanel.activated", { name: t(m.name), lang: m.language }), "success");
-    }
-  };
-
-  return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      <Box sx={{ px: 1.5, py: 0.75, flexShrink: 0 }}>
-        <Typography variant="caption" sx={{ color: "text.secondary", fontSize: 10 }}>
-          {t("leftPanel.pluginSummary", { n: analyzers.length, active: activeIds.length })}
-        </Typography>
-      </Box>
-
-      <Box
-        sx={{
-          flex: 1,
-          overflow: "auto",
-          px: 1,
-          pb: 1,
-          display: "flex",
-          flexDirection: "column",
-          gap: 0.75,
-          "&::-webkit-scrollbar": { width: 4 },
-        }}
-      >
-        {analyzers.length === 0 && (
-          <Box sx={{ textAlign: "center", py: 4, color: "text.secondary" }}>
-            <ExtensionIcon sx={{ fontSize: 36, opacity: 0.2, mb: 1 }} />
-            <Typography variant="caption" sx={{ display: "block" }}>
-              {t("leftPanel.noPlugins")}
-            </Typography>
-          </Box>
-        )}
-
-        {analyzers.map((m) => {
-          const isPrimary = m.id === primaryId;
-          const isActive = activeIds.includes(m.id);
-          const color = languageColor(m.language);
-          const st = statsFor(m.language);
-          const isFocused = focusLanguage === m.language.toLowerCase();
-          return (
-            <Box
-              key={m.id}
-              onClick={() => handleActivate(m.id, m.language)}
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 0.75,
-                p: 1,
-                borderRadius: 1,
-                border: 1,
-                borderColor: isPrimary ? color : isActive ? `${color}88` : "divider",
-                backgroundColor: (t) =>
-                  isActive
-                    ? t.palette.mode === "dark"
-                      ? `${color}1f`
-                      : `${color}14`
-                    : "transparent",
-                cursor: "pointer",
-                transition: "all 0.15s",
-                "&:hover": {
-                  borderColor: color,
-                  backgroundColor: "action.hover",
-                },
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 28,
-                    height: 28,
-                    borderRadius: 0.75,
-                    flexShrink: 0,
-                    color: "#fff",
-                    backgroundColor: color,
-                  }}
-                >
-                  <ExtensionIcon sx={{ fontSize: 15 }} />
-                </Box>
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 500, fontSize: 12, lineHeight: 1.3 }}>
-                    {t(m.name)}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-                    {m.language} · v{m.version}
-                  </Typography>
-                </Box>
-                {isPrimary ? (
-                  <Chip
-                    label={t("leftPanel.primary")}
-                    size="small"
-                    sx={{ height: 16, fontSize: 9, bgcolor: color, color: "#fff", "& .MuiChip-label": { px: 0.75 } }}
-                  />
-                ) : (
-                  <Tooltip title={isActive ? t("leftPanel.deactivate") : t("leftPanel.activatePlugin")}>
-                    <Box
-                      component="span"
-                      onClick={(e) => { e.stopPropagation(); handleToggle(m.id); }}
-                      sx={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                        cursor: "pointer",
-                        border: "1px solid",
-                        borderColor: isActive ? color : "divider",
-                        backgroundColor: isActive ? color : "transparent",
-                        color: isActive ? "#fff" : "text.disabled",
-                        fontSize: 12,
-                        lineHeight: 1,
-                        transition: "all 0.15s",
-                        "&:hover": { borderColor: color, color: color },
-                      }}
-                    >
-                      {isActive ? "✓" : "+"}
-                    </Box>
-                  </Tooltip>
-                )}
-              </Box>
-
-              {/* ─── 插件 ↔ 当前分析数据统计（联动核心） ─── */}
-              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                <Chip
-                  label={t("leftPanel.stFiles", { n: st.files })}
-                  size="small"
-                  sx={{ height: 16, fontSize: 9, "& .MuiChip-label": { px: 0.75 }, bgcolor: "action.selected" }}
-                />
-                <Chip
-                  label={t("leftPanel.stSymbols", { n: st.symbols })}
-                  size="small"
-                  sx={{ height: 16, fontSize: 9, "& .MuiChip-label": { px: 0.75 }, bgcolor: "action.selected" }}
-                />
-                <Chip
-                  label={t("leftPanel.stDeps", { n: st.deps })}
-                  size="small"
-                  sx={{ height: 16, fontSize: 9, "& .MuiChip-label": { px: 0.75 }, bgcolor: "action.selected" }}
-                />
-                <Chip
-                  label={t("leftPanel.stFindings", { n: st.findings })}
-                  size="small"
-                  color={st.findings > 0 ? "warning" : "default"}
-                  variant={st.findings > 0 ? "filled" : "outlined"}
-                  sx={{ height: 16, fontSize: 9, "& .MuiChip-label": { px: 0.75 } }}
-                />
-                <Chip
-                  label={t("leftPanel.stTechDebt", { n: st.techDebt })}
-                  size="small"
-                  color={st.techDebt > 0 ? "warning" : "default"}
-                  variant={st.techDebt > 0 ? "filled" : "outlined"}
-                  sx={{ height: 16, fontSize: 9, "& .MuiChip-label": { px: 0.75 } }}
-                  title={t("leftPanel.stTechDebtTip")}
-                />
-                {isFocused && (
-                  <Chip
-                    label={t("leftPanel.focused")}
-                    size="small"
-                    sx={{ height: 16, fontSize: 9, bgcolor: color, color: "#fff", "& .MuiChip-label": { px: 0.75 } }}
-                  />
-                )}
-              </Box>
-
-              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                {capabilityChips(m).map((c) => (
-                  <Chip
-                    key={c.label}
-                    label={c.label}
-                    size="small"
-                    sx={{
-                      height: 16,
-                      fontSize: 9,
-                      px: 0,
-                      "& .MuiChip-label": { px: 0.75 },
-                      color: c.on ? "text.primary" : "text.disabled",
-                      bgcolor: c.on ? "transparent" : "transparent",
-                      border: "1px solid",
-                      borderColor: c.on ? "divider" : "transparent",
-                    }}
-                  />
-                ))}
-              </Box>
-
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-                {t("leftPanel.pluginStats", {
-                  entities: m.entityTypes.length,
-                  views: m.viewTemplates.length,
-                  layers: m.layerTypes.length,
-                  rules: m.rules.length,
-                })}
-              </Typography>
-            </Box>
-          );
-        })}
-      </Box>
-    </Box>
-  );
-}
-
 /** 画布实体树（需求 §5.2 EntityTree）：按 Layer/Type 分组的画布实体树，点击定位并选中 */
 function CanvasEntityTreeTab() {
   const components = useEditorStore((s) => s.components);
@@ -1753,7 +1504,7 @@ function CanvasEntityTreeTab() {
                           onClick={() => handleEntityClick(c.id)}
                           icon={ICON_MAP[iconName] ?? <DescriptionIcon sx={{ fontSize: 11 }} />}
                           badgeColor={!c.visible ? "#94A3B8" : isSel ? "#6366F1" : undefined}
-                          title={c.name || c.type}
+                          title={resolveFragments(c.name) || c.type}
                           subtitle={c.config && typeof c.config === "object" && "label" in c.config ? String((c.config as Record<string, unknown>).label) : c.type}
                         />
                       );
@@ -1776,6 +1527,11 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   layers: <LayersIcon sx={{ fontSize: 18 }} />,
   text_fields: <TextFieldsIcon sx={{ fontSize: 18 }} />,
   code: <CodeIcon sx={{ fontSize: 18 }} />,
+  // 写作实体图标（writing-analyzer manifest：章节/人物/世界观/大纲）
+  menu_book: <MenuBookIcon sx={{ fontSize: 18 }} />,
+  person: <PersonIcon sx={{ fontSize: 18 }} />,
+  public: <PublicIcon sx={{ fontSize: 18 }} />,
+  account_tree: <AccountTreeIcon sx={{ fontSize: 18 }} />,
 };
 
 interface EntityItemProps {
@@ -1850,6 +1606,22 @@ interface ComponentCenterPanelProps {
 export function ComponentCenterPanel({ collapsed = false, onToggle }: ComponentCenterPanelProps) {
   const [tab, setTab] = useState<"entities" | "files" | "plugins" | "layers" | "tree">("entities");
 
+  // ─── A 改造：书场景（novel-zh）左栏切写作向 Tab ───
+  // 信号口径与 ArchitectureLayersPanel 一致（activeScene.primaryLanguage）。
+  // 代码场景 5 Tab 原样，零回归；书场景 2 Tab（v3 IA 收口）：
+  //   entities→「元素」= 拖拽货架（空白模板拖到画布即真建档，见 WritingLeftTabs）
+  //   tree→「目录树」= 画布实体树，点击定位选中（画布工作区的元素定位入口）
+  //   files（章节文件树）撤除：章节定位=目录树+画布卡双击；重扫唯一入口=顶栏「解析全书」
+  //   layers/plugins 隐藏（卷部管理在顶栏）
+  const isBookScene = useSceneStore(
+    (s) => s.scenes.find((sc) => sc.id === s.activeSceneId)?.primaryLanguage === "novel-zh"
+  );
+  // 书场景没有 layers/plugins/files Tab：从代码场景切过来时残留的 tab 状态会落空 →
+  // 兜底回 entities（联动绝不静默：不能让用户看到一块空白面板）
+  useEffect(() => {
+    if (isBookScene && (tab === "layers" || tab === "plugins" || tab === "files")) setTab("entities");
+  }, [isBookScene, tab]);
+
   if (collapsed) {
     return (
       <Box
@@ -1910,40 +1682,50 @@ export function ComponentCenterPanel({ collapsed = false, onToggle }: ComponentC
         variant="fullWidth"
         sx={{ minHeight: 36, borderBottom: 1, borderColor: "divider" }}
       >
-        <Tab label={t("leftPanel.tabEntities")} value="entities" sx={{ minHeight: 36, fontSize: 12, py: 0.5 }} />
-        <Tab label={t("leftPanel.tabFiles")} value="files" sx={{ minHeight: 36, fontSize: 12, py: 0.5 }} />
+        {/* Tab 文案按场景分流：书场景业务化为「元素」（章节/人物/世界观），
+            代码场景保留「实体」（代码实体实例，零回归） */}
         <Tab
-          icon={<ExtensionIcon sx={{ fontSize: 13 }} />}
-          iconPosition="start"
-          label={t("leftPanel.tabPlugins")}
-          value="plugins"
+          label={t(isBookScene ? "leftPanel.tabElements" : "leftPanel.tabEntities")}
+          value="entities"
           sx={{ minHeight: 36, fontSize: 12, py: 0.5 }}
         />
+        {!isBookScene && (
+          <Tab
+            label={t("leftPanel.tabFiles")}
+            value="files"
+            sx={{ minHeight: 36, fontSize: 12, py: 0.5 }}
+          />
+        )}
+        {/* 目录树：书场景解禁（画布工作区的元素定位入口），代码场景原样 */}
         <Tab
-          icon={<LayersIcon sx={{ fontSize: 13 }} />}
-          iconPosition="start"
-          label={t("leftPanel.tabLayers")}
-          value="layers"
-          sx={{ minHeight: 36, fontSize: 12, py: 0.5 }}
-        />
-        <Tab
-          icon={<ViewModuleIcon sx={{ fontSize: 13 }} />}
-          iconPosition="start"
-          label={t("leftPanel.tabTree")}
+          label={t(isBookScene ? "leftPanel.tabDirectory" : "leftPanel.tabTree")}
           value="tree"
-          sx={{ minHeight: 36, fontSize: 11, py: 0.5 }}
+          sx={{ minHeight: 36, fontSize: 12, py: 0.5 }}
         />
+        {/* plugins Tab 已随代码分析收口整体移除：唯一分析器是 writing-analyzer，
+            「多语言插件切换 + 语言聚焦」体系无切换对象，留着只剩误导。 */}
+        {!isBookScene && (
+          <Tab
+            icon={<LayersIcon sx={{ fontSize: 13 }} />}
+            iconPosition="start"
+            label={t("leftPanel.tabLayers")}
+            value="layers"
+            sx={{ minHeight: 36, fontSize: 12, py: 0.5 }}
+          />
+        )}
       </Tabs>
 
-      {tab === "entities" && <EntityInstancesTab />}
+      {tab === "entities" && (isBookScene ? <WritingEntitiesTab /> : <EntityInstancesTab />)}
 
       {tab === "files" && <ScannedFilesPanel />}
 
-      {tab === "plugins" && <AnalyzerPluginTab />}
+      {tab === "layers" && !isBookScene && <CanvasLayerPanel />}
 
-      {tab === "layers" && <CanvasLayerPanel />}
-
-      {tab === "tree" && <CanvasEntityTreeTab />}
+      {/* 目录树：书场景走「作品目录树」——按 parentId 父子关系缩进的卷/章/节结构树，
+          点节点即在工作室里定位（右栏要素/详情联动）。不再复用画布实体树：后者读
+          editorStore.components（当前视图的画布卡片），书场景里会漏出「实体 / 图层」等
+          代码分析词汇、且永远找不到「第 N 章」。代码场景原样走 CanvasEntityTreeTab（零回归）。 */}
+      {tab === "tree" && (isBookScene ? <WritingStructureTreeTab /> : <CanvasEntityTreeTab />)}
 
       {/* 收起按钮（悬浮右上角，仿 biosphere） */}
       <Tooltip title={t("leftPanel.collapse")} placement="right">

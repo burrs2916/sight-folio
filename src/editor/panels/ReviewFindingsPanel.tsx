@@ -1,4 +1,4 @@
-// project-sight: 审查结果面板
+// sight-folio: 审查结果面板
 // 展示当前分析的所有审查结果，按严重度分组，支持筛选和排序
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import Box from "@mui/material/Box";

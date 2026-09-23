@@ -6,7 +6,7 @@
 //     for tests / local dev). Zero backend changes, fully verifiable.
 // A WebSocket bridge to external agents is the documented P0.1 increment: a thin
 // Rust-side WS server forwards frames to this bus via Tauri events, so an
-// out-of-process ACP agent (e.g. `claw`) can connect to project-sight.
+// out-of-process ACP agent (e.g. `claw`) can connect to sight-folio.
 
 import type { AcpMessage } from "./types";
 

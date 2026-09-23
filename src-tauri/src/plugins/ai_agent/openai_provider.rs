@@ -1,4 +1,4 @@
-// project-sight: OpenAI 兼容 Provider
+// sight-folio: OpenAI 兼容 Provider
 // 支持 OpenAI Completions / Anthropic Messages / OpenAI Responses 三种 API 格式
 // 从 biosphere-terminal-app 移植并适配
 

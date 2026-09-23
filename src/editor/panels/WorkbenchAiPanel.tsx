@@ -1,4 +1,4 @@
-// project-sight: 工作台 AI 面板（对标 VS Code Copilot Chat 侧栏）
+// sight-folio: 工作台 AI 面板（对标 VS Code Copilot Chat 侧栏）
 //
 // 设计立场（见 docs/代码工作台-AI面板重构-复盘与设计.md）：交互形态对齐 VS Code，
 // 上下文能力用我们的扫描台账压过它。本组件为**全新组件**，不改动分析页的 AiAgentPanel
@@ -44,6 +44,7 @@ import StopIcon from "@mui/icons-material/Stop";
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
+import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import LinkIcon from "@mui/icons-material/Link";
 import CodeIcon from "@mui/icons-material/Code";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlined";
@@ -75,7 +76,7 @@ import { useVerifyOverlayStore } from "../../store/verifyOverlayStore";
 import { useEditorDiagnosticsStore, type EditorDiagnostic } from "../../store/editorDiagnosticsStore";
 import { broadcastVerify } from "../useVerifyOverlaySync";
 import { broadcastImpact } from "../useImpactOverlaySync";
-import { projectScanApi, aiContextApi, agentApi, parseFileMetricMeta, type ProjectFile, type ProjectSymbol, type AiInsightDto, type CallEdge, type AiModel } from "../../services/tauri";
+import { projectScanApi, aiContextApi, agentApi, parseFileMetricMeta, type ProjectFile, type ProjectSymbol, type AiInsightDto, type CallEdge, type AiModel, type WritingSetting } from "../../services/tauri";
 import { monacoLanguageOf } from "../../utils/languageMeta";
 import type { EditorSelectionInfo, MonacoEditorHandle } from "./MonacoCodeEditor";
 import {
@@ -129,6 +130,11 @@ export interface WorkbenchAiPanelProps {
   selection: EditorSelectionInfo | null;
   editorRef: React.MutableRefObject<MonacoEditorHandle | null>;
   onClose: () => void;
+  /** 书场景（novel-zh）：提示词组装切换为写作向（人设/设定/情节），不出现代码分析术语（零回归：缺省 false = 代码场景） */
+  isBookScene?: boolean;
+  /** 方案 A（2026-09-14）：书场景「AI 优化」入口从顶栏迁入本面板 —— 打开画布 AI 对话框（H3 方案预览流）。
+      仅书场景且回调存在时渲染入口按钮；代码场景传 undefined，零回归 */
+  onOpenCanvasAi?: () => void;
   /**
    * 打开某个相对路径（并可跳到指定行）。改动评审列表点击文件名时用：
    * AI 改的往往不是当前打开的那个文件，没有这个能力，评审只能看不能查。
@@ -141,6 +147,12 @@ export interface WorkbenchAiPanelProps {
    */
   initialPrompt?: string | null;
   onConsumeInitialPrompt?: () => void;
+  /** 书场景：AI 角色随左栏题材 tab 切换（characters/世界观/catalog/timeline/overview）；null = 未限定题材。 */
+  bookTopic?: "characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview" | null;
+  /** 当前书名（注入 AI 上下文，让 AI 知道在写哪本书）。 */
+  bookTitle?: string | null;
+  /** 当前选中的具体设定项（人物/世界观卡），钻入详情时带上，让 AI 聚焦这一个。setting = 完整档案。 */
+  focusSetting?: { name: string; kind: "character" | "worldbuilding"; setting?: WritingSetting | null } | null;
 }
 
 interface DiffState {
@@ -327,14 +339,110 @@ const STARTER_PROMPTS = [
   { key: "tests", labelKey: "workbench.aiStarter.tests", prompt: L("为当前选中的代码编写单元测试", "Write unit tests for the selected code") },
 ];
 
+// 书场景起步示例：写作向，不出现「代码 / 单元测试 / 重构」等术语。
+const STARTER_PROMPTS_BOOK = [
+  { key: "explain", labelKey: "workbench.aiStarter.book.explain", prompt: L("读懂这一章：它在全书里承担什么情节功能、与前后章如何衔接、写得好的地方与可改进点。", "Help me understand this chapter: what plot function it serves, how it connects to the surrounding chapters, and what works versus what could improve.") },
+  { key: "improve", labelKey: "workbench.aiStarter.book.improve", prompt: L("润色当前章节里最薄弱的一段：提升文笔、节奏与可读性，保持人设口吻与全文风格一致。", "Polish the weakest passage in this chapter: improve prose, pacing and readability while keeping the character's voice and the overall style consistent.") },
+  { key: "continue", labelKey: "workbench.aiStarter.book.continue", prompt: L("基于当前章节的结尾与已有设定，续写接下来的情节，保持风格连贯。", "Continue the story from this chapter's ending and the existing setting, keeping the style coherent.") },
+  { key: "plot", labelKey: "workbench.aiStarter.book.plot", prompt: L("审视当前章节的情节连贯性、伏笔回收与叙事节奏，指出断裂或矛盾并给出修改建议。", "Review this chapter's plot coherence, foreshadowing payoff and pacing; point out breaks or contradictions with revision suggestions.") },
+];
+
+// 书场景「题材专用」起步示例：AI 角色随左栏题材 tab 切换（人物/世界观/大纲），引导创作者做该题材的设计。
+const STARTER_PROMPTS_BOOK_TOPIC: Record<"characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview", { key: string; labelKey: string; prompt: string }[]> = {
+  characters: [
+    { key: "design", labelKey: "workbench.aiStarter.book.characters.design", prompt: L("帮我设计一个新人物：给出姓名、外貌、性格、动机、口头禅与一段背景，并说明他在书中承担的角色弧光。", "Help me design a new character: name, appearance, personality, motivation, catchphrase and a backstory, plus the character arc they carry in the book.") },
+    { key: "enrich", labelKey: "workbench.aiStarter.book.characters.enrich", prompt: L("针对当前人物，补强外貌 / 性格 / 动机 / 口头禅，让人设更立体、前后一致。", "Enrich the current character's appearance / personality / motivation / catchphrase so the persona is more vivid and consistent.") },
+    { key: "relations", labelKey: "workbench.aiStarter.book.characters.relations", prompt: L("梳理当前人物与其它角色的关系网，指出潜在的冲突与羁绊。", "Map the current character's relationship network with other characters; point out potential conflicts and bonds.") },
+    { key: "check", labelKey: "workbench.aiStarter.book.characters.check", prompt: L("对照全书，检查该人物是否出现性格 / 动机矛盾或行为 OOC，逐条列出并给修改建议。", "Against the whole book, check the character for personality / motivation contradictions or out-of-character behavior; list them with revision suggestions.") },
+  ],
+  worldview: [
+    { key: "build", labelKey: "workbench.aiStarter.book.worldview.build", prompt: L("帮我设计一个世界观要素（地理 / 历史 / 规则 / 势力），并说明它与情节如何咬合。", "Help me design a worldbuilding element (geography / history / rules / faction) and explain how it meshes with the plot.") },
+    { key: "coherence", labelKey: "workbench.aiStarter.book.worldview.coherence", prompt: L("检查当前设定的内部逻辑是否自洽，指出漏洞与例外未覆盖处。", "Check the current setting for internal logical coherence; point out holes and unhandled exceptions.") },
+    { key: "factions", labelKey: "workbench.aiStarter.book.worldview.factions", prompt: L("梳理各势力的权力结构与核心矛盾，说明它们如何推动情节。", "Map the power structure and core conflicts of the factions, and how they drive the plot.") },
+    { key: "archive", labelKey: "workbench.aiStarter.book.worldview.archive", prompt: L("把下面这段设定整理成结构化档案（类型 / 规则 / 例外 / 关联章节）。", "Turn the setting below into a structured profile (type / rules / exceptions / related chapters).") },
+  ],
+  catalog: [
+    { key: "structure", labelKey: "workbench.aiStarter.book.catalog.structure", prompt: L("帮我规划全书的分卷分章结构与时序，给出每卷的叙事目标。", "Help me plan the book's volume / chapter structure and timeline, with a narrative goal per volume.") },
+    { key: "beat", labelKey: "workbench.aiStarter.book.catalog.beat", prompt: L("针对某一章，设计它的节拍（要发生什么、钩子、伏笔），并说明它在全书中的位置。", "For a given chapter, design its beats (what happens, hooks, foreshadowing) and where it sits in the whole book.") },
+    { key: "check", labelKey: "workbench.aiStarter.book.catalog.check", prompt: L("审视当前大纲的连贯性、伏笔回收与叙事节奏，指出断裂或拖沓处。", "Review the current outline for coherence, foreshadowing payoff and pacing; point out breaks or sagging sections.") },
+    { key: "hook", labelKey: "workbench.aiStarter.book.catalog.hook", prompt: L("为章节开头 / 结尾设计钩子，提升留存与翻页欲。", "Design hooks for chapter openings / endings to boost retention and page-turn urge.") },
+  ],
+  timeline: [
+    { key: "conflict", labelKey: "workbench.aiStarter.book.timeline.conflict", prompt: L("审查全书时间线：找出同轨时点碰撞与跨章时间倒挂，逐条说明矛盾所在并给修正建议。", "Review the book's timeline: find same-track when-collisions and cross-chapter inversions, explain each contradiction and suggest fixes.") },
+    { key: "arrange", labelKey: "workbench.aiStarter.book.timeline.arrange", prompt: L("为某一章设计时间线事件：此时点该发生什么、由哪些人物/设定参与、与前后章事件如何衔接。", "Design timeline events for a chapter: what should happen at this point, which characters/settings take part, and how it links to events in adjacent chapters.") },
+    { key: "fill", labelKey: "workbench.aiStarter.book.timeline.fill", prompt: L("针对待补全草稿，逐条给出时点与事件描述的补全建议（尊重我的原文口径，只建议不替我定稿）。", "For the drafts to complete, suggest a when and an event description for each (respect my wording; suggest only, never finalise for me).") },
+    { key: "density", labelKey: "workbench.aiStarter.book.timeline.density", prompt: L("分析时间线覆盖与节奏：哪些章还没有锚定事件、哪些区段过密或过疏，给出补齐优先级。", "Analyse timeline coverage and pacing: which chapters lack anchored events, which stretches are too dense or too sparse, and what to fill first.") },
+  ],
+  storylines: [
+    { key: "design", labelKey: "workbench.aiStarter.book.storylines.design", prompt: L("帮我为这本书设计一条新的剧情线（主线/支线/感情线皆可）：给出线名、一句话定位、起承转合的关键事件与结局走向。", "Help me design a new storyline (main / subplot / romance): give it a name, a one-line premise, key events from setup to payoff, and where it ends.") },
+    { key: "weave", labelKey: "workbench.aiStarter.book.storylines.weave", prompt: L("对照现有剧情线与时间线事件，检查每条线的推进是否连贯、哪条线太久没有事件、给出穿插节奏建议。", "Against the current storylines and timeline events, check whether each line progresses coherently, which line has gone quiet, and suggest interleaving rhythm.") },
+    { key: "untangle", labelKey: "workbench.aiStarter.book.storylines.untangle", prompt: L("梳理多条剧情线之间的交叉点与冲突：哪些事件同时推进多条线、哪里会互相抢戏，给出编排建议。", "Untangle intersections and conflicts between storylines: which events advance multiple lines at once, where they compete for attention, and how to arrange them.") },
+    { key: "coverage", labelKey: "workbench.aiStarter.book.storylines.coverage", prompt: L("分析剧情线挂线情况：未挂线事件应该归入哪条线或需要新线，逐条给建议（只建议不替我定稿）。", "Analyse storyline attachment: for unlined events, suggest which line each belongs to or whether a new line is needed (suggest only, never finalise for me).") },
+  ],
+  foreshadowing: [
+    { key: "plant", labelKey: "workbench.aiStarter.book.foreshadowing.plant", prompt: L("为当前章节设计伏笔：给出可埋下的物件/台词/悬念（越轻越好），并说明它适合在后面哪一章、以什么方式回收。", "Design foreshadowing for the current chapter: propose a light-weight object / line of dialogue / suspense to plant, and suggest which later chapter should pay it off and how.") },
+    { key: "check", labelKey: "workbench.aiStarter.book.foreshadowing.check", prompt: L("审查全书伏笔清单：哪些待回收的伏笔埋得太重或太轻、哪些回收计划跨度太大容易被读者遗忘，逐条给建议。", "Review the book's foreshadowing list: which pending plants are too heavy or too subtle, which payoff spans are so long readers may forget them; give itemised suggestions.") },
+    { key: "weave", labelKey: "workbench.aiStarter.book.foreshadowing.weave", prompt: L("为每条待回收伏笔设计回收场景：在计划回收章如何自然兑现、需要哪些人物在场、与剧情线如何交织（只建议不替我定稿）。", "Design payoff scenes for each pending foreshadowing: how to pay it off naturally in the planned chapter, which characters should be present, and how it weaves into the storylines (suggest only, never finalise for me).") },
+    { key: "abandon", labelKey: "workbench.aiStarter.book.foreshadowing.abandon", prompt: L("检查已弃置/长期未回收的伏笔：它们是否还值得捡回？给出捡回或正式弃置的建议（弃置不丢人，干净比强行回收更好）。", "Review abandoned / long-pending foreshadowing: is each still worth picking up? Recommend picking it back up or abandoning it cleanly (a clean drop beats a forced payoff).") },
+  ],
+  inspiration: [
+    { key: "brainstorm", labelKey: "workbench.aiStarter.book.inspiration.brainstorm", prompt: L("基于全书题材与念头池里已有的念头，脑暴 8-10 个新念头（一句一个），标注每个念头的类型（情节/人物/世界观/桥段），不与已有念头重复。", "Based on the book's genre and the ideas already in the pool, brainstorm 8-10 new ideas (one line each), tag each with its type (plot / character / worldbuilding / trope), and avoid duplicating existing ones.") },
+    { key: "triage", labelKey: "workbench.aiStarter.book.inspiration.triage", prompt: L("审视念头池：哪些念头值得优先发展成时间线事件或伏笔？给出分诊排序（A=马上用 / B=值得养 / C=先放着）与理由。", "Review the idea pool: which ideas are worth developing into timeline events or foreshadowing first? Give a triage ranking (A=use now / B=worth nurturing / C=park for later) with reasons.") },
+    { key: "bridge", labelKey: "workbench.aiStarter.book.inspiration.bridge", prompt: L("挑一条最有潜力的念头，展开成一组节拍（3-5 拍），并建议它适合挂在哪一章、与现有剧情线如何衔接。", "Pick the most promising idea and expand it into a beat sequence (3-5 beats), suggesting which chapter it belongs to and how it ties into the existing storylines.") },
+    { key: "prune", labelKey: "workbench.aiStarter.book.inspiration.prune", prompt: L("找出念头池里过期、重复或已被后续设定覆盖的念头，逐条给出删除或合并建议（删除不可怕，池子干净才转得动）。", "Find stale, duplicated or superseded ideas in the pool and recommend deleting or merging each (deleting is fine — a clean pool dispatches faster).") },
+  ],
+  proofread: [
+    { key: "read", labelKey: "workbench.aiStarter.book.proofread.read", prompt: L("对照体检报告，按优先级指出最值得先处理的 3 个问题：为什么是它们、处理顺序怎么排、各自一句话修法。", "Against the proofread report, name the top 3 issues worth fixing first: why they matter, the order to tackle them, and a one-line fix for each.") },
+    { key: "punct", labelKey: "workbench.aiStarter.book.proofread.punct", prompt: L("细读指定章节，找出错别字、标点误用与重复标点，逐条给出原文位置与改法（只指出不直接改稿）。", "Read the given chapter closely and list typos, punctuation misuse and repeated punctuation, each with its location and suggested fix (point out only, do not rewrite).") },
+    { key: "repeat", labelKey: "workbench.aiStarter.book.proofread.repeat", prompt: L("检查指定章节的重复用词与口头禅式表达：哪些词在短距离内反复出现、哪些描写句式雷同，给出替换建议。", "Check the given chapter for repeated wording and catchphrase-style expressions: which words recur within short spans, which descriptive sentences feel duplicated, with replacement suggestions.") },
+    { key: "flow", labelKey: "workbench.aiStarter.book.proofread.flow", prompt: L("通读指定章节，检查叙事连贯性：时间跳跃是否交代、人物行为是否合乎动机、前后信息是否矛盾，逐条列出。", "Read the given chapter through and check narrative coherence: unexplained time jumps, actions that contradict motivations, internal contradictions — list each one.") },
+  ],
+  stats: [
+    { key: "pacing", labelKey: "workbench.aiStarter.book.stats.pacing", prompt: L("基于写作统计（体量 KPI + 卷分布 + 章节体量），分析全书的叙事节奏：哪些区段偏拖沓或仓促、卷与卷之间的体量配比是否合理，给出调整建议（尊重创作意图，advisory 仅供参考）。", "Based on the writing stats (KPIs, volume distribution, chapter sizes), analyse the book's pacing: which stretches drag or rush, whether volume proportions are balanced; suggest adjustments (respect my intent, advisory only).") },
+    { key: "distribution", labelKey: "workbench.aiStarter.book.stats.distribution", prompt: L("对照卷分布数据，评估各卷的章数/完稿进度/字数是否头重脚轻或失衡，给出后续卷的体量规划建议。", "Against the volume distribution, assess whether chapters / finished ratio / word counts per volume are top-heavy or unbalanced; suggest size planning for upcoming volumes.") },
+    { key: "outliers", labelKey: "workbench.aiStarter.book.stats.outliers", prompt: L("逐个审视离群章节（超长/偏短）：结合它在全书中的位置判断是刻意的节奏设计还是失控，分别给扩写或拆分/合并或补写的建议。", "Review each outlier chapter (long / short) in its book context: is it deliberate pacing or out of control? Suggest expansion / splitting / merging / filling per case.") },
+    { key: "goal", labelKey: "workbench.aiStarter.book.stats.goal", prompt: L("基于日更趋势与当前日更目标，评估目标是否现实可持续，给出目标值与写作节奏的调整建议（不催更、不施压）。", "Based on the daily trend and current daily goal, assess whether the goal is realistic and sustainable; suggest goal and rhythm adjustments (no nagging, no pressure).") },
+  ],
+  writing: [
+    { key: "continue", labelKey: "workbench.aiStarter.book.writing.continue", prompt: L("续写当前章：从正文结尾自然衔接，保持已有的语气、人称与时态，推进 300-500 字（给出可直接粘贴的正文，不要解释）。", "Continue the current chapter from where the prose ends, matching the existing voice, person and tense; advance 300-500 words (give paste-ready prose, no explanations).") },
+    { key: "polish", labelKey: "workbench.aiStarter.book.writing.polish", prompt: L("细读当前章正文，按段落指出可打磨处：节奏拖沓、描写空洞、对话生硬、信息重复，每条给出原文与改写示例（只建议不直接改稿）。", "Read the current chapter closely and point out per-paragraph improvements: sagging pacing, hollow description, stiff dialogue, repeated information — quote the original and give a rewrite example (suggest only, do not edit directly).") },
+    { key: "consistency", labelKey: "workbench.aiStarter.book.writing.consistency", prompt: L("对照前情提要与章节骨架，检查当前章是否与已有情节矛盾（时间线/人物状态/设定），逐条列出矛盾点与修法。", "Against the previously-summary and chapter skeleton, check the current chapter for contradictions with existing plot (timeline / character state / settings); list each conflict with a fix.") },
+    { key: "scene", labelKey: "workbench.aiStarter.book.writing.scene", prompt: L("为当前章设计下一个场景：给出场景目标、出场人物、开场钩子与结束悬念（贴合已有剧情线与人物动机，只建议不替我定稿）。", "Design the next scene for the current chapter: scene goal, cast, opening hook and ending suspense (fit existing storylines and motivations; suggest only, never finalise for me).") },
+  ],
+  // 全书统筹（健康度 / 连续性）题材专用起步示例：AI 角色随「全书总览」按钮切换，引导做全书级诊断。
+  overview: [
+    { key: "health", labelKey: "workbench.aiStarter.book.overview.health", prompt: L("给我一份全书健康度体检：① 体量进度与叙事节奏是否健康；② 各维度（人物/世界观/时间线/剧情线/伏笔/灵感/校对）分别处于什么状态、最该优先补哪一块；③ 列出 3 个最值得立刻处理的风险点，每条给一句话处置建议。只诊断不直接改稿。", "Give me a whole-book health check: ① is size/progress/pacing healthy; ② the state of each dimension (characters / worldbuilding / timeline / storylines / foreshadowing / ideas / proofread) and which to prioritise; ③ the 3 most urgent risks, each with a one-line fix. Diagnose only, don't rewrite.") },
+    { key: "continuity", labelKey: "workbench.aiStarter.book.overview.continuity", prompt: L("做一份全书叙事连续性审查：① 时间线同轨冲突与跨章时间倒挂；② 伏笔埋设与回收是否对得上、有无长期未回收的悬空伏笔；③ 主要人物是否出现性格/动机矛盾或行为 OOC；④ 各章骨架衔接是否断裂。逐条给出证据（章节/事件）与修法。", "Run a whole-book narrative-continuity audit: ① same-track timeline conflicts and cross-chapter inversions; ② foreshadowing plants vs payoffs, any long-unpaid floating plants; ③ main characters with personality/motivation contradictions or OOC behavior; ④ chapter-skeleton hand-offs that break. Cite evidence (chapter/event) and fixes per item.") },
+    { key: "dimension", labelKey: "workbench.aiStarter.book.overview.dimension", prompt: L("挑当前最薄弱的一个维度（人物/世界观/时间线/剧情线/伏笔/灵感/校对），结合全书总览数据说明它为什么薄弱、应该先补哪 3 件事、按什么顺序。", "Pick the weakest dimension right now (characters / worldbuilding / timeline / storylines / foreshadowing / ideas / proofread), explain from the overview data why it's weak, and what 3 things to fix first and in what order.") },
+    { key: "risk", labelKey: "workbench.aiStarter.book.overview.risk", prompt: L("把全书总览里的风险预警（时间线冲突 / 跨章伏笔 / 孤立设定 / 未落章节拍 / 校对问题）按「影响 × 紧迫」排个序，给出一张可执行的处置清单（每条：做什么、涉及哪章、预估工作量）。", "Rank the overview's risk warnings (timeline conflicts / cross-chapter foreshadowing / orphan settings / unanchored beats / proofread issues) by impact × urgency, and give an actionable remediation list (each: what to do, which chapter, rough effort).") },
+  ],
+};
+
 // 需求分析引导起步 Chip 已迁至独立「需求分析」业务面板（RequirementsPanel），
 // AI 面板模式下拉回归纯 ask / edit / agent，不再承载业务功能。
 
-export function WorkbenchAiPanel({ activeFile, selection, editorRef, onClose, onOpenPath, initialPrompt, onConsumeInitialPrompt }: WorkbenchAiPanelProps) {
+// 全书总览体检（书场景专用）：发送后 AI 已通过注入的「全书总览语料」拿到跨维度快照，
+// 直接据此做健康度诊断，不依赖恰好停在某个题材 tab。
+const BOOK_OVERVIEW_PROMPT = L(
+  "基于上面的全书总览，给我一份全书健康度体检：① 体量进度与叙事节奏是否健康；② 各题材维度（人物/世界观/时间线/剧情线/伏笔/灵感/校对）分别处于什么状态、最该优先补哪一块；③ 列出 3 个最值得立刻处理的风险点，每条给一句话处置建议。只诊断不直接改稿。",
+  "Based on the book overview above, give me a health check: ① is the size/progress/pacing healthy; ② the state of each dimension (characters / worldbuilding / timeline / plotlines / foreshadowing / ideas / proofread) and which to prioritise; ③ list the 3 most urgent risks with a one-line fix each. Diagnose only, don't rewrite.",
+);
+
+export function WorkbenchAiPanel({ activeFile, selection, editorRef, onClose, onOpenPath, initialPrompt, onConsumeInitialPrompt, isBookScene = false, onOpenCanvasAi, bookTopic, bookTitle, focusSetting }: WorkbenchAiPanelProps) {
   const theme = useTheme();
   const dark = theme.palette.mode === "dark";
+  // 全书统筹（健康度/连续性）是 AI 的临时角色覆盖：点「全书总览」按钮时本地切到 overview，
+  // 切换左栏题材 tab（bookTopic prop 变化）即还原为跟随题材。零回归：不改动父级分派链。
+  const [localTopic, setLocalTopic] = useState<"characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview" | null>(null);
+  const resolvedTopic = localTopic ?? bookTopic;
+  useEffect(() => { setLocalTopic(null); }, [bookTopic]);
+  // 书场景下，AI 角色随左栏题材 tab 切换（人物/世界观/大纲/全书统筹），在头部明示当前角色。
+  const bookRoleLabel =
+    isBookScene && resolvedTopic
+      ? t(resolvedTopic === "characters" ? "workbench.aiRole.character" : resolvedTopic === "worldview" ? "workbench.aiRole.worldview" : resolvedTopic === "timeline" ? "workbench.aiRole.timeline" : resolvedTopic === "storylines" ? "workbench.aiRole.storylines" : resolvedTopic === "foreshadowing" ? "workbench.aiRole.foreshadowing" : resolvedTopic === "inspiration" ? "workbench.aiRole.inspiration" : resolvedTopic === "proofread" ? "workbench.aiRole.proofread" : resolvedTopic === "stats" ? "workbench.aiRole.stats" : resolvedTopic === "writing" ? "workbench.aiRole.writing" : resolvedTopic === "overview" ? "workbench.aiRole.overview" : "workbench.aiRole.catalog")
+      : null;
 
-  const ctx = useWorkbenchContext({ activeFile, selection, editorRef, onOpenPath });
+  const ctx = useWorkbenchContext({ activeFile, selection, editorRef, onOpenPath, isBookScene, bookTopic: resolvedTopic, bookTitle, focusSetting });
   const edits = useWorkbenchEdits({ activeFile, selection, editorRef, onOpenPath, ctx });
   const chat = useWorkbenchChat({ activeFile, ctx, edits });
   const {
@@ -408,6 +516,28 @@ export function WorkbenchAiPanel({ activeFile, selection, editorRef, onClose, on
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 1, py: 0.5, borderBottom: 1, borderColor: "divider" }}>
         <SmartToyIcon sx={{ fontSize: 16, color: "primary.main", flexShrink: 0 }} />
         <Typography variant="caption" sx={{ fontWeight: 700, flexShrink: 0 }}>{t("workbench.aiPanelTitle")}</Typography>
+        {bookRoleLabel && (
+          <Chip
+            size="small"
+            color="primary"
+            variant="outlined"
+            label={bookRoleLabel}
+            sx={{ fontSize: 9.5, height: 18, ml: 0.25, "& .MuiChip-label": { px: 0.5 } }}
+          />
+        )}
+        {isBookScene && (
+          <Tooltip title={t("studio.overviewAi.tip")}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<AssessmentIcon sx={{ fontSize: 14 }} />}
+              onClick={() => { setLocalTopic("overview"); void send(BOOK_OVERVIEW_PROMPT); }}
+              sx={{ textTransform: "none", fontSize: 10, ml: 0.25, minHeight: 18 }}
+            >
+              {t("studio.overviewAi.button")}
+            </Button>
+          </Tooltip>
+        )}
         <Box sx={{ flex: 1 }} />
         <Tooltip title={t("workbench.aiMore.label")}>
           <IconButton size="small" onClick={(e) => setMoreAnchorEl(e.currentTarget)}>
@@ -712,7 +842,7 @@ export function WorkbenchAiPanel({ activeFile, selection, editorRef, onClose, on
             {t("workbench.aiEdits.title")}
           </Typography>
           <Typography variant="caption" sx={{ display: "block", mt: 0.25, fontSize: 10.5, color: "text.secondary", lineHeight: 1.5 }}>
-            {t("workbench.aiEdits.intro")}
+            {isBookScene ? t("workbench.aiEdits.bookIntro") : t("workbench.aiEdits.intro")}
           </Typography>
         </Box>
       )}
@@ -744,6 +874,25 @@ export function WorkbenchAiPanel({ activeFile, selection, editorRef, onClose, on
         </Box>
       )}
 
+      {/* 方案 A：书场景「AI 优化」（画布 AI，H3 方案预览流）——顶栏迁入后在本面板常驻入口，
+          与 AI 助手同栏不同流：优化是「出方案→预览→应用/撤销」，不混进聊天 */}
+      {isBookScene && onOpenCanvasAi && (
+        <Box sx={{ px: 1, py: 0.5, borderBottom: 1, borderColor: "divider" }}>
+          <Tooltip title={t("studio.canvasAi.tip")}>
+            <Button
+              size="small"
+              variant="outlined"
+              fullWidth
+              startIcon={<AutoFixHighIcon sx={{ fontSize: 14 }} />}
+              onClick={onOpenCanvasAi}
+              sx={{ textTransform: "none", fontSize: 11 }}
+            >
+              {t("studio.canvasAi.button")}
+            </Button>
+          </Tooltip>
+        </Box>
+      )}
+
       {/* 消息列表 */}
       <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1 }}>
         {!selectedConversationId && messages.length === 0 && !isStreaming && (
@@ -757,7 +906,7 @@ export function WorkbenchAiPanel({ activeFile, selection, editorRef, onClose, on
                 )}
                 {/* 起步示例：空会话给几个可点提示词，打开即用（对标 VS Code 空聊天引导） */}
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, justifyContent: "center", mt: 1 }}>
-                  {STARTER_PROMPTS.map((s) => (
+                  {(isBookScene ? (resolvedTopic ? STARTER_PROMPTS_BOOK_TOPIC[resolvedTopic] : STARTER_PROMPTS_BOOK) : STARTER_PROMPTS).map((s) => (
                     <Chip
                       key={s.key}
                       size="small"

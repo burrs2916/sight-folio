@@ -1,4 +1,4 @@
-// project-sight: 主题配置（仅 localStorage 持久化）
+// sight-folio: 主题配置（仅 localStorage 持久化）
 import { create } from "zustand";
 
 export type ThemeMode = "light" | "dark" | "system";

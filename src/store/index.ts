@@ -1,4 +1,4 @@
-// project-sight: store 入口
+// sight-folio: store 入口
 export { useEditorStore, useDirtyStore } from "./editorStore";
 export { useSceneStore } from "./sceneStore";
 export { useProjectStore } from "./projectStore";
@@ -11,13 +11,7 @@ export { useIconStore } from "./iconStore";
 export { useAuthStore } from "./authStore";
 export { useAppearanceStore } from "./appearanceStore";
 export { useSceneVariableStore } from "./sceneVariableStore";
-export { useDeviceStore } from "./deviceStore";
-export { useDeviceAdapterStore } from "./deviceAdapterStore";
 export { useComponentStore } from "./componentStore";
-export { useAlarmHistoryStore } from "./alarmHistoryStore";
-export { useDeviceMappingStore } from "./deviceMappingStore";
-export { useDevicePlacementStore } from "./devicePlacementStore";
-export { deviceStateMachine } from "./deviceStateMachine";
 export { useNavigationStore } from "./navigationStore";
 export { useAgentStore } from "./agentStore";
 export type { EditorStore, EditorTool, EditorState, EditorActions } from "./editorStore";

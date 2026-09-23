@@ -15,15 +15,13 @@ import {
 } from "../types/dataSource";
 import type { DatabaseConnectionConfig, DatabaseTestConfig } from "../types/database";
 import { createDefaultDatabaseConfig, createDefaultDatabaseTest } from "../types/database";
-import type { MqttConnectionConfig } from "../types/mqtt";
-import { createDefaultMqttConfig } from "../types/mqtt";
 import type { WebSocketConfig } from "../types/websocket";
 import { createDefaultWebSocketConfig } from "../types/websocket";
 import { adapterRegistry } from "../datasource/adapters/registry";
 import { dataSourceEventBus } from "../datasource/events";
 import type { AdapterFetchResult } from "../datasource/adapters/types";
 import { DataSourceScheduler } from "../datasource/scheduler";
-import { datasourceApi, databaseApi, mqttApi } from "../services/tauri";
+import { datasourceApi, databaseApi } from "../services/tauri";
 
 let scheduler: DataSourceScheduler | null = null;
 
@@ -71,10 +69,8 @@ interface DataSourceState {
   testAllConnections: () => Promise<void>;
 
   testDatabaseConnection: (dsId: string) => Promise<unknown>;
-  testMqttConnection: (dsId: string) => Promise<unknown>;
   updateDatabaseConfig: (dsId: string, updates: Partial<DatabaseConnectionConfig>) => void;
   updateDatabaseTest: (dsId: string, updates: Partial<DatabaseTestConfig>) => void;
-  updateMqttConfig: (dsId: string, updates: Partial<MqttConnectionConfig>) => void;
   updateWebSocketConfig: (dsId: string, updates: Partial<WebSocketConfig>) => void;
 
   addTestApi: (dsId: string, partial?: Partial<TestApi>) => void;
@@ -141,9 +137,6 @@ export const useDataSourceStore = create<DataSourceState>()((set, get) => ({
             connection.database = createDefaultDatabaseConfig();
             connection.databaseTest = connection.databaseTest || createDefaultDatabaseTest();
           }
-          if (ds.type === "mqtt" && !connection.mqtt) {
-            connection.mqtt = createDefaultMqttConfig();
-          }
           const existingStatus = existingStatuses[ds.id];
           return {
             ...ds,
@@ -181,12 +174,6 @@ export const useDataSourceStore = create<DataSourceState>()((set, get) => ({
             ...merged.connection,
             database: createDefaultDatabaseConfig(),
             databaseTest: createDefaultDatabaseTest(),
-          };
-        }
-        if (finalType === "mqtt" && !merged.connection.mqtt) {
-          merged.connection = {
-            ...merged.connection,
-            mqtt: createDefaultMqttConfig(),
           };
         }
         return merged;
@@ -328,32 +315,6 @@ export const useDataSourceStore = create<DataSourceState>()((set, get) => ({
       return get().testDatabaseConnection(dsId);
     }
 
-    if (ds.type === "mqtt") {
-      try {
-        get()._updateConnectionStatus(dsId, { status: "connecting", testedAt: new Date().toISOString() });
-        const adapter = adapterRegistry.getAdapter("mqtt") as import("../datasource/adapters/MqttAdapter").MqttAdapter;
-        adapter.connect(ds, {
-          onStatusChange: (status, error) => {
-            get()._handleStatusChange(dsId, status, error);
-          },
-          onData: (result) => {
-            get()._handleFetchResult(dsId, result);
-            dataSourceEventBus.emit("data:updated", {
-              sourceId: dsId,
-              data: result.raw,
-              extracted: result.extracted,
-              timestamp: result.timestamp,
-            });
-          },
-        });
-        return { connected: true };
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : "MQTT 连接失败";
-        get()._updateConnectionStatus(dsId, { status: "failed", message: errorMsg, testedAt: new Date().toISOString() });
-        return null;
-      }
-    }
-
     if (!ds.connection.url) return null;
 
     const baseUrl = ds.connection.url.replace(/\/+$/, "");
@@ -413,8 +374,6 @@ export const useDataSourceStore = create<DataSourceState>()((set, get) => ({
       try {
         if (ds.type === "database") {
           await get().testDatabaseConnection(ds.id);
-        } else if (ds.type === "mqtt") {
-          await get().testMqttConnection(ds.id);
         } else {
           await get().testConnection(ds.id);
         }
@@ -483,23 +442,6 @@ export const useDataSourceStore = create<DataSourceState>()((set, get) => ({
     get()._persist(dsId);
   },
 
-  updateMqttConfig: (dsId, updates) => {
-    set((state) => ({
-      dataSources: state.dataSources.map((s) => {
-        if (s.id !== dsId) return s;
-        const existing = s.connection.mqtt || createDefaultMqttConfig();
-        return {
-          ...s,
-          connection: {
-            ...s.connection,
-            mqtt: { ...existing, ...updates },
-          },
-        };
-      }),
-    }));
-    get()._persist(dsId);
-  },
-
   updateWebSocketConfig: (dsId, updates) => {
     set((state) => ({
       dataSources: state.dataSources.map((s) => {
@@ -515,31 +457,6 @@ export const useDataSourceStore = create<DataSourceState>()((set, get) => ({
       }),
     }));
     get()._persist(dsId);
-  },
-
-  testMqttConnection: async (dsId) => {
-    const ds = get().dataSources.find((s) => s.id === dsId);
-    if (!ds || !ds.connection.mqtt) return null;
-
-    try {
-      get()._updateConnectionStatus(dsId, { status: "connecting", testedAt: new Date().toISOString() });
-      const result = await mqttApi.testConnection(ds.connection.mqtt);
-      if (result.success) {
-        get()._updateConnectionStatus(dsId, { status: "connected", testedAt: new Date().toISOString() });
-        get()._handleFetchResult(dsId, {
-          raw: result.data ?? { success: true, message: result.message },
-          extracted: {},
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        get()._updateConnectionStatus(dsId, { status: "failed", message: result.message, testedAt: new Date().toISOString() });
-      }
-      return result;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "未知错误";
-      get()._updateConnectionStatus(dsId, { status: "error", message: errorMsg, testedAt: new Date().toISOString() });
-      return null;
-    }
   },
 
   addTestApi: (dsId, partial) => {

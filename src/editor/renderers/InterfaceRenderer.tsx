@@ -1,4 +1,4 @@
-// project-sight: 接口实体渲染器（精确画像）
+// sight-folio: 接口实体渲染器（精确画像）
 // 接口卡片：接口名 + 成员数，粉色系（与插件注册 color #EC4899 一致）
 //
 // R37 改为零 Emotion（纯 div/span + inline style）并接入 LOD，理由见 canvasTheme.ts。

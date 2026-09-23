@@ -1,4 +1,4 @@
-// project-sight: Rust 分析器插件（第二阶段，中等优先级）
+// sight-folio: Rust 分析器插件（第二阶段，中等优先级）
 // 对应需求文档 §4.6 渐进式语言支持路线图：
 //   核心能力 = mod 树扫描、use 依赖分析、crate 依赖、unsafe 检测
 // 插件通过 AnalyzerManifest 向核心引擎声明能力，由 analyzerRegistry 注册。

@@ -5325,6 +5325,7 @@ export function CodeWorkbenchBody({
                   onOpenPath={handleOpenPath}
                   initialPrompt={pendingAiPrompt}
                   onConsumeInitialPrompt={() => setPendingAiPrompt(null)}
+                  isBookScene={false}
                 />
               )}
               {rightTab === 1 && (

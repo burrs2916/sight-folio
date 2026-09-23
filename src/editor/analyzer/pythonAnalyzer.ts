@@ -1,4 +1,4 @@
-// project-sight: Python 分析器插件（第三阶段，低优先级）
+// sight-folio: Python 分析器插件（第三阶段，低优先级）
 // 对应需求文档 §4.6 渐进式语言支持路线图：
 //   核心能力 = 模块扫描、import 分析、函数调用图
 // 插件通过 AnalyzerManifest 向核心引擎声明能力，由 analyzerRegistry 注册。

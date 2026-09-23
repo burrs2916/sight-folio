@@ -538,12 +538,15 @@ export const GRADE_COLOR: Record<ArchitectureHealth["grade"], string> = {
   E: "#ef4444",
 };
 
+// 注意：等级判语在语言包里挂在 health.gradeHint.*（health.grade 是「等级 {g}」
+// 这个模板串，不是父节点）。写成 health.grade.A 会整支查不到而把原始 key 渲染到
+// 架构健康度面板上。
 export const GRADE_HINT: Record<ArchitectureHealth["grade"], string> = {
-  A: "health.grade.A",
-  B: "health.grade.B",
-  C: "health.grade.C",
-  D: "health.grade.D",
-  E: "health.grade.E",
+  A: "health.gradeHint.A",
+  B: "health.gradeHint.B",
+  C: "health.gradeHint.C",
+  D: "health.gradeHint.D",
+  E: "health.gradeHint.E",
 };
 /** 等级判语（跟随 UI 语言） */
 export function gradeHintOf(grade: ArchitectureHealth["grade"]): string {

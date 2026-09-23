@@ -13,9 +13,6 @@ import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import { getEffectiveGridSize } from "../../utils/viewportTransform";
 import { useEditorStore } from "../../store/editorStore";
-import { useDeviceStore } from "../../store/deviceStore";
-import { useDeviceMappingStore } from "../../store/deviceMappingStore";
-import { useDevicePlacementStore, generatePlacementId } from "../../store/devicePlacementStore";
 import { useViewport, useCanvasResize } from "../hooks/useViewport";
 import { useSceneEventBridge } from "../hooks/useSceneEventBridge";
 import { EditorCanvasComponent } from "./EditorCanvasComponent";
@@ -26,9 +23,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { CanvasGuideLines } from "./CanvasGuideLines";
 import EditorRuler from "./EditorRuler";
 import { CanvasGrid } from "./CanvasGrid";
-import { SceneDeviceOverlay } from "./SceneDeviceOverlay";
 import { useTheme } from "@mui/material/styles";
-import { DEFAULT_PRODUCT_CODE_MAPPING } from "../../devices/edgeConductorDefaults";
 
 import logger from "../../utils/logger";
 
@@ -368,172 +363,10 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
     // === DIAGNOSTIC: Drop 入口日志 ===
     logger.info("EditorCanvas", "Drop event triggered", {
       hasDataTransfer: !!e.dataTransfer,
-      draggedDeviceIdFromStore: storeState.draggedDeviceId,
-      draggedDeviceIdFromData: e.dataTransfer?.getData("application/x-device-id"),
       draggedComponentTypeFromStore: storeState.draggedComponentType,
       draggedComponentTypeFromData: e.dataTransfer?.getData("application/x-component-type"),
       allDataTypes: e.dataTransfer?.types,
     });
-
-    // —— 分支 1：设备拖入（来自 DevicePalettePanel）——
-    const draggedDeviceId =
-      storeState.draggedDeviceId ||
-      e.dataTransfer?.getData("application/x-device-id") ||
-      "";
-    if (draggedDeviceId) {
-      storeState.setDraggedDeviceId(null);
-      const device = useDeviceStore.getState().getDevice(draggedDeviceId);
-      if (!device) {
-        logger.warn("EditorCanvas", "Dropped device not found in store", { draggedDeviceId });
-        return;
-      }
-      const pos = screenToCanvas(e.clientX, e.clientY);
-      if (!pos) return;
-
-      // ─── 应用产品码映射：数字编码 → 字符串编码 ───
-      const mappedCode = DEFAULT_PRODUCT_CODE_MAPPING[Number(device.productCode)] ?? device.productCode;
-
-      // 读取产品定义和映射配置（使用映射后的编码查找）
-      const productMap = useDeviceStore.getState().products;
-      const product = productMap[mappedCode] || productMap[device.productCode]; // 兼容两种编码
-      const mapping = useDeviceMappingStore.getState().getMapping(mappedCode) || useDeviceMappingStore.getState().getMapping(device.productCode);
-      const draggedVariant = e.dataTransfer?.getData("application/x-device-variant") || "";
-
-      // 如果映射了组件类型，使用映射的组件；否则按约定自动选择
-      const useMappedComponent = mapping?.componentType && componentRegistry.get(mapping.componentType);
-      // ─── 约定优于配置：按 productCode 查找动态注册的设备组件 ───
-      const autoCompType = `device:${mappedCode}`;
-      const autoCompDef = componentRegistry.get(autoCompType);
-      const hasAutoComponent = !!autoCompDef;
-
-      // === DIAGNOSTIC: 检查组件注册状态 ===
-      logger.info("EditorCanvas", "Device drop diagnostic", {
-        productCode: device.productCode,
-        mappedCode,
-        autoCompType,
-        hasAutoComponent,
-        registeredDeviceTypes: componentRegistry.getByCategory("device").slice(0, 5).map(d => d.type),
-        allDeviceTypesCount: componentRegistry.getByCategory("device").length,
-      });
-
-      const compType = useMappedComponent
-        ? mapping!.componentType
-        : hasAutoComponent
-          ? autoCompType
-          : "device";
-      const variantId = draggedVariant || product?.defaultVariant || "control-panel";
-      const variantDef = product?.variants?.find((v) => v.id === variantId);
-
-      // 尺寸：根据画布尺寸动态调整
-      const cc = storeState.canvasConfig;
-
-      // 基础尺寸：优先用组件注册的大变体尺寸，再回退到变体定义，最后用合理默认值
-      const freeVariant = product?.variants?.find((v) =>
-        ["control-panel", "card"].includes(v.id)
-      );
-      const baseW = autoCompDef?.defaultSize?.width ?? freeVariant?.defaultSize.width ?? variantDef?.defaultSize.width ?? 200;
-      const baseH = autoCompDef?.defaultSize?.height ?? freeVariant?.defaultSize.height ?? variantDef?.defaultSize.height ?? 150;
-
-      // 按画布尺寸等比缩放：基础尺寸以 1920×1080 为基准设计，再缩小一半使初始尺寸适中
-      const scaleW = cc.width / 1920 / 2;
-      const scaleH = cc.height / 1080 / 2;
-      const w = useMappedComponent
-        ? mapping!.defaultSize.width
-        : Math.max(80, Math.round(baseW * scaleW));
-      const h = useMappedComponent
-        ? mapping!.defaultSize.height
-        : Math.max(60, Math.round(baseH * scaleH));
-
-      // 在当前活动图层（或默认图层）创建组件
-      let targetLayerId = findLayerAtPosition(pos.x, pos.y);
-      if (!targetLayerId) targetLayerId = ensureDefaultLayer();
-      if (!targetLayerId) return;
-
-      const newComp = storeState.addComponent(compType, targetLayerId, {
-        x: Math.max(0, pos.x - w / 2),
-        y: Math.max(0, pos.y - h / 2),
-      });
-      if (newComp) {
-        storeState.setActiveLayer(targetLayerId);
-
-        // 构建组件配置
-        const compConfig: Record<string, unknown> = {
-          deviceId: device.deviceId,
-          productCode: device.productCode,
-        };
-        if (useMappedComponent) {
-          // 映射模式：设置 variant + 应用 Tag 绑定默认值
-          compConfig.variant = variantId;
-          // 将映射的 tagBindings 转化为组件初始配置
-          if (mapping!.tagBindings.length > 0) {
-            compConfig._deviceMapping = {
-              mappingId: mapping!.id,
-              productCode: device.productCode,
-              tagBindings: mapping!.tagBindings,
-              controlBindings: mapping!.controlBindings,
-            };
-          }
-        } else {
-          // 约定模式：自动设置 variant + 按 product tags 自动绑定
-          compConfig.variant = variantId;
-          // 按 ProductDefinition 的 tags 自动生成绑定约定
-          if (product?.tags && product.tags.length > 0) {
-            compConfig._deviceMapping = {
-              productCode: device.productCode,
-              tagBindings: product.tags.map((tag) => ({
-                tagId: tag.id,
-                tagPath: tag.id,
-                componentProperty: tag.id.replace(/\./g, "_"),
-                direction: tag.writable ? "bidirectional" as const : "read" as const,
-              })),
-              // === 修复 P3-bug：原 controlBindings 字段名错位（"command" 应为 "event" + "valueTemplate"） ===
-              // 约定：boolean tag → onToggle 事件，{event.value} 模板
-              //      数值 tag → onChange 事件，{event.value} 模板
-              controlBindings: product.tags
-                .filter((tag) => tag.writable)
-                .map((tag) => ({
-                  id: `cb_${tag.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-                  event: tag.dataType === "boolean" ? "onToggle" : "onChange",
-                  tagId: tag.id,
-                  valueTemplate: "{event.value}",
-                })),
-            };
-          }
-        }
-
-        storeState.updateComponentConfig(newComp.id, compConfig);
-        storeState.updateComponentTransform(newComp.id, { width: w, height: h });
-        storeState.selectComponent(newComp.id, false);
-
-        // === 把设备摆位写入 devicePlacementStore ===
-        // 由 changeListener 通知 sceneStore 把摆位回写到 SceneView.devicePlacements（仅内存）
-        // 落盘由 sceneStore.saveScene 显式触发
-        const placementStore = useDevicePlacementStore.getState();
-        if (activeViewId && !placementStore.isDevicePlaced(activeViewId, device.deviceId)) {
-          placementStore.addPlacement(activeViewId, {
-            id: generatePlacementId(device.deviceId),
-            deviceId: device.deviceId,
-            position: {
-              type: "pixel",
-              x: Math.max(0, pos.x - w / 2),
-              y: Math.max(0, pos.y - h / 2),
-            },
-            labelVisible: true,
-          });
-          logger.info("EditorCanvas", "Device placement added", {
-            viewId: activeViewId,
-            deviceId: device.deviceId,
-          });
-        }
-      }
-      logger.info("EditorCanvas", "Device component placed", {
-        deviceId: draggedDeviceId,
-        componentType: compType,
-        variant: variantId,
-        mapped: !!useMappedComponent,
-      });
-      return;
-    }
 
     // —— 分支 2：普通组件拖入 ——
     const compType =
@@ -554,14 +387,6 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
     let extraConfig: Record<string, unknown> | undefined;
 
     const cc = storeState.canvasConfig;
-
-    // 设备组件：根据画布尺寸等比缩放，再缩小一半使初始尺寸适中
-    if (compType.startsWith("device:")) {
-      const scaleW = cc.width / 1920 / 2;
-      const scaleH = cc.height / 1080 / 2;
-      dw = Math.max(80, Math.round(definition.defaultSize.width * scaleW));
-      dh = Math.max(60, Math.round(definition.defaultSize.height * scaleH));
-    }
 
     if (compType === "text") {
       const shortSide = Math.min(cc.width, cc.height);
@@ -988,12 +813,6 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
             guide={canvasConfig.guide}
           />
       )}
-
-      {/* 设备覆盖层（编辑/预览均显示） */}
-      <SceneDeviceOverlay
-        viewId={activeViewId}
-        editable={!isPreview}
-      />
 
       {!isPreview && isDragOver && dragPreview && (
         <Box

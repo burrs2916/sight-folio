@@ -26,13 +26,39 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - uses: pnpm/action-setup@v3
+      # 可复现安装：仓库随 package-lock.json 交付（无 pnpm-lock.yaml），故用 npm ci 锁死版本。
+      # --legacy-peer-deps：@jiaminghi/data-view-react 声明 peer react@^16，npm 严格 peer 解析
+      # 必然 ERESOLVE；该包另由 patches/ 打补丁（postinstall: patch-package）。
+      - name: Install dependencies (locked)
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npx vite build
+
+  frontend-test:
+    name: Frontend Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          version: 8
+          node-version: 20
+          cache: npm
 
-      - run: pnpm install
-      - run: pnpm exec tsc --noEmit
+      - name: Install dependencies (locked)
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+
+      - name: Unit tests
+        run: npm test
 
   rust-check:
     name: Rust Check
@@ -126,12 +152,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 8
-
-      - run: pnpm install
+      - name: Install dependencies (locked)
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
 
       - uses: dtolnay/rust-toolchain@stable
         with:

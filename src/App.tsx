@@ -1,52 +1,65 @@
-import { useState, useCallback } from "react";
-import CssBaseline from "@mui/material/CssBaseline";
-import Box from "@mui/material/Box";
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
-import { listen } from "@tauri-apps/api/event";
-import { AppTheme } from "./theme";
-import { SideMenu, AppNavbar, AppFooter } from "./components/layout";
-import SettingsDrawer from "./components/layout/SettingsDrawer";
-import GlobalToast from "./components/ui/GlobalToast";
+import { useState, useCallback } from 'react';
+import CssBaseline from '@mui/material/CssBaseline';
+import Box from '@mui/material/Box';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { listen } from '@tauri-apps/api/event';
+import { AppTheme } from './theme';
+import { SideMenu, AppNavbar, AppFooter } from './components/layout';
+import SettingsDrawer from './components/layout/SettingsDrawer';
+import GlobalToast from './components/ui/GlobalToast';
 import {
-  DashboardPage,
+  BookshelfPage,
   SceneEditorPage,
   PublishedScenesPage,
   ScenePreviewPage,
-  EntityCatalogPage,
   AiAgentPage,
-} from "./pages";
-import { useThemeStore } from "./store/themeStore";
-import { useSceneStore } from "./store/sceneStore";
-import { useI18n } from "./i18n";
-import { useLayoutStore } from "./store/layoutStore";
-import { useAppearanceStore } from "./store/appearanceStore";
-import { useDataSourceStore } from "./store/datasourceStore";
-import { useDeviceAdapterStore } from "./store/deviceAdapterStore";
-import { useAuthStore } from "./store/authStore";
-import { useProjectStore } from "./store/projectStore";
-import { CodeWorkbenchStandalone } from "./editor/panels/CodeWorkbenchStandalone";
-import { useCanvasWorkbenchLink, useWorkbenchFocusCanvasListener } from "./editor/utils/canvasWorkbenchLink";
-import { startAnalysisScheduler, stopAnalysisScheduler } from "./ai/analysisScheduler";
-import type { ThemeMode } from "./store/themeStore";
-import { useEffect, useMemo } from "react";
+  WritingPage,
+  LibraryPage,
+} from './pages';
+import { useThemeStore } from './store/themeStore';
+import { useSceneStore } from './store/sceneStore';
+import { useI18n } from './i18n';
+import { useLayoutStore } from './store/layoutStore';
+import { useAppearanceStore } from './store/appearanceStore';
+import { useDataSourceStore } from './store/datasourceStore';
+import { useAuthStore } from './store/authStore';
+import { useProjectStore } from './store/projectStore';
+import { useWritingStore } from './store/writingStore';
+import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
+import { useCanvasWorkbenchLink, useWorkbenchFocusCanvasListener } from './editor/utils/canvasWorkbenchLink';
+import { startAnalysisScheduler, stopAnalysisScheduler } from './ai/analysisScheduler';
+import type { ThemeMode } from './store/themeStore';
+import { useEffect, useMemo } from 'react';
 
-function getSystemMode(): "light" | "dark" {
-  if (typeof window !== "undefined" && window.matchMedia) {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+function getSystemMode(): 'light' | 'dark' {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  return "light";
+  return 'light';
 }
 
-function resolveMode(mode: ThemeMode): "light" | "dark" {
-  if (mode === "system") return getSystemMode();
+function resolveMode(mode: ThemeMode): 'light' | 'dark' {
+  if (mode === 'system') return getSystemMode();
   return mode;
 }
 
-// 独立页面（无侧边栏）：预览 / 组件预览
-const STANDALONE_ROUTES = ["/preview"];
+// 独立页面（无侧边栏）：预览 / 组件预览。
+// 写作台不进本表：主窗口 /writing 保持原布局（侧边栏+导航栏）；
+// 仅写作台独立窗口（query 带 desk=1 标记）走下方沉浸分支。
+const STANDALONE_ROUTES = ['/preview'];
 
 function isStandaloneRoute(pathname: string): boolean {
   return STANDALONE_ROUTES.some((r) => pathname.startsWith(r));
+}
+
+// 写作台独立窗口判定：/writing + desk=1 query（writingDeskWindow 建窗时打上）。
+// WritingPage 消费定位参数后会保留 desk=1（只清 book/chapter/setting），判定稳定不闪回。
+function isWritingDeskWindow(pathname: string): boolean {
+  return (
+    pathname.startsWith('/writing') &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('desk')
+  );
 }
 
 function AppLayout() {
@@ -57,7 +70,7 @@ function AppLayout() {
   const location = useLocation();
   const themeConfig = useThemeStore((state) => state.config);
   const layoutConfig = useLayoutStore((state) => state.config);
-  const standalone = isStandaloneRoute(location.pathname);
+  const standalone = isStandaloneRoute(location.pathname) || isWritingDeskWindow(location.pathname);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const handleSettingsClick = useCallback(() => setSettingsOpen(true), []);
   const handleSettingsClose = useCallback(() => setSettingsOpen(false), []);
@@ -66,17 +79,23 @@ function AppLayout() {
   const navigate = useNavigate();
   useEffect(() => {
     let un: (() => void) | undefined;
-    listen("open-ai-settings", () => navigate("/ai")).then((u) => (un = u));
+    listen('open-ai-settings', () => navigate('/ai')).then((u) => (un = u));
     return () => un?.();
   }, [navigate]);
 
   const contentPaddingMap: Record<string, string> = {
-    none: "0px",
-    small: "8px",
-    medium: "24px",
-    large: "40px",
+    none: '0px',
+    small: '8px',
+    medium: '24px',
+    large: '40px',
   };
-  const contentPad = contentPaddingMap[layoutConfig?.contentPadding] ?? "24px";
+  const contentPad = contentPaddingMap[layoutConfig?.contentPadding] ?? '24px';
+
+  // 工作室（/analyzer）是全屏编辑工作台：画布编辑区必须铺满视口。
+  // 内容壳的 padding / maxWidth(1700px) / mx:auto 对内容页（仪表盘等）合理，
+  // 但套在工作室上会在宽屏下四周留白、左右被压到上限——用户点名「编辑区没有占满还有空隙」
+  // （2026-09-19）。工作室路由全出血，其余页面维持原内容壳不动。
+  const isStudioRoute = location.pathname.startsWith('/analyzer');
 
   // 启动加载分析列表，并自动选中第一个（避免分析仪空白屏）
   const sceneLoadScenes = useSceneStore((s) => s.loadScenes);
@@ -90,7 +109,7 @@ function AppLayout() {
           sceneSetActive(st.scenes[0].id);
         }
       } catch (e) {
-        console.error("[App] loadScenes failed", e);
+        console.error('[App] loadScenes failed', e);
       }
     })();
   }, [sceneLoadScenes, sceneSetActive]);
@@ -99,17 +118,19 @@ function AppLayout() {
     return (
       <Routes>
         <Route path="/preview/:sceneId" element={<ScenePreviewPage />} />
+        {/* 写作台独立窗口：沉浸无 chrome，消费 query 定位参数（见 WritingPage） */}
+        <Route path="/writing" element={<WritingPage />} />
       </Routes>
     );
   }
 
   return (
-    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <SideMenu />
       <Box
         sx={{
-          display: "flex",
-          flexDirection: "column",
+          display: 'flex',
+          flexDirection: 'column',
           flex: 1,
           minWidth: 0,
         }}
@@ -120,30 +141,31 @@ function AppLayout() {
           sx={{
             flex: 1,
             minHeight: 0,
-            overflow: "auto",
+            overflow: 'auto',
             backgroundColor: (t) => t.palette.background.default,
-            display: "flex",
-            flexDirection: "column",
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <Box
             sx={{
-              p: contentPad,
-              maxWidth: { sm: "100%", md: "1700px" },
-              mx: "auto",
+              p: isStudioRoute ? 0 : contentPad,
+              maxWidth: isStudioRoute ? 'none' : { sm: '100%', md: '1700px' },
+              mx: isStudioRoute ? 0 : 'auto',
               minHeight: 0,
-              width: "100%",
+              width: '100%',
               flex: 1,
-              display: "flex",
-              flexDirection: "column",
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
             <Routes>
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/" element={<BookshelfPage />} />
               <Route path="/analyzer" element={<SceneEditorPage />} />
               <Route path="/published" element={<PublishedScenesPage />} />
-              <Route path="/entities" element={<EntityCatalogPage />} />
               <Route path="/ai" element={<AiAgentPage />} />
+              <Route path="/library" element={<LibraryPage />} />
+              <Route path="/writing" element={<WritingPage />} />
             </Routes>
           </Box>
         </Box>
@@ -168,7 +190,6 @@ export default function App() {
   const appearanceInit = useAppearanceStore((state) => state.init);
   const authInit = useAuthStore((state) => state.init);
   const loadDataSources = useDataSourceStore((state) => state.loadFromBackend);
-  const loadAdapters = useDeviceAdapterStore((state) => state.loadFromBackend);
   const initFileWatcher = useProjectStore((state) => state.initFileWatcher);
 
   // 画布 ↔ 代码工作台 双向联动（主窗口侧：订阅选中态 + 监听工作台反向聚焦）
@@ -183,10 +204,9 @@ export default function App() {
     appearanceInit();
     authInit();
     loadDataSources();
-    loadAdapters();
-    // 注册文件变更监视事件监听（幂等）
-    initFileWatcher();
-  }, [layoutInit, themeInit, appearanceInit, authInit, loadDataSources, loadAdapters, initFileWatcher]);
+    // 注册文件变更监视事件监听（幂等）；写作台独立窗口不挂代码分析域的文件监视
+    if (!isWritingDeskWindow(window.location.pathname)) initFileWatcher();
+  }, [layoutInit, themeInit, appearanceInit, authInit, loadDataSources, initFileWatcher]);
 
   // 自动分析调度心跳。
   //
@@ -194,53 +214,55 @@ export default function App() {
   // 作用域用函数读取而非固定值——用户随时会切换项目，写死会让心跳一直对着
   // 一个早已关掉的分析发起补跑。至于该作用域下有哪些模块要补，由上下文注册表
   // 自己回答，这里不需要点名任何模块。
+  //
+  // 作用域优先级：分析 > 书籍。扫描供给者按 analysisId 判可用、写作供给者按
+  // bookId 判可用，同一个作用域 id 下两者互斥（id 空间不同），各取所需。
   useEffect(() => {
     startAnalysisScheduler({
-      getScopeId: () => useProjectStore.getState().activeAnalysisId || null,
+      getScopeId: () => useProjectStore.getState().activeAnalysisId || useWritingStore.getState().activeBookId || null,
     });
     return () => stopAnalysisScheduler();
   }, []);
 
   useEffect(() => {
-    if (themeConfig.mode === "system" && typeof window !== "undefined" && window.matchMedia) {
-      const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    if (themeConfig.mode === 'system' && typeof window !== 'undefined' && window.matchMedia) {
+      const mql = window.matchMedia('(prefers-color-scheme: dark)');
       const handler = () => {
-        useThemeStore.getState().setMode("system");
+        useThemeStore.getState().setMode('system');
       };
-      mql.addEventListener("change", handler);
-      return () => mql.removeEventListener("change", handler);
+      mql.addEventListener('change', handler);
+      return () => mql.removeEventListener('change', handler);
     }
   }, [themeConfig.mode]);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-mui-color-scheme", resolvedMode);
+    document.documentElement.setAttribute('data-mui-color-scheme', resolvedMode);
   }, [resolvedMode]);
 
-    if (!themeInitialized) {
-      return <Box sx={{ width: 0, height: 0 }} />;
-    }
+  if (!themeInitialized) {
+    return <Box sx={{ width: 0, height: 0 }} />;
+  }
 
-    // 独立原生代码工作台窗口：URL 带 workbench=1 query 时只渲染工作台，不加载主布局。
-    const isWorkbenchWindow =
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).has("workbench");
-    if (isWorkbenchWindow) {
-      return (
-        <BrowserRouter>
-          <AppTheme config={themeConfig}>
-            <CssBaseline enableColorScheme />
-            <CodeWorkbenchStandalone />
-          </AppTheme>
-        </BrowserRouter>
-      );
-    }
-
+  // 独立原生代码工作台窗口：URL 带 workbench=1 query 时只渲染工作台，不加载主布局。
+  const isWorkbenchWindow =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('workbench');
+  if (isWorkbenchWindow) {
     return (
       <BrowserRouter>
         <AppTheme config={themeConfig}>
           <CssBaseline enableColorScheme />
-          <AppLayout />
+          <CodeWorkbenchStandalone />
         </AppTheme>
       </BrowserRouter>
     );
   }
+
+  return (
+    <BrowserRouter>
+      <AppTheme config={themeConfig}>
+        <CssBaseline enableColorScheme />
+        <AppLayout />
+      </AppTheme>
+    </BrowserRouter>
+  );
+}

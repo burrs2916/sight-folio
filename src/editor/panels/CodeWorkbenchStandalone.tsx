@@ -10,7 +10,8 @@
  */
 
 import { useEffect } from "react";
-import { Box } from "@mui/material";
+// 大包导入改子路径（避免与 @mui/material/* 预构建双实例 split-brain，2026-09-14）
+import Box from "@mui/material/Box";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { CodeWorkbenchBody } from "./CodeWorkbench";

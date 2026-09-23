@@ -1,4 +1,4 @@
-// project-sight: JavaScript 分析器插件
+// sight-folio: JavaScript 分析器插件
 // 后端支持：Tier 1（与 TypeScript 共享 tree-sitter Tsx dialect，AST 级解析）
 // 插件通过 AnalyzerManifest 向核心引擎声明能力，由 analyzerRegistry 注册。
 

@@ -13,6 +13,8 @@
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::project_file_repository::ProjectFileRepository;
 use crate::infrastructure::database::SqliteProjectFileRepository;
+use crate::infrastructure::database::writing_repository::WritingRepository;
+use crate::infrastructure::database::SqliteWritingRepository;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
@@ -47,6 +49,7 @@ const MAX_BYTES: u64 = 2 * 1024 * 1024;
 pub fn read_source_file(
     file_id: String,
     file_repo: State<'_, Arc<SqliteProjectFileRepository>>,
+    writing_repo: State<'_, Arc<SqliteWritingRepository>>,
 ) -> AppResult<SourceFileContent> {
     let file = file_repo
         .get(&file_id)?
@@ -68,6 +71,36 @@ pub fn read_source_file(
         truncated: false,
         skipped_reason: None,
     };
+
+    // 写作分流：writing:// 路径的「文件」不存在磁盘上，正文在 writing_chapters。
+    // 从 path 反解 chapter_id（writing://{book_id}/{chapter_id}.md），把章节正文
+    // 压成纯文本按行返回 —— 代码工作台由此可以打开小说章节，前端零改动。
+    if file.path.starts_with(crate::commands::writing::WRITING_PATH_PREFIX) {
+        let chapter_id = file
+            .path
+            .rsplit('/')
+            .next()
+            .and_then(|s| s.strip_suffix(".md"))
+            .unwrap_or("");
+        let chapter = writing_repo
+            .get_chapter(chapter_id)?
+            .ok_or_else(|| AppError::NotFound(format!("章节不存在: {}", chapter_id)))?;
+        let plain = html_to_plain_text(&chapter.content);
+        let all: Vec<String> = plain.lines().map(|s| s.to_string()).collect();
+        let total_lines = all.len();
+        let truncated = total_lines > MAX_LINES;
+        let lines: Vec<String> = if truncated {
+            all.into_iter().take(MAX_LINES).collect()
+        } else {
+            all
+        };
+        return Ok(SourceFileContent {
+            lines,
+            total_lines,
+            truncated,
+            ..base
+        });
+    }
 
     // 体积闸门：先看元数据再决定要不要读进内存
     if let Ok(meta) = std::fs::metadata(&file.path) {
@@ -108,4 +141,31 @@ pub fn read_source_file(
         truncated,
         ..base
     })
+}
+
+/// 把 TipTap 章节正文（HTML）压成纯文本：块级标签转换行，剥掉其余标签，
+/// 最小实体解码。工作台只做源码级展示，不需要保真富文本。
+pub(crate) fn html_to_plain_text(html: &str) -> String {
+    let with_breaks = html
+        .replace("</p>", "\n\n")
+        .replace("<br>", "\n")
+        .replace("<br/>", "\n")
+        .replace("<br />", "\n");
+    let mut out = String::with_capacity(with_breaks.len());
+    let mut in_tag = false;
+    for ch in with_breaks.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            c if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    // 注意顺序：&amp; 必须最后解码，避免 &amp;lt; 被二次解成 <
+    out.replace("&nbsp;", "\u{00a0}")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
 }

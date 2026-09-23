@@ -1,4 +1,4 @@
-// project-sight: C/C++ 分析器插件
+// sight-folio: C/C++ 分析器插件
 // 后端支持：Tier 2（正则符号提取：class/struct/interface + #include 解析）
 // 插件通过 AnalyzerManifest 向核心引擎声明能力，由 analyzerRegistry 注册。
 

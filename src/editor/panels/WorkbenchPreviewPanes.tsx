@@ -1,4 +1,4 @@
-// project-sight: 工作台非文本文件预览（对标 Zed ImageViewer / SvgPreviewView / MarkdownPreviewView）
+// sight-folio: 工作台非文本文件预览（对标 Zed ImageViewer / SvgPreviewView / MarkdownPreviewView）
 //
 // 设计取舍（与 Zed 一致，但按我们「renderable AND useful」铁律落地）：
 // - 图片 / SVG：读取原始字节 → Blob URL → <img> 渲染，支持滚轮缩放、拖拽平移、适应窗口、100% 重置，

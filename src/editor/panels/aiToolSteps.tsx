@@ -1,4 +1,4 @@
-// project-sight: 转录内「工具步骤」渲染（对标 VS Code Copilot Agent 的 tool invocation steps）
+// sight-folio: 转录内「工具步骤」渲染（对标 VS Code Copilot Agent 的 tool invocation steps）
 //
 // 为什么需要这个文件（Round 48 复盘结论）：
 // 在 Agent / 直接改 模式下，AI 真正做的事情**不在正文里**——它读了哪些文件、搜了什么、

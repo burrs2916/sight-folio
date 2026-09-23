@@ -1,4 +1,4 @@
-// project-sight: 画像图例浮层（v2.5）
+// sight-folio: 画像图例浮层（v2.5）
 //
 // 代码结构画像叠了一堆徽标（横带 →N←M / ⚙枢纽 / ⚠上帝类 / 内聚 / 环）和
 // 连线语义（import 灰 / 调用绿紫 / 继承紫 / 循环红虚线），没有图例新手根本
@@ -11,6 +11,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
 import LegendToggleIcon from "@mui/icons-material/LegendToggle";
+import { useSceneStore } from "../../store/sceneStore";
 import { t } from "../../i18n";
 
 function Row({ color, text }: { color?: string; text: string }) {
@@ -47,10 +48,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** 画像图例：说明横带颜色 / 符号徽标 / 连线语义（画布右下角按钮 + Popover） */
+/** 画像图例：说明横带颜色 / 符号徽标 / 连线语义（画布右下角按钮 + Popover）。
+    代码分析收口：图例讲的是 依赖横带/上帝类/调用继承边 这些代码画像语义，
+    书场景（novel-zh）画布全是写作卡，一个都用不上 → 不渲染 */
 export function PortraitLegend() {
+  const isBookScene = useSceneStore(
+    (s) => s.scenes.find((sc) => sc.id === s.activeSceneId)?.primaryLanguage === "novel-zh"
+  );
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const open = Boolean(anchor);
+
+  if (isBookScene) return null;
 
   return (
     <>

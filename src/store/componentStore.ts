@@ -10,7 +10,7 @@ import { logger } from "../utils/logger";
 import { parseIconSource } from "../utils/iconSource";
 import type { ComponentDefinition } from "../types/editor";
 
-/** 内置"项目实体"分类 — project-sight 默认分类 */
+/** 内置"项目实体"分类 — sight-folio 默认分类 */
 const PROJECT_ENTITY_CATEGORY: ComponentCategory = {
   id: "ccat_project-entity",
   name: "entityCat.projectEntity.name",
@@ -24,7 +24,7 @@ const PROJECT_ENTITY_CATEGORY: ComponentCategory = {
 
 /**
  * 遗留的 biosphere 分类（保留为引用，不再主动注入到 loadCategories 中）
- * 这些分类对于 biosphere 的组件管理页面仍然是合法的，但在 project-sight
+ * 这些分类对于 biosphere 的组件管理页面仍然是合法的，但在 sight-folio
  * 的实体图鉴中不应自动显示。用户可手动创建同名分类。
  */
 const LEGACY_BIOSPHERE_CATEGORIES: ComponentCategory[] = [

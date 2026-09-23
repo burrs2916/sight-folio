@@ -1,4 +1,4 @@
-// project-sight: 画布图片实体辅助
+// sight-folio: 画布图片实体辅助
 //
 // 把项目里的图片（png/jpg/jpeg/gif/webp/svg/ico/bmp…）在画布上直接渲染出来，
 // 并支持点击放大查看详情。核心两件事：

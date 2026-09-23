@@ -1,4 +1,4 @@
-// project-sight: Monaco 代码编辑器（懒加载）
+// sight-folio: Monaco 代码编辑器（懒加载）
 //
 // 设计（R46 IDE 基础层）：
 // - 默认查看器保持轻量只读视图（零依赖、首屏安全）；
@@ -919,7 +919,7 @@ function manipulateLines(ed: any, monaco: any, kind: LineManipKind): void {
   for (const sel of sels) {
     const sp = sel.getStartPosition();
     const ep = sel.getEndPosition();
-    let startLine = sp.lineNumber;
+    const startLine = sp.lineNumber;
     let endLine = ep.lineNumber;
     if (ep.column === 1 && endLine > startLine) endLine -= 1;
     if (endLine >= startLine) blocks.push({ startLine, endLine });
@@ -1053,7 +1053,7 @@ function detectDeclarationStartLines(lines: string[], lang: string): number[] {
             for (let k = i + 1; k < Math.min(i + 3, lines.length); k++) {
               const nx = lines[k].trim();
               if (nx.length === 0) continue;
-              if (/^\{/.test(nx) || /^\=\>\s*\{/.test(nx)) matched = true;
+              if (/^\{/.test(nx) || /^=>\s*\{/.test(nx)) matched = true;
               break;
             }
           }
@@ -2172,42 +2172,42 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
           // 顺序 14–19 紧接整词家族（8–13），语义相邻便于发现。
           editor.addAction({
             id: "ps.moveSubwordLeft",
-            label: t("workbench.ctxMenu.moveSubwordLeft"),
+            label: t("workbench.cmd.moveSubwordLeft"),
             contextMenuGroupId: "edit",
             contextMenuOrder: 14,
             run: () => { editorRef.current?.trigger("ps-workbench", "cursorWordPartLeft", undefined); },
           });
           editor.addAction({
             id: "ps.moveSubwordRight",
-            label: t("workbench.ctxMenu.moveSubwordRight"),
+            label: t("workbench.cmd.moveSubwordRight"),
             contextMenuGroupId: "edit",
             contextMenuOrder: 15,
             run: () => { editorRef.current?.trigger("ps-workbench", "cursorWordPartRight", undefined); },
           });
           editor.addAction({
             id: "ps.selectSubwordLeft",
-            label: t("workbench.ctxMenu.selectSubwordLeft"),
+            label: t("workbench.cmd.selectSubwordLeft"),
             contextMenuGroupId: "edit",
             contextMenuOrder: 16,
             run: () => { editorRef.current?.trigger("ps-workbench", "cursorWordPartLeftSelect", undefined); },
           });
           editor.addAction({
             id: "ps.selectSubwordRight",
-            label: t("workbench.ctxMenu.selectSubwordRight"),
+            label: t("workbench.cmd.selectSubwordRight"),
             contextMenuGroupId: "edit",
             contextMenuOrder: 17,
             run: () => { editorRef.current?.trigger("ps-workbench", "cursorWordPartRightSelect", undefined); },
           });
           editor.addAction({
             id: "ps.deleteSubwordLeft",
-            label: t("workbench.ctxMenu.deleteSubwordLeft"),
+            label: t("workbench.cmd.deleteSubwordLeft"),
             contextMenuGroupId: "edit",
             contextMenuOrder: 18,
             run: () => { editorRef.current?.trigger("ps-workbench", "deleteWordPartLeft", undefined); },
           });
           editor.addAction({
             id: "ps.deleteSubwordRight",
-            label: t("workbench.ctxMenu.deleteSubwordRight"),
+            label: t("workbench.cmd.deleteSubwordRight"),
             contextMenuGroupId: "edit",
             contextMenuOrder: 19,
             run: () => { editorRef.current?.trigger("ps-workbench", "deleteWordPartRight", undefined); },
@@ -2215,7 +2215,7 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
           // 删除到下一个词首 / 上一个词尾（Monaco 无直接命令，按「先选中再删」组合，对标 Zed DeleteToNextWordStart/DeleteToPreviousWordEnd）。
           editor.addAction({
             id: "ps.deleteToNextWordStart",
-            label: t("workbench.ctxMenu.deleteToNextWordStart"),
+            label: t("workbench.cmd.deleteToNextWordStart"),
             contextMenuGroupId: "edit",
             contextMenuOrder: 20,
             run: () => {
@@ -2225,7 +2225,7 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
           });
           editor.addAction({
             id: "ps.deleteToPreviousWordEnd",
-            label: t("workbench.ctxMenu.deleteToPreviousWordEnd"),
+            label: t("workbench.cmd.deleteToPreviousWordEnd"),
             contextMenuGroupId: "edit",
             contextMenuOrder: 21,
             run: () => {
@@ -2350,7 +2350,7 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
           // 无标记时给轻量提示（Zed 会弹诊断气泡，这里用 toast 等价呈现严重度+消息）。
           const announceProblem = (count: number, dir: 1 | -1) => {
             if (count === 0) {
-              useToastStore.getState().showToast(t("workbench.problemNone"), "info", 2600);
+              useToastStore.getState().showToast(t("workbench.cmd.problemNone"), "info", 2600);
               return;
             }
             const m = (monaco.editor.getModelMarkers({ resource: editor.getModel()?.uri }) as any[])

@@ -1,4 +1,4 @@
-// ACP tool permission model — frontend-native, mirrors project-sight's in-house
+// ACP tool permission model — frontend-native, mirrors sight-folio's in-house
 // agent approval UX (Allow once / Always allow / Deny) without coupling to the
 // backend `agent-tool-approval` run loop.
 //

@@ -1546,7 +1546,7 @@ async function runApiTracePortrait(
     if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
     return s;
   };
-  const normInvoke = (name: string): string => name.toLowerCase().replace(/[_\-]/g, "");
+  const normInvoke = (name: string): string => name.toLowerCase().replace(/[_-]/g, "");
 
   interface ApiNode {
     verb: string;
@@ -2709,7 +2709,6 @@ async function runDependencyPortrait(analysisId: string, focusFileId?: string): 
   const top90Set = new Set(top90);
   const focusFile = focusFileId ? fileById.get(focusFileId) : undefined;
   let keep: Set<string>;
-  let kept: typeof edges;
   if (focusFile && focusFileId) {
     // 保留全局图 + 并入焦点邻域（并集，非替换）—— 全局依赖关系永不消失
     keep = new Set(top90);
@@ -2722,7 +2721,7 @@ async function runDependencyPortrait(analysisId: string, focusFileId?: string): 
     keep = new Set(top90);
   }
   // 诱导子图：保留 keep 内任意两节点之间的所有边（不只与焦点相连的边）
-  kept = edges.filter((d) => keep.has(d.fromId) && keep.has(d.toId));
+  const kept = edges.filter((d) => keep.has(d.fromId) && keep.has(d.toId));
   for (const id of keep) {
     outAdj.set(id, []);
     inDeg.set(id, 0);
@@ -3580,7 +3579,7 @@ async function runCouplingPortrait(analysisId: string): Promise<PortraitOutcome>
   const legend: Array<[string, string]> = [
     [t("portrait.msg.zonePainful"), ZONE_COLOR.painful],
     [t("portrait.msg.zoneUseless"), ZONE_COLOR.useless],
-    [t("portrait.msg.zone.mainSequence"), ZONE_COLOR.mainSequence],
+    [t("health.zone.mainSequence"), ZONE_COLOR.mainSequence],
     [t("portrait.msg.zoneNormal"), "#64748b"],
   ];
   let lx = PLOT_X + PLOT_W - 720;
@@ -6314,9 +6313,9 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T, i: number) =
 const SECRET_RE = [
   /password\s*[:=]\s*["'][^"'\n]{4,}/i,
   /passwd\s*[:=]\s*["'][^"'\n]{4,}/i,
-  /api[_-]?key\s*[:=]\s*["'][A-Za-z0-9_\-]{12,}/i,
+  /api[_-]?key\s*[:=]\s*["'][A-Za-z0-9_-]{12,}/i,
   /secret\s*[:=]\s*["'][^"'\n]{8,}/i,
-  /token\s*[:=]\s*["'][A-Za-z0-9._\-]{16,}/i,
+  /token\s*[:=]\s*["'][A-Za-z0-9._-]{16,}/i,
   /-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/,
   /sk-[A-Za-z0-9]{20,}/,
   /gh[pousr]_[A-Za-z0-9]{20,}/,
@@ -6688,7 +6687,7 @@ async function runCommentRatioPortrait(analysisId: string): Promise<PortraitOutc
         file: f,
         ins: metricInsight(f, insights),
         accentColor: color,
-        metricBadge: ratio + "%" + (commented > 0 ? t("portrait.metric.blockedSuffix", { n: commented }) : ""),
+        metricBadge: ratio + "%" + (commented > 0 ? t("trend.metric.blockedSuffix", { n: commented }) : ""),
         metricTitle:
           commented > 0
             ? t("portrait.metric.commentRatioWithBlocked", { pct: ratio, c: m.commentLines, t: total, n: commented })

@@ -1,4 +1,4 @@
-// project-sight: 工作台内联对话（对标 VS Code 的 Ctrl/⌘+I 内联对话）
+// sight-folio: 工作台内联对话（对标 VS Code 的 Ctrl/⌘+I 内联对话）
 //
 // 选中一段代码 → 按 Ctrl/⌘+I 唤起编辑器内悬浮对话 → 发问 → 流式回答就地展示 →
 // 代码块「应用到文件」（diff 预览后落盘）。这是工作台 AI 面板「对标 VS Code Copilot 内联聊天」的入口：

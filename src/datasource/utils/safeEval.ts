@@ -1,4 +1,4 @@
-const SAFE_EXPR_RE = /^[a-zA-Z0-9_$.\[\]'"()\s+\-*/%<>=!&|?:,]+$/;
+const SAFE_EXPR_RE = /^[a-zA-Z0-9_$.[\]'"()\s+\-*/%<>=!&|?:,]+$/;
 const BLOCKED_KEYWORDS = /\b(import|export|require|eval|Function|fetch|XMLHttpRequest|WebSocket|process|globalThis|window|document)\b/i;
 
 export function createSafeFunction<TArgs extends unknown[], TResult>(

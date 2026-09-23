@@ -1,4 +1,4 @@
-// project-sight: 视角模板应用到新建视图（需求文档 §4.5）单测
+// sight-folio: 视角模板应用到新建视图（需求文档 §4.5）单测
 // 验证 addView 的第二参数 template（ViewTemplateOptions）：
 //   defaultLayers → 新视图 LayerNode[]（首层为默认层）
 //   layout → viewport 缩放/平移 + canvasConfig.grid.visible

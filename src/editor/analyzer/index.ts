@@ -1,4 +1,4 @@
-// project-sight: 分析器插件体系（Analyzer 注册表 + 内置插件）
+// sight-folio: 分析器插件体系（Analyzer 注册表 + 内置插件）
 // 对应需求文档 §4 分析器插件体系。核心引擎通用，每种语言一个插件。
 
 export * from "./types";
@@ -17,48 +17,27 @@ export * from "./rubyAnalyzer";
 export * from "./swiftAnalyzer";
 export * from "./csharpAnalyzer";
 export * from "./svelteAnalyzer";
+export * from "./writingAnalyzer";
 
 import type { ReviewRule } from "../../services/tauri";
 import { projectScanApi } from "../../services/tauri";
 import { analyzerRegistry } from "./analyzerRegistry";
 import type { AnalyzerManifest, RuleRegistration } from "./types";
-import { typescriptAnalyzerManifest } from "./typescriptAnalyzer";
-import { rustAnalyzerManifest } from "./rustAnalyzer";
-import { pythonAnalyzerManifest } from "./pythonAnalyzer";
-import { goAnalyzerManifest } from "./goAnalyzer";
-import { javaAnalyzerManifest } from "./javaAnalyzer";
-import { cppAnalyzerManifest } from "./cppAnalyzer";
-import { javascriptAnalyzerManifest } from "./javascriptAnalyzer";
-import { vueAnalyzerManifest } from "./vueAnalyzer";
-import { kotlinAnalyzerManifest } from "./kotlinAnalyzer";
-import { phpAnalyzerManifest } from "./phpAnalyzer";
-import { rubyAnalyzerManifest } from "./rubyAnalyzer";
-import { swiftAnalyzerManifest } from "./swiftAnalyzer";
-import { csharpAnalyzerManifest } from "./csharpAnalyzer";
-import { svelteAnalyzerManifest } from "./svelteAnalyzer";
+import { writingAnalyzerManifest } from "./writingAnalyzer";
 
 /**
- * 注册全部内置分析器插件。
+ * 注册内置分析器插件。
  * 在 registerBuiltinComponents() 中调用，随应用启动加载。
  * 插件生命周期：加载 → 注册实体/视角/图层/事件/规则 → 就绪
+ *
+ * 业务收口（Sight Folio = 小说写作平台）：只注册写作分析器。
+ * 语言分析器（TypeScript/Rust/Python/…）的 manifest 定义全部保留在
+ * 本目录源文件中（export * 不变），只是不再随应用注册 —— 与写作业务无关
+ * 的代码分析能力不再进入实体图鉴/插件面板。需要恢复代码分析时，
+ * 把对应 register 调用加回即可。
  */
 export function registerDefaultAnalyzers(): void {
-  // Tier 1：tree-sitter AST 级解析
-  analyzerRegistry.register(typescriptAnalyzerManifest);   // TypeScript/JSX
-  analyzerRegistry.register(rustAnalyzerManifest);         // Rust
-  analyzerRegistry.register(pythonAnalyzerManifest);       // Python
-  analyzerRegistry.register(javascriptAnalyzerManifest);   // JavaScript
-  analyzerRegistry.register(vueAnalyzerManifest);          // Vue SFC
-  // Tier 2：正则符号提取 + import 解析
-  analyzerRegistry.register(goAnalyzerManifest);           // Go
-  analyzerRegistry.register(javaAnalyzerManifest);         // Java
-  analyzerRegistry.register(cppAnalyzerManifest);          // C/C++
-  analyzerRegistry.register(kotlinAnalyzerManifest);       // Kotlin
-  analyzerRegistry.register(phpAnalyzerManifest);          // PHP
-  analyzerRegistry.register(rubyAnalyzerManifest);         // Ruby
-  analyzerRegistry.register(swiftAnalyzerManifest);        // Swift
-  analyzerRegistry.register(csharpAnalyzerManifest);        // C#
-  analyzerRegistry.register(svelteAnalyzerManifest);        // Svelte（识别级支持）
+  analyzerRegistry.register(writingAnalyzerManifest); // 写作业务（小说：章节/人物/世界观/大纲）
 }
 
 /**

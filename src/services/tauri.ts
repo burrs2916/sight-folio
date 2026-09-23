@@ -1,14 +1,13 @@
-import { invoke as _tInvoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { logger } from "../utils/logger";
-import type { Dashboard, LayoutItem, ComponentConfig } from "../store";
-import type { MetricData } from "../store";
-import type { DataSource, PersistedDataSource } from "../types/dataSource";
-import type { DatabaseConnectionConfig } from "../types/database";
-import type { MqttConnectionConfig } from "../types/mqtt";
-import type { SceneDSL, SceneCategory } from "../types/scene";
-import { createDefaultScene } from "../types/scene";
-import type { AiContextPack } from "../ai/contextTypes";
+import { invoke as _tInvoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { logger } from '../utils/logger';
+import type { Dashboard, LayoutItem, ComponentConfig } from '../store';
+import type { MetricData } from '../store';
+import type { DataSource, PersistedDataSource } from '../types/dataSource';
+import type { DatabaseConnectionConfig } from '../types/database';
+import type { SceneDSL, SceneCategory } from '../types/scene';
+import { createDefaultScene } from '../types/scene';
+import type { AiContextPack } from '../ai/contextTypes';
 
 // ─── Tauri 环境守卫 ──────────────────────────────────────────────
 // Tauri 2.x 在 webview 启动时才注入 `window.__TAURI_INTERNALS__`，
@@ -17,13 +16,13 @@ import type { AiContextPack } from "../ai/contextTypes";
 // 这里包一层守卫，浏览器模式下拒绝调用并给出明确提示，store 侧
 // 仍按 reject 处理（不污染控制台），不影响 UI 渲染。
 function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 const invoke = <T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
   if (!isTauri()) {
     const msg = `[tauri] command "${cmd}" unavailable: not running inside Tauri webview. Use "npm run tauri dev" or "tauri dev".`;
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       console.warn(msg);
     }
     return Promise.reject(new Error(msg));
@@ -31,13 +30,13 @@ const invoke = <T = unknown>(cmd: string, args?: Record<string, unknown>): Promi
   return _tInvoke<T>(cmd, args);
 };
 
-export type AuthPreset = "keycloak" | "auth0" | "internal" | "custom";
+export type AuthPreset = 'keycloak' | 'auth0' | 'internal' | 'custom';
 
-export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
-export type ParamLocation = "body" | "query" | "formData";
+export type ParamLocation = 'body' | 'query' | 'formData';
 
-export type HeaderUsage = "auth" | "api" | "both";
+export type HeaderUsage = 'auth' | 'api' | 'both';
 
 export interface AuthParam {
   id: string;
@@ -56,18 +55,9 @@ export interface ResponseMapping {
   isExpirationTime?: boolean;
 }
 
-export type MenuIcon = 
-  | "login" 
-  | "logout" 
-  | "refresh" 
-  | "verify" 
-  | "userInfo" 
-  | "settings" 
-  | "key" 
-  | "shield"
-  | string; // 支持自定义图标 ID
+export type MenuIcon = 'login' | 'logout' | 'refresh' | 'verify' | 'userInfo' | 'settings' | 'key' | 'shield' | string; // 支持自定义图标 ID
 
-export type EndpointType = "login" | "logout" | "refresh" | "other";
+export type EndpointType = 'login' | 'logout' | 'refresh' | 'other';
 
 export interface ApiEndpoint {
   id: string;
@@ -87,7 +77,7 @@ export interface HeaderConfig {
   usage: HeaderUsage;
 }
 
-export type UserDisplayType = "none" | "avatar" | "name" | "email" | "tenant" | "role" | "custom";
+export type UserDisplayType = 'none' | 'avatar' | 'name' | 'email' | 'tenant' | 'role' | 'custom';
 
 export interface UserDisplayConfig {
   cacheKey: string;
@@ -103,7 +93,7 @@ export interface IconGroup {
   updated_at: number;
 }
 
-export type IconFileType = "svg" | "png" | "jpg";
+export type IconFileType = 'svg' | 'png' | 'jpg';
 
 export interface SystemIcon {
   id: string;
@@ -163,304 +153,303 @@ export interface SuggestedHeader {
 
 export const SUGGESTED_HEADERS: Record<string, SuggestedHeader> = {
   authorization: {
-    headerName: "Authorization",
-    valueTemplate: "Bearer ${auth_token}",
-    label: "认证令牌",
-    description: "自动添加认证令牌到请求头",
-    category: "认证"
+    headerName: 'Authorization',
+    valueTemplate: 'Bearer ${auth_token}',
+    label: '认证令牌',
+    description: '自动添加认证令牌到请求头',
+    category: '认证',
   },
   tenantId: {
-    headerName: "tenant-id",
-    valueTemplate: "${tenant_id}",
-    label: "租户ID",
-    description: "多租户系统的租户标识",
-    category: "租户"
+    headerName: 'tenant-id',
+    valueTemplate: '${tenant_id}',
+    label: '租户ID',
+    description: '多租户系统的租户标识',
+    category: '租户',
   },
   visitTenantId: {
-    headerName: "visit-tenant-id",
-    valueTemplate: "${visit_tenant_id}",
-    label: "访问租户ID",
-    description: "访问租户的标识",
-    category: "租户"
+    headerName: 'visit-tenant-id',
+    valueTemplate: '${visit_tenant_id}',
+    label: '访问租户ID',
+    description: '访问租户的标识',
+    category: '租户',
   },
   cacheControl: {
-    headerName: "Cache-Control",
-    valueTemplate: "no-cache",
-    label: "禁用缓存",
-    description: "防止GET请求被缓存",
-    category: "缓存"
+    headerName: 'Cache-Control',
+    valueTemplate: 'no-cache',
+    label: '禁用缓存',
+    description: '防止GET请求被缓存',
+    category: '缓存',
   },
   pragma: {
-    headerName: "Pragma",
-    valueTemplate: "no-cache",
-    label: "Pragma",
-    description: "HTTP/1.0 缓存控制",
-    category: "缓存"
+    headerName: 'Pragma',
+    valueTemplate: 'no-cache',
+    label: 'Pragma',
+    description: 'HTTP/1.0 缓存控制',
+    category: '缓存',
   },
   contentType: {
-    headerName: "Content-Type",
-    valueTemplate: "application/json",
-    label: "JSON格式",
-    description: "请求体为JSON格式",
-    category: "内容类型"
+    headerName: 'Content-Type',
+    valueTemplate: 'application/json',
+    label: 'JSON格式',
+    description: '请求体为JSON格式',
+    category: '内容类型',
   },
   formData: {
-    headerName: "Content-Type",
-    valueTemplate: "application/x-www-form-urlencoded",
-    label: "表单数据",
-    description: "请求体为表单数据",
-    category: "内容类型"
+    headerName: 'Content-Type',
+    valueTemplate: 'application/x-www-form-urlencoded',
+    label: '表单数据',
+    description: '请求体为表单数据',
+    category: '内容类型',
   },
   apiKey: {
-    headerName: "X-API-Key",
-    valueTemplate: "${api_key}",
-    label: "API Key",
-    description: "API密钥认证",
-    category: "认证"
-  }
+    headerName: 'X-API-Key',
+    valueTemplate: '${api_key}',
+    label: 'API Key',
+    description: 'API密钥认证',
+    category: '认证',
+  },
 };
 
-export const AUTH_PRESETS: Record<AuthPreset, {
-  label: string;
-  description: string;
-  suggestedParams: SuggestedParam[];
-  suggestedEndpoints: SuggestedEndpoint[];
-}> = {
+export const AUTH_PRESETS: Record<
+  AuthPreset,
+  {
+    label: string;
+    description: string;
+    suggestedParams: SuggestedParam[];
+    suggestedEndpoints: SuggestedEndpoint[];
+  }
+> = {
   keycloak: {
-    label: "Keycloak",
-    description: "Keycloak 多租户认证",
+    label: 'Keycloak',
+    description: 'Keycloak 多租户认证',
     suggestedParams: [
-      { key: "tenant", label: "租户ID", location: "body", required: true, description: "租户标识" },
-      { key: "client_id", label: "客户端ID", location: "body", required: true },
-      { key: "client_secret", label: "客户端密钥", location: "body", required: true },
-      { key: "username", label: "用户名", location: "body", required: true },
-      { key: "password", label: "密码", location: "body", required: true },
-      { key: "grant_type", label: "授权类型", location: "body", required: true },
-      { key: "scope", label: "作用域", location: "body", required: false }
+      { key: 'tenant', label: '租户ID', location: 'body', required: true, description: '租户标识' },
+      { key: 'client_id', label: '客户端ID', location: 'body', required: true },
+      { key: 'client_secret', label: '客户端密钥', location: 'body', required: true },
+      { key: 'username', label: '用户名', location: 'body', required: true },
+      { key: 'password', label: '密码', location: 'body', required: true },
+      { key: 'grant_type', label: '授权类型', location: 'body', required: true },
+      { key: 'scope', label: '作用域', location: 'body', required: false },
     ],
     suggestedEndpoints: [
       {
-        name: "登录接口",
-        path: "/realms/{tenant}/protocol/openid-connect/token",
-        method: "POST",
+        name: '登录接口',
+        path: '/realms/{tenant}/protocol/openid-connect/token',
+        method: 'POST',
         suggestedMappings: [
-          { sourcePath: "access_token", targetKey: "accessToken" },
-          { sourcePath: "refresh_token", targetKey: "refreshToken" },
-          { sourcePath: "expires_in", targetKey: "expiresIn" },
+          { sourcePath: 'access_token', targetKey: 'accessToken' },
+          { sourcePath: 'refresh_token', targetKey: 'refreshToken' },
+          { sourcePath: 'expires_in', targetKey: 'expiresIn' },
         ],
         bindToMenu: true,
-        menuIcon: "login",
+        menuIcon: 'login',
       },
       {
-        name: "注销接口",
-        path: "/realms/{tenant}/protocol/openid-connect/logout",
-        method: "POST",
+        name: '注销接口',
+        path: '/realms/{tenant}/protocol/openid-connect/logout',
+        method: 'POST',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "logout",
+        menuIcon: 'logout',
       },
       {
-        name: "验证接口",
-        path: "/realms/{tenant}/protocol/openid-connect/userinfo",
-        method: "GET",
+        name: '验证接口',
+        path: '/realms/{tenant}/protocol/openid-connect/userinfo',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: false,
-        menuIcon: "verify",
+        menuIcon: 'verify',
       },
       {
-        name: "刷新接口",
-        path: "/realms/{tenant}/protocol/openid-connect/token",
-        method: "POST",
+        name: '刷新接口',
+        path: '/realms/{tenant}/protocol/openid-connect/token',
+        method: 'POST',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "refresh",
+        menuIcon: 'refresh',
       },
       {
-        name: "用户信息",
-        path: "/realms/{tenant}/protocol/openid-connect/userinfo",
-        method: "GET",
+        name: '用户信息',
+        path: '/realms/{tenant}/protocol/openid-connect/userinfo',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "userInfo",
+        menuIcon: 'userInfo',
       },
       {
-        name: "租户信息",
-        path: "/admin/realms",
-        method: "GET",
+        name: '租户信息',
+        path: '/admin/realms',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: false,
-        menuIcon: "settings",
+        menuIcon: 'settings',
       },
     ],
   },
   auth0: {
-    label: "Auth0",
-    description: "Auth0 OAuth2 认证",
+    label: 'Auth0',
+    description: 'Auth0 OAuth2 认证',
     suggestedParams: [
-      { key: "client_id", label: "客户端ID", location: "body", required: true },
-      { key: "client_secret", label: "客户端密钥", location: "body", required: true },
-      { key: "domain", label: "域名", location: "body", required: true },
-      { key: "username", label: "用户名", location: "body", required: true },
-      { key: "password", label: "密码", location: "body", required: true },
-      { key: "grant_type", label: "授权类型", location: "body", required: true },
-      { key: "scope", label: "作用域", location: "body", required: false },
-      { key: "audience", label: "受众", location: "body", required: false }
+      { key: 'client_id', label: '客户端ID', location: 'body', required: true },
+      { key: 'client_secret', label: '客户端密钥', location: 'body', required: true },
+      { key: 'domain', label: '域名', location: 'body', required: true },
+      { key: 'username', label: '用户名', location: 'body', required: true },
+      { key: 'password', label: '密码', location: 'body', required: true },
+      { key: 'grant_type', label: '授权类型', location: 'body', required: true },
+      { key: 'scope', label: '作用域', location: 'body', required: false },
+      { key: 'audience', label: '受众', location: 'body', required: false },
     ],
     suggestedEndpoints: [
       {
-        name: "登录接口",
-        path: "/oauth/token",
-        method: "POST",
+        name: '登录接口',
+        path: '/oauth/token',
+        method: 'POST',
         suggestedMappings: [
-          { sourcePath: "access_token", targetKey: "accessToken" },
-          { sourcePath: "refresh_token", targetKey: "refreshToken" },
-          { sourcePath: "expires_in", targetKey: "expiresIn" },
+          { sourcePath: 'access_token', targetKey: 'accessToken' },
+          { sourcePath: 'refresh_token', targetKey: 'refreshToken' },
+          { sourcePath: 'expires_in', targetKey: 'expiresIn' },
         ],
         bindToMenu: true,
-        menuIcon: "login",
+        menuIcon: 'login',
       },
       {
-        name: "注销接口",
-        path: "/v2/logout",
-        method: "GET",
+        name: '注销接口',
+        path: '/v2/logout',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "logout",
+        menuIcon: 'logout',
       },
       {
-        name: "验证接口",
-        path: "/userinfo",
-        method: "GET",
+        name: '验证接口',
+        path: '/userinfo',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: false,
-        menuIcon: "verify",
+        menuIcon: 'verify',
       },
       {
-        name: "刷新接口",
-        path: "/oauth/token",
-        method: "POST",
+        name: '刷新接口',
+        path: '/oauth/token',
+        method: 'POST',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "refresh",
+        menuIcon: 'refresh',
       },
       {
-        name: "用户信息",
-        path: "/userinfo",
-        method: "GET",
+        name: '用户信息',
+        path: '/userinfo',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "userInfo",
+        menuIcon: 'userInfo',
       },
     ],
   },
   internal: {
-    label: "自定义认证",
-    description: "通用自定义认证服务",
+    label: '自定义认证',
+    description: '通用自定义认证服务',
     suggestedParams: [
-      { key: "username", label: "用户名", location: "body", required: true },
-      { key: "password", label: "密码", location: "body", required: true },
-      { key: "tenantId", label: "租户ID", location: "body", required: false, description: "多租户场景必填" },
-      { key: "email", label: "邮箱", location: "body", required: false },
-      { key: "phone", label: "手机号", location: "body", required: false },
+      { key: 'username', label: '用户名', location: 'body', required: true },
+      { key: 'password', label: '密码', location: 'body', required: true },
+      { key: 'tenantId', label: '租户ID', location: 'body', required: false, description: '多租户场景必填' },
+      { key: 'email', label: '邮箱', location: 'body', required: false },
+      { key: 'phone', label: '手机号', location: 'body', required: false },
     ],
     suggestedEndpoints: [
       {
-        name: "登录接口",
-        path: "/auth/login",
-        method: "POST",
+        name: '登录接口',
+        path: '/auth/login',
+        method: 'POST',
         suggestedMappings: [
-          { sourcePath: "data.accessToken", targetKey: "accessToken" },
-          { sourcePath: "data.refreshToken", targetKey: "refreshToken" },
-          { sourcePath: "data.expiresIn", targetKey: "expiresIn" },
-          { sourcePath: "data.userId", targetKey: "userId" },
+          { sourcePath: 'data.accessToken', targetKey: 'accessToken' },
+          { sourcePath: 'data.refreshToken', targetKey: 'refreshToken' },
+          { sourcePath: 'data.expiresIn', targetKey: 'expiresIn' },
+          { sourcePath: 'data.userId', targetKey: 'userId' },
         ],
         bindToMenu: true,
-        menuIcon: "login",
+        menuIcon: 'login',
       },
       {
-        name: "注销接口",
-        path: "/auth/logout",
-        method: "POST",
+        name: '注销接口',
+        path: '/auth/logout',
+        method: 'POST',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "logout",
+        menuIcon: 'logout',
       },
       {
-        name: "验证接口",
-        path: "/auth/validate",
-        method: "GET",
+        name: '验证接口',
+        path: '/auth/validate',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: false,
-        menuIcon: "verify",
+        menuIcon: 'verify',
       },
       {
-        name: "刷新接口",
-        path: "/auth/refresh",
-        method: "POST",
+        name: '刷新接口',
+        path: '/auth/refresh',
+        method: 'POST',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "refresh",
+        menuIcon: 'refresh',
       },
       {
-        name: "用户信息",
-        path: "/auth/userinfo",
-        method: "GET",
+        name: '用户信息',
+        path: '/auth/userinfo',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "userInfo",
+        menuIcon: 'userInfo',
       },
     ],
   },
   custom: {
-    label: "自定义",
-    description: "自定义认证配置",
+    label: '自定义',
+    description: '自定义认证配置',
     suggestedParams: [
-      { key: "username", label: "用户名", location: "body", required: true },
-      { key: "password", label: "密码", location: "body", required: true },
-      { key: "email", label: "邮箱", location: "body", required: false },
-      { key: "phone", label: "手机号", location: "body", required: false },
-      { key: "api_key", label: "API Key", location: "body", required: false },
-      { key: "client_id", label: "客户端ID", location: "body", required: false },
-      { key: "client_secret", label: "客户端密钥", location: "body", required: false },
-      { key: "grant_type", label: "授权类型", location: "body", required: false },
-      { key: "scope", label: "作用域", location: "body", required: false }
+      { key: 'username', label: '用户名', location: 'body', required: true },
+      { key: 'password', label: '密码', location: 'body', required: true },
+      { key: 'email', label: '邮箱', location: 'body', required: false },
+      { key: 'phone', label: '手机号', location: 'body', required: false },
+      { key: 'api_key', label: 'API Key', location: 'body', required: false },
+      { key: 'client_id', label: '客户端ID', location: 'body', required: false },
+      { key: 'client_secret', label: '客户端密钥', location: 'body', required: false },
+      { key: 'grant_type', label: '授权类型', location: 'body', required: false },
+      { key: 'scope', label: '作用域', location: 'body', required: false },
     ],
     suggestedEndpoints: [
       {
-        name: "登录接口",
-        path: "/auth/login",
-        method: "POST",
-        suggestedMappings: [
-          { sourcePath: "token", targetKey: "auth_token" },
-        ],
+        name: '登录接口',
+        path: '/auth/login',
+        method: 'POST',
+        suggestedMappings: [{ sourcePath: 'token', targetKey: 'auth_token' }],
         bindToMenu: true,
-        menuIcon: "login",
+        menuIcon: 'login',
       },
       {
-        name: "注销接口",
-        path: "/auth/logout",
-        method: "POST",
+        name: '注销接口',
+        path: '/auth/logout',
+        method: 'POST',
         suggestedMappings: [],
         bindToMenu: true,
-        menuIcon: "logout",
+        menuIcon: 'logout',
       },
       {
-        name: "验证接口",
-        path: "/auth/validate",
-        method: "GET",
+        name: '验证接口',
+        path: '/auth/validate',
+        method: 'GET',
         suggestedMappings: [],
         bindToMenu: false,
-        menuIcon: "verify",
+        menuIcon: 'verify',
       },
       {
-        name: "刷新接口",
-        path: "/auth/refresh",
-        method: "POST",
-        suggestedMappings: [
-          { sourcePath: "token", targetKey: "auth_token" },
-        ],
+        name: '刷新接口',
+        path: '/auth/refresh',
+        method: 'POST',
+        suggestedMappings: [{ sourcePath: 'token', targetKey: 'auth_token' }],
         bindToMenu: true,
-        menuIcon: "refresh",
+        menuIcon: 'refresh',
       },
     ],
   },
@@ -468,73 +457,73 @@ export const AUTH_PRESETS: Record<AuthPreset, {
 
 export const authApi = {
   async getConfig(): Promise<AuthConfig> {
-    return invoke("get_auth_config");
+    return invoke('get_auth_config');
   },
 
   async updateConfig(config: AuthConfig): Promise<void> {
-    return invoke("update_auth_config", { config });
+    return invoke('update_auth_config', { config });
   },
 
   async resetConfig(): Promise<void> {
-    return invoke("reset_auth_config");
+    return invoke('reset_auth_config');
   },
 
   async getPresetConfig(preset: string): Promise<AuthConfig | null> {
-    return invoke("get_preset_config", { preset });
+    return invoke('get_preset_config', { preset });
   },
 
   async savePresetConfig(preset: string, config: AuthConfig): Promise<void> {
-    return invoke("save_preset_config", { preset, config });
+    return invoke('save_preset_config', { preset, config });
   },
 
   async deletePresetConfig(preset: string): Promise<void> {
-    return invoke("delete_preset_config", { preset });
+    return invoke('delete_preset_config', { preset });
   },
 };
 
 export const iconsApi = {
   async getAllGroups(): Promise<IconGroup[]> {
-    return invoke("get_all_groups");
+    return invoke('get_all_groups');
   },
 
   async getGroup(id: string): Promise<IconGroup | null> {
-    return invoke("get_group", { id });
+    return invoke('get_group', { id });
   },
 
   async saveGroup(group: IconGroup): Promise<void> {
-    return invoke("save_group", { group });
+    return invoke('save_group', { group });
   },
 
   async deleteGroup(id: string): Promise<void> {
-    return invoke("delete_group", { id });
+    return invoke('delete_group', { id });
   },
 
   async getAllIcons(): Promise<SystemIcon[]> {
-    return invoke("get_all_icons");
+    return invoke('get_all_icons');
   },
 
   async getIconsByGroup(groupId: string): Promise<SystemIcon[]> {
-    return invoke("get_icons_by_group", { groupId });
+    return invoke('get_icons_by_group', { groupId });
   },
 
   async getIcon(id: string): Promise<SystemIcon | null> {
-    return invoke("get_icon", { id });
+    return invoke('get_icon', { id });
   },
 
   async getIconFileUrl(filePath: string): Promise<string> {
-    return invoke("get_icon_file_url", { filePath });
+    return invoke('get_icon_file_url', { filePath });
   },
 
   async getIconFileUrls(): Promise<Record<string, string>> {
-    return invoke("get_icon_file_urls");
+    return invoke('get_icon_file_urls');
   },
 
   async saveIcon(icon: SystemIcon): Promise<void> {
-    return invoke("save_icon", { icon });
+    return invoke('save_icon', { icon });
   },
 
   async deleteIcon(id: string): Promise<void> {
-    return invoke("delete_icon", { id });
+    return invoke('delete_icon', { id });
   },
 
   async uploadIcon(
@@ -542,42 +531,37 @@ export const iconsApi = {
     fileData: Uint8Array,
     fileName: string,
     name?: string,
-    description?: string | null
+    description?: string | null,
   ): Promise<string> {
-    return invoke("upload_icon", { name: name ?? null, description: description ?? null, groupId, fileData, fileName });
+    return invoke('upload_icon', { name: name ?? null, description: description ?? null, groupId, fileData, fileName });
   },
 };
 
 export const settingsApi = {
   async get(key: string): Promise<string | null> {
-    return invoke("get_setting", { key });
+    return invoke('get_setting', { key });
   },
 
   async set(key: string, value: string): Promise<void> {
-    return invoke("set_setting", { key, value });
+    return invoke('set_setting', { key, value });
   },
 
   async delete(key: string): Promise<void> {
-    return invoke("delete_setting", { key });
+    return invoke('delete_setting', { key });
   },
 };
 
 export const dashboardApi = {
   async list(): Promise<Dashboard[]> {
-    return invoke("list_dashboards");
+    return invoke('list_dashboards');
   },
 
   async get(id: string): Promise<Dashboard> {
-    return invoke("get_dashboard", { id });
+    return invoke('get_dashboard', { id });
   },
 
-  async create(data: {
-    name: string;
-    width: number;
-    height: number;
-    description?: string;
-  }): Promise<Dashboard> {
-    return invoke("create_dashboard", data);
+  async create(data: { name: string; width: number; height: number; description?: string }): Promise<Dashboard> {
+    return invoke('create_dashboard', data);
   },
 
   async update(
@@ -590,62 +574,85 @@ export const dashboardApi = {
       layout: LayoutItem[];
       components: ComponentConfig[];
       theme: string;
-    }>
+    }>,
   ): Promise<Dashboard> {
-    return invoke("update_dashboard", { id, dashboard: data });
+    return invoke('update_dashboard', { id, dashboard: data });
   },
 
   async delete(id: string): Promise<void> {
-    return invoke("delete_dashboard", { id });
+    return invoke('delete_dashboard', { id });
   },
 
-  async export(id: string, format: "json" | "png" | "pdf"): Promise<string> {
-    return invoke("export_dashboard", { id, format });
+  async export(id: string, format: 'json' | 'png' | 'pdf'): Promise<string> {
+    return invoke('export_dashboard', { id, format });
   },
 };
 
 export const datasourceApi = {
   async list(): Promise<DataSource[]> {
-    const result = await invoke<Record<string, unknown>[]>("get_all_datasources");
+    const result = await invoke<Record<string, unknown>[]>('get_all_datasources');
     return result.map((ds) => ({
       ...ds,
-      createdAt: typeof ds.createdAt === "number" ? new Date(ds.createdAt * 1000).toISOString() : String(ds.createdAt),
-      updatedAt: typeof ds.updatedAt === "number" ? new Date(ds.updatedAt * 1000).toISOString() : String(ds.updatedAt),
+      createdAt: typeof ds.createdAt === 'number' ? new Date(ds.createdAt * 1000).toISOString() : String(ds.createdAt),
+      updatedAt: typeof ds.updatedAt === 'number' ? new Date(ds.updatedAt * 1000).toISOString() : String(ds.updatedAt),
     })) as DataSource[];
   },
 
   async get(id: string): Promise<DataSource | null> {
-    const result = await invoke<Record<string, unknown> | null>("get_datasource", { id });
+    const result = await invoke<Record<string, unknown> | null>('get_datasource', { id });
     if (!result) return null;
     return {
       ...result,
-      createdAt: typeof result.createdAt === "number" ? new Date(result.createdAt * 1000).toISOString() : String(result.createdAt),
-      updatedAt: typeof result.updatedAt === "number" ? new Date(result.updatedAt * 1000).toISOString() : String(result.updatedAt),
+      createdAt:
+        typeof result.createdAt === 'number'
+          ? new Date(result.createdAt * 1000).toISOString()
+          : String(result.createdAt),
+      updatedAt:
+        typeof result.updatedAt === 'number'
+          ? new Date(result.updatedAt * 1000).toISOString()
+          : String(result.updatedAt),
     } as DataSource;
   },
 
   async save(ds: PersistedDataSource): Promise<void> {
-    return invoke("save_datasource", { ds });
+    return invoke('save_datasource', { ds });
   },
 
   async delete(id: string): Promise<void> {
-    return invoke("delete_datasource", { id });
+    return invoke('delete_datasource', { id });
   },
 };
 
 export const databaseApi = {
-  async testConnection(config: DatabaseConnectionConfig, testQuery?: string): Promise<{ success: boolean; message: string; data?: unknown }> {
-    return invoke("db_test_connection", { config, testQuery: testQuery || null });
+  async testConnection(
+    config: DatabaseConnectionConfig,
+    testQuery?: string,
+  ): Promise<{ success: boolean; message: string; data?: unknown }> {
+    return invoke('db_test_connection', { config, testQuery: testQuery || null });
   },
 
-  async executeQuery(config: DatabaseConnectionConfig, query: string): Promise<{ success: boolean; message: string; data?: unknown; rows?: Record<string, unknown>[]; columns?: string[] }> {
-    const result = await invoke<{ success: boolean; message: string; data?: unknown }>("db_execute_query", { config, query });
+  async executeQuery(
+    config: DatabaseConnectionConfig,
+    query: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data?: unknown;
+    rows?: Record<string, unknown>[];
+    columns?: string[];
+  }> {
+    const result = await invoke<{ success: boolean; message: string; data?: unknown }>('db_execute_query', {
+      config,
+      query,
+    });
     // 后端返回 { success, message, data: { rows, columns, rowsAffected } }
     // 提取 rows 和 columns 到顶层，方便调用方使用
     const data = result.data as Record<string, unknown> | undefined;
     return {
       ...result,
-      rows: (data?.rows as Record<string, unknown>[]) || (Array.isArray(data) ? data as Record<string, unknown>[] : undefined),
+      rows:
+        (data?.rows as Record<string, unknown>[]) ||
+        (Array.isArray(data) ? (data as Record<string, unknown>[]) : undefined),
       columns: data?.columns as string[] | undefined,
     };
   },
@@ -673,14 +680,21 @@ export const databaseApi = {
     const rows = result.rows || [];
     console.log('[getTables] rows count:', rows.length, 'first row:', rows[0] ? JSON.stringify(rows[0]) : 'empty');
 
-    return rows.map((row) => {
-      // SHOW TABLES 返回格式：MySQL 返回 { "Tables_in_xxx": "tablename" }
-      // 尝试所有可能的字段名
-      const name = row.name || row.TABLE_NAME || row.tablename || row.measurement ||
-        row.Tables_in_database || row[`Tables_in_${config.database}`] ||
-        Object.values(row)[0];
-      return String(name);
-    }).filter(Boolean);
+    return rows
+      .map((row) => {
+        // SHOW TABLES 返回格式：MySQL 返回 { "Tables_in_xxx": "tablename" }
+        // 尝试所有可能的字段名
+        const name =
+          row.name ||
+          row.TABLE_NAME ||
+          row.tablename ||
+          row.measurement ||
+          row.Tables_in_database ||
+          row[`Tables_in_${config.database}`] ||
+          Object.values(row)[0];
+        return String(name);
+      })
+      .filter(Boolean);
   },
 
   /** 获取表的所有字段列表 */
@@ -705,55 +719,17 @@ export const databaseApi = {
     const rows = result.rows || [];
     console.log('[getColumns] rows count:', rows.length, 'first row:', rows[0] ? JSON.stringify(rows[0]) : 'empty');
 
-    return rows.map((row) => {
-      // SHOW COLUMNS FROM 返回：{ Field: "id", Type: "int(11)", ... }
-      // INFORMATION_SCHEMA 返回：{ name: "id", type: "int" }
-      const name = String(row.name || row.column_name || row.COLUMN_NAME || row.Field || row.field || Object.keys(row)[0] || "");
-      const type = String(row.type || row.data_type || row.DATA_TYPE || row.Type || "unknown");
-      return { name, type };
-    }).filter(c => c.name);
-  },
-};
-
-export const mqttApi = {
-  async connect(sourceId: string, config: MqttConnectionConfig): Promise<{ success: boolean; message: string; data?: unknown }> {
-    return invoke("mqtt_connect", { sourceId, config });
-  },
-
-  async disconnect(sourceId: string): Promise<{ success: boolean; message: string; data?: unknown }> {
-    return invoke("mqtt_disconnect", { sourceId });
-  },
-
-  async subscribe(sourceId: string, topic: string, qos: number): Promise<{ success: boolean; message: string; data?: unknown }> {
-    return invoke("mqtt_subscribe", { sourceId, topic, qos });
-  },
-
-  async unsubscribe(sourceId: string, topic: string): Promise<{ success: boolean; message: string; data?: unknown }> {
-    return invoke("mqtt_unsubscribe", { sourceId, topic });
-  },
-
-  async publish(sourceId: string, topic: string, payload: string, qos: number, retain: boolean): Promise<{ success: boolean; message: string; data?: unknown }> {
-    return invoke("mqtt_publish", { sourceId, topic, payload, qos, retain });
-  },
-
-  async getState(sourceId: string): Promise<{ success: boolean; message: string; data?: unknown }> {
-    return invoke("mqtt_get_state", { sourceId });
-  },
-
-  async testConnection(config: MqttConnectionConfig): Promise<{ success: boolean; message: string; data?: unknown }> {
-    return invoke("mqtt_test_connection", { config });
-  },
-
-  onMessage(handler: (event: { sourceId: string; topic: string; payload: string; qos: number; retain: boolean }) => void): Promise<UnlistenFn> {
-    return listen("mqtt-message", (e) => {
-      handler(e.payload as { sourceId: string; topic: string; payload: string; qos: number; retain: boolean });
-    });
-  },
-
-  onStatusChange(handler: (event: { sourceId: string; connected: boolean; error?: string }) => void): Promise<UnlistenFn> {
-    return listen("mqtt-status", (e) => {
-      handler(e.payload as { sourceId: string; connected: boolean; error?: string });
-    });
+    return rows
+      .map((row) => {
+        // SHOW COLUMNS FROM 返回：{ Field: "id", Type: "int(11)", ... }
+        // INFORMATION_SCHEMA 返回：{ name: "id", type: "int" }
+        const name = String(
+          row.name || row.column_name || row.COLUMN_NAME || row.Field || row.field || Object.keys(row)[0] || '',
+        );
+        const type = String(row.type || row.data_type || row.DATA_TYPE || row.Type || 'unknown');
+        return { name, type };
+      })
+      .filter((c) => c.name);
   },
 };
 
@@ -765,24 +741,21 @@ export const metricApi = {
     endTime: number;
     interval?: string;
   }): Promise<MetricData[]> {
-    return invoke("query_metrics", params);
+    return invoke('query_metrics', params);
   },
 
   async getLatest(sourceId: string): Promise<Record<string, number>> {
-    return invoke("get_latest_metrics", { sourceId });
+    return invoke('get_latest_metrics', { sourceId });
   },
 
-  async subscribe(params: {
-    sourceId: string;
-    metricNames: string[];
-  }): Promise<void> {
-    return invoke("subscribe_metrics", params);
+  async subscribe(params: { sourceId: string; metricNames: string[] }): Promise<void> {
+    return invoke('subscribe_metrics', params);
   },
 };
 
 export const alertApi = {
   async listRules(): Promise<unknown[]> {
-    return invoke("list_alert_rules");
+    return invoke('list_alert_rules');
   },
 
   async createRule(rule: {
@@ -792,25 +765,25 @@ export const alertApi = {
     condition: string;
     severity: string;
   }): Promise<unknown> {
-    return invoke("create_alert_rule", { rule });
+    return invoke('create_alert_rule', { rule });
   },
 
   async getHistory(params: { ruleId?: string; limit: number }): Promise<unknown[]> {
-    return invoke("get_alert_history", params);
+    return invoke('get_alert_history', params);
   },
 
   async acknowledge(alertId: number): Promise<void> {
-    return invoke("acknowledge_alert", { alertId });
+    return invoke('acknowledge_alert', { alertId });
   },
 };
 
 export const systemApi = {
   async getSettings(): Promise<Record<string, unknown>> {
-    return invoke("get_settings");
+    return invoke('get_settings');
   },
 
   async updateSettings(settings: Record<string, unknown>): Promise<void> {
-    return invoke("update_settings", { settings });
+    return invoke('update_settings', { settings });
   },
 
   async getSystemInfo(): Promise<{
@@ -819,7 +792,7 @@ export const systemApi = {
     memory: number;
     cpu: number;
   }> {
-    return invoke("get_system_info");
+    return invoke('get_system_info');
   },
 };
 
@@ -884,13 +857,13 @@ function toSceneDSL(persisted: PersistedScene): SceneDSL {
     id: persisted.id,
     name: persisted.name,
     description: persisted.description,
-    coordinateSystem: persisted.coordinateSystem as SceneDSL["coordinateSystem"],
-    camera: JSON.parse(persisted.camera || "{}"),
+    coordinateSystem: persisted.coordinateSystem as SceneDSL['coordinateSystem'],
+    camera: JSON.parse(persisted.camera || '{}'),
     bounds: persisted.bounds ? JSON.parse(persisted.bounds) : undefined,
-    layers: JSON.parse(persisted.layers || "[]"),
-    bindings: JSON.parse(persisted.bindings || "[]"),
+    layers: JSON.parse(persisted.layers || '[]'),
+    bindings: JSON.parse(persisted.bindings || '[]'),
     variables: persisted.variables ? JSON.parse(persisted.variables) : undefined,
-    layout: JSON.parse(persisted.layout || "[]"),
+    layout: JSON.parse(persisted.layout || '[]'),
     editorComponents: persisted.editorComponents ? JSON.parse(persisted.editorComponents) : undefined,
     editorLayers: persisted.editorLayers ? JSON.parse(persisted.editorLayers) : undefined,
     canvasConfig: persisted.canvasConfig ? JSON.parse(persisted.canvasConfig) : undefined,
@@ -899,10 +872,10 @@ function toSceneDSL(persisted: PersistedScene): SceneDSL {
     activeViewId: persisted.activeViewId || undefined,
     viewportSyncRules: persisted.viewportSyncRules ? JSON.parse(persisted.viewportSyncRules) : undefined,
     categoryId: persisted.categoryId,
-    tags: JSON.parse(persisted.tags || "[]"),
+    tags: JSON.parse(persisted.tags || '[]'),
     thumbnail: persisted.thumbnail,
-    status: (persisted.status || "draft") as SceneDSL["status"],
-    metadata: JSON.parse(persisted.metadata || "{}"),
+    status: (persisted.status || 'draft') as SceneDSL['status'],
+    metadata: JSON.parse(persisted.metadata || '{}'),
     createdAt: persisted.createdAt,
     updatedAt: persisted.updatedAt,
   };
@@ -910,59 +883,67 @@ function toSceneDSL(persisted: PersistedScene): SceneDSL {
 
 export const sceneApi = {
   async list(): Promise<SceneDSL[]> {
-    const result = await invoke<PersistedScene[]>("get_all_scenes");
+    const result = await invoke<PersistedScene[]>('get_all_scenes');
     return result.map(toSceneDSL);
   },
 
   async get(id: string): Promise<SceneDSL | null> {
-    const result = await invoke<PersistedScene | null>("get_scene", { id });
+    const result = await invoke<PersistedScene | null>('get_scene', { id });
     if (!result) return null;
     return toSceneDSL(result);
   },
 
   async listByCategory(categoryId: string): Promise<SceneDSL[]> {
-    const result = await invoke<PersistedScene[]>("get_scenes_by_category", { categoryId });
+    const result = await invoke<PersistedScene[]>('get_scenes_by_category', { categoryId });
     return result.map(toSceneDSL);
   },
 
   async create(scene: SceneDSL): Promise<void> {
     const persisted = toPersistedScene(scene);
-    logger.info("SceneApi", "Invoking create_scene", { id: persisted.id, name: persisted.name, thumbnail: persisted.thumbnail });
-    return invoke("create_scene", { scene: persisted });
+    logger.info('SceneApi', 'Invoking create_scene', {
+      id: persisted.id,
+      name: persisted.name,
+      thumbnail: persisted.thumbnail,
+    });
+    return invoke('create_scene', { scene: persisted });
   },
 
   async update(scene: SceneDSL): Promise<void> {
     const persisted = toPersistedScene(scene);
-    logger.info("SceneApi", "Invoking update_scene", { id: persisted.id, name: persisted.name, thumbnail: persisted.thumbnail });
-    return invoke("update_scene", { scene: persisted });
+    logger.info('SceneApi', 'Invoking update_scene', {
+      id: persisted.id,
+      name: persisted.name,
+      thumbnail: persisted.thumbnail,
+    });
+    return invoke('update_scene', { scene: persisted });
   },
 
   async delete(id: string): Promise<void> {
-    logger.info("SceneApi", "Invoking delete_scene", { id });
-    return invoke("delete_scene", { id });
+    logger.info('SceneApi', 'Invoking delete_scene', { id });
+    return invoke('delete_scene', { id });
   },
 
   async listCategories(): Promise<SceneCategory[]> {
-    return invoke("get_all_categories");
+    return invoke('get_all_categories');
   },
 
   async getCategory(id: string): Promise<SceneCategory | null> {
-    return invoke("get_category", { id });
+    return invoke('get_category', { id });
   },
 
   async saveCategory(category: SceneCategory): Promise<void> {
-    return invoke("save_category", { category });
+    return invoke('save_category', { category });
   },
 
   async deleteCategory(id: string): Promise<void> {
-    return invoke("delete_category", { id });
+    return invoke('delete_category', { id });
   },
 };
 
 // ═══════════════════════════════════════════════════════
-// project-sight 项目分析 API（分析器能力，叠加在参考实现之上）
+// sight-folio 项目分析 API（分析器能力，叠加在参考实现之上）
 // ═══════════════════════════════════════════════════════
-import type { AnalysisDSL, AnalysisCategory } from "../types/scene";
+import type { AnalysisDSL, AnalysisCategory } from '../types/scene';
 
 interface PersistedAnalysis {
   id: string;
@@ -1024,12 +1005,12 @@ function toAnalysisDSL(p: PersistedAnalysis): AnalysisDSL {
     id: p.id,
     name: p.name,
     description: p.description,
-    projectRoot: p.projectRoot || "",
+    projectRoot: p.projectRoot || '',
     categoryId: p.categoryId,
-    tags: JSON.parse(p.tags || "[]"),
-    status: (p.status || "draft") as AnalysisDSL["status"],
-    metadata: JSON.parse(p.metadata || "{}"),
-    scanStatus: (p.scanStatus || "pending") as AnalysisDSL["scanStatus"],
+    tags: JSON.parse(p.tags || '[]'),
+    status: (p.status || 'draft') as AnalysisDSL['status'],
+    metadata: JSON.parse(p.metadata || '{}'),
+    scanStatus: (p.scanStatus || 'pending') as AnalysisDSL['scanStatus'],
     scanProgress: p.scanProgress || 0,
     lastScannedAt: p.lastScannedAt,
     totalFiles: p.totalFiles || 0,
@@ -1048,43 +1029,43 @@ function toAnalysisDSL(p: PersistedAnalysis): AnalysisDSL {
 
 export const analysisApi = {
   async list(): Promise<AnalysisDSL[]> {
-    const result = await invoke<PersistedAnalysis[]>("get_all_analyses");
+    const result = await invoke<PersistedAnalysis[]>('get_all_analyses');
     return result.map(toAnalysisDSL);
   },
   async get(id: string): Promise<AnalysisDSL | null> {
-    const result = await invoke<PersistedAnalysis | null>("get_analysis", { id });
+    const result = await invoke<PersistedAnalysis | null>('get_analysis', { id });
     if (!result) return null;
     return toAnalysisDSL(result);
   },
   async listByCategory(categoryId: string): Promise<AnalysisDSL[]> {
-    const result = await invoke<PersistedAnalysis[]>("get_analyses_by_category", { categoryId });
+    const result = await invoke<PersistedAnalysis[]>('get_analyses_by_category', { categoryId });
     return result.map(toAnalysisDSL);
   },
   async create(analysis: AnalysisDSL): Promise<void> {
     const persisted = toPersistedAnalysis(analysis);
-    logger.info("AnalysisApi", "Creating analysis", { id: persisted.id, name: persisted.name });
-    return invoke("create_analysis", { analysis: persisted });
+    logger.info('AnalysisApi', 'Creating analysis', { id: persisted.id, name: persisted.name });
+    return invoke('create_analysis', { analysis: persisted });
   },
   async update(analysis: AnalysisDSL): Promise<void> {
     const persisted = toPersistedAnalysis(analysis);
-    logger.info("AnalysisApi", "Updating analysis", { id: persisted.id, name: persisted.name });
-    return invoke("update_analysis", { analysis: persisted });
+    logger.info('AnalysisApi', 'Updating analysis', { id: persisted.id, name: persisted.name });
+    return invoke('update_analysis', { analysis: persisted });
   },
   async delete(id: string): Promise<void> {
-    logger.info("AnalysisApi", "Deleting analysis", { id });
-    return invoke("delete_analysis", { id });
+    logger.info('AnalysisApi', 'Deleting analysis', { id });
+    return invoke('delete_analysis', { id });
   },
   async listCategories(): Promise<AnalysisCategory[]> {
-    return invoke("get_all_analysis_categories");
+    return invoke('get_all_analysis_categories');
   },
   async getCategory(id: string): Promise<AnalysisCategory | null> {
-    return invoke("get_analysis_category", { id });
+    return invoke('get_analysis_category', { id });
   },
   async saveCategory(category: AnalysisCategory): Promise<void> {
-    return invoke("save_analysis_category", { category });
+    return invoke('save_analysis_category', { category });
   },
   async deleteCategory(id: string): Promise<void> {
-    return invoke("delete_analysis_category", { id });
+    return invoke('delete_analysis_category', { id });
   },
 };
 
@@ -1102,11 +1083,25 @@ export interface ScanJob {
   createdAt: number;
 }
 export interface ProjectFile {
-  id: string; analysisId: string; path: string; relPath: string; name: string;
-  extension: string | null; language: string | null; size: number; lineCount: number;
-  contentHash: string | null; parentId: string | null; isDirectory: boolean;
-  layerId: string | null; x: number; y: number; width: number; height: number;
-  metadata: string; scannedAt: number;
+  id: string;
+  analysisId: string;
+  path: string;
+  relPath: string;
+  name: string;
+  extension: string | null;
+  language: string | null;
+  size: number;
+  lineCount: number;
+  contentHash: string | null;
+  parentId: string | null;
+  isDirectory: boolean;
+  layerId: string | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  metadata: string;
+  scannedAt: number;
 }
 /** 扫描新鲜度体检结果（对应后端 check_scan_freshness） */
 export interface ScanFreshness {
@@ -1122,25 +1117,63 @@ export interface ScanFreshness {
   modifiedCount: number;
 }
 export interface ProjectModule {
-  id: string; analysisId: string; name: string; description: string | null;
-  layerId: string | null; fileCount: number; depCount: number; beDepCount: number;
-  x: number; y: number; width: number; height: number; color: string;
-  metadata: string; createdAt: number; updatedAt: number;
+  id: string;
+  analysisId: string;
+  name: string;
+  description: string | null;
+  layerId: string | null;
+  fileCount: number;
+  depCount: number;
+  beDepCount: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  metadata: string;
+  createdAt: number;
+  updatedAt: number;
 }
 export interface ProjectDependency {
-  id: string; analysisId: string; fromId: string; fromType: string; toId: string;
-  toType: string; kind: string; lineNo: number | null; isCircular: boolean;
-  weight: number; metadata: string; detectedAt: number;
+  id: string;
+  analysisId: string;
+  fromId: string;
+  fromType: string;
+  toId: string;
+  toType: string;
+  kind: string;
+  lineNo: number | null;
+  isCircular: boolean;
+  weight: number;
+  metadata: string;
+  detectedAt: number;
 }
 export interface ProjectLayer {
-  id: string; analysisId: string; name: string; color: string; sortOrder: number;
-  yPosition: number; description: string | null; rulePattern: string | null;
-  metadata: string; createdAt: number; updatedAt: number;
+  id: string;
+  analysisId: string;
+  name: string;
+  color: string;
+  sortOrder: number;
+  yPosition: number;
+  description: string | null;
+  rulePattern: string | null;
+  metadata: string;
+  createdAt: number;
+  updatedAt: number;
 }
 export interface ReviewRule {
-  id: string; name: string; description: string | null; ruleType: string; targetType: string;
-  ruleBody: string; severity: string; enabled: boolean; scope: string; builtin: boolean;
-  createdAt: number; updatedAt: number;
+  id: string;
+  name: string;
+  description: string | null;
+  ruleType: string;
+  targetType: string;
+  ruleBody: string;
+  severity: string;
+  enabled: boolean;
+  scope: string;
+  builtin: boolean;
+  createdAt: number;
+  updatedAt: number;
 }
 
 /**
@@ -1156,21 +1189,44 @@ export interface ParserCapability {
   ast: boolean;
 }
 export interface ReviewFinding {
-  id: string; analysisId: string; ruleId: string | null; targetId: string; targetType: string;
-  severity: string; message: string; suggestion: string | null; status: string;
-  foundAt: number; fixedAt: number | null; metadata: string;
+  id: string;
+  analysisId: string;
+  ruleId: string | null;
+  targetId: string;
+  targetType: string;
+  severity: string;
+  message: string;
+  suggestion: string | null;
+  status: string;
+  foundAt: number;
+  fixedAt: number | null;
+  metadata: string;
 }
 
 // ─── 代码结构索引（analyze_code_structure）───
 export interface ProjectSymbol {
-  id: string; analysisId: string; fileId: string; filePath: string;
-  name: string; kind: string; lineStart: number; lineEnd: number;
-  signature: string; doc: string | null; modifiers: string;
-  patterns: string; metadata: string; createdAt: number;
+  id: string;
+  analysisId: string;
+  fileId: string;
+  filePath: string;
+  name: string;
+  kind: string;
+  lineStart: number;
+  lineEnd: number;
+  signature: string;
+  doc: string | null;
+  modifiers: string;
+  patterns: string;
+  metadata: string;
+  createdAt: number;
 }
 export interface PatternHit {
-  pattern: string; name: string; symbolName: string; filePath: string;
-  line: number; evidence: string;
+  pattern: string;
+  name: string;
+  symbolName: string;
+  filePath: string;
+  line: number;
+  evidence: string;
   /**
    * 置信度 0..1（后端证据加权得分）
    *
@@ -1187,30 +1243,43 @@ export interface PatternHit {
   category: string;
 }
 export interface StructureSummary {
-  totalSymbols: number; filesWithSymbols: number;
-  byKind: Record<string, number>; patterns: PatternHit[];
+  totalSymbols: number;
+  filesWithSymbols: number;
+  byKind: Record<string, number>;
+  patterns: PatternHit[];
 }
 
 // ─── 符号级引用索引（analyze_symbol_references）───
 export interface ProjectSymbolRef {
-  id: string; analysisId: string;
-  fromFileId: string; fromFilePath: string;
+  id: string;
+  analysisId: string;
+  fromFileId: string;
+  fromFilePath: string;
   toSymbolId: string | null;
-  toFileId: string; toFilePath: string;
-  symbolName: string; refLine: number; refText: string;
-  kind: string; createdAt: number;
+  toFileId: string;
+  toFilePath: string;
+  symbolName: string;
+  refLine: number;
+  refText: string;
+  kind: string;
+  createdAt: number;
 }
 
 // ─── 文件级度量（analyze_file_metrics，复杂度热力图数据源）───
 export interface FileMetric {
-  id: string; analysisId: string;
-  fileId: string; filePath: string;
-  totalLines: number; codeLines: number;
-  commentLines: number; blankLines: number;
+  id: string;
+  analysisId: string;
+  fileId: string;
+  filePath: string;
+  totalLines: number;
+  codeLines: number;
+  commentLines: number;
+  blankLines: number;
   cyclomaticComplexity: number;
   /** 复杂度等级：low | medium | high | extreme */
   complexityLevel: string;
-  metadata: string; createdAt: number;
+  metadata: string;
+  createdAt: number;
   /**
    * 度量引擎：`ast`（tree-sitter 精确解析）| `heuristic`（行级关键字估算）。
    * 两种精度必须在 UI 上区分展示，否则用户会把估算值当成事实。
@@ -1263,10 +1332,10 @@ export interface FileMetricMeta {
  * metadata 是 TEXT 列，历史数据里可能是 `{"language":"rust"}` 这种旧格式。
  * 解析失败一律返回空对象——绝不让一条脏数据把整张热力图打崩。
  */
-export function parseFileMetricMeta(metric: Pick<FileMetric, "metadata">): FileMetricMeta {
+export function parseFileMetricMeta(metric: Pick<FileMetric, 'metadata'>): FileMetricMeta {
   try {
-    const raw = JSON.parse(metric.metadata || "{}");
-    if (!raw || typeof raw !== "object") return {};
+    const raw = JSON.parse(metric.metadata || '{}');
+    if (!raw || typeof raw !== 'object') return {};
     return raw as FileMetricMeta;
   } catch {
     return {};
@@ -1275,8 +1344,10 @@ export function parseFileMetricMeta(metric: Pick<FileMetric, "metadata">): FileM
 
 // ─── 技术债标记（scan_tech_debt，TODO/FIXME/HACK/XXX/OPTIMIZE/DEPRECATED）───
 export interface TechDebtItem {
-  id: string; analysisId: string;
-  fileId: string; filePath: string;
+  id: string;
+  analysisId: string;
+  fileId: string;
+  filePath: string;
   lineNo: number;
   /** 标记类型：TODO | FIXME | HACK | XXX | OPTIMIZE | DEPRECATED */
   marker: string;
@@ -1293,12 +1364,15 @@ export interface TechDebtItem {
  * 同一 groupId 的多条记录构成一个「克隆组」（同一段代码出现了 groupSize 次）。
  */
 export interface CodeClone {
-  id: string; analysisId: string;
+  id: string;
+  analysisId: string;
   /** 克隆组标识：同段代码的所有实例共享 */
   groupId: string;
-  fileId: string; filePath: string;
+  fileId: string;
+  filePath: string;
   /** 片段起止行号（1 起始，含） */
-  startLine: number; endLine: number;
+  startLine: number;
+  endLine: number;
   /** 参与比对的有效行数 */
   lineCount: number;
   /** 该克隆组的实例总数 */
@@ -1313,8 +1387,10 @@ export interface CodeClone {
 
 // ─── 代码全文索引（index_code_content / search_code_content）───
 export interface CodeIndexEntry {
-  id: string; analysisId: string;
-  fileId: string; filePath: string;
+  id: string;
+  analysisId: string;
+  fileId: string;
+  filePath: string;
   lineNo: number;
   content: string;
   createdAt: number;
@@ -1322,10 +1398,14 @@ export interface CodeIndexEntry {
 
 // ─── 死代码检测（detect_dead_symbols）───
 export interface DeadSymbol {
-  symbolId: string; analysisId: string;
-  fileId: string; filePath: string;
-  name: string; kind: string;
-  lineStart: number; lineEnd: number;
+  symbolId: string;
+  analysisId: string;
+  fileId: string;
+  filePath: string;
+  name: string;
+  kind: string;
+  lineStart: number;
+  lineEnd: number;
   /** exported | internal */
   visibility: string;
   /** high | medium | low */
@@ -1336,12 +1416,16 @@ export interface DeadSymbol {
 
 // ─── Git 变更热点（analyze_git_history）───
 export interface GitChurn {
-  id: string; analysisId: string;
-  fileId: string; filePath: string;
+  id: string;
+  analysisId: string;
+  fileId: string;
+  filePath: string;
   commitCount: number;
-  addedLines: number; deletedLines: number;
+  addedLines: number;
+  deletedLines: number;
   authorCount: number;
-  lastCommitAt: number; firstCommitAt: number;
+  lastCommitAt: number;
+  firstCommitAt: number;
   churnScore: number;
   /** low | medium | high | extreme */
   hotspotLevel: string;
@@ -1358,12 +1442,16 @@ export interface GitChurn {
  * 的隐性架构风险。
  */
 export interface ChangeCoupling {
-  id: string; analysisId: string;
-  fileAId: string; fileAPath: string;
-  fileBId: string; fileBPath: string;
+  id: string;
+  analysisId: string;
+  fileAId: string;
+  fileAPath: string;
+  fileBId: string;
+  fileBPath: string;
   /** 共同出现的提交数 */
   coChanges: number;
-  commitsA: number; commitsB: number;
+  commitsA: number;
+  commitsB: number;
   /** 耦合度 co / min(a,b)，0..1 */
   degree: number;
   /** Jaccard co / (a+b-co)，0..1，用于识别单侧高频的伪耦合 */
@@ -1389,8 +1477,10 @@ export interface ChangeCoupling {
  * - `sinks` 非空 → 该函数把入参写进了外部状态，改动会波及共享状态的所有读取方
  */
 export interface DataFlowFact {
-  id: string; analysisId: string;
-  fileId: string; filePath: string;
+  id: string;
+  analysisId: string;
+  fileId: string;
+  filePath: string;
   functionName: string;
   lineNo: number;
   /** 形参列表，逗号分隔 */
@@ -1445,11 +1535,16 @@ export interface SourceFileContent {
 
 // ─── 函数调用图（analyze_call_graph）───
 export interface CallEdge {
-  id: string; analysisId: string;
-  callerSymbolId: string; callerName: string;
-  callerFileId: string; callerFilePath: string;
-  calleeSymbolId: string; calleeName: string;
-  calleeFileId: string; calleeFilePath: string;
+  id: string;
+  analysisId: string;
+  callerSymbolId: string;
+  callerName: string;
+  callerFileId: string;
+  callerFilePath: string;
+  calleeSymbolId: string;
+  calleeName: string;
+  calleeFileId: string;
+  calleeFilePath: string;
   lineNo: number;
   /** internal | cross-file */
   kind: string;
@@ -1462,7 +1557,10 @@ export interface CallEdge {
 }
 
 export interface CallHotspot {
-  symbolId: string; name: string; filePath: string; count: number;
+  symbolId: string;
+  name: string;
+  filePath: string;
+  count: number;
 }
 
 export interface CallGraphSummary {
@@ -1477,9 +1575,9 @@ export const projectScanApi = {
   async scan(
     analysisId: string,
     projectRoot: string,
-    opts?: { excludeDirs?: string[]; excludeResources?: boolean }
+    opts?: { excludeDirs?: string[]; excludeResources?: boolean },
   ): Promise<ScanJob> {
-    return invoke("scan_project", {
+    return invoke('scan_project', {
       analysisId,
       projectRoot,
       excludeDirs: opts?.excludeDirs ?? undefined,
@@ -1488,48 +1586,42 @@ export const projectScanApi = {
   },
   /** 项目根是否存在 .gitignore（有 → 扫描按它过滤；无 → 提示可手动过滤） */
   async checkGitignore(projectRoot: string): Promise<boolean> {
-    return invoke("check_gitignore", { projectRoot });
+    return invoke('check_gitignore', { projectRoot });
   },
   /** 扫描新鲜度体检：对比上次扫描快照与当前磁盘，判断数据是否过时 */
   async checkScanFreshness(
     analysisId: string,
     projectRoot: string,
-    opts?: { excludeDirs?: string[]; excludeResources?: boolean }
+    opts?: { excludeDirs?: string[]; excludeResources?: boolean },
   ): Promise<ScanFreshness> {
-    return invoke("check_scan_freshness", {
+    return invoke('check_scan_freshness', {
       analysisId,
       projectRoot,
       excludeDirs: opts?.excludeDirs ?? undefined,
       excludeResources: opts?.excludeResources ?? undefined,
     });
   },
-  /** 保存扫描排除配置（手动排除目录 + 是否排除非代码资源 + 是否解析 CAD 资产）到 analysis metadata */
-  async saveScanExcludes(
-    analysisId: string,
-    excludeDirs: string[],
-    excludeResources: boolean,
-    parseCadAssets?: boolean
-  ): Promise<void> {
-    return invoke("save_scan_excludes", {
+  /** 保存扫描排除配置（手动排除目录 + 是否排除非代码资源）到 analysis metadata */
+  async saveScanExcludes(analysisId: string, excludeDirs: string[], excludeResources: boolean): Promise<void> {
+    return invoke('save_scan_excludes', {
       analysisId,
       excludeDirs,
       excludeResources,
-      parseCadAssets: parseCadAssets ?? undefined,
     });
   },
   async cancel(jobId: string): Promise<void> {
-    return invoke("cancel_scan_job", { jobId });
+    return invoke('cancel_scan_job', { jobId });
   },
   /** 取消深度分析阶段（结构/符号/度量/技术债/克隆/审查），与 cancel 共同覆盖整条扫描流水线 */
   async cancelAnalysis(analysisId: string): Promise<void> {
-    return invoke("cancel_analysis", { analysisId });
+    return invoke('cancel_analysis', { analysisId });
   },
   /** 复位深度分析取消标志（新扫描开始时调用，避免上次取消残留） */
   async resetAnalysisCancel(analysisId: string): Promise<void> {
-    return invoke("reset_analysis_cancel", { analysisId });
+    return invoke('reset_analysis_cancel', { analysisId });
   },
   async latestJob(analysisId: string): Promise<ScanJob | null> {
-    return invoke("get_latest_scan_job", { analysisId });
+    return invoke('get_latest_scan_job', { analysisId });
   },
   /**
    * 增量差异：本轮扫描中内容哈希变化（或新增）的文件相对路径。
@@ -1539,97 +1631,91 @@ export const projectScanApi = {
    * - `[]`    —— 有基线且**零文件变更**（重复扫描同一份代码），增量收益最大的场景
    */
   async getScanDelta(analysisId: string): Promise<string[] | null> {
-    return invoke("get_scan_delta", { analysisId });
+    return invoke('get_scan_delta', { analysisId });
   },
   async listFiles(analysisId: string): Promise<ProjectFile[]> {
-    return invoke("list_project_files", { analysisId });
+    return invoke('list_project_files', { analysisId });
   },
   async listModules(analysisId: string): Promise<ProjectModule[]> {
-    return invoke("list_project_modules", { analysisId });
+    return invoke('list_project_modules', { analysisId });
   },
   async listDependencies(analysisId: string): Promise<ProjectDependency[]> {
-    return invoke("list_project_dependencies", { analysisId });
+    return invoke('list_project_dependencies', { analysisId });
   },
   async listLayers(analysisId: string): Promise<ProjectLayer[]> {
-    return invoke("list_project_layers", { analysisId });
+    return invoke('list_project_layers', { analysisId });
   },
   async listRules(): Promise<ReviewRule[]> {
-    return invoke("list_review_rules");
+    return invoke('list_review_rules');
   },
   async listFindings(analysisId: string): Promise<ReviewFinding[]> {
-    return invoke("list_review_findings", { analysisId });
+    return invoke('list_review_findings', { analysisId });
   },
   async countBySeverity(analysisId: string): Promise<Record<string, number>> {
-    return invoke("count_findings_by_severity", { analysisId });
+    return invoke('count_findings_by_severity', { analysisId });
   },
   async runReviewRules(analysisId: string): Promise<ReviewFinding[]> {
-    return invoke("run_review_rules", { analysisId });
+    return invoke('run_review_rules', { analysisId });
   },
   /** 同步前端分析器插件声明的规则到后端规则引擎（§4.2 RuleRegistry ↔ 引擎）。返回新增数量 */
   async syncAnalyzerRules(rules: ReviewRule[]): Promise<number> {
-    return invoke("sync_analyzer_rules", { rules });
+    return invoke('sync_analyzer_rules', { rules });
   },
   async detectDependencies(analysisId: string, projectRoot: string): Promise<ProjectDependency[]> {
-    return invoke("detect_dependencies", { analysisId, projectRoot });
+    return invoke('detect_dependencies', { analysisId, projectRoot });
   },
   /** 后端解析器能力矩阵（R45 前后端能力联动：前端按真实能力对齐） */
   async listParserCapabilities(): Promise<ParserCapability[]> {
-    return invoke("list_parser_capabilities");
+    return invoke('list_parser_capabilities');
   },
   /** 查询指定语言的后端能力（激活插件前校验） */
   async parserCapabilityFor(language: string): Promise<ParserCapability | null> {
-    return invoke("parser_capability_for", { language });
+    return invoke('parser_capability_for', { language });
   },
   async saveLayer(layer: ProjectLayer): Promise<void> {
-    return invoke("save_project_layer", { layer });
+    return invoke('save_project_layer', { layer });
   },
   async deleteLayer(id: string): Promise<void> {
-    return invoke("delete_project_layer", { id });
+    return invoke('delete_project_layer', { id });
   },
   async syncFilesToCanvas(analysisId: string, projectRoot: string): Promise<void> {
-    return invoke("sync_files_to_canvas", { analysisId, projectRoot });
+    return invoke('sync_files_to_canvas', { analysisId, projectRoot });
   },
   // ─── 代码结构索引 ───
   /** 分析代码结构（提取类/函数/接口等符号 + 检测设计模式），返回摘要 */
-  async analyzeCodeStructure(
-    analysisId: string,
-    changedRelPaths?: string[],
-  ): Promise<StructureSummary> {
-    return invoke("analyze_code_structure", {
+  async analyzeCodeStructure(analysisId: string, changedRelPaths?: string[]): Promise<StructureSummary> {
+    return invoke('analyze_code_structure', {
       analysisId,
       changedRelPaths: changedRelPaths ?? null,
     });
   },
   async listSymbols(analysisId: string): Promise<ProjectSymbol[]> {
-    return invoke("list_project_symbols", { analysisId });
+    return invoke('list_project_symbols', { analysisId });
   },
   async countSymbolsByKind(analysisId: string): Promise<Record<string, number>> {
-    return invoke("count_symbols_by_kind", { analysisId });
+    return invoke('count_symbols_by_kind', { analysisId });
   },
   async listDesignPatterns(analysisId: string): Promise<PatternHit[]> {
-    return invoke("list_design_patterns", { analysisId });
+    return invoke('list_design_patterns', { analysisId });
   },
   /** 对既有分析重新检测设计模式（从源码重算，无需整库重扫），写回符号表并返回命中 */
   async redetectDesignPatterns(analysisId: string, projectRoot: string): Promise<PatternHit[]> {
-    return invoke("redetect_design_patterns", { analysisId, projectRoot });
+    return invoke('redetect_design_patterns', { analysisId, projectRoot });
   },
   // ─── 符号级引用分析 + 符号索引搜索 ───
   /** 分析符号级引用（import 语句 → 目标符号匹配），返回引用边列表 */
-  async analyzeSymbolReferences(
-    analysisId: string,
-    changedRelPaths?: string[],
-  ): Promise<ProjectSymbolRef[]> {
-    return invoke("analyze_symbol_references", {
+  async analyzeSymbolReferences(analysisId: string, changedRelPaths?: string[]): Promise<ProjectSymbolRef[]> {
+    return invoke('analyze_symbol_references', {
       analysisId,
       changedRelPaths: changedRelPaths ?? null,
     });
   },
   async listSymbolRefs(analysisId: string): Promise<ProjectSymbolRef[]> {
-    return invoke("list_symbol_refs", { analysisId });
+    return invoke('list_symbol_refs', { analysisId });
   },
   /** 符号索引搜索（name/file_path 模糊匹配，kind 权重排序） */
   async searchSymbols(analysisId: string, query: string, limit?: number): Promise<ProjectSymbol[]> {
-    return invoke("search_project_symbols", { analysisId, query, limit: limit ?? 8 });
+    return invoke('search_project_symbols', { analysisId, query, limit: limit ?? 8 });
   },
   // ─── 文件度量分析（复杂度热力图）───
   /**
@@ -1637,10 +1723,10 @@ export const projectScanApi = {
    * 传入 changedRelPaths（增量差异）时只重算变更文件，其余按路径携带既有结果。
    */
   async analyzeFileMetrics(analysisId: string, changedRelPaths?: string[]): Promise<FileMetric[]> {
-    return invoke("analyze_file_metrics", { analysisId, changedRelPaths: changedRelPaths ?? null });
+    return invoke('analyze_file_metrics', { analysisId, changedRelPaths: changedRelPaths ?? null });
   },
   async listFileMetrics(analysisId: string): Promise<FileMetric[]> {
-    return invoke("list_file_metrics", { analysisId });
+    return invoke('list_file_metrics', { analysisId });
   },
   // ─── 技术债扫描（TODO/FIXME/HACK 等标记）───
   /**
@@ -1648,18 +1734,18 @@ export const projectScanApi = {
    * 传入 changedRelPaths 时只重扫变更文件，其余按路径携带既有结果。
    */
   async scanTechDebt(analysisId: string, changedRelPaths?: string[]): Promise<TechDebtItem[]> {
-    return invoke("scan_tech_debt", { analysisId, changedRelPaths: changedRelPaths ?? null });
+    return invoke('scan_tech_debt', { analysisId, changedRelPaths: changedRelPaths ?? null });
   },
   async listTechDebt(analysisId: string): Promise<TechDebtItem[]> {
-    return invoke("list_tech_debt", { analysisId });
+    return invoke('list_tech_debt', { analysisId });
   },
   // ─── 代码克隆检测（重复率，winnowing 指纹）───
   /** 检测项目中的重复代码块，写入并返回全部克隆实例 */
   async detectCodeClones(analysisId: string): Promise<CodeClone[]> {
-    return invoke("detect_code_clones", { analysisId });
+    return invoke('detect_code_clones', { analysisId });
   },
   async listCodeClones(analysisId: string): Promise<CodeClone[]> {
-    return invoke("list_code_clones", { analysisId });
+    return invoke('list_code_clones', { analysisId });
   },
   // ─── 代码全文索引（search_code_content 检索跳转）───
   /**
@@ -1667,36 +1753,36 @@ export const projectScanApi = {
    * 传入 changedRelPaths 时只重建变更文件的索引，其余按路径携带既有条目。
    */
   async indexCodeContent(analysisId: string, changedRelPaths?: string[]): Promise<number> {
-    return invoke("index_code_content", { analysisId, changedRelPaths: changedRelPaths ?? null });
+    return invoke('index_code_content', { analysisId, changedRelPaths: changedRelPaths ?? null });
   },
   /** 按内容片段全文检索当前分析的代码索引 */
   async searchCodeContent(analysisId: string, query: string, limit?: number): Promise<CodeIndexEntry[]> {
-    return invoke("search_code_content", { analysisId, query, limit: limit ?? 12 });
+    return invoke('search_code_content', { analysisId, query, limit: limit ?? 12 });
   },
   /** 当前分析的代码索引行数（判断是否需要建索引） */
   async countCodeIndex(analysisId: string): Promise<number> {
-    return invoke("count_code_index", { analysisId });
+    return invoke('count_code_index', { analysisId });
   },
   // ─── 死代码检测（零引用符号）───
   /** 检测死代码并写入 review_findings（需在符号引用与调用图之后执行） */
   async detectDeadSymbols(analysisId: string): Promise<DeadSymbol[]> {
-    return invoke("detect_dead_symbols", { analysisId });
+    return invoke('detect_dead_symbols', { analysisId });
   },
   /** 只读列出死代码候选（不写审查结果） */
   async listDeadSymbols(analysisId: string): Promise<DeadSymbol[]> {
-    return invoke("list_dead_symbols", { analysisId });
+    return invoke('list_dead_symbols', { analysisId });
   },
   // ─── Git 变更热点 ───
   /** 目录是否在 git 工作区内 */
   async isGitRepo(projectRoot: string): Promise<boolean> {
-    return invoke("is_git_repo", { projectRoot });
+    return invoke('is_git_repo', { projectRoot });
   },
   /** 采集 git 变更热点；sinceDays 传 undefined 表示全量历史 */
   async analyzeGitHistory(analysisId: string, projectRoot: string, sinceDays?: number): Promise<GitChurn[]> {
-    return invoke("analyze_git_history", { analysisId, projectRoot, sinceDays: sinceDays ?? null });
+    return invoke('analyze_git_history', { analysisId, projectRoot, sinceDays: sinceDays ?? null });
   },
   async listGitChurn(analysisId: string): Promise<GitChurn[]> {
-    return invoke("list_git_churn", { analysisId });
+    return invoke('list_git_churn', { analysisId });
   },
   // ─── 变更耦合（时间维度耦合 / 隐性架构耦合）───
   /**
@@ -1718,12 +1804,12 @@ export const projectScanApi = {
       minDegree?: number;
       maxCommitSize?: number;
       topN?: number;
-    }
+    },
   ): Promise<ChangeCoupling[]> {
     // v2.18 默认值 ?? 365 → ?? null：让「不传参 = 真全量」（Rust 跳过 --since）。
     // 历史 ?? 365 把 null 偷偷变 365 天窗口，导致 UI「全量」按钮与 store 默认行为都不真。
     // 配合 store.analyzeChangeCoupling 同步修复（projectStore.ts:756）。
-    return invoke("analyze_change_coupling", {
+    return invoke('analyze_change_coupling', {
       analysisId,
       projectRoot,
       sinceDays: opts?.sinceDays ?? null,
@@ -1734,21 +1820,18 @@ export const projectScanApi = {
     });
   },
   async listChangeCoupling(analysisId: string): Promise<ChangeCoupling[]> {
-    return invoke("list_change_coupling", { analysisId });
+    return invoke('list_change_coupling', { analysisId });
   },
   // ─── 函数调用图 ───
   /** 构建函数调用图，返回摘要（边数据用 listCallEdges 拉取） */
-  async analyzeCallGraph(
-    analysisId: string,
-    changedRelPaths?: string[],
-  ): Promise<CallGraphSummary> {
-    return invoke("analyze_call_graph", {
+  async analyzeCallGraph(analysisId: string, changedRelPaths?: string[]): Promise<CallGraphSummary> {
+    return invoke('analyze_call_graph', {
       analysisId,
       changedRelPaths: changedRelPaths ?? null,
     });
   },
   async listCallEdges(analysisId: string): Promise<CallEdge[]> {
-    return invoke("list_call_edges", { analysisId });
+    return invoke('list_call_edges', { analysisId });
   },
   // ─── 过程间数据流（函数级 def-use 摘要）───
   /**
@@ -1756,10 +1839,10 @@ export const projectScanApi = {
    * 只有 AST 支持的方言（TS/TSX/JS/Rust/Python）会产出摘要，其余语言静默跳过。
    */
   async analyzeDataFlow(analysisId: string, changedRelPaths?: string[]): Promise<DataFlowSummary> {
-    return invoke("analyze_data_flow", { analysisId, changedRelPaths: changedRelPaths ?? null });
+    return invoke('analyze_data_flow', { analysisId, changedRelPaths: changedRelPaths ?? null });
   },
   async listDataFlow(analysisId: string): Promise<DataFlowFact[]> {
-    return invoke("list_data_flow", { analysisId });
+    return invoke('list_data_flow', { analysisId });
   },
   // ─── 源码查看（画布实体 → 代码行）───
   /**
@@ -1767,16 +1850,16 @@ export const projectScanApi = {
    * 只接受 fileId：后端从 project_files 反查路径，前端无法读取项目外的文件。
    */
   async readSourceFile(fileId: string): Promise<SourceFileContent> {
-    return invoke("read_source_file", { fileId });
+    return invoke('read_source_file', { fileId });
   },
   /**
    * 读取文件原始字节（v2.15 按需 CAD 解析用；v2.24 工作台图片/SVG 预览复用）。
    * 传入绝对路径（项目内文件）；Rust 端以 tauri::ipc::Response 返回原始二进制，
    * Tauri v2 的 invoke 已将其解码为 ArrayBuffer 直接交付（不走 asset 协议、不受 scope 约束）。
-   * 个别 Tauri 构建可能返回 Uint8Array，此处归一化为 ArrayBuffer 以满足 parseCadFile / Blob 契约。
+   * 个别 Tauri 构建可能返回 Uint8Array，此处归一化为 ArrayBuffer 以满足 Blob 契约。
    */
   async readFileBytes(path: string): Promise<ArrayBuffer> {
-    const data = await invoke<ArrayBuffer | Uint8Array>("read_file_bytes", { path });
+    const data = await invoke<ArrayBuffer | Uint8Array>('read_file_bytes', { path });
     if (data instanceof Uint8Array) {
       // 防御：个别 Tauri 构建可能直接返回 Uint8Array，归一化为独立 ArrayBuffer
       const ab = new ArrayBuffer(data.byteLength);
@@ -1784,22 +1867,6 @@ export const projectScanApi = {
       return ab;
     }
     return data;
-  },
-  /**
-   * 解析 DWG 文件元数据（v2.16）：实体总数/类型分布/图层数/包围盒。
-   * 后端 acadrust 解析；失败/非 DWG 返回 null。
-   */
-  async parseDwgMetadata(
-    path: string
-  ): Promise<{
-    path: string;
-    format: string;
-    entityCount: number;
-    layerCount: number;
-    typeBreakdown: { name: string; count: number }[];
-    bounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
-  } | null> {
-    return invoke("parse_dwg_metadata", { path });
   },
   /**
    * 受控写回源码文件（R46 P1）。
@@ -1816,14 +1883,14 @@ export const projectScanApi = {
      */
     ledger?: {
       reason?: string;
-      origin?: "ai-apply" | "user";
+      origin?: 'ai-apply' | 'user';
       /** 被替换的原文片段（有则支持片段级撤销，不必依赖整文快照） */
       oldText?: string;
       newText?: string;
       conversationId?: string;
     },
   ): Promise<WriteFileResult> {
-    return invoke("write_file", {
+    return invoke('write_file', {
       fileId,
       content,
       reason: ledger?.reason ?? null,
@@ -1888,14 +1955,14 @@ export interface RevertOutcome {
   id: string;
   relPath: string;
   absPath: string;
-  strategy: "snapshot" | "fragment";
+  strategy: 'snapshot' | 'fragment';
   newLines: number;
 }
 
 export const codeChangeApi = {
   /** 列出改动。status 省略=全部；"pending" 只看待审 */
   async list(analysisId: string, status?: string, limit?: number): Promise<CodeChangeRow[]> {
-    return invoke("list_code_changes", {
+    return invoke('list_code_changes', {
       analysisId,
       status: status ?? null,
       limit: limit ?? null,
@@ -1903,19 +1970,19 @@ export const codeChangeApi = {
   },
   /** 待审条数（面板徽标：不为一个数字拉全量记录） */
   async countPending(analysisId: string): Promise<number> {
-    return invoke("count_pending_code_changes", { analysisId });
+    return invoke('count_pending_code_changes', { analysisId });
   },
   /** 保留（从待审移出，仍可撤销）。changeId 传空串 + analysisId = 全部保留 */
   async keep(changeId: string, analysisId?: string): Promise<number> {
-    return invoke("keep_code_change", { changeId, analysisId: analysisId ?? null });
+    return invoke('keep_code_change', { changeId, analysisId: analysisId ?? null });
   },
   /** 撤销（后端三档降级：整文快照 → 片段反向补丁 → 拒绝并说明原因） */
   async revert(changeId: string): Promise<RevertOutcome> {
-    return invoke("revert_code_change", { changeId });
+    return invoke('revert_code_change', { changeId });
   },
   /** 回退某次会话产生的全部 AI 改动（「回退本会话全部改动」；逐条三档降级，逆序保证同文件锚点正确） */
   async revertByConversation(conversationId: string): Promise<string[]> {
-    return invoke("revert_code_changes_by_conversation", { conversationId });
+    return invoke('revert_code_changes_by_conversation', { conversationId });
   },
 };
 
@@ -1981,7 +2048,7 @@ export interface AiConversation {
 export interface AiMessage {
   id: string;
   conversationId: string;
-  role: "user" | "assistant" | "system" | "tool";
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   toolCalls: string | null;
   createdAt: number;
@@ -1998,7 +2065,7 @@ export interface ToolCallEvent {
   arguments: unknown;
   result: string | null;
   success: boolean | null;
-  status: "running" | "done" | "error" | "denied";
+  status: 'running' | 'done' | 'error' | 'denied';
 }
 
 /** `agent-tool-call` 事件的完整 payload（工具事件被包了一层） */
@@ -2035,77 +2102,77 @@ export interface AgentErrorEvent {
 export const agentApi = {
   // Provider CRUD
   async listProviders(): Promise<AiProvider[]> {
-    return invoke("list_providers");
+    return invoke('list_providers');
   },
   async saveProvider(provider: AiProvider): Promise<void> {
-    return invoke("save_provider", { provider });
+    return invoke('save_provider', { provider });
   },
   async deleteProvider(id: string): Promise<void> {
-    return invoke("delete_provider", { id });
+    return invoke('delete_provider', { id });
   },
 
   // Endpoint CRUD
   async listEndpoints(): Promise<AiEndpoint[]> {
-    return invoke("list_endpoints");
+    return invoke('list_endpoints');
   },
   async listEndpointsByProvider(providerId: string): Promise<AiEndpoint[]> {
-    return invoke("list_endpoints_by_provider", { providerId });
+    return invoke('list_endpoints_by_provider', { providerId });
   },
   async saveEndpoint(endpoint: AiEndpoint): Promise<void> {
-    return invoke("save_endpoint", { endpoint });
+    return invoke('save_endpoint', { endpoint });
   },
   async deleteEndpoint(id: string): Promise<void> {
-    return invoke("delete_endpoint", { id });
+    return invoke('delete_endpoint', { id });
   },
   async testEndpointConnection(endpointId: string): Promise<string> {
-    return invoke("test_endpoint_connection", { endpointId });
+    return invoke('test_endpoint_connection', { endpointId });
   },
 
   // Model CRUD
   async listModels(): Promise<AiModel[]> {
-    return invoke("list_models");
+    return invoke('list_models');
   },
   async listModelsByEndpoint(endpointId: string): Promise<AiModel[]> {
-    return invoke("list_models_by_endpoint", { endpointId });
+    return invoke('list_models_by_endpoint', { endpointId });
   },
   async saveModel(model: AiModel): Promise<void> {
-    return invoke("save_model", { model });
+    return invoke('save_model', { model });
   },
   async deleteModel(id: string): Promise<void> {
-    return invoke("delete_model", { id });
+    return invoke('delete_model', { id });
   },
   async testModelChat(modelId: string): Promise<string> {
-    return invoke("test_model_chat", { modelId });
+    return invoke('test_model_chat', { modelId });
   },
 
   // Agent CRUD
   async listAgents(): Promise<AiAgent[]> {
-    return invoke("list_agents");
+    return invoke('list_agents');
   },
   async saveAgent(agent: AiAgent): Promise<void> {
-    return invoke("save_agent", { agent });
+    return invoke('save_agent', { agent });
   },
   async deleteAgent(id: string): Promise<void> {
-    return invoke("delete_agent", { id });
+    return invoke('delete_agent', { id });
   },
 
   // Conversation CRUD
   async listConversations(agentId: string): Promise<AiConversation[]> {
-    return invoke("list_conversations", { agentId });
+    return invoke('list_conversations', { agentId });
   },
   async createConversation(agentId: string, title: string): Promise<AiConversation> {
-    return invoke("create_conversation", { agentId, title });
+    return invoke('create_conversation', { agentId, title });
   },
   async deleteConversation(id: string): Promise<void> {
-    return invoke("delete_conversation", { id });
+    return invoke('delete_conversation', { id });
   },
 
   // Message CRUD
   async listMessages(conversationId: string): Promise<AiMessage[]> {
-    return invoke("list_messages", { conversationId });
+    return invoke('list_messages', { conversationId });
   },
   async saveMessage(message: AiMessage): Promise<void> {
-    return invoke("save_message", { message });
+    return invoke('save_message', { message });
   },
   /**
    * 批量删除消息（按 id）。
@@ -2114,7 +2181,7 @@ export const agentApi = {
    * 留两份，下一轮模型看到的是重复对话。只按显式 id 删（不按时间戳），避免同毫秒的相邻行被误连坐。
    */
   async deleteMessages(ids: string[]): Promise<number> {
-    return invoke("delete_messages", { ids });
+    return invoke('delete_messages', { ids });
   },
 
   /**
@@ -2138,53 +2205,53 @@ export const agentApi = {
     /** 单次调用工具白名单（与 Agent 配置取交集；省略=不限制） */
     allowedTools?: string[] | null,
     /** 模型覆盖（对标 VS Code 的模型选择器）：显式选了某模型则覆盖 Agent 配置绑定的模型；省略=跟随 Agent 默认 */
-    modelId?: string | null
+    modelId?: string | null,
   ): Promise<string> {
     // 监听流式事件
     const unlisteners: Promise<UnlistenFn>[] = [];
 
     if (onChunk) {
       unlisteners.push(
-        listen<AgentChunkEvent>("agent-chunk", (event) => {
+        listen<AgentChunkEvent>('agent-chunk', (event) => {
           if (event.payload.conversationId === conversationId) {
             onChunk(event.payload.chunk);
           }
-        })
+        }),
       );
     }
 
     if (onToolCall) {
       unlisteners.push(
-        listen<AgentToolCallEvent>("agent-tool-call", (event) => {
+        listen<AgentToolCallEvent>('agent-tool-call', (event) => {
           if (event.payload.conversationId === conversationId) {
             onToolCall(event.payload.toolCall);
           }
-        })
+        }),
       );
     }
 
     if (onDone) {
       unlisteners.push(
-        listen<AgentDoneEvent>("agent-done", (event) => {
+        listen<AgentDoneEvent>('agent-done', (event) => {
           if (event.payload.conversationId === conversationId) {
             onDone(event.payload.response);
           }
-        })
+        }),
       );
     }
 
     if (onError) {
       unlisteners.push(
-        listen<AgentErrorEvent>("agent-error", (event) => {
+        listen<AgentErrorEvent>('agent-error', (event) => {
           if (event.payload.conversationId === conversationId) {
             onError(event.payload.error);
           }
-        })
+        }),
       );
     }
 
     try {
-      return await invoke<string>("run_agent", {
+      return await invoke<string>('run_agent', {
         agentId,
         message,
         conversationId,
@@ -2204,19 +2271,15 @@ export const agentApi = {
    * 幂等：未知 / 已结束的 runId 也返回成功，可重复点击停止。
    */
   async cancelAgentRun(runId: string): Promise<void> {
-    await invoke("cancel_agent_run", { runId });
+    await invoke('cancel_agent_run', { runId });
   },
 
   /**
    * 落定一次待审批的高危工具调用（run_command 的 human-in-the-loop 确认）。
    * 引擎在审批闸门里 await 此结果；超时 / 取消一律按拒绝处理。
    */
-  async resolveToolApproval(
-    runId: string,
-    toolCallId: string,
-    approved: boolean
-  ): Promise<boolean> {
-    return invoke<boolean>("resolve_tool_approval", {
+  async resolveToolApproval(runId: string, toolCallId: string, approved: boolean): Promise<boolean> {
+    return invoke<boolean>('resolve_tool_approval', {
       runId,
       toolCallId,
       approved,
@@ -2228,19 +2291,19 @@ export const agentApi = {
 export interface FileChangeEvent {
   analysisId: string;
   path: string;
-  kind: "created" | "modified" | "removed";
+  kind: 'created' | 'modified' | 'removed';
   timestamp: number;
 }
 
 export const fileWatcherApi = {
   async startWatching(analysisId: string, projectRoot: string): Promise<string> {
-    return invoke("start_watching", { analysisId, projectRoot });
+    return invoke('start_watching', { analysisId, projectRoot });
   },
   async stopWatching(analysisId: string): Promise<void> {
-    return invoke("stop_watching", { analysisId });
+    return invoke('stop_watching', { analysisId });
   },
   async getWatchStatus(analysisId: string): Promise<boolean> {
-    return invoke("get_watch_status", { analysisId });
+    return invoke('get_watch_status', { analysisId });
   },
 };
 
@@ -2249,7 +2312,7 @@ export const fileWatcherApi = {
 export const aiContextApi = {
   /** 保存一个上下文包（pack_id 由 scope+module 推导，重存即覆盖）。返回 pack_id。 */
   async saveAiContextPack(pack: AiContextPack): Promise<string> {
-    return invoke<string>("save_ai_context_pack", { pack });
+    return invoke<string>('save_ai_context_pack', { pack });
   },
   /**
    * 分节级增量保存：只重写 changedKeys 指定的分节，其余分节在库里原封不动。
@@ -2264,41 +2327,36 @@ export const aiContextApi = {
       sectionKeys: pack.sections.map((s) => s.key),
       changedSections: changedKeys,
     };
-    return invoke<number>("save_ai_context_sections", { pack: payload });
+    return invoke<number>('save_ai_context_sections', { pack: payload });
   },
   /** 取分节戳（无正文）：用于水合增量状态，重启应用后仍能接着增量而不是整包重写 */
   async listAiContextSectionStamps(packId: string): Promise<AiContextSectionStamp[]> {
-    return invoke<AiContextSectionStamp[]>("list_ai_context_section_stamps", { packId });
+    return invoke<AiContextSectionStamp[]>('list_ai_context_section_stamps', { packId });
   },
   async listAiContextPacks(scopeId?: string): Promise<AiContextPackSummary[]> {
-    return invoke<AiContextPackSummary[]>("list_ai_context_packs", { scopeId: scopeId ?? null });
+    return invoke<AiContextPackSummary[]>('list_ai_context_packs', { scopeId: scopeId ?? null });
   },
   async getAiContextPack(packId: string): Promise<AiContextPackDetail | null> {
-    return invoke<AiContextPackDetail | null>("get_ai_context_pack", { packId });
+    return invoke<AiContextPackDetail | null>('get_ai_context_pack', { packId });
   },
   async getAiContextSection(packId: string, sectionKey: string): Promise<AiContextSectionDto | null> {
-    return invoke<AiContextSectionDto | null>("get_ai_context_section", { packId, sectionKey });
+    return invoke<AiContextSectionDto | null>('get_ai_context_section', { packId, sectionKey });
   },
   async deleteAiContextPack(packId: string): Promise<void> {
-    return invoke("delete_ai_context_pack", { packId });
+    return invoke('delete_ai_context_pack', { packId });
   },
   async saveAiInsight(insight: AiInsightInput): Promise<void> {
-    return invoke("save_ai_insight", { insight });
+    return invoke('save_ai_insight', { insight });
   },
   async listAiInsights(analysisId: string): Promise<AiInsightDto[]> {
-    return invoke<AiInsightDto[]>("list_ai_insights", { analysisId });
+    return invoke<AiInsightDto[]>('list_ai_insights', { analysisId });
   },
   /**
    * 人工收口一条结论。理由必填（后端强校验）——面板上一键关掉但说不出为什么，
    * 等于把问题扫到地毯下面，下一轮 Agent 还会原样再报一遍。
    */
-  async resolveAiInsight(
-    analysisId: string,
-    insightId: string,
-    reason: string,
-    resolvedBy = "user",
-  ): Promise<string> {
-    return invoke<string>("resolve_ai_insight", {
+  async resolveAiInsight(analysisId: string, insightId: string, reason: string, resolvedBy = 'user'): Promise<string> {
+    return invoke<string>('resolve_ai_insight', {
       analysisId,
       insightId,
       reason,
@@ -2310,29 +2368,25 @@ export const aiContextApi = {
    * 返回被自动收口的洞察数。
    */
   async verifyDiagnosisInsights(analysisId: string, paths: string[]): Promise<number> {
-    return invoke<number>("verify_diagnosis_insights", { analysisId, paths });
+    return invoke<number>('verify_diagnosis_insights', { analysisId, paths });
   },
 
   // ─── 自动分析编排 ───
   /** 列出规则（传 moduleId 只取该模块的，避免无关规则参与判定） */
   async listAutoAnalysisRules(moduleId?: string): Promise<AiAutoAnalysisRule[]> {
-    return invoke<AiAutoAnalysisRule[]>("list_ai_auto_analysis_rules", {
+    return invoke<AiAutoAnalysisRule[]>('list_ai_auto_analysis_rules', {
       moduleId: moduleId ?? null,
     });
   },
   async saveAutoAnalysisRule(rule: AiAutoAnalysisRuleInput): Promise<void> {
-    return invoke("save_ai_auto_analysis_rule", { rule });
+    return invoke('save_ai_auto_analysis_rule', { rule });
   },
   async deleteAutoAnalysisRule(ruleId: string): Promise<void> {
-    return invoke("delete_ai_auto_analysis_rule", { ruleId });
+    return invoke('delete_ai_auto_analysis_rule', { ruleId });
   },
   /** 记录一次真实触发：推进冷却起点与去重指纹 */
-  async markAutoAnalysisRun(
-    ruleId: string,
-    digest: string,
-    conversationId?: string | null,
-  ): Promise<void> {
-    return invoke("mark_ai_auto_analysis_run", {
+  async markAutoAnalysisRun(ruleId: string, digest: string, conversationId?: string | null): Promise<void> {
+    return invoke('mark_ai_auto_analysis_run', {
       ruleId,
       digest,
       conversationId: conversationId ?? null,
@@ -2340,10 +2394,10 @@ export const aiContextApi = {
   },
   /** 写运行轨迹（触发/跳过/失败都写，跳过必须带原因） */
   async recordAutoAnalysisRun(run: AiAutoAnalysisRunInput): Promise<void> {
-    return invoke("record_ai_auto_analysis_run", { run });
+    return invoke('record_ai_auto_analysis_run', { run });
   },
   async listAutoAnalysisRuns(limit = 30): Promise<AiAutoAnalysisRun[]> {
-    return invoke<AiAutoAnalysisRun[]>("list_ai_auto_analysis_runs", { limit });
+    return invoke<AiAutoAnalysisRun[]>('list_ai_auto_analysis_runs', { limit });
   },
   /**
    * 每个分析维度最近一次真正跑过的记录（覆盖台账原料）。
@@ -2351,7 +2405,7 @@ export const aiContextApi = {
    * 久未分析的维度会因为被挤出窗口而被误报成「从未分析」。
    */
   async listAnalysisCoverage(moduleId: string, scopeId: string): Promise<AiAutoAnalysisRun[]> {
-    return invoke<AiAutoAnalysisRun[]>("list_ai_analysis_coverage", { moduleId, scopeId });
+    return invoke<AiAutoAnalysisRun[]>('list_ai_analysis_coverage', { moduleId, scopeId });
   },
   /**
    * 回执：一轮分析真正结束后回填结局与产出条数。
@@ -2359,13 +2413,8 @@ export const aiContextApi = {
    * 发起与结束分两次写，是因为发起时 Agent 还没开口，等它答完会把扫描收尾挂住几十秒。
    * 但只写发起不写结束，「已发起」就会被当成「已分析」——模型报错那一轮照样点绿灯。
    */
-  async finishAutoAnalysisRun(
-    runId: string,
-    outcome: AiAnalysisOutcome,
-    insightCount = 0,
-    detail = "",
-  ): Promise<void> {
-    return invoke("finish_ai_auto_analysis_run", { runId, outcome, insightCount, detail });
+  async finishAutoAnalysisRun(runId: string, outcome: AiAnalysisOutcome, insightCount = 0, detail = ''): Promise<void> {
+    return invoke('finish_ai_auto_analysis_run', { runId, outcome, insightCount, detail });
   },
   /**
    * 清算中断轮次：把长期停在 pending 的轨迹落定为 interrupted，
@@ -2375,16 +2424,12 @@ export const aiContextApi = {
    * 那一轮既没 completed 也没 error，永远停在 pending —— 覆盖台账据此点绿灯、
    * 派单台账据此当已落实，而这一轮实际上一条结论都没有。
    */
-  async reapStalePendingRuns(
-    moduleId: string,
-    scopeId: string,
-    olderThanSec: number,
-  ): Promise<number> {
-    return invoke<number>("reap_stale_analysis_runs", { moduleId, scopeId, olderThanSec });
+  async reapStalePendingRuns(moduleId: string, scopeId: string, olderThanSec: number): Promise<number> {
+    return invoke<number>('reap_stale_analysis_runs', { moduleId, scopeId, olderThanSec });
   },
   /** 每条规则在该作用域下的最近一条轨迹 —— 补跑调度的判据 */
   async listLatestRunPerRule(moduleId: string, scopeId: string): Promise<AiAutoAnalysisRun[]> {
-    return invoke<AiAutoAnalysisRun[]>("list_ai_auto_analysis_latest_per_rule", {
+    return invoke<AiAutoAnalysisRun[]>('list_ai_auto_analysis_latest_per_rule', {
       moduleId,
       scopeId,
     });
@@ -2419,7 +2464,7 @@ export const aiContextApi = {
       regressionDigest?: string;
     }>;
   }): Promise<number> {
-    return invoke<number>("record_ai_focus_assignments", {
+    return invoke<number>('record_ai_focus_assignments', {
       moduleId: input.moduleId,
       scopeId: input.scopeId,
       runId: input.runId ?? null,
@@ -2428,18 +2473,15 @@ export const aiContextApi = {
       targets: input.targets.map((t) => ({
         filePath: t.filePath,
         resonance: t.resonance ?? 0,
-        note: t.note ?? "",
-        evidenceDigest: t.evidenceDigest ?? "",
-        regressionDigest: t.regressionDigest ?? "",
+        note: t.note ?? '',
+        evidenceDigest: t.evidenceDigest ?? '',
+        regressionDigest: t.regressionDigest ?? '',
       })),
     });
   },
   /** 某作用域下的派单记录（每个文件一行，取最近一次） */
-  async listFocusAssignments(
-    moduleId: string,
-    scopeId: string,
-  ): Promise<AiFocusAssignmentDto[]> {
-    return invoke<AiFocusAssignmentDto[]>("list_ai_focus_assignments", { moduleId, scopeId });
+  async listFocusAssignments(moduleId: string, scopeId: string): Promise<AiFocusAssignmentDto[]> {
+    return invoke<AiFocusAssignmentDto[]>('list_ai_focus_assignments', { moduleId, scopeId });
   },
   /**
    * 核销一轮派单：这一轮点名到底落实了没有。
@@ -2449,7 +2491,7 @@ export const aiContextApi = {
    * 于是一次网络抖动就能让共振榜第一名永久沉默。只有 error 会让派单作废重排。
    */
   async settleFocusAssignments(runId: string, outcome: string): Promise<number> {
-    return invoke<number>("settle_ai_focus_assignments", { runId, outcome });
+    return invoke<number>('settle_ai_focus_assignments', { runId, outcome });
   },
 
   // ─── 指标快照：项目形态的历史基线 ───
@@ -2468,7 +2510,7 @@ export const aiContextApi = {
     triggerKind?: string;
     takenAt?: number;
   }): Promise<[string, boolean]> {
-    return invoke<[string, boolean]>("record_ai_metric_snapshot", {
+    return invoke<[string, boolean]>('record_ai_metric_snapshot', {
       id: null,
       moduleId: input.moduleId,
       scopeId: input.scopeId,
@@ -2480,12 +2522,8 @@ export const aiContextApi = {
     });
   },
   /** 指标时间轴（由新到旧） */
-  async listMetricSnapshots(
-    moduleId: string,
-    scopeId: string,
-    limit?: number,
-  ): Promise<AiMetricSnapshotDto[]> {
-    return invoke<AiMetricSnapshotDto[]>("list_ai_metric_snapshots", {
+  async listMetricSnapshots(moduleId: string, scopeId: string, limit?: number): Promise<AiMetricSnapshotDto[]> {
+    return invoke<AiMetricSnapshotDto[]>('list_ai_metric_snapshots', {
       moduleId,
       scopeId,
       limit: limit ?? null,
@@ -2514,7 +2552,7 @@ export const aiContextApi = {
     triggerKind?: string;
     takenAt?: number;
   }): Promise<[string, boolean]> {
-    return invoke<[string, boolean]>("record_ai_entity_snapshot", {
+    return invoke<[string, boolean]>('record_ai_entity_snapshot', {
       id: null,
       moduleId: input.moduleId,
       scopeId: input.scopeId,
@@ -2531,12 +2569,8 @@ export const aiContextApi = {
     });
   },
   /** 实体榜单序列（由新到旧）。回归只对照上一个点，默认取头几个 */
-  async listEntitySnapshots(
-    moduleId: string,
-    scopeId: string,
-    limit?: number,
-  ): Promise<AiEntitySnapshotDto[]> {
-    return invoke<AiEntitySnapshotDto[]>("list_ai_entity_snapshots", {
+  async listEntitySnapshots(moduleId: string, scopeId: string, limit?: number): Promise<AiEntitySnapshotDto[]> {
+    return invoke<AiEntitySnapshotDto[]>('list_ai_entity_snapshots', {
       moduleId,
       scopeId,
       limit: limit ?? null,
@@ -2647,10 +2681,7 @@ export interface AiAutoAnalysisRule {
   lastConversationId: string | null;
 }
 
-export type AiAutoAnalysisRuleInput = Omit<
-  AiAutoAnalysisRule,
-  "lastRunAt" | "lastDigest" | "lastConversationId"
->;
+export type AiAutoAnalysisRuleInput = Omit<AiAutoAnalysisRule, 'lastRunAt' | 'lastDigest' | 'lastConversationId'>;
 
 /** 一次编排的审计记录 */
 export interface AiAutoAnalysisRun {
@@ -2680,7 +2711,7 @@ export interface AiAutoAnalysisRun {
    */
   reason?: string;
   /** 发起之后的归宿；空串 = 早于回执特性的历史记录，按「无法判断」处理 */
-  outcome?: AiAnalysisOutcome | "";
+  outcome?: AiAnalysisOutcome | '';
   /** 本轮实际沉淀的洞察条数（回执时回填） */
   insightCount?: number;
   /** 回执落点时间（秒）；0 = 尚未回执 */
@@ -2701,17 +2732,9 @@ export interface AiAutoAnalysisRun {
  * 都要退回派单），但死法不同。合成一个值，用户在轨迹上只会看到「对话失败」，
  * 于是去查模型和密钥——而真正发生的事只是他关了窗口。
  */
-export type AiAnalysisOutcome =
-  | "pending"
-  | "completed"
-  | "no-output"
-  | "error"
-  | "interrupted";
+export type AiAnalysisOutcome = 'pending' | 'completed' | 'no-output' | 'error' | 'interrupted';
 
-export type AiAutoAnalysisRunInput = Omit<
-  AiAutoAnalysisRun,
-  "createdAt" | "insightCount" | "finishedAt"
->;
+export type AiAutoAnalysisRunInput = Omit<AiAutoAnalysisRun, 'createdAt' | 'insightCount' | 'finishedAt'>;
 
 export interface AiInsightInput {
   id: string;
@@ -2762,7 +2785,7 @@ export interface AiInsightDto {
    * 时效判定只回答「证据还是不是那份」，收口才回答「这事还要不要管」——
    * 少了后者，判得越准，面板上的旧账反而越厚。
    */
-  status?: "open" | "resolved";
+  status?: 'open' | 'resolved';
   resolvedAt?: number;
   resolvedReason?: string | null;
   resolvedBy?: string | null;
@@ -2775,12 +2798,7 @@ export interface AiInsightDto {
  * · unanchored 结论没写可用 refs，永远无法验证
  * · unknown    无从比对（没扫过，或是没有证据快照的历史数据）
  */
-export type InsightFreshness =
-  | "current"
-  | "stale"
-  | "orphaned"
-  | "unanchored"
-  | "unknown";
+export type InsightFreshness = 'current' | 'stale' | 'orphaned' | 'unanchored' | 'unknown';
 
 export interface AiContextPackSummary {
   id: string;
@@ -2850,10 +2868,10 @@ export interface GitRepoInfo {
 
 export const fsApi = {
   async readDirectory(path: string): Promise<DirEntry[]> {
-    return invoke("read_directory", { path });
+    return invoke('read_directory', { path });
   },
   async getGitRepoInfo(path: string): Promise<GitRepoInfo> {
-    return invoke("get_git_repo_info", { path });
+    return invoke('get_git_repo_info', { path });
   },
 };
 
@@ -2861,11 +2879,11 @@ export const fsApi = {
 export async function spawnCodeWorkbench(
   fileId: string,
   line: number | null,
-  analysisId: string | null
+  analysisId: string | null,
 ): Promise<void> {
   // Tauri v2 默认把 camelCase 参数自动映射为 Rust 的 snake_case（项目内 scan_project 等高频命令均用 camelCase 调用），
   // 故这里用 fileId / analysisId 即可，无需手动写 file_id / analysis_id。
-  await invoke("spawn_code_workbench", { fileId, line, analysisId });
+  await invoke('spawn_code_workbench', { fileId, line, analysisId });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2874,23 +2892,23 @@ export async function spawnCodeWorkbench(
 export const terminalApi = {
   /** 起一个终端会话（cwd = 项目根目录），返回 session_id。 */
   async spawn(cwd: string, cols: number, rows: number): Promise<string> {
-    return invoke("spawn_terminal", { cwd, cols, rows });
+    return invoke('spawn_terminal', { cwd, cols, rows });
   },
   /** 重放首屏输出（监听器就绪后调用，避免竞态丢提示符导致终端空白）。 */
   async replay(sessionId: string): Promise<void> {
-    return invoke("terminal_replay", { sessionId });
+    return invoke('terminal_replay', { sessionId });
   },
   /** 把前端按键写回 PTY 的 stdin。 */
   async write(sessionId: string, data: string): Promise<void> {
-    return invoke("terminal_write", { sessionId, data });
+    return invoke('terminal_write', { sessionId, data });
   },
   /** 调整 PTY 尺寸。 */
   async resize(sessionId: string, cols: number, rows: number): Promise<void> {
-    return invoke("terminal_resize", { sessionId, cols, rows });
+    return invoke('terminal_resize', { sessionId, cols, rows });
   },
   /** 结束会话（杀掉子进程）。 */
   async kill(sessionId: string): Promise<void> {
-    return invoke("terminal_kill", { sessionId });
+    return invoke('terminal_kill', { sessionId });
   },
 };
 
@@ -2898,14 +2916,565 @@ export const terminalApi = {
 export const acpWsApi = {
   /** 启动本地 WebSocket 服务，监听 127.0.0.1:{port}，供外部 ACP Agent 连接。 */
   async startServer(port: number): Promise<void> {
-    return invoke("start_acp_ws_server", { port });
+    return invoke('start_acp_ws_server', { port });
   },
   /** 前端 host 把出站 ACP 消息经此发回 WS（connId 指定连接，null=广播全部）。 */
   async send(message: string, connId?: string | null): Promise<void> {
-    return invoke("send_acp_ws", { connId: connId ?? null, message });
+    return invoke('send_acp_ws', { connId: connId ?? null, message });
   },
   /** 停止 WS 服务并清空连接槽。 */
   async stopServer(): Promise<void> {
-    return invoke("stop_acp_ws_server");
+    return invoke('stop_acp_ws_server');
   },
+};
+
+// ─── 写作域（Sight Folio）：书籍与章节 ───
+
+export interface WritingBook {
+  id: string;
+  title: string;
+  description: string | null;
+  genre: string;
+  /** 载体：serial（连载）/ standalone（单本）/ collection（篇目集）。'' = 未指定（旧书兼容） */
+  medium: string;
+  status: string;
+  coverColor: string;
+  /** 日更目标（字数/天，0 = 未设）。P6 写作目标。 */
+  dailyGoal: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WritingChapter {
+  id: string;
+  bookId: string;
+  title: string;
+  content: string;
+  sortOrder: number;
+  wordCount: number;
+  status: string;
+  /** 卷/分组名（'' = 未分卷）。旧模型遗留字段；新结构树由 parentId + kind 表达。 */
+  volume: string;
+  /** 结构树父节点 id（null = 根）。创作者自定义的任意层级都由它串成树。 */
+  parentId?: string | null;
+  /** 层级名（创作者自填：部/卷/章/节/幕/场/回/篇…，系统不预定义）。 */
+  kind: string;
+  /** 章头图等 P2 扩展（JSON 透传）。章头图引用存 `coverImage`：相对引用 `assets/writing/illustrations/<name>` */
+  extra: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const writingApi = {
+  async listBooks(): Promise<WritingBook[]> {
+    return invoke<WritingBook[]>('list_writing_books');
+  },
+
+  async saveBook(book: WritingBook): Promise<void> {
+    return invoke('save_writing_book', { book });
+  },
+
+  async deleteBook(bookId: string): Promise<void> {
+    return invoke('delete_writing_book', { bookId });
+  },
+
+  async listChapters(bookId: string): Promise<WritingChapter[]> {
+    return invoke<WritingChapter[]>('list_writing_chapters', { bookId });
+  },
+
+  async saveChapter(chapter: WritingChapter): Promise<void> {
+    return invoke('save_writing_chapter', { chapter });
+  },
+
+  /** 改名 title-only：只更新 title 列，不整行覆写 content（防旧正文回滚）。 */
+  async renameChapter(chapterId: string, title: string): Promise<void> {
+    return invoke('rename_writing_chapter', { chapterId, title });
+  },
+
+  /** 正文保存 content-only：只更新 content/word_count（自动保存高频通道，防字段回滚）。 */
+  async saveChapterContent(chapterId: string, content: string, wordCount: number): Promise<void> {
+    return invoke('save_writing_chapter_content', { chapterId, content, wordCount });
+  },
+
+  async deleteChapter(chapterId: string): Promise<void> {
+    return invoke('delete_writing_chapter', { chapterId });
+  },
+};
+
+// ─── 章节版本快照（批次④）：切章自动存 + 手动存，每章保留最近 20 份 ───
+
+export interface WritingChapterSnapshot {
+  id: string;
+  chapterId: string;
+  bookId: string;
+  content: string;
+  wordCount: number;
+  /** auto（切章自动存）/ manual（手动存） */
+  origin: string;
+  createdAt: number;
+}
+
+export const writingSnapshotsApi = {
+  async list(chapterId: string): Promise<WritingChapterSnapshot[]> {
+    return invoke<WritingChapterSnapshot[]>('list_writing_chapter_snapshots', { chapterId });
+  },
+
+  async save(snapshot: WritingChapterSnapshot): Promise<void> {
+    return invoke('save_writing_chapter_snapshot', { snapshot });
+  },
+};
+
+// ─── 写作域 P1：创作设定库（人设卡 / 世界观）+ 导出写盘 ───
+
+export type WritingSettingKind = 'character' | 'worldbuilding';
+
+export interface WritingSetting {
+  id: string;
+  bookId: string;
+  kind: WritingSettingKind;
+  name: string;
+  subtitle: string;
+  description: string;
+  extra: string;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const writingSettingsApi = {
+  async list(bookId: string, kind: WritingSettingKind): Promise<WritingSetting[]> {
+    return invoke<WritingSetting[]>('list_writing_settings', { bookId, kind });
+  },
+
+  async save(setting: WritingSetting): Promise<void> {
+    return invoke('save_writing_setting', { setting });
+  },
+
+  async delete(settingId: string): Promise<void> {
+    return invoke('delete_writing_setting', { settingId });
+  },
+};
+
+/** 把文本写到用户经对话框选定的路径（配合 plugin-dialog 的 save()）。 */
+export async function saveTextFile(path: string, contents: string): Promise<void> {
+  return invoke('save_text_file', { path, contents });
+}
+
+// ─── 写作域 P4：写作统计 + 设定卡结构化扩展 ───
+
+export interface WritingDailyStat {
+  day: string;
+  wordCount: number;
+}
+
+export const writingStatsApi = {
+  /** 最近 N 天的每日全书总字数快照（缺记录的日期由调用方补零）。 */
+  async listDailyStats(bookId: string, days = 30): Promise<WritingDailyStat[]> {
+    return invoke<WritingDailyStat[]>('list_writing_daily_stats', { bookId, days });
+  },
+};
+
+/** 设定卡 extra JSON 的结构化字段（P1 预留的透传空间，从这里开始消费）。 */
+export interface WritingRelation {
+  /** 关联设定 id（连 id，新增；与自由文本 target 并存，target 作为展示名） */
+  targetId?: string;
+  /** 展示名（自由文本，兼容旧数据；连 id 时自动同步为被关联设定名） */
+  target: string;
+  type: string;
+}
+
+/**
+ * 全书级时间线事件实体（D）：独立表 writing_timeline_events，独立于设定卡 extra.timeline。
+ * setting_id 可空（null = 纯书级事件，不挂在某个设定上）；createdAt/updatedAt 为 Unix 秒。
+ */
+export interface WritingTimelineEvent {
+  id: string;
+  bookId: string;
+  settingId: string | null;
+  /** 时间点标签，自由文本（「第3年」「2024」「第12章」等），仅作展示与数字序排序 */
+  at: string;
+  /** 事件描述 */
+  event: string;
+  /** 绑定章节（可选，null = 未绑章）：双击优先跳该章 */
+  chapterId: string | null;
+  /** 所属剧情线（可选，null = 未挂线）：多线叙事维度，与 settingId/chapterId 正交 */
+  storylineId: string | null;
+  /** 轨道内排序（同 at 时的稳定序） */
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 剧情线（多线叙事实体）：事件通过 storylineId 挂线；删线不删事件（后端置 NULL） */
+export interface WritingStoryline {
+  id: string;
+  bookId: string;
+  name: string;
+  /** 轨道配色（hex），空串 = 前端按 id 哈希兜底 */
+  color: string;
+  description: string;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface WritingSettingProfile {
+  /** 外貌 */
+  appearance?: string;
+  /** 性格 */
+  personality?: string;
+  /** 动机 */
+  motivation?: string;
+  /** 口头禅 */
+  catchphrase?: string;
+  /** 笔记 */
+  notes?: string;
+}
+
+/** 世界观档案（结构化字段，零迁移，落 extra.worldbuildingProfile，与人物 profile 并列） */
+export interface WritingWorldbuildingProfile {
+  /** 类型 / 分类，如 地理 / 种族 / 魔法体系 / 社会制度 */
+  type?: string;
+  /** 核心规则 */
+  rules?: string;
+  /** 例外 / 破例 */
+  exceptions?: string;
+  /** 关联条目（人物 / 其他设定，自由文本） */
+  linkedTo?: string;
+  /** 笔记 */
+  notes?: string;
+}
+
+/** 世界观子类型枚举（受控 Select 与左栏筛选共用，单一事实源；落 worldbuildingProfile.type，零迁移） */
+export const WORLDBUILDING_TYPE_KEYS = ['location', 'faction', 'magic', 'history', 'item', 'culture', 'other'] as const;
+export type WorldbuildingType = (typeof WORLDBUILDING_TYPE_KEYS)[number];
+
+export interface WritingSettingExtra {
+  relations?: WritingRelation[];
+  /** 人设档案（结构化字段，零迁移，落 extra JSON） */
+  profile?: WritingSettingProfile;
+  /** 世界观档案（结构化字段，零迁移，落 extra JSON，与人物 profile 并列） */
+  worldbuildingProfile?: WritingWorldbuildingProfile;
+  [key: string]: unknown;
+}
+
+/** 解析 extra JSON；坏数据一律当空对象，绝不让人设卡因脏数据渲染崩 */
+export function parseSettingExtra(extra: string): WritingSettingExtra {
+  try {
+    const parsed = JSON.parse(extra);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+// ─── 写作域 P5：大纲（与章节可双向关联） ───
+
+export interface WritingOutline {
+  id: string;
+  bookId: string;
+  title: string;
+  summary: string;
+  /** 绑定章节 id；null = 该节拍尚未落章 */
+  chapterId: string | null;
+  /** JSON 透传（设计视图节拍挂载：{ cast: settingId[], scenes: settingId[] }）；旧数据缺省 "{}" */
+  extra: string;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const writingOutlinesApi = {
+  async list(bookId: string): Promise<WritingOutline[]> {
+    return invoke<WritingOutline[]>('list_writing_outlines', { bookId });
+  },
+
+  async save(outline: WritingOutline): Promise<void> {
+    return invoke('save_writing_outline', { outline });
+  },
+
+  async delete(outlineId: string): Promise<void> {
+    return invoke('delete_writing_outline', { outlineId });
+  },
+};
+
+/** 时间线事件（D）：独立表 writing_timeline_events，settingId 可空（null = 全书级） */
+export const writingTimelineApi = {
+  async list(bookId: string): Promise<WritingTimelineEvent[]> {
+    return invoke<WritingTimelineEvent[]>('list_writing_timeline_events', { bookId });
+  },
+
+  async save(event: WritingTimelineEvent): Promise<void> {
+    return invoke('save_writing_timeline_event', { event });
+  },
+
+  async delete(eventId: string): Promise<void> {
+    return invoke('delete_writing_timeline_event', { eventId });
+  },
+};
+
+export const writingStorylinesApi = {
+  async list(bookId: string): Promise<WritingStoryline[]> {
+    return invoke<WritingStoryline[]>('list_writing_storylines', { bookId });
+  },
+
+  async save(storyline: WritingStoryline): Promise<void> {
+    return invoke('save_writing_storyline', { storyline });
+  },
+
+  async delete(storylineId: string): Promise<void> {
+    return invoke('delete_writing_storyline', { storylineId });
+  },
+};
+
+/** 伏笔（「埋设 → 回收」承诺）：status 三态 pending/paidoff/abandoned；回收章可空。 */
+export interface WritingForeshadowing {
+  id: string;
+  bookId: string;
+  title: string;
+  description: string;
+  /** 埋设章 */
+  plantChapterId: string | null;
+  /** 计划回收章（可空 = 还没想好收在哪） */
+  payoffChapterId: string | null;
+  /** pending | paidoff | abandoned */
+  status: string;
+  /** 可选挂剧情线（删线置 NULL 零强制） */
+  storylineId: string | null;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const writingForeshadowingsApi = {
+  async list(bookId: string): Promise<WritingForeshadowing[]> {
+    return invoke<WritingForeshadowing[]>('list_writing_foreshadowings', { bookId });
+  },
+
+  async save(item: WritingForeshadowing): Promise<void> {
+    return invoke('save_writing_foreshadowing', { item });
+  },
+
+  async delete(foreshadowingId: string): Promise<void> {
+    return invoke('delete_writing_foreshadowing', { foreshadowingId });
+  },
+};
+
+/** EPUB 导出载荷（章节顺序 = 传参顺序 = spine 顺序） */
+export interface EpubChapterInput {
+  title: string;
+  content: string;
+  /** 章头图相对引用（批次 2 存于章 extra.coverImage）；无则省略（创作者主权） */
+  cover?: string | null;
+}
+
+export async function saveWritingEpub(
+  title: string,
+  description: string | null,
+  chapters: EpubChapterInput[],
+  path: string,
+): Promise<void> {
+  return invoke('save_writing_epub', { title, description, chapters, path });
+}
+
+// ─── 写作扫描（F1 分析器融合）：书 → analyses，章节 → project_files ───
+
+export interface WritingScanSummary {
+  analysisId: string;
+  fileCount: number;
+  totalWords: number;
+  /** 写作发现条数（死设定 + 未落地节拍），已落 review_findings */
+  findingCount: number;
+}
+
+export interface WritingImportSummary {
+  bookId: string;
+  title: string;
+  chapterCount: number;
+  totalWords: number;
+  /** 章节切分策略：heading（按标题行）/ single（全书单章） */
+  strategy: 'heading' | 'single';
+}
+
+export const writingScanApi = {
+  scanBook: (bookId: string): Promise<WritingScanSummary> => invoke('scan_writing_book', { bookId }),
+  /** 导入 txt/md 作品：按章节标题行切分入库（工作室「导入作品」入口） */
+  importBook: (filePath: string): Promise<WritingImportSummary> => invoke('import_writing_book', { filePath }),
+};
+
+/** 素材信息（对应 Rust asset.rs 的 AssetInfo） */
+export interface AssetInfo {
+  /** 落盘文件名（带时间戳前缀防重名） */
+  name: string;
+  /** 绝对路径 —— 画布 ImageRenderer 直接吃这个 */
+  path: string;
+  size: number;
+  modified: string;
+  mimeType: string;
+  thumbnail: string | null;
+}
+
+/** 素材库 API（H2 插画链路）：后端命令全部为 Result<_, String>，错误为字符串 */
+export const assetApi = {
+  list: (category: string, subcategory: string): Promise<AssetInfo[]> =>
+    invoke('list_assets', { category, subcategory }),
+  /** data 传字节数组；Rust 侧 Vec<u8> */
+  save: (category: string, subcategory: string, fileName: string, data: Uint8Array): Promise<AssetInfo> =>
+    invoke('save_asset', { category, subcategory, fileName, data: Array.from(data) }),
+  remove: (filePath: string): Promise<boolean> => invoke('delete_asset', { filePath }),
+  thumbnail: (filePath: string, maxSize: number): Promise<string> =>
+    invoke('get_asset_thumbnail', { filePath, maxSize }),
+  /** 相对引用 assets/<cat>/<sub>/<name> → 磁盘绝对路径（正文插画渲染/导出定位用） */
+  resolveAssetRef: (rel: string): Promise<string> => invoke('resolve_asset_ref', { rel }),
+};
+
+// ─── 语料库（Sight Folio「语料库」）：外部参考书籍导入 + FTS5 全文检索 ───
+
+/** 语料书（对应 Rust domain/corpus CorpusBook） */
+export interface CorpusBook {
+  id: number;
+  title: string;
+  author: string;
+  language: string;
+  source: string;
+  /** 分类标签（导入后可编辑；检索时与书名/作者一并匹配）。空串 = 未分类 */
+  category: string;
+  /** 导入时的源文件路径（重建索引据此重读原文件；旧数据为空串） */
+  sourcePath: string;
+  wordCount: number;
+  chunkCount: number;
+  createdAt: number;
+}
+
+/** 语料库检索结果：书命中（书名/作者/分类匹配，置顶展示）+ 句子命中 */
+export interface CorpusSearchResult {
+  books: CorpusBook[];
+  hits: CorpusSearchHit[];
+}
+
+/** 语料库可用性（对应 Rust CorpusStatus）：corpus.db 初始化失败时降级为不可用 */
+export interface CorpusStatus {
+  available: boolean;
+  /** 不可用原因（可用时为空串） */
+  error: string;
+}
+
+/** 检索命中的一条「出现位置」（重复句合并后展开用） */
+export interface CorpusHitOccurrence {
+  chunkId: number;
+  bookId: number;
+  bookTitle: string;
+  seq: number;
+  chapterTitle: string;
+}
+
+/** 检索命中（句子级 KWIC：句子原文 + 书/章归属）。
+ *  重复句在**检索时**合并（非破坏，库里不删行）：同句只出一条代表 +
+ *  occurrenceCount / occurrences；按书过滤时统计范围限该书（不做跨书合并）。 */
+export interface CorpusSearchHit {
+  chunkId: number;
+  bookId: number;
+  bookTitle: string;
+  seq: number;
+  kind: string;
+  chapterTitle: string;
+  content: string;
+  /** 该句在本次检索范围内的出现次数（未合并场景为 1） */
+  occurrenceCount: number;
+  /** 该句的出现位置（上限 20；occurrenceCount === 1 时为空） */
+  occurrences: CorpusHitOccurrence[];
+}
+
+/** 重建索引的单本结果（对应 Rust RebuildItem） */
+export interface RebuildItem {
+  bookId: number;
+  title: string;
+  /** rebuilt | skipped | failed */
+  status: string;
+  /** 跳过/失败原因（rebuilt 时为空） */
+  reason: string;
+  /** 重建后的句子总数（仅 rebuilt 有值） */
+  chunkCount: number;
+}
+
+/** 重建索引汇总（对应 Rust RebuildReport） */
+export interface RebuildReport {
+  rebuilt: number;
+  skipped: number;
+  failed: number;
+  items: RebuildItem[];
+}
+
+/** 导入前查重的命中项（对应 Rust DuplicateHit）；只提示不阻断 */
+export interface DuplicateHit {
+  /** exact_path（同一文件）| exact_content（去空白全文一致）| similar（高度相似）| same_meta（同名同作者） */
+  kind: string;
+  bookId: number;
+  title: string;
+  /** 相似度百分比（exact_* 为 100，same_meta 为 0） */
+  similarity: number;
+  createdAt: number;
+}
+
+/** 查重报告中的书本引用 */
+export interface DuplicateBookRef {
+  id: number;
+  title: string;
+  author: string;
+  chunkCount: number;
+  createdAt: number;
+}
+
+/** 一组重复的书 */
+export interface DuplicateBookGroup {
+  /** content_hash（内容完全相同）| source_path（同一文件）| simhash（高度相似） */
+  reason: string;
+  similarity: number;
+  books: DuplicateBookRef[];
+}
+
+/** 一组跨书重复的句子 */
+export interface SentenceDupGroup {
+  sample: string;
+  bookCount: number;
+  chunkCount: number;
+  books: string[];
+}
+
+/** 全库查重报告（对应 Rust DuplicateReport） */
+export interface DuplicateReport {
+  exactGroups: DuplicateBookGroup[];
+  similarGroups: DuplicateBookGroup[];
+  sentenceGroups: SentenceDupGroup[];
+  /** 重复语句组总数（≥ sentenceGroups.length） */
+  sentenceGroupTotal: number;
+  bookTotal: number;
+}
+
+/** 语料库 API：检索 ≥3 字符走 FTS5 MATCH（BM25 排序），<3 字符自动 LIKE 回退（后端分流） */
+export const corpusApi = {
+  /** 可用性探针：不可用时前端显示横幅并禁用导入/重建/检索入口 */
+  status: (): Promise<CorpusStatus> => invoke('corpus_status'),
+  listBooks: (): Promise<CorpusBook[]> => invoke('list_corpus_books'),
+  importFile: (filePath: string, title: string, author: string, language: string): Promise<CorpusBook> =>
+    invoke('import_corpus_file', { filePath, title, author, language }),
+  deleteBook: (bookId: number): Promise<void> => invoke('delete_corpus_book', { bookId }),
+  /** 编辑元数据：书名/作者/语言/分类（专用 UPDATE，只碰这四列） */
+  updateBook: (
+    bookId: number,
+    title: string,
+    author: string,
+    language: string,
+    category: string,
+  ): Promise<CorpusBook> => invoke('update_corpus_book', { bookId, title, author, language, category }),
+  search: (query: string, bookId: number | null, limit = 30, offset = 0): Promise<CorpusSearchResult> =>
+    invoke('search_corpus', { query, bookId, limit, offset }),
+  /** 重建索引：重读源文件并重新切分（bookId 省略则重建全部作品） */
+  rebuild: (bookId: number | null = null): Promise<RebuildReport> =>
+    invoke('rebuild_corpus_index', { bookId }),
+  /** 导入前查重：提示已存在的相同/近似作品（不阻断导入） */
+  checkDuplicate: (filePath: string, title: string, author: string): Promise<DuplicateHit[]> =>
+    invoke('check_corpus_duplicate', { filePath, title, author }),
+  /** 全库查重报告（维护用，只读） */
+  scanDuplicates: (): Promise<DuplicateReport> => invoke('scan_corpus_duplicates'),
 };

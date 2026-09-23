@@ -1,4 +1,4 @@
-// project-sight: 画布 ↔ 代码工作台 双向联动
+// sight-folio: 画布 ↔ 代码工作台 双向联动
 // 主窗口画布选中文件型实体 → 已开的独立工作台自动跳转该文件；
 // 工作台内打开文件 → 反向聚焦主窗口画布对应实体。
 // 用回环保护（suppressFollow）避免「画布选中→工作台跳转→反向聚焦→画布选中」死循环。
@@ -8,7 +8,15 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useEditorStore } from "../../store/editorStore";
 import { useProjectStore } from "../../store/projectStore";
 import { findComponentForFile } from "./canvasLink";
+import { isWritingDeskWindow } from "../../utils/writingDeskWindow";
 import type { ProjectFile } from "../../services/tauri";
+
+/** 该联动是「主窗口画布 ↔ 代码工作台」专用，代码工作台自身与写作台独立窗口一律跳过 */
+function shouldSkipWorkbenchLink(): boolean {
+  if (typeof window === "undefined") return true;
+  const search = new URLSearchParams(window.location.search);
+  return search.has("workbench") || isWritingDeskWindow();
+}
 
 const WORKBENCH_LABEL = "code-workbench";
 
@@ -58,7 +66,7 @@ function findFileForComponent(comp: {
 /** 主窗口：订阅画布选中态，选中文件型实体且独立工作台已开时让其跳转。 */
 export function useCanvasWorkbenchLink() {
   const selectedIds = useEditorStore((s) => s.selection.selectedIds);
-  const isWorkbench = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("workbench");
+  const isWorkbench = shouldSkipWorkbenchLink();
   useEffect(() => {
     if (isWorkbench) return; // 仅在主窗口生效
     // ── 画布作用域广播（先于联动副作用，确保「空选/多选取」也清掉旧作用域）──
@@ -103,7 +111,7 @@ export function useCanvasWorkbenchLink() {
 
 /** 主窗口：监听工作台发来的「聚焦画布」请求，完成反向联动（带回环保护）。 */
 export function useWorkbenchFocusCanvasListener() {
-  const isWorkbench = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("workbench");
+  const isWorkbench = shouldSkipWorkbenchLink();
   useEffect(() => {
     if (isWorkbench) return; // 仅在主窗口监听
     let un: UnlistenFn | undefined;

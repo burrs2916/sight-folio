@@ -1,4 +1,4 @@
-// project-sight: 项目文件树构建（共享工具）
+// sight-folio: 项目文件树构建（共享工具）
 //
 // 文件 tab（ScannedFilesPanel）与实体 tab（ProjectTree）都需要「按 parent_id 构建
 // 多级目录树」。此前 buildFileTree 内联在 ScannedFilesPanel 里，实体 tab 要树形就得

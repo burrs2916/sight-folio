@@ -1,4 +1,4 @@
-// project-sight: Provider 标识颜色工具
+// sight-folio: Provider 标识颜色工具
 // 提供预设色板 + 随机颜色生成，用于在 UI 上用不同颜色的小圆点区分各个 AI Provider。
 
 // 预设色板：辨识度高、深浅适中的一组颜色

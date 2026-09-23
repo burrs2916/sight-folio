@@ -509,7 +509,7 @@ export class DataOrchestrator implements BindingActionExecutor {
 
     const adapterType = (binding.adapterType as string) || 'http';
 
-    if (adapterType === 'mqtt' || adapterType === 'websocket') {
+    if (adapterType === 'websocket') {
       return this.createStreamingPipeline(binding, adapterType);
     }
 
@@ -608,20 +608,6 @@ export class DataOrchestrator implements BindingActionExecutor {
           websocket: adapterType === 'websocket' ? {
             reconnect: true,
             reconnectInterval: 5000,
-          } : undefined,
-          mqtt: adapterType === 'mqtt' ? {
-            protocol: 'mqtt' as const,
-            host: (dsConfig.host as string) ?? (() => { try { return new URL((dsConfig.url as string) || 'mqtt://localhost').hostname; } catch { return 'localhost'; } })(),
-            port: (dsConfig.port as number) ?? 1883,
-            clientId: `spatialdata_${binding.id}_${Date.now()}`,
-            username: (dsConfig.username as string) ?? '',
-            password: (dsConfig.password as string) ?? '',
-            cleanSession: true,
-            keepAlive: 60,
-            version: '3.1.1' as const,
-            reconnect: true,
-            reconnectInterval: 5000,
-            reconnectAttempts: 10,
           } : undefined,
         },
         testApis: [],

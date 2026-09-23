@@ -156,8 +156,10 @@ describe("AI 正文语言切换验证（第十二轮）", () => {
     expect(resolveFragments(QUADRANT_HINT.healthy)).toContain("Low complexity");
     expect(resolveFragments(patternLabel("singleton"))).toBe("Singleton");
 
-    // 本轮新增 UI 数据 key（第十六轮后半段）：图层类型 / 组件分类 / 影响链深度与方向
-    expect(resolveFragments("layerType.tile")).toBe("Tile Map");
+    // 本轮新增 UI 数据 key（第十六轮后半段）：组件分类 / 影响链深度与方向
+    // 注：原「图层类型」断言（layerType.tile）已随空间图层 UI 一并退场 —— layerType.*
+    // 命名空间在 CAD/地图模块清理中删除，全仓（含 HEAD 之前）零消费点，键已不存在，
+    // 故断言随之移除；此处曾自 2026-09-20 起长期以「预存 i18n 缺口」形式污染全量验证。
     expect(resolveFragments("editor.category.custom")).toBe("Custom");
     expect(resolveFragments("impact.depth.hop4")).toBe("4+ hops");
     expect(resolveFragments("impact.side.upstream")).toBe("Affected by me");

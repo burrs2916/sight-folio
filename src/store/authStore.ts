@@ -696,18 +696,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     // 如果 memoryCache 中没有，再从配置的存储中读取
     const { storage } = get().webhook.token;
     switch (storage) {
-      case "localStorage":
+      case "localStorage": {
         const lsValue = localStorage.getItem(key);
         if (lsValue !== null) {
           memoryCache[key] = lsValue;
         }
         return lsValue;
-      case "sessionStorage":
+      }
+      case "sessionStorage": {
         const ssValue = sessionStorage.getItem(key);
         if (ssValue !== null) {
           memoryCache[key] = ssValue;
         }
         return ssValue;
+      }
       case "memory":
         return null;
       default:

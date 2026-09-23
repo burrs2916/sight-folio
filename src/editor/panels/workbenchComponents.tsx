@@ -1,4 +1,4 @@
-// project-sight: 工作台 AI 面板的纯展示组件与工具函数（从 WorkbenchAiPanel 拆出）。
+// sight-folio: 工作台 AI 面板的纯展示组件与工具函数（从 WorkbenchAiPanel 拆出）。
 //
 // 拆分目的：WorkbenchAiPanel 单体曾达 2531 行，编排函数与展示组件/工具函数混在一起，
 // 任何改动都易牵一发动全身，是后续对标 VS Code 深活的连续性风险点。本文件只放「无状态的
@@ -448,8 +448,10 @@ export interface WorkbenchInputBarCtx {
   slashTarget: "chat" | "edits";
   fileDiagnostics: EditorDiagnostic[];
   fixErrors: () => void;
-  quickAction: (kind: "file" | "selection" | "test" | "review" | "fix") => void;
+  quickAction: (kind: "file" | "selection" | "test" | "review" | "fix" | "book-understand" | "book-explain-sel" | "book-polish" | "book-consistency" | "book-plot" | "book-consistency-world") => void;
   queued: string[];
+  /** 书场景（novel-zh）：快捷动作与占位符切换为写作向文案 */
+  isBookScene?: boolean;
   /** 模型覆盖：传统聊天 UI 把模型选择器放在底部、与输入框同区（而非藏在头部菜单），
    *  便于随时切换当前会话模型；affiliation（端点·供应商）在输入栏内从 store 现算，避免选错端点。 */
   /** 助手选择：从头部下沉到底部输入条、与输入框同行对齐（传统聊天/IDE composer 把助手选择器放在输入条一端）。 */
@@ -473,8 +475,8 @@ export function WorkbenchInputBar({
   const inputRef = ctx.view === "edits" ? ctx.editInputRef : ctx.inputRef;
   const placeholder =
     ctx.view === "edits"
-      ? t("workbench.aiEdits.placeholder")
-      : t("workbench.aiInput.placeholder");
+      ? (ctx.isBookScene ? t("workbench.aiEdits.bookPlaceholder") : t("workbench.aiEdits.placeholder"))
+      : (ctx.isBookScene ? t("workbench.aiInput.bookPlaceholder") : t("workbench.aiInput.placeholder"));
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const v = e.target.value;
@@ -517,15 +519,32 @@ export function WorkbenchInputBar({
       >
         {/* 卡片内第一排：编辑快捷动作 pill（左）+ 助手选择框（右） */}
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
-          {selection && (
+          {ctx.isBookScene ? (
             <>
-              <Chip size="small" clickable variant="outlined" label={t("workbench.aiExplainSelection")} onClick={() => ctx.quickAction("selection")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
-              <Chip size="small" clickable variant="outlined" label={t("workbench.aiFixSelection")} onClick={() => ctx.quickAction("fix")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+              {selection && (
+                <>
+                  <Chip size="small" clickable variant="outlined" label={t("workbench.aiExplainSelectionBook")} onClick={() => ctx.quickAction("book-explain-sel")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+                  <Chip size="small" clickable variant="outlined" label={t("workbench.aiPolishSelection")} onClick={() => ctx.quickAction("book-polish")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+                </>
+              )}
+              <Chip size="small" clickable variant="outlined" label={t("workbench.aiUnderstandChapter")} onClick={() => ctx.quickAction("book-understand")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+              <Chip size="small" clickable variant="outlined" label={t("workbench.aiConsistencyChapter")} onClick={() => ctx.quickAction("book-consistency")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+              <Chip size="small" clickable variant="outlined" label={t("workbench.aiPlotChapter")} onClick={() => ctx.quickAction("book-plot")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+              <Chip size="small" clickable variant="outlined" label={t("workbench.aiConsistencyWorld")} onClick={() => ctx.quickAction("book-consistency-world")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+            </>
+          ) : (
+            <>
+              {selection && (
+                <>
+                  <Chip size="small" clickable variant="outlined" label={t("workbench.aiExplainSelection")} onClick={() => ctx.quickAction("selection")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+                  <Chip size="small" clickable variant="outlined" label={t("workbench.aiFixSelection")} onClick={() => ctx.quickAction("fix")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+                </>
+              )}
+              <Chip size="small" clickable variant="outlined" label={t("workbench.aiExplainFile")} onClick={() => ctx.quickAction("file")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+              <Chip size="small" clickable variant="outlined" label={t("workbench.aiGenTest")} onClick={() => ctx.quickAction("test")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
+              <Chip size="small" clickable variant="outlined" label={t("workbench.aiReviewFile")} onClick={() => ctx.quickAction("review")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
             </>
           )}
-          <Chip size="small" clickable variant="outlined" label={t("workbench.aiExplainFile")} onClick={() => ctx.quickAction("file")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
-          <Chip size="small" clickable variant="outlined" label={t("workbench.aiGenTest")} onClick={() => ctx.quickAction("test")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
-          <Chip size="small" clickable variant="outlined" label={t("workbench.aiReviewFile")} onClick={() => ctx.quickAction("review")} sx={{ fontSize: 10, height: 22, borderRadius: "11px" }} />
           <Box sx={{ flex: 1 }} />
           {ctx.agents.length > 0 && (
             <FormControl size="small" sx={{ minWidth: 112, flexShrink: 0 }}>
@@ -639,7 +658,7 @@ export function WorkbenchInputBar({
       {/* 斜杠命令菜单（VS Code 式：输入 / 唤起，按前缀实时过滤；选中把「/cmd 」回填到对应输入框，
           真正的行为在 send 里由 parseSlashCommand 路由为动作——强制模式 + 折叠正文） */}
       <Menu anchorEl={ctx.slashAnchor} open={!!ctx.slashAnchor} onClose={() => ctx.setSlashAnchor(null)}>
-        {getSlashCommands()
+        {getSlashCommands(ctx.isBookScene)
           .filter((s) => s.cmd.startsWith(ctx.slashQuery))
           .map((s) => (
             <MenuItem

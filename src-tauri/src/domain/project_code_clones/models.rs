@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// 代码克隆片段（detect_code_clones 产出）
 ///
 /// 对应需求文档「新需求点发掘」：代码重复率是 SonarQube / PMD-CPD 等前沿
-/// 静态分析平台的一级质量指标，此前 project-sight 完全缺失该维度。
+/// 静态分析平台的一级质量指标，此前 sight-folio 完全缺失该维度。
 ///
 /// 一个「克隆组」（group_id 相同）代表一段在项目中出现了 N 次的重复代码，
 /// 每条记录是该组的一个「实例」（出现位置）。前端据此：

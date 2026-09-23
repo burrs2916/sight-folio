@@ -1,5 +1,4 @@
 mod application;
-mod cad_runtime;
 mod commands;
 mod domain;
 mod error;
@@ -7,7 +6,6 @@ mod infrastructure;
 mod parser;
 mod plugins;
 
-use application::MqttService;
 use application::{
     DeleteGroupUseCase, DeleteIconUseCase, GetAllGroupsUseCase, GetAllIconsUseCase,
     GetGroupUseCase, GetIconUseCase, GetIconsByGroupUseCase, SaveGroupUseCase, SaveIconUseCase,
@@ -17,14 +15,14 @@ use application::{
     SavePresetConfigUseCase, UpdateConfigUseCase,
 };
 use commands::{
-    init_logger_state, AuthState, ComponentPluginState, DatasourceState, IconsState,
-    MapLibraryState, MqttState, AnalysisState, SettingsState, FileWatcherState,
+    init_logger_state, AuthState, ComponentPluginState, CorpusState, DatasourceState, IconsState,
+    AnalysisState, SettingsState, FileWatcherState,
     TerminalManager,
 };
 use infrastructure::database::{init_tables, migrate};
 use infrastructure::{
     Database, SqliteAuthRepository, SqliteDatasourceRepository, SqliteIconRepository,
-    SqliteMapLibraryRepository, SqliteAnalysisRepository, SqliteSettingsRepository,
+    SqliteAnalysisRepository, SqliteSettingsRepository,
     SqliteProjectFileRepository, SqliteProjectModuleRepository, SqliteProjectDependencyRepository,
     SqliteProjectLayerRepository, SqliteReviewRuleRepository, SqliteReviewFindingRepository,
     SqliteScanJobRepository, SqliteProjectSymbolRepository, SqliteProjectSymbolRefRepository,
@@ -32,6 +30,7 @@ use infrastructure::{
     SqliteProjectCodeIndexRepository, SqliteProjectGitChurnRepository,
     SqliteProjectCallEdgeRepository, SqliteProjectCodeCloneRepository,
     SqliteProjectChangeCouplingRepository, SqliteProjectDataFlowRepository,
+    SqliteWritingRepository, CorpusDatabase, SqliteCorpusRepository,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -110,9 +109,8 @@ pub fn run() {
             let icon_repo = SqliteIconRepository::new(db_arc.clone());
             let datasource_repo = SqliteDatasourceRepository::new(db_arc.clone());
             let analysis_repo = Arc::new(SqliteAnalysisRepository::new(db_arc.clone()));
-            let map_library_repo = SqliteMapLibraryRepository::new(db_arc.clone());
 
-            // ─── project-sight 7 个核心 repository ───
+            // ─── sight-folio 7 个核心 repository ───
             let project_file_repo = Arc::new(SqliteProjectFileRepository::new(db_arc.clone()));
             let project_module_repo = Arc::new(SqliteProjectModuleRepository::new(db_arc.clone()));
             let project_dependency_repo = Arc::new(SqliteProjectDependencyRepository::new(db_arc.clone()));
@@ -132,6 +130,23 @@ pub fn run() {
                 Arc::new(SqliteProjectChangeCouplingRepository::new(db_arc.clone()));
             let project_data_flow_repo =
                 Arc::new(SqliteProjectDataFlowRepository::new(db_arc.clone()));
+            // ─── 写作域 repository（Sight Folio）───
+            let writing_repo = Arc::new(SqliteWritingRepository::new(db_arc.clone()));
+
+            // ─── 语料库（独立 corpus.db，与业务库隔离）───
+            // B2 降级：语料库是可选功能，初始化失败**不得** abort 整个应用——
+            // 记录原因并注册 unavailable 状态，corpus 命令统一返回明确错误，
+            // 前端经 corpus_status 探测后显示「语料库不可用」。
+            // （历史教训：这里的 `.expect()` 曾因 schema 升级失败让应用启动即 SIGABRT。）
+            let corpus_state = match CorpusDatabase::new() {
+                Ok(corpus_db) => CorpusState::ready(Arc::new(SqliteCorpusRepository::new(Arc::new(
+                    corpus_db,
+                )))),
+                Err(e) => {
+                    eprintln!("[sight-folio] corpus database unavailable, degrading: {e}");
+                    CorpusState::unavailable(e.to_string())
+                }
+            };
 
             let auth_state = AuthState {
                 get_config_use_case: GetConfigUseCase::new(auth_repo.clone()),
@@ -162,20 +177,11 @@ pub fn run() {
                 repository: datasource_repo,
             };
 
-            let mqtt_service = Arc::new(tokio::sync::Mutex::new(MqttService::new()));
-            let mqtt_state = MqttState {
-                service: mqtt_service,
-            };
-
             let analysis_state = AnalysisState {
                 repository: (*analysis_repo).clone(),
             };
 
             let component_plugin_state = ComponentPluginState { db: db_arc.clone() };
-
-            let map_library_state = MapLibraryState {
-                repository: map_library_repo,
-            };
 
             let logger_state = init_logger_state();
 
@@ -183,18 +189,16 @@ pub fn run() {
             app.manage(settings_state);
             app.manage(icons_state);
             app.manage(datasource_state);
-            app.manage(mqtt_state);
             app.manage(analysis_state);
             app.manage(component_plugin_state);
             // AI Agent 命令（save_provider / list_providers / save_agent …）依赖 State<'_, Arc<Database>>，必须注册
             app.manage(db_arc.clone());
-            app.manage(map_library_state);
             app.manage(logger_state);
             app.manage(crate::commands::project_scan::AnalysisCancelState::default());
             // 文件内容读一次共享缓存（消除各分析阶段重复 read_to_string 的磁盘 I/O）
             app.manage(crate::commands::project_scan::ScanContentCache::new());
 
-            // project-sight 核心 repository
+            // sight-folio 核心 repository
             app.manage(project_file_repo);
             app.manage(project_module_repo);
             app.manage(project_dependency_repo);
@@ -213,6 +217,8 @@ pub fn run() {
             app.manage(project_change_coupling_repo);
             app.manage(project_data_flow_repo);
             app.manage(analysis_repo.clone());
+            app.manage(writing_repo);
+            app.manage(corpus_state);
 
             // 文件监视器状态
             app.manage(FileWatcherState::new());
@@ -231,7 +237,6 @@ pub fn run() {
             commands::get_preset_config,
             commands::save_preset_config,
             commands::delete_preset_config,
-            commands::parse_dwg_metadata,
             commands::get_setting,
             commands::set_setting,
             commands::delete_setting,
@@ -253,13 +258,6 @@ pub fn run() {
             commands::delete_datasource,
             commands::db_test_connection,
             commands::db_execute_query,
-            commands::mqtt_connect,
-            commands::mqtt_disconnect,
-            commands::mqtt_subscribe,
-            commands::mqtt_unsubscribe,
-            commands::mqtt_publish,
-            commands::mqtt_get_state,
-            commands::mqtt_test_connection,
             commands::get_all_analyses,
             commands::get_analysis,
             commands::get_analyses_by_category,
@@ -293,48 +291,11 @@ pub fn run() {
             commands::update_component_category,
             commands::delete_component_category,
             commands::move_plugin_to_category,
-            commands::parse_cad_file,
-            commands::parse_cad_from_bytes,
-            commands::import_cad_to_cadbin,
-            commands::read_cadbin_file,
-            commands::analyze_cad_files,
-            commands::get_all_map_libraries,
-            commands::get_map_library,
-            commands::get_map_libraries_by_type,
-            commands::get_published_map_libraries,
-            commands::get_published_map_libraries_by_type,
-            commands::save_map_library,
-            commands::delete_map_library,
-            commands::import_cad_to_map_library,
-            commands::import_cad_file_to_map_library,
-            commands::import_cad_doc_to_map_library,
-            commands::create_tile_map_library,
-            commands::create_blueprint_map_library,
-            commands::publish_map_library,
-            commands::unpublish_map_library,
-            commands::read_map_library_cadbin,
-            commands::read_map_library_layer_manifest,
-            commands::get_map_library_groups,
-            commands::create_map_library_group,
-            commands::update_map_library_group,
-            commands::delete_map_library_group,
-            commands::move_library_to_group,
-            commands::update_cadbin_text_entity,
-            commands::update_cadbin_entity_color,
-            commands::update_cadbin_entity_layer,
-            commands::update_cadbin_entity_props,
-            commands::move_cadbin_entity,
-            commands::delete_cadbin_entity,
-            commands::restore_cadbin_entity,
-            commands::add_cadbin_entity,
-            commands::update_cadbin_layer_props,
-            commands::create_cadbin_layer,
-            commands::delete_cadbin_layer,
-            commands::rename_cadbin_layer,
             commands::save_thumbnail,
             commands::check_thumbnails_exist,
             commands::read_file_bytes,
-            // ─── project-sight 扫描与审查 ───
+            commands::resolve_asset_ref,
+            // ─── sight-folio 扫描与审查 ───
             commands::scan_project,
             commands::check_scan_freshness,
             commands::check_gitignore,
@@ -491,6 +452,49 @@ pub fn run() {
             commands::start_acp_ws_server,
             commands::send_acp_ws,
             commands::stop_acp_ws_server,
+            // ─── 写作域（Sight Folio）：书籍与章节 CRUD ───
+            commands::list_writing_books,
+            commands::save_writing_book,
+            commands::delete_writing_book,
+            commands::list_writing_chapters,
+            commands::save_writing_chapter,
+            commands::rename_writing_chapter,
+            commands::save_writing_chapter_content,
+            commands::save_writing_chapter_snapshot,
+            commands::list_writing_chapter_snapshots,
+            commands::delete_writing_chapter,
+            commands::list_corpus_books,
+            commands::import_corpus_file,
+            commands::delete_corpus_book,
+            commands::update_corpus_book,
+            commands::search_corpus,
+            commands::corpus_status,
+            commands::rebuild_corpus_index,
+            commands::check_corpus_duplicate,
+            commands::scan_corpus_duplicates,
+            // ─── 写作域 P1：创作设定库（人设卡/世界观）+ 导出写盘 ───
+            commands::list_writing_settings,
+            commands::save_writing_setting,
+            commands::delete_writing_setting,
+            commands::save_text_file,
+            // ─── 写作域 P4：写作统计 ───
+            commands::list_writing_daily_stats,
+            // ─── 写作域 P5：大纲 + EPUB 导出 ───
+            commands::list_writing_outlines,
+            commands::save_writing_outline,
+            commands::delete_writing_outline,
+            commands::list_writing_timeline_events,
+            commands::save_writing_timeline_event,
+            commands::delete_writing_timeline_event,
+            commands::list_writing_storylines,
+            commands::save_writing_storyline,
+            commands::delete_writing_storyline,
+            commands::list_writing_foreshadowings,
+            commands::save_writing_foreshadowing,
+            commands::delete_writing_foreshadowing,
+            commands::save_writing_epub,
+            commands::scan_writing_book,
+            commands::import_writing_book,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

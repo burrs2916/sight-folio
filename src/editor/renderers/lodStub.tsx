@@ -1,4 +1,4 @@
-// project-sight: 实体渲染器的 LOD 降级卡片（R37 卡顿攻坚）
+// sight-folio: 实体渲染器的 LOD 降级卡片（R37 卡顿攻坚）
 //
 // 所有项目实体（module / class / function / interface / folder …）在缩小档位
 // 下的形态是同一套：`compact` = 色条 + 名字 + 可选风险点，`block` = 纯色块。

@@ -1,4 +1,4 @@
-// project-sight: 项目分析画布（带左面板 + 右侧 Tabs 面板 + 画布缩放平移 + 上下文菜单）
+// sight-folio: 项目分析画布（带左面板 + 右侧 Tabs 面板 + 画布缩放平移 + 上下文菜单）
 import { useEffect, useMemo, useState, useCallback, useRef, memo, type ChangeEvent } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -23,6 +23,12 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
+import AlignHorizontalLeftRoundedIcon from "@mui/icons-material/AlignHorizontalLeftRounded";
+import AlignHorizontalCenterRoundedIcon from "@mui/icons-material/AlignHorizontalCenterRounded";
+import AlignHorizontalRightRoundedIcon from "@mui/icons-material/AlignHorizontalRightRounded";
+import AlignVerticalTopRoundedIcon from "@mui/icons-material/AlignVerticalTopRounded";
+import AlignVerticalCenterRoundedIcon from "@mui/icons-material/AlignVerticalCenterRounded";
+import AlignVerticalBottomRoundedIcon from "@mui/icons-material/AlignVerticalBottomRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import CodeIcon from "@mui/icons-material/Code";
 import SchemaOutlinedIcon from "@mui/icons-material/SchemaOutlined";
@@ -49,11 +55,21 @@ import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import SearchIcon from "@mui/icons-material/Search";
 import SortIcon from "@mui/icons-material/Sort";
 import ClearIcon from "@mui/icons-material/Clear";
+// 书场景底部状态栏（写作域速览）图标（2026-09-19 改造）
+import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
+import SubjectIcon from "@mui/icons-material/Subject";
+import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
+import TimelineIcon from "@mui/icons-material/Timeline";
+import PushPinIcon from "@mui/icons-material/PushPin";
 import { useEditorStore } from "../store/editorStore";
 import { useDirtyStore } from "../store/editorStore";
+import { openWritingDesk } from "../utils/writingDeskWindow";
 import { useSceneStore } from "../store/sceneStore";
+import { useWritingStore } from "../store/writingStore";
 import { useProjectStore } from "../store/projectStore";
 import { FileRenderer } from "./renderers/FileRenderer";
+// 载体工作台实体注册（side-effect：写入组件注册表，须在 analyzer 桥接前生效）
+import "./registerWritingWorkbench";
 import { ImageRenderer } from "./renderers/ImageRenderer";
 import { AssetRenderer } from "./renderers/AssetRenderer";
 import { ImagePreviewDialog } from "./panels/ImagePreviewDialog";
@@ -71,6 +87,18 @@ import { PatternNodeRenderer } from "./renderers/PatternNodeRenderer";
 import { TreemapCellRenderer } from "./renderers/TreemapCellRenderer";
 import { QuadrantZoneBgRenderer } from "./renderers/QuadrantZoneBgRenderer";
 import { QuadrantAxisRenderer } from "./renderers/QuadrantAxisRenderer";
+import {
+  WritingChapterRenderer,
+  WritingCharacterRenderer,
+  WritingOutlineRenderer,
+  WritingWorldviewRenderer,
+} from "./renderers/WritingEntityRenderer";
+import { WritingWorkbenchRenderer } from "./renderers/WritingWorkbenchRenderer";
+// 载体工作台（writing-workbench）之外的两种**铺满画布**的写作卡也必须进本静态表 ——
+// 画布节点只查 RENDERERS，从不查 componentRegistry / plugin rendererCache，
+// 漏了就是 UnknownTypeFallback 红框（与 asset / image 当初漏注册是同一个坑）。
+import { WritingDocsRenderer } from "./renderers/WritingDocsRenderer";
+import { WritingStudioPane } from "./renderers/WritingStudioPane";
 import { EntityInfoPanel } from "./panels/EntityInfoPanel";
 import { EntityPortraitPanel } from "./panels/EntityPortraitPanel";
 import { ReviewFindingsPanel } from "./panels/ReviewFindingsPanel";
@@ -86,7 +114,6 @@ import { triggerDiagnosis } from "../ai/triggerDiagnosis";
 import { aiButtonSx, AI_COLOR } from "../ai/aiBrand";
 import { SceneTabBar } from "./components/SceneTabBar";
 import { EditorContextMenu } from "./components/EditorContextMenu";
-import { PluginSelector } from "./components/PluginSelector";
 import { componentRegistry } from "./registry";
 import { computeVisibleEntityIds } from "./utils/viewportCulling";
 import { lodForScale, type CanvasLod } from "./utils/lod";
@@ -124,10 +151,30 @@ import { highlightInCanvasByText } from "./utils/canvasLink";
 import { sortComponentsEdgesFirst } from "./utils/canvasOrder";
 import { topDirOf } from "./utils/architectureMetrics";
 import logger from "../utils/logger";
+import { createBlankWritingEntity, createBookFromCarrierDrop, openChapterCarrierView, ensureCarrierContainer, parseBookIdFromScene, openTypedCarrierView } from "../utils/studioBook";
+import { WRITING_SURFACE_ATTR, findFullBleedCard, hasWritingCanvasCard, isFullCanvasWritingCard, shouldYieldToNativeContextMenu } from "../utils/writingPaneSeed";
+import { genreLabelKey } from "../utils/writingSchema";
 import type { SceneComponent } from "../types/editor";
 import type { ProjectFile } from "../services/tauri";
 import { spawnCodeWorkbench } from "../services/tauri";
 import { t, resolveFragments } from "../i18n";
+import { WritingPropertyPanel } from "./panels/WritingPropertyPanel";
+import { BookMetaPanel } from "./panels/BookMetaPanel";
+import { TimelineOverviewPanel, TimelineEventDetail, StorylineDetail } from "./panels/TimelineSidePanels";
+import { ForeshadowingOverviewCard, ForeshadowingDetail } from "./panels/ForeshadowingPanels";
+import { InspirationOverviewCard, InspirationDetail } from "./panels/InspirationPanels";
+import { ProofreadOverviewCard } from "./panels/ProofreadPanels";
+import { StatsOverviewCard } from "./panels/StatsPanels";
+import { WritingDocsDetailCard } from "./panels/WritingDocsDetailCard";
+import { clampRightTab } from "../utils/rightTabClamp";
+import { WritingInspectorPanel, WritingSettingDetail, WritingSettingContextPanel, WorldviewOverview } from "./panels/WritingInspectorPanel";
+// 注：WritingRightPanel 的四个面板（人物/设定/关系/大纲）已从右栏撤除 —— 它们把 L2 的
+// 题材分类又铺了一遍（人物/大纲与 L2 完全重复，设定=世界观换名，关系是人物画布的同源列表）。
+// 面板文件**保留在盘上**，未提交前不删源码（铁律）；卷部管理唯一入口已挪到「要素」栏底部。
+// WritingPalettePanel（拖拽调色板）同样已下线：把「创建动作」包装成「摆放动作」对写作是伪需求，
+// 文件保留待拍板是否清理。
+// 2026-09-12 方向纠正：**内容编辑面是编辑区**。L2 题材视图（大纲/人物设定/世界观）改铺
+// writing-studio-pane 可编辑编辑面（studioBook.reconcileStudioPaneView），右栏退为只读检查器。
 
 const RENDERERS: Record<string, any> = {
   file: FileRenderer,
@@ -155,6 +202,21 @@ const RENDERERS: Record<string, any> = {
   // plugin rendererCache 却漏掉本静态表 → 画布上 asset 实体全部落进红框兜底。
   // 现在同样走专属 AssetRenderer（格式感知图标 + 体积画像，零代码洞察叠层）。
   asset: AssetRenderer,
+  // 写作实体（H1 全书总览板）：章节/人物/卷头/世界观。书=场景后画布会真实
+  // 摆这些实体，缺了落红框兜底。
+  "writing-chapter": WritingChapterRenderer,
+  "writing-character": WritingCharacterRenderer,
+  "writing-outline": WritingOutlineRenderer,
+  "writing-worldview": WritingWorldviewRenderer,
+  // 载体工作台（工作室重构 P1）：拖「载体」落下的大尺寸可编辑纸面卡
+  "writing-workbench": WritingWorkbenchRenderer,
+  // 正文容器（G3）：L3 卷/章节文档页签 + 正文编辑区，铺满画布的固定卡。
+  // 此前**漏在本静态表**里 → 该卡一直落 UnknownTypeFallback 红框，
+  // 「正文视图里没有编辑区」的真因就在这（与 asset 漏注册同一形态）。
+  "writing-docs": WritingDocsRenderer,
+  // L2 题材编辑面（2026-09-12）：大纲 / 人物设定 / 世界观视图里的铺满编辑面，
+  // 就地读写 writing_chapters / writing_outlines / writing_settings。
+  "writing-studio-pane": WritingStudioPane,
 };
 
 /**
@@ -423,6 +485,55 @@ const CanvasEntityNode = memo(function CanvasEntityNode({
                   : { opened: false, focusedCanvas: false, message: t("editor.patternNoFile") };
             if (!res.opened) useToastStore.getState().showToast(res.message, "warning");
             else useToastStore.getState().showToast(res.message, "success");
+          } else if (comp.type === "writing-chapter" || comp.type === "writing-workbench" || comp.type === "writing-character" || comp.type === "writing-worldview") {
+            // P1 跳转语义（「卡即入口」承诺）：写作实体卡双击不进 CodeWorkbench ——
+            // 章节的正确工作面是写作台正文（虚拟 md 文件对用户毫无意义），人物/世界观
+            // 的正确工作面是设定卡编辑。带定位 state 跳 /writing，由 WritingPage 挂载
+            // effect 消费（切书/切 Tab/激活目标）。解析不出业务 id 的旧壳卡降级为选中，
+            // toast 明说，绝不静默 no-op。
+            const ws = useWritingStore.getState();
+            const cfgBook =
+              typeof cfg.filePath === "string"
+                ? (cfg.filePath.match(/^writing:\/\/([^/]+)\//)?.[1] ?? null)
+                : null;
+            const bookId = cfgBook ?? ws.activeBookId;
+            if (comp.type === "writing-chapter" || comp.type === "writing-workbench") {
+              let chapterId: string | null =
+                typeof cfg.chapterId === "string" && cfg.chapterId ? (cfg.chapterId as string) : null;
+              if (!chapterId && typeof cfg.fileId === "string" && (cfg.fileId as string).startsWith("wfile_")) {
+                // 确定性约定：writing.rs fileId = wfile_{chapter_id}
+                chapterId = (cfg.fileId as string).slice("wfile_".length);
+              }
+              if (!chapterId && typeof cfg.filePath === "string") {
+                const m = (cfg.filePath as string).match(/^writing:\/\/[^/]+\/(.+)\.md$/);
+                if (m) chapterId = m[1];
+              }
+              if (chapterId) {
+                void openWritingDesk({ bookId, chapterId });
+                return;
+              }
+              if (comp.type === "writing-workbench" && cfgBook) {
+                // 设计视图卡（书级绑定，无章节）：双击只选中，不打「未绑定」警告——
+                // 它绑定的是书本身，不是丢失绑定的壳卡
+                useEditorStore.getState().selectComponent(comp.id, false);
+                return;
+              }
+            } else {
+              let settingId: string | null =
+                typeof cfg.settingId === "string" && cfg.settingId ? (cfg.settingId as string) : null;
+              if (!settingId) {
+                // 重扫生成的卡只有名字：按名匹配业务层设定（resolveFragments 解 i18n key 壳卡）
+                const nm = resolveFragments(comp.name);
+                const hit = ws.settings.find((x) => x.name === nm);
+                if (hit) settingId = hit.id;
+              }
+              if (settingId) {
+                void openWritingDesk({ bookId, settingId });
+                return;
+              }
+            }
+            useToastStore.getState().showToast(t("editor.writingCardNoBinding", { name: comp.name }), "warning");
+            useEditorStore.getState().selectComponent(comp.id, false);
           } else if (typeof cfg.fileId === "string" || typeof cfg.filePath === "string") {
             // v2.19 通用兜底：任何带 fileId/filePath 的实体（网格类/象限/影响链/函数热点/数据流/
             // 架构·分层文件节点…）双击即跳源码——把"看得到问题文件"直接变成"摸得着去修"。
@@ -663,10 +774,137 @@ function CanvasLoadingSkeleton({
   );
 }
 
+// ─── P2 多选对齐/分布工具条：框选/加选 ≥2 个可移动实体时，画布顶部居中浮现 ───
+// 对齐基准 = 全部选中（未锁定）实体的包围盒；分布要求 ≥3 个。只调 transform，
+// 走 updateComponentTransform 的防抖历史（一批操作一条撤销记录）。
+const ALIGN_IGNORE_TYPES = new Set(["dependency-edge", "quadrant-zone-bg"]);
+
+function AlignToolbar({ selectedIds }: { selectedIds: string[] }) {
+  const components = useEditorStore((s) => s.components);
+  const updateComponentTransform = useEditorStore((s) => s.updateComponentTransform);
+  const movable = useMemo(
+    () =>
+      components.filter(
+        (c) => selectedIds.includes(c.id) && !c.locked && c.visible && !ALIGN_IGNORE_TYPES.has(c.type)
+      ),
+    [components, selectedIds]
+  );
+
+  const align = (axis: "x" | "y", mode: "min" | "center" | "max") => {
+    if (movable.length < 2) return;
+    const sizeOf = (c: (typeof movable)[number]) => (axis === "x" ? c.transform.width : c.transform.height);
+    const posOf = (c: (typeof movable)[number]) => (axis === "x" ? c.transform.x : c.transform.y);
+    const min = Math.min(...movable.map(posOf));
+    const max = Math.max(...movable.map((c) => posOf(c) + sizeOf(c)));
+    const mid = (min + max) / 2;
+    for (const c of movable) {
+      // 各物体按自身尺寸回退：左/顶贴 min，右/底贴 max，中线居中
+      const p = mode === "min" ? min : mode === "max" ? max - sizeOf(c) : mid - sizeOf(c) / 2;
+      updateComponentTransform(c.id, axis === "x" ? { x: Math.max(0, p) } : { y: Math.max(0, p) });
+    }
+  };
+
+  const distribute = (axis: "x" | "y") => {
+    if (movable.length < 3) return;
+    const sizeOf = (c: (typeof movable)[number]) => (axis === "x" ? c.transform.width : c.transform.height);
+    const posOf = (c: (typeof movable)[number]) => (axis === "x" ? c.transform.x : c.transform.y);
+    const sorted = [...movable].sort((a, b) => posOf(a) - posOf(b));
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const span = posOf(last) + sizeOf(last) - posOf(first) - sorted.reduce((sum, c) => sum + sizeOf(c), 0);
+    const gap = span / (sorted.length - 1);
+    let cursor = posOf(first);
+    for (const c of sorted) {
+      updateComponentTransform(c.id, axis === "x" ? { x: Math.max(0, cursor) } : { y: Math.max(0, cursor) });
+      cursor += sizeOf(c) + gap;
+    }
+  };
+
+  if (movable.length < 2) return null;
+
+  const btnSx = {
+    minWidth: 26,
+    height: 24,
+    px: 0.5,
+    fontSize: 11,
+    lineHeight: 1,
+    color: "text.secondary",
+    "&:hover": { color: "text.primary", backgroundColor: "action.hover" },
+  } as const;
+
+  const canDistribute = movable.length >= 3;
+
+  return (
+    <Box
+      sx={{
+        position: "absolute",
+        top: 12,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 10,
+        display: "flex",
+        alignItems: "center",
+        gap: 0.25,
+        backgroundColor: (t) =>
+          t.palette.mode === "dark" ? "rgba(30, 30, 40, 0.85)" : "rgba(255, 255, 255, 0.85)",
+        backdropFilter: "blur(8px)",
+        borderRadius: 1.5,
+        border: 1,
+        borderColor: "divider",
+        px: 0.75,
+        py: 0.4,
+      }}
+    >
+      <Tooltip title={t("editor.align.left")}><IconButton size="small" sx={btnSx} onClick={() => align("x", "min")}><AlignHorizontalLeftRoundedIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+      <Tooltip title={t("editor.align.centerX")}><IconButton size="small" sx={btnSx} onClick={() => align("x", "center")}><AlignHorizontalCenterRoundedIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+      <Tooltip title={t("editor.align.right")}><IconButton size="small" sx={btnSx} onClick={() => align("x", "max")}><AlignHorizontalRightRoundedIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+      <Tooltip title={t("editor.align.top")}><IconButton size="small" sx={btnSx} onClick={() => align("y", "min")}><AlignVerticalTopRoundedIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+      <Tooltip title={t("editor.align.centerY")}><IconButton size="small" sx={btnSx} onClick={() => align("y", "center")}><AlignVerticalCenterRoundedIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+      <Tooltip title={t("editor.align.bottom")}><IconButton size="small" sx={btnSx} onClick={() => align("y", "max")}><AlignVerticalBottomRoundedIcon sx={{ fontSize: 15 }} /></IconButton></Tooltip>
+      <Box sx={{ width: 1, height: 14, mx: 0.25, borderRight: 1, borderColor: "divider" }} />
+      <Tooltip title={t("editor.align.distX")}><Box component="button" onClick={() => distribute("x")} sx={{ ...btnSx, border: "none", cursor: canDistribute ? "pointer" : "not-allowed", opacity: canDistribute ? 1 : 0.4 }}>{t("editor.align.distXShort")}</Box></Tooltip>
+      <Tooltip title={t("editor.align.distY")}><Box component="button" onClick={() => distribute("y")} sx={{ ...btnSx, border: "none", cursor: canDistribute ? "pointer" : "not-allowed", opacity: canDistribute ? 1 : 0.4 }}>{t("editor.align.distYShort")}</Box></Tooltip>
+    </Box>
+  );
+}
+
+/**
+ * 视图名去重：重复拖同载体渲染新视图时，自动加「 2 /  3 …」序号，避免 Tab 重名。
+ * 仅作用于载体视图命名（新书/新章），不影响用户手动双击改名。
+ */
+function dedupViewName(base: string): string {
+  const taken = new Set(useEditorStore.getState().views.map((v) => v.name));
+  if (!taken.has(base)) return base;
+  let i = 2;
+  while (taken.has(`${base} ${i}`)) i++;
+  return `${base} ${i}`;
+}
+
+/** 空书画布的题材载体拖入（2026-09-21 用户拍板）：书场景画布还没有任何载体时，
+ * 拖题材 = 打开**当前书**的大纲编辑视图（openTypedCarrierView 命中即切、缺省即建），
+ * 不再新建一本书 —— 「拖入载体，开始创作」空态引导承诺的就是开始创作当前书，
+ * 新建作品走 L1「＋」/书架入口。体裁优先取当前书的（书场景=当前书），
+ * 缺失时回落拖入载体的体裁。返回 true 表示已接管；
+ * 画布已有载体时返回 false，调用方保持 2026-09-12 语义（再拖 = 新建一本书，多开）。 */
+function dropOpensCurrentBookView(isBookScene: boolean, dropGenre: string): boolean {
+  if (!isBookScene) return false;
+  const ed = useEditorStore.getState();
+  if (ed.views.some((v) => hasWritingCanvasCard(v.components))) return false;
+  const bookId = parseBookIdFromScene();
+  const book = useWritingStore.getState().books.find((b) => b.id === bookId);
+  openTypedCarrierView(book?.genre || dropGenre, "catalog");
+  return true;
+}
+
 function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => void; syncing?: boolean }) {
   const components = useEditorStore((s) => s.components);
   const selectComponent = useEditorStore((s) => s.selectComponent);
   const addComponent = useEditorStore((s) => s.addComponent);
+  const updateComponent = useEditorStore((s) => s.updateComponent);
+  const updateComponentConfig = useEditorStore((s) => s.updateComponentConfig);
+  // 载体视图（V4）：拖载体 = 视图内容已有则新开视图承载；落位后清选择避免全幅选中描边
+  // （deselectAll 复用上方既有选择器、updateComponentTransform 复用下方拖拽段既有选择器，勿重复声明）
+  const addView = useEditorStore((s) => s.addView);
   const selectedIds = useEditorStore((s) => s.selection.selectedIds);
   const deselectAll = useEditorStore((s) => s.deselectAll);
   const focusRequest = useEditorStore((s) => s.focusRequest);
@@ -688,12 +926,33 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
   const dataFlowFacts = useProjectStore((s) => s.dataFlow);
   // v2.17 依赖画像筛选镜：all=不过滤 / cycles=仅循环依赖 / crossModule=仅跨模块边
   const depFilter = useEditorStore((s) => s.depFilter);
+  // 时间线画布实时刷新（P2）：timelineEvents 引用变化且当前激活视图是 timeline 时，
+  // 自动重铺板（见下方 useEffect）。reseed 只动 editor store，不会反向改 timelineEvents → 无循环。
+  const timelineEvents = useWritingStore((s) => s.timelineEvents);
+  const activeViewKind = useEditorStore((s) => s.views.find((v) => v.id === s.activeViewId)?.kind);
+  const activeViewId = useEditorStore((s) => s.activeViewId);
+
+  // ─── 书场景（写作）判定：画布上的**分析器仪表**不在写作场景出现 ───
+  // 口径与 SceneTabBar / PortraitLegend / 右栏 / ComponentCenterPanel 完全一致：
+  // activeScene.primaryLanguage === "novel-zh"，全项目只有这一个信号源。
+  // 取值型选择器（返回 boolean）→ 只在真正切换场景时重渲染。
+  const isBookScene = useSceneStore(
+    (s) => s.scenes.find((sc) => sc.id === s.activeSceneId)?.primaryLanguage === "novel-zh"
+  );
 
   /**
    * 影响链传播跳数：0 = 关闭（回到单跳邻接的旧行为），1/2/3 = 多跳传播。
    * 默认 2 —— 1 跳等价于旧行为，3 跳在中型仓库已经开始出现「点亮半个项目」的噪声。
+   *
+   * 书场景（写作）强制 0：影响链问的是「改这个文件会炸到谁」，是纯代码分析语汇，
+   * 小说创作里没有对应物（用户点名「影响链 · 3 跳 我们不需要」）。
+   * **不是只藏那个按钮**：只藏控制器的话，选中卡片仍会按跳数着色、挂「↑2」角标，
+   * 分析器语汇照样漏在写作台上；这里把值打成 0，BFS 直接不跑（buildImpactChain
+   * 在 depth<1 时提前返回 null），图例 / TIA 弹层 / 跳数角标随之全空。
+   * 用「派生」而非改 state：切回代码场景时用户原来的跳数选择原样还在。
    */
-  const [chainDepth, setChainDepth] = useState<number>(2);
+  const [chainDepthRaw, setChainDepth] = useState<number>(2);
+  const chainDepth = isBookScene ? 0 : chainDepthRaw;
   // 画布右下角 AI 悬浮入口：取当前选中文件实体的路径（供「诊断选中文件」菜单项）
   const selectedFileForAi = useEditorStore((s) => {
     const id = s.selection.selectedIds[0];
@@ -730,6 +989,106 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
   } = useCanvasPanZoom({ containerRef: canvasRef, contentRef, limits: ZOOM_LIMITS, zoomStep: ZOOM_STEP });
   const scale = viewport.scale;
   const panOffset = viewport.offset;
+
+  // ─── H6 框选：左键在画布空白处拖拽 → 矩形选实体（代码/书场景共用同一画布，零回归）───
+  // 平移手势只吃中键/右键（useCanvasPanZoom panButtons=[1,2]），左键空白处完全空闲，
+  // 框选用标准 UX：拖拽画矩形，松手按画布坐标 AABB 交集多选实体。
+  // 覆盖层 mousemove 直写 DOM style（与 panZoom 同一哲学），不进 React 渲染循环。
+  const boxOverlayRef = useRef<HTMLDivElement>(null);
+  const boxDragRef = useRef<{ startX: number; startY: number; additive: boolean; moved: boolean } | null>(null);
+  // 框选松手后的 click 会落在画布空白 → 既有 onClick 会 deselectAll 把框选结果清掉，须抑制一次
+  const boxSuppressClickRef = useRef(false);
+
+  const handleBoxSelectStart = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    // 实体上的按下交给实体自己的单击/拖拽逻辑；画布内按钮/输入框不参与框选
+    if (target && (target.closest(".ps-entity") || target.closest("button, a, input, textarea, [role='button']"))) return;
+    e.preventDefault(); // 拖拽期间避免原生文本选中
+    boxDragRef.current = { startX: e.clientX, startY: e.clientY, additive: e.shiftKey, moved: false };
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const bs = boxDragRef.current;
+      const ov = boxOverlayRef.current;
+      const el = canvasRef.current;
+      if (!bs || !ov || !el) return;
+      if (Math.abs(e.clientX - bs.startX) > 3 || Math.abs(e.clientY - bs.startY) > 3) bs.moved = true;
+      if (!bs.moved) return;
+      const rect = el.getBoundingClientRect();
+      const x1 = Math.max(rect.left, Math.min(bs.startX, e.clientX));
+      const y1 = Math.max(rect.top, Math.min(bs.startY, e.clientY));
+      const x2 = Math.min(rect.right, Math.max(bs.startX, e.clientX));
+      const y2 = Math.min(rect.bottom, Math.max(bs.startY, e.clientY));
+      ov.style.display = "block";
+      ov.style.left = `${x1 - rect.left}px`;
+      ov.style.top = `${y1 - rect.top}px`;
+      ov.style.width = `${x2 - x1}px`;
+      ov.style.height = `${y2 - y1}px`;
+    };
+    const onUp = (e: MouseEvent) => {
+      const bs = boxDragRef.current;
+      boxDragRef.current = null;
+      const ov = boxOverlayRef.current;
+      if (ov) ov.style.display = "none";
+      if (!bs || !bs.moved) return; // 原地点击 → 落回既有 onClick（空白点击取消选中）
+      boxSuppressClickRef.current = true;
+      const a = clientToCanvas(bs.startX, bs.startY);
+      const b = clientToCanvas(e.clientX, e.clientY);
+      const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
+      const minY = Math.min(a.y, b.y), maxY = Math.max(a.y, b.y);
+      const hits = useEditorStore.getState().components.filter((c) => {
+        if (!c.visible) return false;
+        // 与 CanvasEntityNode 同口径：边/象限底/下钻框是装饰或独立交互，不进框选
+        if (c.type === "dependency-edge" || c.type === "quadrant-zone-bg") return false;
+        // 铺满画布的容器卡（正文容器 / 题材编辑面）整卡拦截指针事件、点选不到，
+        // 但框选按几何命中 —— 不排除的话一次框选就能把它选中并拖走/删掉。
+        if (isFullCanvasWritingCard(c.type)) return false;
+        if ((c.config as any)?.drillFrame) return false;
+        const t2 = c.transform;
+        return t2.x < maxX && t2.x + t2.width > minX && t2.y < maxY && t2.y + t2.height > minY;
+      });
+      const ed = useEditorStore.getState();
+      if (!bs.additive) ed.deselectAll();
+      for (const h of hits) ed.selectComponent(h.id, true);
+      // 联动绝不静默 no-op：0 命中给提示，多选给计数
+      const toast = useToastStore.getState();
+      if (hits.length === 0) toast.showToast(t("editor.boxSelectEmpty"), "info");
+      else if (hits.length > 1) toast.showToast(t("editor.boxSelectDone", { n: hits.length }), "success");
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [clientToCanvas, t]);
+
+  // ─── 画布截图导出 PNG（低频操作，动态 import 不进主包；捕获 canvasRef 容器，
+  //     工具条/小地图是其兄弟节点，天然不入图）───
+  const [exportingPng, setExportingPng] = useState(false);
+  const handleExportPng = useCallback(async () => {
+    const el = canvasRef.current;
+    if (!el || exportingPng) return;
+    setExportingPng(true);
+    try {
+      const { toPng } = await import("html-to-image");
+      const dataUrl = await toPng(el, { pixelRatio: 2 });
+      const ss = useSceneStore.getState();
+      const sceneName = ss.scenes.find((s) => s.id === ss.activeSceneId)?.name;
+      const a = document.createElement("a");
+      a.download = `${sceneName || "canvas"}-canvas.png`;
+      a.href = dataUrl;
+      a.click();
+      useToastStore.getState().showToast(t("editor.pngExportOk"), "success");
+    } catch (err) {
+      logger.warn("ProjectCanvas", "png export failed", { err: String(err) });
+      useToastStore.getState().showToast(t("editor.pngExportFail"), "error");
+    } finally {
+      setExportingPng(false);
+    }
+  }, [exportingPng, t]);
 
   // ─── LOD 档位（R37：全览时虚拟化失效的补位手段）──────────────────────
   // 视口虚拟化只在「实体在视口外」时省事，而用户最常用的「适应画布」恰恰把
@@ -840,6 +1199,47 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
   const displayComponents = useMemo(
     () => sortComponentsEdgesFirst(components, visibleEntityIds),
     [components, visibleEntityIds],
+  );
+
+  // ─── 铺满画布的写作容器卡（正文容器 / 题材编辑面）→ 视口贴面渲染 ───────────
+  // 它们不是「画布上的一个对象」，而是**整块画布本身**（用户拍板：
+  // 「大纲中间的编辑区要覆盖整个画布，中间不要留背景」）。
+  //
+  // 为什么不能继续当普通实体：实体活在 transform 层里，随视口缩放平移 ——
+  // 一张 1920×1080 的编辑面经「适应画布」（padding 80 + 居中）后只剩 0.46 倍，
+  // 实测四周留白 左80/右80/上131/下131 px，pane 里 11px 的字被压成 5px。
+  // 贴面渲染（position:absolute inset:0，不吃缩放平移）后：编辑区等于整个视口，
+  // 1:1 像素、随窗口自适应、不裁切、零底纹。
+  //
+  // 层序刻意让贴面在下（zIndex 1）、变换层在上 —— 用户拖进画布的实体卡照常
+  // 可见可拖，绝不因为编辑区铺满而被盖住（「静默丢内容」是最不能接受的失败模式）。
+  const fullBleedComp = useMemo(() => {
+    const bleed = components.filter((c) => isFullCanvasWritingCard(c.type));
+    // 一个视图只该有一张铺满卡（正文容器 _或_ 题材编辑面）。真出现第二张
+    // （历史事故 / 异常恢复 / 换视图失败），只渲染第一张 —— 但**必须留痕**：
+    // 静默少渲染一张卡比报错更难查。题材编辑面的这类重复由
+    // studioBook.reconcileStudioPaneView 幂等清场（见 duplicateStudioPaneIds）。
+    if (bleed.length > 1) {
+      logger.throttled("canvas.bleedDuplicated", "SceneEditor", "multiple full-bleed writing cards in one view", () => ({
+        viewId: useEditorStore.getState().activeViewId,
+        types: bleed.map((c) => c.type),
+        rendered: bleed[0].type,
+      }));
+    }
+    return findFullBleedCard(components);
+  }, [components]);
+  const FullBleedRenderer = fullBleedComp
+    ? (RENDERERS[fullBleedComp.type] ?? UnknownTypeFallback)
+    : null;
+  // ─── 画布仪表（小地图 / 底部缩放条）是否还有意义 ──────────────────────────
+  // 判定：视图里除了铺满画布的编辑面，还有真正的画布对象吗？
+  // 没有 → 视口不再映射到用户看到的画面：缩放/适应/1:1 按下去画面纹丝不动
+  // （用户原话「大纲视图下这个不需要」），小地图点哪都只移动看不见的层，
+  // 而它们都固定吸附画布边缘、会压在编辑区上 → 一律不出。
+  // 落过实体卡的视图照常给（那时缩放/导航是真的有用）。
+  const hasCanvasObjects = useMemo(
+    () => !fullBleedComp || components.some((c) => !isFullCanvasWritingCard(c.type)),
+    [components, fullBleedComp]
   );
 
   /**
@@ -1275,14 +1675,33 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
   // memo 节点 + 只更新 transform，拖动帧只重渲染被拖实体，其余实体跳过。
   const updateComponentTransform = useEditorStore((s) => s.updateComponentTransform);
   const dragStateRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
-
+  // P2 网格吸附：写作实体/便签按 10px 栅格取整，代码实体不吸附（零回归）
+  const WRITING_SNAP = 10;
+  const WRITING_SNAP_TYPES = useMemo(
+    () => new Set(["writing-chapter", "writing-character", "writing-outline", "writing-worldview", "writing-workbench", "annotation-text"]),
+    []
+  );
   const handleNodeDragStart = useCallback((e: React.MouseEvent, comp: SceneComponent) => {
     if (e.button !== 0) return;
     // 连线 / 分层标记 / 象限背景区不可拖拽（象限背景纯装饰，pointer-events 已在 shell 层 none）
     if (comp.type === "dependency-edge" || comp.type === "layer-marker" || comp.type === "quadrant-zone-bg") return;
-    // 默认目录树视图：实体由画像引擎自动布局（含树形引导线），
-    // 手动拖动会破坏缩进结构与父子连线，故禁止任何实体在此视图拖动
-    if (useEditorStore.getState().activeViewId === "default") return;
+    // 默认目录树视图：代码场景实体由画像引擎自动布局（含树形引导线），
+    // 手动拖动会破坏缩进结构与父子连线，故禁止拖动。
+    // 书场景（novel-zh）例外：画布是自由排版板（全书总览卡 + 拖入元素），
+    // 没有树形引导线，「拖入元素后编版」正是它的核心交互 —— default 视图也必须可拖。
+    const ss = useSceneStore.getState();
+    const isBookScene =
+      ss.scenes.find((sc) => sc.id === ss.activeSceneId)?.primaryLanguage === "novel-zh";
+    const activeViewId = useEditorStore.getState().activeViewId;
+    // DIAGNOSTIC：拖不动的排查锚点 2/2 —— mousedown 是否到达壳层、被哪个守卫拦下。
+    // 上游锚点 1/2 在渲染器（WritingDesignView.paneMouseDown 分流）。
+    logger.info("SceneEditor", "DIAGNOSTIC entity mousedown reached shell", {
+      type: comp.type,
+      id: comp.id,
+      activeViewId,
+      isBookScene,
+    });
+    if (activeViewId === "default" && !isBookScene) return;
     e.preventDefault();
     e.stopPropagation();
     // 拖拽即选中（与 biosphere 单击选中/拖拽移动一致）
@@ -1302,8 +1721,15 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
       if (!st) return;
       // 用 live 视口的 scale（state 是节流的，拖实体时若刚缩放过会算错位移）
       const s = viewportRef.current.scale;
-      const x = Math.max(0, st.origX + (e.clientX - st.startX) / s);
-      const y = Math.max(0, st.origY + (e.clientY - st.startY) / s);
+      let x = Math.max(0, st.origX + (e.clientX - st.startX) / s);
+      let y = Math.max(0, st.origY + (e.clientY - st.startY) / s);
+      // P2 网格吸附：写作实体/便签按 10px 栅格取整（分镜排版对齐），
+      // 代码实体不吸附（保护既有画像布局习惯，零回归）
+      const live = useEditorStore.getState().components.find((c) => c.id === st.id);
+      if (live && WRITING_SNAP_TYPES.has(live.type)) {
+        x = Math.round(x / WRITING_SNAP) * WRITING_SNAP;
+        y = Math.round(y / WRITING_SNAP) * WRITING_SNAP;
+      }
       updateComponentTransform(st.id, { x, y });
     };
     const onUp = () => {
@@ -1316,6 +1742,8 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
       window.removeEventListener("mouseup", onUp);
     };
   }, [updateComponentTransform, viewportRef]);
+
+  // ─── V4 拍板：载体 = 铺满画布的载体视图，拖动/缩放均无意义，实体缩放手柄已移除 ───
 
   // ─── 左侧面板/文件树定位联动：监听 focusRequest 居中组件 ───
   const prevFocusTs = useRef(0);
@@ -1368,15 +1796,21 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
       fitRequest.ids && fitRequest.ids.length > 0
         ? components.filter((c) => fitRequest.ids!.includes(c.id))
         : components;
-    const bounds = contentBounds(targets.length > 0 ? targets : components);
-    const next = fitViewport(bounds, { width: rect.width, height: rect.height }, ZOOM_LIMITS);
+    // 铺满画布的写作容器卡已经不在画布坐标系里（视口贴面渲染，见 fullBleedComp）——
+    // 把它算进包围盒，会让「适应画布」按 1920×1080 缩到 0.46 倍并把视口挪到居中，
+    // 同视图里新落的实体卡跟着变成蚂蚁。全部被过滤掉（视图里只有编辑面）时不 fit：
+    // 画布上确实没有可框的东西，编辑面本就铺满视口 —— 是「无事可做」，不是静默 no-op。
+    const canvasTargets = targets.filter((c) => !isFullCanvasWritingCard(c.type));
+    const bounds = contentBounds(canvasTargets);
+    const next = canvasTargets.length > 0 ? fitViewport(bounds, { width: rect.width, height: rect.height }, ZOOM_LIMITS) : null;
     logger.throttled(
       "canvas.fit",
       "ProjectCanvas",
       "fit effect computed viewport",
       () => ({
         fitRequestTs: fitRequest.ts,
-        targetCount: targets.length,
+        targetCount: canvasTargets.length,
+        skippedFullBleed: targets.length - canvasTargets.length,
         bounds,
         containerSize: { width: rect.width, height: rect.height },
         computedViewport: next,
@@ -1389,6 +1823,15 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
   // 打开上下文菜单
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
+      // 铺满画布的写作编辑区（贴面层）**不是画布实体**，而载体卡**里面**的正文也一样：
+      // 文书编辑区的右键属于写作 —— 正文（TipTap）的剪切 / 复制 / 粘贴 / 拼写、大纲
+      // 输入框的拼写检查都要原生菜单。而画布实体菜单对贴面层 9 项里 7 项是静默 no-op
+      // （贴面层不走变换层 → 层级/锁定/隐藏都动不了；复制出的第二张被 findFullBleedCard
+      // 忽略），只有「删除」有反应 —— 反应是编辑区整块消失。
+      // 所以这里**直接放行：既不弹菜单，也不 preventDefault**，让事件冒泡到原生菜单。
+      // 判定收在 shouldYieldToNativeContextMenu（贴面层标记 + 书场景可编辑区），
+      // 代码场景两个条件都命中不了 → 行为一行未动。
+      if (shouldYieldToNativeContextMenu(e.target as HTMLElement, isBookScene)) return;
       e.preventDefault();
       // 查找点击的目标组件
       const target = (e.target as HTMLElement).closest("[data-component-id]");
@@ -1402,7 +1845,7 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
           : null
       );
     },
-    [contextMenu]
+    [contextMenu, isBookScene]
   );
 
   const handleCloseContextMenu = useCallback(() => {
@@ -1413,7 +1856,13 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-    if (!isDragOver) setIsDragOver(true);
+    if (!isDragOver) {
+      // DIAGNOSTIC：首次进入画布的 dragover（拖拽信号已建立，画布可接收 drop）
+      logger.info("SceneEditor", "DragOver first hit on canvas", {
+        types: e.dataTransfer?.types ? Array.from(e.dataTransfer.types) : [],
+      });
+      setIsDragOver(true);
+    }
 
     // 更新拖放预览位置（用 live 视口换算，平移中也准）
     setDragPreview(clientToCanvas(e.clientX, e.clientY));
@@ -1432,18 +1881,254 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
     setIsDragOver(false);
     setDragPreview(null);
 
+    // ─── DIAGNOSTIC（对标 biosphere EditorCanvas Drop 入口日志）：
+    // 拖入创建曾「拖了没反应」且零日志黑盒，这里把 drop 收到的全部信号打出来
+    logger.info("SceneEditor", "Drop event triggered", {
+      hasDataTransfer: !!e.dataTransfer,
+      allDataTypes: e.dataTransfer?.types ? Array.from(e.dataTransfer.types) : [],
+    });
+
     const entityType = e.dataTransfer.getData("application/x-project-entity");
-    if (!entityType) return;
+    if (!entityType) {
+      // 绝不静默：drop 收到但拿不到实体类型信号（WKWebView 自定义 MIME 偶发 quirk）
+      logger.warn("SceneEditor", "Drop without entity type signal", {
+        types: e.dataTransfer?.types ? Array.from(e.dataTransfer.types) : [],
+      });
+      useToastStore.getState().showToast(t("editor.dropNoSignal"), "warning");
+      return;
+    }
 
+    // 可选业务 payload（P0 拖入通路）：左栏写作实体行拖出时附带 name/config，
+    // 拖进去的卡直接绑定真实业务数据（人物名/戏份/主出场章），不再是空壳。
+    // payload 缺失或损坏时按旧链路处理（只建类型壳），零回归。
+    let payload: { name?: string; config?: Record<string, unknown> } = {};
+    const raw = e.dataTransfer.getData("application/x-project-entity-data");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { name?: unknown; config?: unknown };
+        if (typeof parsed.name === "string") payload.name = parsed.name;
+        if (parsed.config && typeof parsed.config === "object" && !Array.isArray(parsed.config)) {
+          payload.config = parsed.config as Record<string, unknown>;
+        }
+      } catch {
+        /* payload 损坏：忽略，类型本身仍可拖入 */
+      }
+    }
+
+    // 坐标在 await 前取死（事件对象异步后不可依赖）
     const pt = clientToCanvas(e.clientX, e.clientY);
-
     // 默认位置：实体大小 140x60，居中于鼠标位置
     const defaultSize = componentRegistry.get(entityType)?.defaultSize || { width: 140, height: 60 };
     const posX = Math.max(0, pt.x - defaultSize.width / 2);
     const posY = Math.max(0, pt.y - defaultSize.height / 2);
 
-    addComponent(entityType, undefined, { x: posX, y: posY });
-  }, [clientToCanvas, addComponent]);
+    const finishDrop = () => {
+      // ─── 载体视图：题材拖入 → **新建一本作品**（L1 多一个页签）+ 落该体裁的大纲编辑视图；
+      // 章节拖入 → 当前作品容器内 L3 页签（幂等，按 chapterId 命中）。
+      // 无题材的遗留 payload 保留旧「铺满设计卡视图」链路，零回归。 ───
+      if (entityType === "writing-workbench") {
+        const cfgRaw = payload.config as Record<string, unknown> | undefined;
+        const dropGenre = typeof cfgRaw?.genre === "string" ? cfgRaw.genre : "";
+        const dropChapterId = typeof cfgRaw?.chapterId === "string" ? cfgRaw.chapterId : "";
+        if (dropChapterId) {
+          // 章节拖入 → 容器视图 L3 页签（章节已存在，跳过建档）
+          openChapterCarrierView(dropChapterId, payload.name || "", dropGenre, parseBookIdFromScene());
+          useToastStore
+            .getState()
+            .showToast(t("editor.carrierViewSwitched", { name: payload.name || dropChapterId }), "info");
+          return;
+        }
+        if (dropGenre) {
+          // 【语义变更 2026-09-12】拖载体 = **新建一本作品**，不再「命中同题材视图就复用」。
+          // L1 从「题材分组」改成「作品页签」后，题材只有固定四项，复用会让
+          // 「再拖一次小说」永远表现为无反应；用户预期是「再拖小说 = 新建一本书 = 新建一个 L1」。
+          // 建书与「L1 ＋」用同一条链路（createBookAutoNamed），两个入口语义一致。
+          // 【2026-09-21 修订】空书画布例外：拖载体 = 打开当前书的大纲编辑视图 ——
+          // 「拖入载体」空态引导邀请的就是开始创作**当前书**，此时再建一本毫无道理。
+          if (dropOpensCurrentBookView(isBookScene, dropGenre)) {
+            useToastStore
+              .getState()
+              .showToast(t("editor.carrierViewSwitched", { name: t("writing.viewKind.catalog") }), "info");
+            return;
+          }
+          void createBookFromCarrierDrop(dropGenre)
+            .then((b) => {
+              useToastStore.getState().showToast(t("studio.createdInStudio", { title: b.title }), "success");
+            })
+            .catch((err) => {
+              logger.warn("SceneEditor", "carrier drop → create book failed", { dropGenre, error: String(err) });
+              useToastStore.getState().showToast(t("viewTab.bookOpFail"), "error");
+            });
+          return;
+        }
+        // 无题材（遗留/未知 payload）：旧「铺满设计卡视图」链路原样保留
+        const rect = canvasRef.current?.getBoundingClientRect();
+        const tl = clientToCanvas(rect?.left ?? 0, rect?.top ?? 0);
+        const br = clientToCanvas(rect?.right ?? 800, rect?.bottom ?? 600);
+        const pos = { x: Math.round(tl.x), y: Math.round(tl.y) };
+        const size = {
+          width: Math.max(320, Math.round(br.x - tl.x)),
+          height: Math.max(240, Math.round(br.y - tl.y)),
+        };
+        const viewName = dedupViewName(payload.name || t("writingDesign.designView"));
+        addView(viewName, { meta: { carrierType: dropGenre || undefined } });
+        const comp = addComponent(entityType, undefined, pos);
+        if (!comp) {
+          logger.warn("SceneEditor", "Drop create failed: addComponent returned null", {
+            entityType,
+            layerCount: useEditorStore.getState().layers.length,
+            registered: !!componentRegistry.get(entityType),
+          });
+          useToastStore.getState().showToast(t("editor.dropCreateFail", { type: entityType }), "error");
+          return;
+        }
+        updateComponentTransform(comp.id, { ...pos, ...size });
+        if (payload.name) updateComponent(comp.id, { name: payload.name });
+        const cfg = payload.config;
+        if (cfg) {
+          const { __blank: _blank, ...rest } = cfg as Record<string, unknown>;
+          if (Object.keys(rest).length > 0) updateComponentConfig(comp.id, rest);
+        }
+        deselectAll();
+        logger.info("SceneEditor", "Carrier view drop ok", {
+          compId: comp.id,
+          size,
+          viewName,
+          carrierType: dropGenre || undefined,
+          withPayload: Object.keys(payload).length > 0,
+        });
+        return;
+      }
+
+      const comp = addComponent(entityType, undefined, { x: posX, y: posY });
+      if (!comp) {
+        // 绝不静默：addComponent 失败（类型未注册/无图层）必须让用户知道
+        logger.warn("SceneEditor", "Drop create failed: addComponent returned null", {
+          entityType,
+          layerCount: useEditorStore.getState().layers.length,
+          registered: !!componentRegistry.get(entityType),
+        });
+        useToastStore.getState().showToast(t("editor.dropCreateFail", { type: entityType }), "error");
+        return;
+      }
+
+      // 业务绑定：name 走 updateComponent，config 走 merge 式 updateComponentConfig
+      const cfg = payload.config;
+      if (payload.name) updateComponent(comp.id, { name: payload.name });
+      if (cfg) {
+        const { __blank: _blank, ...rest } = cfg as Record<string, unknown>;
+        if (Object.keys(rest).length > 0) updateComponentConfig(comp.id, rest);
+      }
+      logger.info("SceneEditor", "Drop create ok", {
+        entityType,
+        compId: comp.id,
+        withPayload: Object.keys(payload).length > 0,
+      });
+    };
+
+    // G3 前置拦截（必须在 __blank 建档流程之前——createBlankWritingEntity 会覆写
+    // payload 丢掉 chapterId）：writing-workbench 的题材/章节拖入走容器视图链路。
+    if (entityType === "writing-workbench") {
+      const preCfg = payload.config as Record<string, unknown> | undefined;
+      const preGenre = preCfg && typeof preCfg.genre === "string" ? preCfg.genre : "";
+      if (preCfg && typeof preCfg.chapterId === "string" && preCfg.chapterId) {
+        // 章节拖入 → 容器视图 L3 页签（章节已存在，跳过建档）
+        openChapterCarrierView(
+          preCfg.chapterId,
+          payload.name || "",
+          preGenre,
+          parseBookIdFromScene()
+        );
+        useToastStore
+          .getState()
+          .showToast(t("editor.carrierViewSwitched", { name: payload.name || preCfg.chapterId }), "info");
+        return;
+      }
+      if (preCfg && preCfg.__blank === true) {
+        // 题材载体拖入 = **新建一本作品**（2026-09-12 语义变更，与 finishDrop 的题材分支、
+        // 与 SceneTabBar 的 L1「＋」共用 createBookFromCarrierDrop 一条链路）。
+        // 【2026-09-21 修订】空书画布例外：打开当前书的大纲编辑视图，不新建
+        // （同 finishDrop 题材分支，见 dropOpensCurrentBookView）。
+        if (preGenre) {
+          if (dropOpensCurrentBookView(isBookScene, preGenre)) {
+            useToastStore
+              .getState()
+              .showToast(t("editor.carrierViewSwitched", { name: t("writing.viewKind.catalog") }), "info");
+            return;
+          }
+          void createBookFromCarrierDrop(preGenre)
+            .then((b) => {
+              useToastStore.getState().showToast(t("studio.createdInStudio", { title: b.title }), "success");
+            })
+            .catch((err) => {
+              logger.warn("SceneEditor", "blank carrier drop → create book failed", {
+                preGenre,
+                error: String(err),
+              });
+              useToastStore.getState().showToast(t("viewTab.bookOpFail"), "error");
+            });
+        } else {
+          // 无体裁的 __blank（异常/外部 payload）：保持旧链路，但必须留痕 ——
+          // 这种 payload 建出的视图没有 carrierType，会被遗留清理 effect 回收成静默空白。
+          logger.warn("SceneEditor", "blank carrier payload without genre", { entityType });
+          const { docsCompId } = ensureCarrierContainer("", parseBookIdFromScene());
+          if (!docsCompId) {
+            useToastStore.getState().showToast(t("editor.dropCreateFail", { type: "writing-docs" }), "error");
+          } else {
+            useToastStore
+              .getState()
+              .showToast(t("editor.carrierViewCreated", { name: t("writing.viewKind.writing") }), "success");
+          }
+        }
+        return;
+      }
+      // 非 __blank 的 writing-workbench payload（遗留/外部拖入）：走 finishDrop 旧链路
+    }
+
+    // 业务闭环（IA 收口 P3）：货架 blank 模板落画布时**真建档**再落卡 ——
+    // 章节 createChapter（确定性绑定 wfile_{id}）、人物/世界观 createSetting。
+    // 建档失败（非书场景/写库异常）降级为普通空壳卡，绝不静默且不阻塞拖放。
+    if (payload.config && (payload.config as Record<string, unknown>).__blank === true) {
+      const genreHint = typeof (payload.config as Record<string, unknown>).genre === "string"
+        ? ((payload.config as Record<string, unknown>).genre as string)
+        : "";
+      const chapterIdHint = typeof (payload.config as Record<string, unknown>).chapterId === "string"
+        ? ((payload.config as Record<string, unknown>).chapterId as string)
+        : "";
+      void createBlankWritingEntity(entityType, genreHint, chapterIdHint)
+        .then((bound) => {
+          if (bound) {
+            payload = { name: bound.name, config: bound.config };
+            useToastStore.getState().showToast(
+              t("editor.blankEntityBound", { name: bound.name }),
+              "success"
+            );
+          } else {
+            delete (payload.config as Record<string, unknown>).__blank;
+            // 联动不静默：非书场景降级为属性卡（体裁/默认字段已 merge 上卡），明示未建档
+            useToastStore.getState().showToast(
+              t("editor.blankShellCard", { type: entityType }),
+              "info"
+            );
+          }
+        })
+        .catch((err) => {
+          logger.warn("SceneEditor", "blank entity bind failed, falling back to shell card", {
+            entityType,
+            error: String(err),
+          });
+          delete (payload.config as Record<string, unknown>).__blank;
+          useToastStore.getState().showToast(
+            t("editor.blankEntityBindFail", { type: entityType }),
+            "warning"
+          );
+        })
+        .finally(finishDrop);
+      return;
+    }
+
+    finishDrop();
+  }, [clientToCanvas, addComponent, updateComponent, updateComponentConfig, addView, deselectAll, updateComponentTransform]);
 
   return (
     <Box
@@ -1487,7 +2172,13 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
 
       {/* ─── 影响链控制器（左上角浮层）───────────────────────────────────────
           「选中一个文件，画布告诉我改它会炸到谁」—— 这是画布从「静态画像」
-          走向「可交互的分析工具」的关键一步。跳数点击循环：1 → 2 → 3 → 关。 */}
+          走向「可交互的分析工具」的关键一步。跳数点击循环：1 → 2 → 3 → 关。
+
+          书场景（写作）不出：这是代码分析语汇，小说创作里没有对应物
+          （用户点名「影响链 · 3 跳，我们不需要」）。整条链在书场景已被
+          chainDepth=0 强制关闭，所以图例 / TIA 弹层 / 跳数角标自然全空 ——
+          这里只需把控制器本体摘掉。外层定位 Box 保留（空容器，pointerEvents:none，
+          零视觉影响），代码场景的结构一行未动。 */}
       <Box
         sx={{
           position: "absolute",
@@ -1502,6 +2193,7 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
           pointerEvents: "none",
         }}
       >
+        {!isBookScene && (
         <Box
           sx={{
             display: "flex",
@@ -1571,8 +2263,10 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
             </>
           )}
         </Box>
+        )}
 
-        {/* 影响链图例 + 结论：只在真正命中时出现，不占空画布 */}
+        {/* 影响链图例 + 结论：只在真正命中时出现，不占空画布
+            （书场景下 impactChain 恒为 null —— chainDepth 被强制 0，这一支自然不渲染） */}
         {impactChain && impactChain.counts.totalFiles > 0 && (
           <Box
             sx={{
@@ -1791,7 +2485,15 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
         )}
       </Box>
 
-      {/* 缩放控制器（底部居中，与 biosphere 一致） */}
+      {/* P2 多选对齐/分布工具条：≥2 个选中实体时浮现 */}
+      <AlignToolbar selectedIds={selectedIds} />
+
+      {/* 缩放控制器（底部居中，与 biosphere 一致）
+          书场景的编辑视图不给：编辑面铺满画布后视口不再映射到所见画面，
+          「− 100% + / 1:1 / 适应 / 导出 PNG」全是按下去画面纹丝不动、
+          或把编辑区截成图的按钮。这一条底部横槽留给**编辑区自己的状态栏**
+          （大纲：节拍账/未落章/卷；正文：字数/保存态）—— 见 hasCanvasObjects。 */}
+      {hasCanvasObjects && (
       <Box
         sx={{
           position: "absolute",
@@ -1885,7 +2587,16 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
         >
           {t("editor.fit")}
         </Typography>
+        <Box sx={{ width: 1, height: 14, mx: 0.25, borderRight: 1, borderColor: "divider" }} />
+        <Typography
+          variant="caption"
+          onClick={() => void handleExportPng()}
+          sx={{ cursor: exportingPng ? "wait" : "pointer", px: 0.5, fontSize: 10, lineHeight: 1, color: "text.secondary", "&:hover": { color: "text.primary" }, whiteSpace: "nowrap" }}
+        >
+          {t("editor.exportPng")}
+        </Typography>
       </Box>
+      )}
 
       {/* AI 入口：画布右下角悬浮按钮（常驻可见，统一靛紫 AI 视觉） */}
       <Box
@@ -1953,9 +2664,18 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
       {/* 画布视口 */}
       <Box
         ref={canvasRef}
-        onMouseDown={panHandlers.onMouseDown}
+        onMouseDown={(e) => {
+          // 中/右键平移（panButtons=[1,2]）与左键框选互斥，两路都从这里进
+          panHandlers.onMouseDown(e);
+          handleBoxSelectStart(e);
+        }}
         onContextMenu={handleContextMenu}
         onClick={(e) => {
+          // H6：框选松手后的 click 不算「空白点击」，否则会把刚选中的实体清掉
+          if (boxSuppressClickRef.current) {
+            boxSuppressClickRef.current = false;
+            return;
+          }
           // 只在点击空白区域时取消选中
           if (e.target === e.currentTarget) deselectAll();
         }}
@@ -1979,6 +2699,41 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
           outlineOffset: -2,
         }}
       >
+        {/* ─── 贴面层：铺满画布的写作编辑区（正文容器 / 题材编辑面）──────────
+            inset:0 撑满整个画布视口，1:1 像素、不吃缩放平移 ——
+            「编辑区覆盖整个画布，中间不留背景」就是这一层（见 fullBleedComp 的注释）。
+            刻意排在变换层**之前**：变换层在上，用户拖进画布的实体卡照常可见可拖。
+            cursor 复位为 default：画布视口是 grab，编辑面上不该出现抓手。
+            **刻意不带 `data-component-id`**：那是「我是画布上的一个实体」的身份牌，
+            挂上就会被右键菜单/定位/框选整套实体语义接走 —— 右键编辑区会弹出针对这张
+            看不见、搬不动的满屏卡的画布菜单（9 项 7 项静默 no-op，「删除」能让编辑区
+            消失），正文的剪切/复制/粘贴还被一并拦掉。它只拿 data-writing-surface，
+            收到这个标记的右键一律放行原生菜单（见 handleContextMenu）。 */}
+        {fullBleedComp && FullBleedRenderer && (
+          <Box
+            key={fullBleedComp.id}
+            {...{ [WRITING_SURFACE_ATTR]: "1" }}
+            sx={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 1,
+              overflow: "hidden",
+              cursor: "default",
+              backgroundColor: (t) => t.palette.background.paper,
+            }}
+          >
+            <FullBleedRenderer
+              type={fullBleedComp.type}
+              config={fullBleedComp.config}
+              componentId={fullBleedComp.id}
+              width={canvasSize.width}
+              height={canvasSize.height}
+              editorSelected={false}
+              lod="full"
+            />
+          </Box>
+        )}
+
         {/* 变换容器：transform 由 useCanvasPanZoom 直写 DOM，React 只给初值 */}
         <Box
           ref={contentRef}
@@ -1990,6 +2745,9 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
             top: 0,
             willChange: "transform",
             pointerEvents: isPanning ? "none" : "auto",
+            // 贴面层存在时抬到其上：拖进画布/落在画布上的实体卡（含下钻框、标注）
+            // 必须盖住铺满的编辑面，否则落卡即「看不见」= 静默丢内容。
+            zIndex: fullBleedComp ? 2 : undefined,
           }}
         >
           {/* 视口虚拟化：只渲染视口内实体（大项目数百实体时平移缩放不掉帧）；
@@ -1997,6 +2755,12 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
               displayComponents 已把 dependency-edge 放到最前，避免边遮实体。
               （兜底：边 shell 已 pointer-events:none，不会真拦截实体点击） */}
           {displayComponents.map((comp) => {
+            // 铺满画布的写作容器卡由上方贴面层渲染（全视口 1:1），
+            // 这里一律跳过 —— 否则同一张编辑面会被渲染两次：贴面层一份（正确），
+            // 变换层再按 0.46 倍缩一份（就是用户看到的「浮在中间的小卡」）。
+            // 重复残留（历史事故：同一视图叠了两张）也在此一并跳过，由
+            // studioBook.reconcileStudioPaneView 幂等清场，绝不静默留双份 DOM。
+            if (isFullCanvasWritingCard(comp.type)) return null;
             const isSelected = selectedIdSet.has(comp.id);
 
             // 强调态计算（纯 O(1) 查表，不逐实体遍历依赖）
@@ -2115,11 +2879,31 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
               />
             );
           })}
+
+          {/* V4 拍板：载体铺满画布成「载体视图」，缩放手柄随实体缩放一起移除 */}
         </Box>
 
+        {/* H6 框选矩形覆盖层：mousemove 直写 style，不进 React 渲染循环 */}
+        <div
+          ref={boxOverlayRef}
+          style={{
+            display: "none",
+            position: "absolute",
+            border: `1px solid ${CV.primary}`,
+            background: `${CV.primary}1f`,
+            borderRadius: 2,
+            pointerEvents: "none",
+            zIndex: 40,
+          }}
+        />
+
         {/* 画布为空提示：覆盖整个画布视口并真正居中（与缩放/平移 transform 解耦，
-            从变换容器移出，避免随画布原点偏移导致提示贴在左上角） */}
-        {components.length === 0 && (
+            从变换容器移出，避免随画布原点偏移导致提示贴在左上角）。
+            【书场景排除】代码空态（AccountTreeIcon/「立即同步到画布」）是代码项目语义，
+            书场景有自己的「拖入载体」引导（外层 V4 覆盖层）。此前新书总被自动铺
+            全书总览板兜住（components>0），2026-09-21 停用自动铺板后此空态在书场景
+            露出 —— 按 isBookScene 排除；扫描/同步骨架屏两种场景都要保留。 */}
+        {components.length === 0 && (!isBookScene || scanning || syncing) && (
           <Box
             sx={{
               position: "absolute",
@@ -2171,17 +2955,21 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
 
       </Box>
 
-      {/* 小地图：全局俯瞰 + 风险热区（视口虚拟化之后唯一的「统筹全局」手段） */}
-      <CanvasMinimap
-        components={components}
-        selectedIds={selectedIds}
-        viewport={viewport}
-        viewportRef={viewportRef}
-        canvasSize={canvasSize}
-        isPanning={isPanning}
-        onNavigate={setViewport}
-        layerColorOf={minimapLayerColorOf}
-      />
+      {/* 小地图：全局俯瞰 + 风险热区（视口虚拟化之后唯一的「统筹全局」手段）
+          编辑面铺满的视图里不给（见 hasCanvasObjects）：没有可导航的对象，
+          它只会压在编辑区右下角。 */}
+      {hasCanvasObjects && (
+        <CanvasMinimap
+          components={components}
+          selectedIds={selectedIds}
+          viewport={viewport}
+          viewportRef={viewportRef}
+          canvasSize={canvasSize}
+          isPanning={isPanning}
+          onNavigate={setViewport}
+          layerColorOf={minimapLayerColorOf}
+        />
+      )}
       {/* 画像图例（v2.5）：横带/徽标/连线语义说明 */}
       <PortraitLegend />
 
@@ -2198,7 +2986,7 @@ function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => voi
   );
 }
 
-export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { onOpenLayersDialog?: () => void; onSyncToCanvas?: () => void; syncing?: boolean }) {
+export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing, onReparseBook, onOpenCanvasAi }: { onOpenLayersDialog?: () => void; onSyncToCanvas?: () => void; syncing?: boolean; onReparseBook?: () => void; onOpenCanvasAi?: () => void; }) {
   const activeSceneId = useSceneStore((s) => s.activeSceneId);
   const scenes = useSceneStore((s) => s.scenes);
   const findings = useProjectStore((s) => s.findings);
@@ -2219,6 +3007,14 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
   const componentCount = useEditorStore((s) => s.components.length);
   const activeViewId = useEditorStore((s) => s.activeViewId);
   const activeViewName = useEditorStore((s) => s.views.find((v) => v.id === s.activeViewId)?.name);
+  // 右栏「要素」检查器按当前 L2 决定给哪个编辑区出口（大纲/人物设定/世界观）。
+  // 原始值选择器，不引入额外渲染抖动。
+  const activeViewKind = useEditorStore((s) => s.views.find((v) => v.id === s.activeViewId)?.kind);
+  // 空态引导（V4）：书场景且画布上还没有任何载体时，隐藏 Tab 栏 + 居中引导。
+  // 「载体」不只有 writing-workbench：L2 题材编辑面（writing-studio-pane）与正文容器
+  // （writing-docs）同样是铺满画布的内容卡。只判 workbench 会让空态引导叠在编辑面之上
+  // （点开「大纲」页签却提示「拖入载体，开始创作」）。
+  const hasCarrier = useEditorStore((s) => s.views.some((v) => hasWritingCanvasCard(v.components)));
   const directoryShowFiles = useEditorStore((s) => s.directoryShowFiles);
   const directorySort = useEditorStore((s) => s.directorySort);
   const directorySearch = useEditorStore((s) => s.directorySearch);
@@ -2351,6 +3147,14 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
     () => scenes.find((s) => s.id === activeSceneId) ?? null,
     [scenes, activeSceneId]
   );
+  // 书场景（novel-zh）→ 右栏整体切到写作向 Tabs（要素 / 属性 / AI），代码向 Tabs 不渲染
+  const isBookScene = activeScene?.primaryLanguage === "novel-zh";
+  // 右栏「要素」检视器要读书的业务数据（章节/节拍/设定）→ 从场景 projectRoot 取 bookId。
+  // 必须是渲染期可响应的派生值（parseBookIdFromScene 是命令式取 store，不进渲染依赖）。
+  const activeBookId = useMemo(() => {
+    const root = activeScene?.projectRoot ?? "";
+    return root.startsWith("writing://") ? root.replace(/^writing:\/\//, "").replace(/\/+$/, "") : "";
+  }, [activeScene?.projectRoot]);
 
   // ───────────────────── v2.18 变更耦合工具栏三件套 ─────────────────────
   // 与 v2.17 依赖画像工具栏同形态（filter / window / focus），但语义对齐到「时间维度耦合」：
@@ -2454,6 +3258,9 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
   const redo = useEditorStore((s) => s.redo);
   const removeComponent = useEditorStore((s) => s.removeComponent);
   const selectedIds = useEditorStore((s) => s.selection.selectedIds);
+  const selectedSettingId = useEditorStore((s) => s.selectedSettingId);
+  const writingSettings = useWritingStore((s) => s.settings);
+  const writingBooks = useWritingStore((s) => s.books);
   const selectedComponent = useMemo(() => {
     const sid = selectedIds[0];
     if (!sid) return null;
@@ -2461,6 +3268,66 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
     return comp ? { id: comp.id, type: comp.type, name: comp.name, config: comp.config } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIds]);
+  // 写作设定项选中（人物/世界观，由 CastPane「查看要素」驱动，与画布选择互斥）
+  const selectedSetting = useMemo(() => {
+    if (!selectedSettingId) return null;
+    return writingSettings.find((s) => s.id === selectedSettingId) ?? null;
+  }, [selectedSettingId, writingSettings]);
+  // 时间线事件选中（时间线视图，由 EventChip / 右栏总览卡驱动；三者互斥见 selectTimelineEvent）
+  const selectedTimelineEventId = useEditorStore((s) => s.selectedTimelineEventId);
+  const timelineEvents = useWritingStore((s) => s.timelineEvents);
+  const selectedTimelineEvent = useMemo(() => {
+    if (!selectedTimelineEventId) return null;
+    return timelineEvents.find((e) => e.id === selectedTimelineEventId) ?? null;
+  }, [selectedTimelineEventId, timelineEvents]);
+  const storylines = useWritingStore((s) => s.storylines);
+  const selectedStorylineId = useEditorStore((s) => s.selectedStorylineId);
+  const selectedStoryline = useMemo(() => {
+    if (!selectedStorylineId) return null;
+    return storylines.find((sl) => sl.id === selectedStorylineId) ?? null;
+  }, [selectedStorylineId, storylines]);
+  const foreshadowings = useWritingStore((s) => s.foreshadowings);
+  // 底部状态栏（书场景=写作域速览，2026-09-19 拍板改造）：章节/总字数/伏笔待回收。
+  // 数据全在 writingStore 域（books/chapters/storylines/foreshadowings），零新读盘。
+  const writingChapters = useWritingStore((s) => s.chapters);
+  const totalWords = useMemo(
+    () => writingChapters.reduce((a, c) => a + (c.wordCount || 0), 0),
+    [writingChapters],
+  );
+  const pendingForeshadowCount = useMemo(
+    () => foreshadowings.filter((f) => f.status === "pending").length,
+    [foreshadowings],
+  );
+  const selectedForeshadowingId = useEditorStore((s) => s.selectedForeshadowingId);
+  const selectedForeshadowing = useMemo(() => {
+    if (!selectedForeshadowingId) return null;
+    return foreshadowings.find((f) => f.id === selectedForeshadowingId) ?? null;
+  }, [selectedForeshadowingId, foreshadowings]);
+  const outlines = useWritingStore((s) => s.outlines);
+  const selectedInspirationId = useEditorStore((s) => s.selectedInspirationId);
+  const selectedInspiration = useMemo(() => {
+    if (!selectedInspirationId) return null;
+    return outlines.find((o) => o.id === selectedInspirationId) ?? null;
+  }, [selectedInspirationId, outlines]);
+  // AI 助手随左栏题材 tab 切换角色：把当前书 + 题材 + 选中设定项灌给 AI 面板（书场景才有意义）
+  const aiBookTopic: "characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview" | null = isBookScene
+    ? activeViewKind === "characters" ? "characters"
+      : activeViewKind === "worldview" ? "worldview"
+      : activeViewKind === "catalog" ? "catalog"
+      : activeViewKind === "timeline" ? "timeline"
+      : activeViewKind === "storylines" ? "storylines"
+      : activeViewKind === "foreshadowing" ? "foreshadowing"
+      : activeViewKind === "inspiration" ? "inspiration"
+      : activeViewKind === "proofread" ? "proofread"
+      : activeViewKind === "stats" ? "stats"
+      : activeViewKind === "writing" ? "writing"
+      : activeViewKind === "overview" ? "overview"
+      : null
+    : null;
+  const aiBookTitle = isBookScene ? (writingBooks.find((b) => b.id === activeBookId)?.title ?? null) : null;
+  const aiFocusSetting = isBookScene && selectedSetting
+    ? { name: selectedSetting.name, kind: selectedSetting.kind as "character" | "worldbuilding", setting: selectedSetting }
+    : null;
   const historyIndex = useEditorStore((s) => s.historyIndex);
   const historyLen = useEditorStore((s) => s.history.length);
   const canUndoVal = historyIndex >= 0;
@@ -2472,9 +3339,19 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
   // 右侧面板 tab 切换
   const aiPanelRequest = useEditorStore((s) => s.aiPanelRequest);
   const [rightTab, setRightTab] = useState(0);
-  // AI 助手并入右侧 tab 体系（第 6 个 tab），与代码工作台 dock 的「AI 助手」tab 一致；
+  // AI 助手并入右侧 tab 体系，与代码工作台 dock 的「AI 助手」tab 一致；
   // 不再另开独立浮层，避免分析器页面右侧同时出现「分析 tab 面板 + AI 浮层」两个面板。
-  const AI_TAB = 5;
+  // 书场景右栏已收敛为 3 栏：组件 / 属性 / AI（人物·设定·关系·大纲四栏撤除，它们把 L2 的
+  // 题材分类又铺了一遍）；代码场景维持 6 栏。两侧栏序各自连续，不在同一套索引里混。
+  const AI_TAB = isBookScene ? 2 : 5;
+  // 渲染期夹紧：跨场景类型切换（本组件不重挂载）的第一帧，value 必须命中存在的子 Tab，
+  // 否则 MUI 报 invalid value、指示条乱跑、内容栏空白一帧（复位 effect 只归一状态救不了那帧）。
+  const safeRightTab = clampRightTab(rightTab, isBookScene);
+  // 场景类型切换 → 右栏回第一栏。两侧栏数与语义都不同（代码场景第 3 栏是「分层」，
+  // 书场景第 3 栏是 AI），沿用旧索引会落到语义不相干的栏位甚至渲染出空面板（静默空白）。
+  useEffect(() => {
+    setRightTab(0);
+  }, [isBookScene]);
   // 「从分析点发起 AI 诊断」/「打开助手」→ 切到右侧 AI tab（而非弹出独立右栏）。
   useEffect(() => {
     if (aiPanelRequest > 0) {
@@ -2482,12 +3359,119 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
       setRightPanelOpen(true);
     }
   }, [aiPanelRequest]);
+  // 右栏联动（书场景）：在画布上选中写作实体 → 自动切到「属性」栏（第 2 栏）。
+  // 第 1 栏「组件」是拖源，拖出落卡后会立刻选中新卡；不联动的话「选不中、改不了」的
+  // 观感会回来。只在**当前停在组件栏**时切，用户手动停在别的栏位时不抢。
+  useEffect(() => {
+    if (!isBookScene) return;
+    if (!selectedComponent?.type.startsWith("writing-")) return;
+    setRightTab((cur) => (cur === 0 ? 1 : cur));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBookScene, selectedComponent?.id, selectedComponent?.type]);
+  // 写作设定项选中（人物/世界观，由 CastPane「查看详情」驱动）→ 切到「详情」栏（第 2 栏）
+  // 让其叙事性描述面板可见；与画布选中互斥，二者不会同时成立。
+  useEffect(() => {
+    if (!isBookScene) return;
+    if (!selectedSetting) return;
+    setRightTab(1);
+  }, [isBookScene, selectedSetting?.id]);
+  // 切书（L1 页签）→ 清空写作设定项选中态，避免跨书残留幽灵选中。
+  useEffect(() => {
+    if (selectedSettingId) {
+      useEditorStore.getState().selectSetting(null);
+    }
+    // 时间线事件选中同理：切书即清，避免跨书残留
+    if (useEditorStore.getState().selectedTimelineEventId) {
+      useEditorStore.getState().selectTimelineEvent(null);
+    }
+    // 剧情线选中同理：切书即清
+    if (useEditorStore.getState().selectedStorylineId) {
+      useEditorStore.getState().selectStoryline(null);
+    }
+    // 伏笔选中同理：切书即清
+    if (useEditorStore.getState().selectedForeshadowingId) {
+      useEditorStore.getState().selectForeshadowing(null);
+    }
+    // 灵感念头选中同理：切书即清
+    if (useEditorStore.getState().selectedInspirationId) {
+      useEditorStore.getState().selectInspiration(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBookId]);
+  // 书场景初始化默认视图（2026-09-19 拍板）：工作室打开/切书默认指向「大纲」页签。
+  // 约束：①没有作品（activeBookId 为空）不建任何作品级页签——中间区域只有 L1 顶级
+  // 页签 + 画布「拖载体入画布」提示，拖载体建书后才出现对应 tabs；
+  // ②每本书只初始化一次（ref 按书 id 记账）——用户删光 L2 页签后不复活。
+  const bookViewsReady = useEditorStore((s) => s.views.length > 0);
+  const catalogInitRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isBookScene || !bookViewsReady || !activeBookId) return;
+    if (catalogInitRef.current === activeBookId) return;
+    catalogInitRef.current = activeBookId;
+    const es = useEditorStore.getState();
+    const hit = es.views.find((v) => v.kind === "catalog");
+    if (hit) {
+      if (es.activeViewId !== hit.id) es.switchView(hit.id);
+      return;
+    }
+    const genre = useWritingStore.getState().books.find((b) => b.id === activeBookId)?.genre ?? "";
+    openTypedCarrierView(genre, "catalog");
+  }, [isBookScene, activeBookId, bookViewsReady]);
+  // 左栏题材 tab 联动（Direction A+）：切到「人物 / 世界观」题材视图时，右栏自动落回
+  // 「要素 / 人物」tab（第 1 栏），让两侧同步进入人物模式。同时清掉可能残留的其它类别
+  // 选中，避免右栏标签（人物/设定）与当前题材模式不一致（例如带着一个角色误显示成「设定」）。
+  // 切到其它题材视图（大纲等）不强制切栏，但同样清残留选中，保持右栏与模式一致。
+  useEffect(() => {
+    if (!isBookScene) return;
+    if (selectedSettingId) useEditorStore.getState().selectSetting(null);
+    // 时间线事件选中：**离开**时间线视图才清残留（离场清空）；切入时间线视图不清——
+    // 章右栏「本章时间线」行是先选中再跳视图，此处清了会把跳转带过来的选中打掉。
+    if (activeViewKind !== "timeline" && useEditorStore.getState().selectedTimelineEventId) {
+      useEditorStore.getState().selectTimelineEvent(null);
+    }
+    // 剧情线选中：同样仅离场清（切入时间线视图不清——主线栏点线名是先选中再跳）
+    if (activeViewKind !== "timeline" && useEditorStore.getState().selectedStorylineId) {
+      useEditorStore.getState().selectStoryline(null);
+    }
+    // 伏笔选中：仅离开伏笔视图才清（切入伏笔视图不清——章右栏行是先选中再跳）
+    if (activeViewKind !== "foreshadowing" && useEditorStore.getState().selectedForeshadowingId) {
+      useEditorStore.getState().selectForeshadowing(null);
+    }
+    // 灵感念头选中：仅离开灵感视图才清（切入灵感视图不清——总览卡点行是先选中再看详情）
+    if (activeViewKind !== "inspiration" && useEditorStore.getState().selectedInspirationId) {
+      useEditorStore.getState().selectInspiration(null);
+    }
+    if (activeViewKind === "characters" || activeViewKind === "worldview") {
+      setRightTab(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBookScene, activeViewKind]);
+  // 选中时间线事件 → 切到「详情」栏（第 2 栏）让其编辑器可见（与设定选中同构）
+  useEffect(() => {
+    if (!isBookScene) return;
+    if (selectedTimelineEventId) setRightTab(1);
+  }, [isBookScene, selectedTimelineEventId]);
+  // 选中剧情线 → 右栏详情（线实体编辑器）
+  useEffect(() => {
+    if (!isBookScene) return;
+    if (selectedStorylineId) setRightTab(1);
+  }, [isBookScene, selectedStorylineId]);
+  // 选中伏笔 → 右栏详情（伏笔编辑器）
+  useEffect(() => {
+    if (!isBookScene) return;
+    if (selectedForeshadowingId) setRightTab(1);
+  }, [isBookScene, selectedForeshadowingId]);
+  // 选中灵感念头 → 右栏详情（编辑与分发器）
+  useEffect(() => {
+    if (!isBookScene) return;
+    if (selectedInspirationId) setRightTab(1);
+  }, [isBookScene, selectedInspirationId]);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   // ─── 右侧面板可拖拽宽度（v2.5）───
-  // null = 未自定义（按 tab 给默认：AI 400 / 其他 300）；拖拽后记住自定义值，
-  // 切换 tab 不重置。clamp 240~720 防拖到不可用。
+  // null = 未自定义（统一默认 300）；拖拽后记住自定义值，切换 tab 不重置、也不因 tab 变宽，
+  // 保持右栏风格一致（此前 AI tab 特殊给 400，切到 AI 时右栏会跳宽，破坏一致性）。clamp 240~720 防拖到不可用。
   const [rightPanelWidth, setRightPanelWidth] = useState<number | null>(null);
-  const currentRightWidth = rightPanelWidth ?? (rightTab === AI_TAB ? 400 : 300);
+  const currentRightWidth = rightPanelWidth ?? 300;
   const startRightResize = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -2799,9 +3783,9 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
           </Tooltip>
         </Box>
 
-        <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 20 }} />
-
-        <PluginSelector />
+        {/* 分析器插件切换器（PluginSelector）已随代码分析收口移除：
+            唯一分析器是 writing-analyzer，「多语言切换 + 语言聚焦」无对象可切，
+            顶栏只剩误导性说明文案 */}
 
         {/* v2.17 依赖画像布局模式：力导向聚簇 / 拓扑分层（入口→底座） */}
         {isDepView && (
@@ -3161,11 +4145,55 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
           onToggle={() => setLeftPanelOpen(!leftPanelOpen)}
         />
 
-        {/* 中间列：视图标签栏 + 画布 */}
+        {/* 中间列：视图标签栏 + 画布（核心交互：拖动编辑永不下线。
+            书场景的载体工作台以**画布实体**形态存在（writing-workbench），不替换画布） */}
         <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden" }}>
           <SceneTabBar />
           <Box sx={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <ProjectCanvas onSyncToCanvas={onSyncToCanvas} syncing={syncing} />
+            {/* 空态引导（V4）：书场景无任何载体视图时居中提示；pointer-events:none
+                不拦截拖放，左栏载体可照常拖入。首个载体落下 hasCarrier 变 true 即消失。 */}
+            {isBookScene && !hasCarrier && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 1.25,
+                  pointerEvents: "none",
+                  userSelect: "none",
+                  textAlign: "center",
+                  px: 3,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 2.5,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "rgba(139,92,246,0.10)",
+                    border: "1.5px dashed rgba(139,92,246,0.5)",
+                    color: "#8b5cf6",
+                    fontSize: 26,
+                    fontWeight: 700,
+                  }}
+                >
+                  ✎
+                </Box>
+                <Typography sx={{ fontSize: 15, fontWeight: 700, color: "text.primary" }}>
+                  {t("writingWorkbench.emptyCanvasHint")}
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: "text.secondary", maxWidth: 340, lineHeight: 1.6 }}>
+                  {t("writingWorkbench.emptyCanvasSub")}
+                </Typography>
+              </Box>
+            )}
           </Box>
         </Box>
 
@@ -3292,7 +4320,7 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
             </Box>
           )}
           <Tabs
-            value={rightTab}
+            value={safeRightTab}
             onChange={(_e, v) => setRightTab(v)}
             variant="scrollable"
             scrollButtons="auto"
@@ -3313,131 +4341,261 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
               },
             }}
           >
-            <Tab
-              icon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />}
-              iconPosition="start"
-              label={t("editor.tabDetails")}
-            />
-            <Tab
-              icon={
-                <Box sx={{ position: "relative", display: "inline-flex" }}>
-                  <RuleIcon sx={{ fontSize: 14 }} />
-                  {criticalCount > 0 && (
-                    <Box
-                      sx={{
-                        position: "absolute",
-                        top: -2,
-                        right: -4,
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        bgcolor: "error.main",
-                        border: "1px solid",
-                        borderColor: "background.paper",
-                      }}
-                    />
-                  )}
-                </Box>
-              }
-              iconPosition="start"
-              label={`${t("editor.tabReview")}${findingsCount > 0 ? ` (${findingsCount})` : ""}`}
-            />
-            <Tab
-              icon={<LayersIcon sx={{ fontSize: 14 }} />}
-              iconPosition="start"
-              label={`${t("editor.tabLayers")}${projectLayers.length > 0 ? ` (${projectLayers.length})` : ""}`}
-            />
-            <Tab
-              icon={<MonitorHeartIcon sx={{ fontSize: 14 }} />}
-              iconPosition="start"
-              label={t("editor.tabHealth")}
-            />
-            <Tab
-              icon={<HubIcon sx={{ fontSize: 14 }} />}
-              iconPosition="start"
-              label={t("editor.tabImpact")}
-            />
-            <Tab
-              icon={<SmartToyIcon sx={{ fontSize: 14 }} />}
-              iconPosition="start"
-              label={t("editor.tabAi")}
-            />
+            {/* Tab 子项必须是数组、不能包 Fragment：MUI v9 Tabs 用 React.Children.toArray
+                处理 children，toArray 不解包 Fragment → 注入 selected/onChange/value 落在
+                Fragment 头上被无视，Tab 们拿不到 → 选中态永空、点击无 onChange（切换无效）。
+                开发模式控制台会报 "MUI: The Tabs component doesn't accept a Fragment as a child."。
+                同时 Tab 显式 value（v9 对 undefined value 的子项按 toArray 索引兜底，显式更稳）。 */}
+            {(isBookScene ? [
+              /* 书场景右栏 = 组件（拖源，随当前 L2 变化） / 属性（选中项） / AI。
+                  原本的人物·设定·关系·大纲四栏已撤：它们就是 L2 那套题材分类的第二遍，
+                  内容由画布与组件栏承担，不再在右栏重复陈列。 */
+              <Tab key="inspector" value={0} icon={<WidgetsIcon sx={{ fontSize: 14 }} />} iconPosition="start" label={selectedSetting ? (selectedSetting.kind === "character" ? t("editor.writing.inspector.tabCharacter") : t("editor.writing.inspector.tabSetting")) : activeViewKind === "characters" ? t("editor.writing.inspector.tabCharacter") : activeViewKind === "worldview" ? t("editor.writing.inspector.tabSetting") : activeViewKind === "timeline" ? t("writing.timelineOverview") : activeViewKind === "storylines" ? t("writing.storylineOverview") : activeViewKind === "foreshadowing" ? t("writing.foreshadowOverview") : activeViewKind === "inspiration" ? t("writing.inspirationOverview") : activeViewKind === "proofread" ? t("writing.proofreadOverview") : activeViewKind === "stats" ? t("writing.statsOverview") : activeViewKind === "writing" ? t("writing.chapterContextTitle") : t("editor.writing.inspector.tab")} />,
+              <Tab key="details" value={1} icon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />} iconPosition="start" label={t("editor.tabDetails")} />,
+              <Tab key="ai" value={2} icon={<SmartToyIcon sx={{ fontSize: 14 }} />} iconPosition="start" label={t("editor.tabAi")} />,
+            ] : [
+              <Tab
+                key="details"
+                value={0}
+                icon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />}
+                iconPosition="start"
+                label={t("editor.tabDetails")}
+              />,
+              <Tab
+                key="review"
+                value={1}
+                icon={
+                  <Box sx={{ position: "relative", display: "inline-flex" }}>
+                    <RuleIcon sx={{ fontSize: 14 }} />
+                    {criticalCount > 0 && (
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: -2,
+                          right: -4,
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          bgcolor: "error.main",
+                          border: "1px solid",
+                          borderColor: "background.paper",
+                        }}
+                      />
+                    )}
+                  </Box>
+                }
+                iconPosition="start"
+                label={`${t("editor.tabReview")}${findingsCount > 0 ? ` (${findingsCount})` : ""}`}
+              />,
+              <Tab
+                key="layers"
+                value={2}
+                icon={<LayersIcon sx={{ fontSize: 14 }} />}
+                iconPosition="start"
+                label={`${t("editor.tabLayers")}${projectLayers.length > 0 ? ` (${projectLayers.length})` : ""}`}
+              />,
+              <Tab
+                key="health"
+                value={3}
+                icon={<MonitorHeartIcon sx={{ fontSize: 14 }} />}
+                iconPosition="start"
+                label={t("editor.tabHealth")}
+              />,
+              <Tab
+                key="impact"
+                value={4}
+                icon={<HubIcon sx={{ fontSize: 14 }} />}
+                iconPosition="start"
+                label={t("editor.tabImpact")}
+              />,
+              <Tab
+                key="ai"
+                value={5}
+                icon={<SmartToyIcon sx={{ fontSize: 14 }} />}
+                iconPosition="start"
+                label={t("editor.tabAi")}
+              />,
+            ])}
           </Tabs>
           <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-            {rightTab === 0 && <EntityPortraitPanel entity={selectedComponent} />}
-            {rightTab === 1 && <ReviewFindingsPanel />}
-            {rightTab === 2 && (
-              <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  {t("editor.layerTitle")}
-                </Typography>
-                {projectLayers.length === 0 ? (
-                  <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
-                    <LayersIcon sx={{ fontSize: 36, opacity: 0.2, mb: 1 }} />
-                    <Typography variant="caption" sx={{ display: "block" }}>
-                      {t("editor.noLayers")}
-                    </Typography>
-                  </Box>
+            {/* 书场景第 1 栏：要素检查器 —— 读**选中项**的要素 + 给一个到编辑区的出口
+                （章 → 章要素/本章大纲；卷头 → 卷账；人物/世界观卡 → 设定要素；无选中 → 全书）。
+                内容编辑在编辑区（L2 题材编辑面 / 载体卡），这里只读，不做第二个编辑器。 */}
+            {isBookScene && safeRightTab === 0 && (
+              activeViewKind === "timeline" || activeViewKind === "storylines" ? (
+                /* 时间线/剧情线视图：要素栏=时间线总览卡（事件数/完整·待补全/覆盖/冲突 + 剧情线挂线卡，可点选进详情） */
+                <TimelineOverviewPanel bookId={activeBookId} />
+              ) : activeViewKind === "foreshadowing" ? (
+                /* 伏笔视图：要素栏=伏笔总览卡（三态统计/跨章预警/可点行进详情） */
+                <ForeshadowingOverviewCard />
+              ) : activeViewKind === "inspiration" ? (
+                /* 灵感视图：要素栏=灵感总览卡（分发统计/念头可点行进详情） */
+                <InspirationOverviewCard />
+              ) : activeViewKind === "proofread" ? (
+                /* 校对视图：要素栏=体检统计卡（六组计数，有页签去向的组行可点直达） */
+                <ProofreadOverviewCard />
+              ) : activeViewKind === "stats" ? (
+                /* 统计视图：要素栏=体量总览卡（KPI 网格 + 离群章可点跳章） */
+                <StatsOverviewCard
+                  bookId={activeBookId}
+                  onJumpChapter={(chId, chTitle) => {
+                    const g = writingBooks.find((b) => b.id === activeBookId)?.genre ?? "";
+                    openChapterCarrierView(chId, chTitle, g, activeBookId);
+                  }}
+                />
+              ) : (
+                <WritingInspectorPanel
+                  kind={activeViewKind}
+                  bookId={activeBookId}
+                  entity={selectedComponent}
+                  selectedSetting={selectedSetting}
+                  onManageVolumes={onOpenLayersDialog}
+                />
+              )
+            )}
+            {/* 书场景：写作实体走属性编辑面板（P1），无选中显示书属性卡（封面，2026-09-14），
+                其余（代码实体/插画等）维持画像面板。书场景前面多了「要素」栏 → 属性栏位右移一栏。 */}
+            {safeRightTab === (isBookScene ? 1 : 0) &&
+              (isBookScene && (activeViewKind === "timeline" || activeViewKind === "storylines") ? (
+                selectedTimelineEvent ? (
+                  /* 时间线视图：详情栏=选中事件完整编辑器（at/event/绑章/来源/跳转/删除） */
+                  <TimelineEventDetail event={selectedTimelineEvent} bookId={activeBookId} />
+                ) : selectedStoryline ? (
+                  /* 时间线视图：选中剧情线 → 线实体编辑器（名/色板/描述/线内事件/删线） */
+                  <StorylineDetail storyline={selectedStoryline} bookId={activeBookId} />
                 ) : (
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                    {projectLayers.map((pl: any) => {
-                      const fileCount = projectFiles.filter(
-                        (f: any) => !f.isDirectory && f.layerId === pl.id
-                      ).length;
-                      return (
-                        <Box
-                          key={pl.id}
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                            px: 1,
-                            py: 0.75,
-                            borderRadius: 1,
-                            border: 1,
-                            borderColor: "divider",
-                            bgcolor: "action.hover",
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              backgroundColor: pl.color || "#94A3B8",
-                              flexShrink: 0,
-                            }}
-                          />
-                          <Typography variant="body2" sx={{ flex: 1, fontSize: 12 }}>
-                            {pl.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {t("editor.fileCount", { n: fileCount })}
-                          </Typography>
-                        </Box>
-                      );
-                    })}
+                  <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                    <Typography variant="caption" color="text.secondary">{t(activeViewKind === "storylines" ? "writing.storylineDetailEmpty" : "writing.timelineDetailEmpty")}</Typography>
+                  </Box>
+                )
+              ) : isBookScene && activeViewKind === "foreshadowing" ? (
+                selectedForeshadowing ? (
+                  /* 伏笔视图：详情栏=选中伏笔完整编辑器（标题/描述/埋设/回收/状态/挂线/预警/删除） */
+                  <ForeshadowingDetail item={selectedForeshadowing} bookId={activeBookId} />
+                ) : (
+                  <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                    <Typography variant="caption" color="text.secondary">{t("writing.foreshadowDetailEmpty")}</Typography>
+                  </Box>
+                )
+              ) : isBookScene && activeViewKind === "inspiration" ? (
+                selectedInspiration ? (
+                  /* 灵感视图：详情栏=选中念头编辑与分发器（转时间线/挂章/转伏笔/删除） */
+                  <InspirationDetail beat={selectedInspiration} />
+                ) : (
+                  <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                    <Typography variant="caption" color="text.secondary">{t("writing.inspirationDetailEmpty")}</Typography>
+                  </Box>
+                )
+              ) : isBookScene && activeViewKind === "proofread" ? (
+                /* 校对视图：详情栏无编辑器语义——发现即点即跳（清单在编辑区页签内） */
+                <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                  <Typography variant="caption" color="text.secondary">{t("writing.proofreadDetailEmpty")}</Typography>
+                </Box>
+              ) : isBookScene && activeViewKind === "stats" ? (
+                /* 统计视图：详情栏无选中语义——总览在要素栏，编辑面在画布页签 */
+                <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                  <Typography variant="caption" color="text.secondary">{t("writing.statsDetailEmpty")}</Typography>
+                </Box>
+              ) : isBookScene && selectedStoryline ? (
+                /* 选中剧情线（非时间线视图残留态）：线实体编辑器照常可用 */
+                <StorylineDetail storyline={selectedStoryline} bookId={activeBookId} />
+              ) : isBookScene && selectedSetting ? (
+                <WritingSettingDetail setting={selectedSetting} bookId={activeBookId} />
+              ) : isBookScene && activeViewKind === "writing" ? (
+                /* 正文视图：详情栏=正文信息卡（激活章的正文档案，只读；编辑收敛写作台独立窗口） */
+                <WritingDocsDetailCard bookId={activeBookId} />
+              ) : isBookScene && selectedComponent?.type.startsWith("writing-") ? (
+                <WritingPropertyPanel entity={selectedComponent} />
+              ) : isBookScene && !selectedComponent && activeViewKind === "characters" ? (
+                <WritingSettingContextPanel kind="character" bookId={activeBookId} />
+              ) : isBookScene && !selectedComponent && activeViewKind === "worldview" ? (
+                <WorldviewOverview bookId={activeBookId} />
+              ) : isBookScene && !selectedComponent ? (
+                <BookMetaPanel bookId={activeBookId} onReparse={onReparseBook} />
+              ) : (
+                <EntityPortraitPanel entity={selectedComponent} />
+              ))}
+            {!isBookScene && (
+              <>
+                {safeRightTab === 1 && <ReviewFindingsPanel />}
+                {safeRightTab === 2 && (
+                  <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      {t("editor.layerTitle")}
+                    </Typography>
+                    {projectLayers.length === 0 ? (
+                      <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
+                        <LayersIcon sx={{ fontSize: 36, opacity: 0.2, mb: 1 }} />
+                        <Typography variant="caption" sx={{ display: "block" }}>
+                          {t("editor.noLayers")}
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                        {projectLayers.map((pl: any) => {
+                          const fileCount = projectFiles.filter(
+                            (f: any) => !f.isDirectory && f.layerId === pl.id
+                          ).length;
+                          return (
+                            <Box
+                              key={pl.id}
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                                px: 1,
+                                py: 0.75,
+                                borderRadius: 1,
+                                border: 1,
+                                borderColor: "divider",
+                                bgcolor: "action.hover",
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: "50%",
+                                  backgroundColor: pl.color || "#94A3B8",
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <Typography variant="body2" sx={{ flex: 1, fontSize: 12 }}>
+                                {pl.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {t("editor.fileCount", { n: fileCount })}
+                              </Typography>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    )}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<SettingsIcon sx={{ fontSize: 12 }} />}
+                      onClick={onOpenLayersDialog}
+                      sx={{ mt: 1, textTransform: "none", fontSize: 11 }}
+                    >
+                      {t("editor.manageLayers")}
+                    </Button>
                   </Box>
                 )}
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<SettingsIcon sx={{ fontSize: 12 }} />}
-                  onClick={onOpenLayersDialog}
-                  sx={{ mt: 1, textTransform: "none", fontSize: 11 }}
-                >
-                  {t("editor.manageLayers")}
-                </Button>
-              </Box>
+                {safeRightTab === 3 && <ArchitectureHealthPanel />}
+                {safeRightTab === 4 && <ImpactAnalysisPanel entity={selectedComponent} />}
+              </>
             )}
-            {rightTab === 3 && <ArchitectureHealthPanel />}
-            {rightTab === 4 && <ImpactAnalysisPanel entity={selectedComponent} />}
-            {rightTab === AI_TAB && (
+            {safeRightTab === AI_TAB && (
               <WorkbenchAiPanel
                 activeFile={mainAiFile}
                 selection={null}
                 editorRef={aiEditorRef}
                 onClose={() => setRightPanelOpen(false)}
+                isBookScene={isBookScene}
+                bookTopic={aiBookTopic}
+                bookTitle={aiBookTitle}
+                focusSetting={aiFocusSetting}
                 onOpenPath={(relPath, line) => {
                   const f = projectFiles.find((x) => x.relPath === relPath);
                   if (f) {
@@ -3481,7 +4639,8 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
         </Box>
       </Box>
 
-      {/* 底部状态栏（需求 §5.1）：语言 / 实体 / 规则违规 / 扫描结果，统筹全局速览 */}
+      {/* 底部状态栏：书场景=写作域速览（书/章节/总字数/剧情线/伏笔待回收，2026-09-19 拍板
+          改造——代码分析遗留元素不再出现在书场景）；非书场景保留原代码统计（遗留代码场景仍可用） */}
       <Box
         sx={{
           flexShrink: 0,
@@ -3500,46 +4659,89 @@ export function SceneEditor({ onOpenLayersDialog, onSyncToCanvas, syncing }: { o
           whiteSpace: "nowrap",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
-          <CodeIcon sx={{ fontSize: 11, color: "primary.main", flexShrink: 0 }} />
-          <Typography variant="caption" sx={{ fontSize: 10, overflow: "hidden", textOverflow: "ellipsis" }}>
-            {t("editor.statusLang", { lang: activeAnalyzer?.language ?? "—" })}
-            {extraAnalyzerCount > 0 ? ` +${extraAnalyzerCount}` : ""}
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <WidgetsIcon sx={{ fontSize: 11, color: "primary.main" }} />
-          <Typography variant="caption" sx={{ fontSize: 10 }}>
-            {t("editor.statusEntities", { n: componentCount })}
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <RuleIcon sx={{ fontSize: 11, color: criticalCount > 0 ? "error.main" : "primary.main" }} />
-          <Typography variant="caption" sx={{ fontSize: 10 }}>
-            {t("editor.statusViolations", { n: findingsCount })}
-            {criticalCount > 0 ? t("editor.statusCritical", { n: criticalCount }) : ""}
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <SchemaOutlinedIcon sx={{ fontSize: 11, color: "primary.main" }} />
-          <Typography variant="caption" sx={{ fontSize: 10 }}>
-            {t("editor.statusModules", {
-              m: projectModules.length,
-              f: projectFiles.filter((f: any) => !f.isDirectory).length,
-            })}
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <LayersIcon sx={{ fontSize: 11, color: "primary.main" }} />
-          <Typography variant="caption" sx={{ fontSize: 10 }}>
-            {t("editor.statusLayers", { n: projectLayers.length })}
-          </Typography>
-        </Box>
-        <Box sx={{ flex: 1 }} />
-        {componentCount > 0 && (
-          <Typography variant="caption" sx={{ fontSize: 10, color: "text.disabled" }}>
-            {t("editor.statusHint")}
-          </Typography>
+        {isBookScene ? (
+          <>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <MenuBookRoundedIcon sx={{ fontSize: 11, color: "primary.main" }} />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("editor.statusBooks", { n: writingBooks.length })}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <SubjectIcon sx={{ fontSize: 11, color: "primary.main" }} />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("editor.statusChapters", { n: writingChapters.length })}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <EditNoteOutlinedIcon sx={{ fontSize: 11, color: "primary.main" }} />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("writing.words", { n: totalWords })}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <TimelineIcon sx={{ fontSize: 11, color: "primary.main" }} />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("editor.statusStorylines", { n: storylines.length })}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <PushPinIcon
+                sx={{ fontSize: 11, color: pendingForeshadowCount > 0 ? "warning.main" : "primary.main" }}
+              />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("editor.statusForeshadowPending", { n: pendingForeshadowCount })}
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1 }} />
+            <Typography variant="caption" sx={{ fontSize: 10, color: "text.disabled" }}>
+              {t("editor.statusWritingHint")}
+            </Typography>
+          </>
+        ) : (
+          <>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+              <CodeIcon sx={{ fontSize: 11, color: "primary.main", flexShrink: 0 }} />
+              <Typography variant="caption" sx={{ fontSize: 10, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {t("editor.statusLang", { lang: activeAnalyzer?.language ?? "—" })}
+                {extraAnalyzerCount > 0 ? ` +${extraAnalyzerCount}` : ""}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <WidgetsIcon sx={{ fontSize: 11, color: "primary.main" }} />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("editor.statusEntities", { n: componentCount })}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <RuleIcon sx={{ fontSize: 11, color: criticalCount > 0 ? "error.main" : "primary.main" }} />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("editor.statusViolations", { n: findingsCount })}
+                {criticalCount > 0 ? t("editor.statusCritical", { n: criticalCount }) : ""}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <SchemaOutlinedIcon sx={{ fontSize: 11, color: "primary.main" }} />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("editor.statusModules", {
+                  m: projectModules.length,
+                  f: projectFiles.filter((f: any) => !f.isDirectory).length,
+                })}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <LayersIcon sx={{ fontSize: 11, color: "primary.main" }} />
+              <Typography variant="caption" sx={{ fontSize: 10 }}>
+                {t("editor.statusLayers", { n: projectLayers.length })}
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1 }} />
+            {componentCount > 0 && (
+              <Typography variant="caption" sx={{ fontSize: 10, color: "text.disabled" }}>
+                {t("editor.statusHint")}
+              </Typography>
+            )}
+          </>
         )}
       </Box>
     </Box>

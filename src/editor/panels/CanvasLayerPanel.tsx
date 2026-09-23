@@ -1,5 +1,5 @@
-// project-sight: 图层面板（需求 §5.2 LayerPanel + 附录 A.3 图层交互）
-// 补齐 biosphere 有而 project-sight 缺失的图层管理 UI：
+// sight-folio: 图层面板（需求 §5.2 LayerPanel + 附录 A.3 图层交互）
+// 补齐 biosphere 有而 sight-folio 缺失的图层管理 UI：
 //   - 图层树（分组/图层两级，展开/折叠）
 //   - 显示/隐藏、锁定/解锁、透明度、颜色点
 //   - 添加图层/分组、删除（默认层禁删）

@@ -150,6 +150,7 @@ stop_app() {
 stop_all_processes() {
     log_info "正在停止所有相关进程..."
     stop_vite
+    stop_tauri
     stop_app
     log_info "所有相关进程已停止"
 }
@@ -182,6 +183,10 @@ start_dev() {
     # 停止可能残留的进程
     stop_all_processes
 
+    # 清 Vite 缓存，避免 HMR 残留旧模块导致 UI 改了却不刷新（缩进等大改尤其要吃新模块）
+    rm -rf "$SCRIPT_DIR/node_modules/.vite"
+    log_info "已清理 Vite 缓存 (node_modules/.vite)"
+
     log_info "启动中，日志实时显示（按 Ctrl+C 停止所有服务）..."
     echo ""
 
@@ -197,6 +202,10 @@ start_tauri_dev() {
 
     pre_check_tauri
     stop_all_processes
+
+    # 清 Vite 缓存，避免 HMR 残留旧模块导致 UI 改了却不刷新
+    rm -rf "$SCRIPT_DIR/node_modules/.vite"
+    log_info "已清理 Vite 缓存 (node_modules/.vite)"
 
     log_info "启动 Tauri dev（自动管理 vite + Rust 编译）..."
     cd "$SCRIPT_DIR"

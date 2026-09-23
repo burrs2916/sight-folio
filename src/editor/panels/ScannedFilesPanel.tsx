@@ -896,7 +896,7 @@ const FileTreeNode = memo(function FileTreeNode({
                   e.stopPropagation();
                   navigateToSource(node.id, sym.lineStart, t("filesPanel.browseToast", { path: `${node.relPath}:${sym.lineStart}` }));
                 }}
-                title={t("filesPanel.symbolTip", { name: sym.name, kind: sym.kind, line: sym.lineStart })}
+                title={t("impact.symbolTip", { name: sym.name, kind: sym.kind, line: sym.lineStart })}
               >
                 <SymbolKindGlyph kind={sym.kind} color={sc} />
                 <Typography variant="caption" sx={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10.5 }}>

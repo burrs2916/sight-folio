@@ -155,6 +155,25 @@ export interface ViewTemplateOptions {
   layers?: { name: string; color?: string }[];
   /** 模板画布布局预设（缩放、平移、网格） */
   layout?: { scale?: number; panX?: number; panY?: number; grid?: boolean };
+  /**
+   * 写作嵌套 Tab（G2）元信息：题材分组 + 类型化单例标记。
+   * 只加不改：缺省时两个字段均不写入（undefined），旧调用零影响。
+   */
+  meta?: {
+    carrierType?: string;
+    kind?:
+      | "catalog"
+      | "characters"
+      | "worldview"
+      | "timeline"
+      | "storylines"
+      | "foreshadowing"
+      | "inspiration"
+      | "proofread"
+      | "stats"
+      | "writing"
+      | "overview";
+  };
 }
 
 /**
@@ -187,6 +206,30 @@ export interface EditorState {
   layers: LayerNode[];
   viewport: ViewportState;
   selection: SelectionState;
+  /**
+   * sight-folio 写作台：人物/世界观设定项的右栏选中态。
+   * 与画布选择（selection.selectedIds）解耦——人物设定不走画布卡实体，
+   * 而是由 CastPane 的「查看要素」按钮显式驱动；二者互斥（画布选中即清空本项）。
+   */
+  selectedSettingId: string | null;
+  /**
+   * sight-folio 写作台：时间线事件的右栏选中态。
+   * 与画布选择（selection.selectedIds）、写作设定选中（selectedSettingId）三者互斥——
+   * 任一被显式选中即清空另外两项，保证右栏只聚焦一个编辑目标。
+   */
+  selectedTimelineEventId: string | null;
+  /** 选中剧情线（多线叙事实体）：与事件/设定/画布选中互斥，右栏详情 tab 编辑线实体 */
+  selectedStorylineId: string | null;
+  /** 选中伏笔（「埋设 → 回收」承诺）：与事件/设定/剧情线/画布选中互斥，右栏详情 tab 编辑伏笔 */
+  selectedForeshadowingId: string | null;
+  /** 选中灵感念头（未落章 beat）：与事件/设定/剧情线/伏笔/画布选中互斥，右栏详情 tab 编辑分发 */
+  selectedInspirationId: string | null;
+  /**
+   * sight-folio 写作台：时间线 pane 的子视图口径（book=全书轴按设定分轨 / chapter=按章轴分轨）。
+   * 放 store 而非 pane 本地 state：右栏总览卡的冲突行点选时需要切换口径
+   * （跨章倒挂只在按章轴可见），主 pane 与右栏必须共享同一份。
+   */
+  timelineViewMode: "book" | "chapter" | "storyline";
   /** v2.14 目录树符号展开的文件 id 集合（代码结构画像：双击文件展开/收起符号） */
   expandedSymFiles: Set<string>;
   activeTool: EditorTool;
@@ -234,8 +277,6 @@ export interface EditorState {
   activeLayerId: string | null;
   /** 当前正在被拖动的实体类型（保留接口兼容） */
   draggedComponentType: string | null;
-  /** 当前正在被拖动的设备 ID（场景编辑联动） */
-  draggedDeviceId: string | null;
   canvasConfig: CanvasConfig;
   containerSize: { width: number; height: number };
   history: HistoryEntry[];
@@ -313,6 +354,13 @@ export interface EditorActions {
   updateComponent: (id: string, updates: Partial<SceneComponent>) => void;
   updateComponentTransform: (id: string, transform: Partial<Transform>) => void;
   updateComponentConfig: (id: string, config: Record<string, unknown>) => void;
+  /** P3 业务→画布回流：按业务 id（chapterId/settingId）反查所有视图中的写作卡，回写名称/配置。
+   *  面向业务层自动保存调用：不推历史（自动行为不该刷爆撤销栈）、跨全部视图匹配，只 markDirty。 */
+  syncWritingEntityCards: (
+    bizKey: "chapterId" | "settingId",
+    bizId: string,
+    patch: { name?: string; configPatch?: Record<string, unknown> }
+  ) => void;
   batchUpdateComponent: (id: string, updates: { config?: Record<string, unknown>; transform?: Partial<Transform> }) => void;
   moveComponentToLayer: (id: string, layerId: string) => void;
   reorderComponent: (id: string, zIndex: number) => void;
@@ -333,7 +381,7 @@ export interface EditorActions {
   getRootLayers: () => LayerNode[];
   getLayerTree: () => LayerNode[];
 
-  // 事件绑定（project-sight 暂未启用，预留接口）
+  // 事件绑定（sight-folio 暂未启用，预留接口）
   addEventBinding: (binding: any) => void;
   removeEventBinding: (id: string) => void;
   updateEventBinding: (id: string, updates: any) => void;
@@ -343,6 +391,18 @@ export interface EditorActions {
   selectAll: () => void;
   setHoveredComponent: (id: string | null) => void;
   getSelectedComponents: () => SceneComponent[];
+  /** sight-folio 写作台：显式驱动右栏选中某个写作设定项（人物/世界观）；null=取消 */
+  selectSetting: (id: string | null) => void;
+  /** sight-folio 写作台：显式驱动右栏选中某个时间线事件进行编辑；null=取消 */
+  selectTimelineEvent: (id: string | null) => void;
+  /** 选中剧情线（右栏详情编辑线实体）；null = 清除 */
+  selectStoryline: (id: string | null) => void;
+  /** 选中伏笔（右栏详情编辑伏笔）；null = 清除 */
+  selectForeshadowing: (id: string | null) => void;
+  /** 选中灵感念头（右栏详情编辑分发）；null = 清除 */
+  selectInspiration: (id: string | null) => void;
+  /** sight-folio 写作台：切换时间线 pane 的子视图口径（book=全书轴 / chapter=按章轴 / storyline=按剧情线）；主 pane 与右栏总览共享 */
+  setTimelineViewMode: (mode: "book" | "chapter" | "storyline") => void;
 
   setViewport: (viewport: Partial<ViewportState>) => void;
   zoomIn: () => void;
@@ -354,7 +414,6 @@ export interface EditorActions {
 
   setActiveTool: (tool: EditorTool) => void;
   setDraggedComponentType: (type: string | null) => void;
-  setDraggedDeviceId: (deviceId: string | null) => void;
   setActiveLayer: (layerId: string | null) => void;
   setCanvasConfig: (updates: Partial<CanvasConfig>) => void;
   setCanvasSize: (width: number, height: number) => void;
@@ -379,7 +438,7 @@ export interface EditorActions {
   setPreviewMode: (preview: boolean) => void;
 
   addView: (name: string, template?: ViewTemplateOptions) => string;
-  removeView: (viewId: string) => void;
+  removeView: (viewId: string, opts?: { allowEmpty?: boolean }) => void;
   switchView: (viewId: string) => void;
   /**
    * 确保「结构/default 视图」存在并返回其 id。
@@ -471,6 +530,14 @@ export const useEditorStore = create<EditorStore>()(
     layers: [] as LayerNode[],
     viewport: { ...DEFAULT_VIEWPORT },
     selection: { selectedIds: [] as string[], hoveredId: null as string | null, isMultiSelect: false },
+    selectedSettingId: null as string | null,
+    // 时间线事件右栏选中态（与 selectedSettingId、画布选择三者互斥）
+    selectedTimelineEventId: null as string | null,
+    selectedStorylineId: null as string | null,
+    selectedForeshadowingId: null as string | null,
+    selectedInspirationId: null as string | null,
+    // 时间线 pane 子视图口径（主 pane 与右栏总览共享，默认全书轴）
+    timelineViewMode: "book" as "book" | "chapter" | "storyline",
     // v2.14 目录树符号展开：双击文件展开/收起其符号卡（代码结构画像）
     expandedSymFiles: new Set<string>(),
     activeTool: "select" as EditorTool,
@@ -489,7 +556,6 @@ export const useEditorStore = create<EditorStore>()(
     quadrantFocusZone: null as "refactorFirst" | "legacyStable" | "activeSimple" | "healthy" | null,
     activeLayerId: null as string | null,
     draggedComponentType: null as string | null,
-    draggedDeviceId: null as string | null,
     canvasConfig: { ...DEFAULT_CANVAS_CONFIG },
     containerSize: { width: 0, height: 0 },
     history: [] as HistoryEntry[],
@@ -548,8 +614,13 @@ export const useEditorStore = create<EditorStore>()(
       if (!targetLayerId && state.layers.length > 0) {
         targetLayerId = state.layers.find(l => l.type === "layer")?.id;
       }
-      
-      if (!targetLayerId) return null;
+
+      // 绝不静默：无图层 return null 曾是「拖入创建没反应」的静默失败点之一
+      //（对比 addComponentsBulk :577 有自动补层兜底，这里先补告警，兜底后续对齐）
+      if (!targetLayerId) {
+        logger.warn("EditorStore", "addComponent skipped: no layer available", { type });
+        return null;
+      }
 
       const component = createDefaultAnalysisComponent(definition, targetLayerId, position);
 
@@ -706,6 +777,34 @@ export const useEditorStore = create<EditorStore>()(
         get().pushHistory("update");
         _configHistoryTimer = null;
       }, 300);
+    },
+
+    syncWritingEntityCards: (bizKey, bizId, patch) => {
+      set((draft: EditorState) => {
+        let touched = false;
+        const apply = (comps: SceneComponent[]) => {
+          for (const comp of comps) {
+            const cfg = comp.config as Record<string, unknown> | undefined;
+            if (!cfg || cfg[bizKey] !== bizId) continue;
+            if (patch.name !== undefined && comp.name !== patch.name) {
+              comp.name = patch.name;
+              touched = true;
+            }
+            if (patch.configPatch) {
+              const merged = { ...cfg, ...patch.configPatch };
+              if (JSON.stringify(merged) !== JSON.stringify(cfg)) {
+                comp.config = merged;
+                touched = true;
+              }
+            }
+          }
+        };
+        // 跨全部视图匹配：写作卡可能摆在任何视图里，不能只刷激活视图
+        for (const v of draft.views) apply(v.components ?? []);
+        // 激活视图的 components 数组可能与 views 里的引用不同（loadScene 路径），兜底再刷
+        apply(draft.components);
+        if (touched) useDirtyStore.getState().markDirty();
+      });
     },
 
     batchUpdateComponent: (id, updates) => {
@@ -1019,6 +1118,16 @@ export const useEditorStore = create<EditorStore>()(
           draft.selection.selectedIds = [id];
           draft.selection.isMultiSelect = false;
         }
+        // 与写作设定项选中互斥：画布选中即清空右栏设定选中态
+        draft.selectedSettingId = null;
+        // 与时间线事件选中互斥：画布选中即清空右栏时间线事件选中态
+        draft.selectedTimelineEventId = null;
+        // 与剧情线选中互斥
+        draft.selectedStorylineId = null;
+        // 与伏笔选中互斥
+        draft.selectedForeshadowingId = null;
+        // 与灵感念头选中互斥
+        draft.selectedInspirationId = null;
       });
     },
 
@@ -1040,6 +1149,91 @@ export const useEditorStore = create<EditorStore>()(
       logger.debug("EditorStore", "setHoveredComponent", { id });
       set((draft: EditorState) => {
         draft.selection.hoveredId = id;
+      });
+    },
+
+    selectSetting: (id) => {
+      set((draft: EditorState) => {
+        // 与画布选择互斥：选中设定项时清空画布选中，反之亦然由 selectComponent 负责
+        draft.selectedSettingId = id;
+        // 与时间线事件选中互斥：选中设定项时清空时间线事件选中态
+        draft.selectedTimelineEventId = null;
+        // 与剧情线选中互斥
+        draft.selectedStorylineId = null;
+        // 与伏笔选中互斥
+        draft.selectedForeshadowingId = null;
+        // 与灵感念头选中互斥
+        draft.selectedInspirationId = null;
+        if (id) {
+          draft.selection.selectedIds = [];
+          draft.selection.isMultiSelect = false;
+        }
+      });
+    },
+
+    selectTimelineEvent: (id) => {
+      set((draft: EditorState) => {
+        // 与画布选择、写作设定选中互斥：选中时间线事件即清空二者
+        draft.selectedTimelineEventId = id;
+        draft.selectedSettingId = null;
+        draft.selectedStorylineId = null;
+        draft.selectedForeshadowingId = null;
+        draft.selectedInspirationId = null;
+        if (id) {
+          draft.selection.selectedIds = [];
+          draft.selection.isMultiSelect = false;
+        }
+      });
+    },
+
+    selectStoryline: (id) => {
+      set((draft: EditorState) => {
+        // 与事件/设定/画布选中互斥：选中剧情线即清空三者
+        draft.selectedStorylineId = id;
+        draft.selectedTimelineEventId = null;
+        draft.selectedSettingId = null;
+        draft.selectedForeshadowingId = null;
+        draft.selectedInspirationId = null;
+        if (id) {
+          draft.selection.selectedIds = [];
+          draft.selection.isMultiSelect = false;
+        }
+      });
+    },
+
+    selectForeshadowing: (id) => {
+      set((draft: EditorState) => {
+        // 与事件/设定/剧情线/灵感/画布选中互斥：选中伏笔即清空五者
+        draft.selectedForeshadowingId = id;
+        draft.selectedStorylineId = null;
+        draft.selectedTimelineEventId = null;
+        draft.selectedSettingId = null;
+        draft.selectedInspirationId = null;
+        if (id) {
+          draft.selection.selectedIds = [];
+          draft.selection.isMultiSelect = false;
+        }
+      });
+    },
+
+    selectInspiration: (id) => {
+      set((draft: EditorState) => {
+        // 与事件/设定/剧情线/伏笔/画布选中互斥：选中灵感念头即清空五者
+        draft.selectedInspirationId = id;
+        draft.selectedForeshadowingId = null;
+        draft.selectedStorylineId = null;
+        draft.selectedTimelineEventId = null;
+        draft.selectedSettingId = null;
+        if (id) {
+          draft.selection.selectedIds = [];
+          draft.selection.isMultiSelect = false;
+        }
+      });
+    },
+
+    setTimelineViewMode: (mode) => {
+      set((draft: EditorState) => {
+        draft.timelineViewMode = mode;
       });
     },
 
@@ -1133,10 +1327,6 @@ export const useEditorStore = create<EditorStore>()(
       set((draft: EditorState) => {
         draft.draggedComponentType = type;
       });
-    },
-
-    setDraggedDeviceId: (_deviceId) => {
-      // project-sight: 设备拖放已废弃
     },
 
     setActiveLayer: (layerId) => {
@@ -1463,12 +1653,10 @@ export const useEditorStore = create<EditorStore>()(
         const defaultLayer = draft.layers.find((l) => l.isDefault);
         draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
       });
-      // project-sight: 设备摆位已废弃（devicePlacementStore 已删）
     },
 
     exportSceneWithViews: () => {
       const state = get();
-      // project-sight: 设备摆位已废弃
       const views = state.views.map((v) => {
         if (v.id === state.activeViewId) {
           return {
@@ -1525,7 +1713,17 @@ export const useEditorStore = create<EditorStore>()(
           template?.layout && template.layout.grid !== undefined
             ? { ...draft.canvasConfig, grid: { ...draft.canvasConfig.grid, visible: template.layout.grid } }
             : draft.canvasConfig;
-        draft.views.push({ id: viewId, name, components: [], layers, canvasConfig: newCanvasConfig, viewport: newViewport, eventBindings: [] });
+        draft.views.push({
+          id: viewId,
+          name,
+          components: [],
+          layers,
+          canvasConfig: newCanvasConfig,
+          viewport: newViewport,
+          eventBindings: [],
+          carrierType: template?.meta?.carrierType,
+          kind: template?.meta?.kind,
+        });
         draft.activeViewId = viewId;
         draft.components = [];
         draft.layers = layers;
@@ -1541,23 +1739,37 @@ export const useEditorStore = create<EditorStore>()(
       return get().activeViewId;
     },
 
-    removeView: (viewId) => {
+    removeView: (viewId, opts) => {
       set((draft: EditorState) => {
-        if (draft.views.length <= 1) return;
+        // 默认保留最后一只视图（代码场景删光会悬空）；书场景传 allowEmpty——
+        // 2026-09-19 拍板：书场景 L2 页签全部可删，删光 = 回到「拖载体入画布」空态。
+        if (draft.views.length <= 1 && !opts?.allowEmpty) return;
         const idx = draft.views.findIndex((v) => v.id === viewId);
         if (idx === -1) return;
         if (draft.activeViewId === viewId) {
           draft.views.splice(idx, 1);
-          const nextView = draft.views[Math.min(idx, draft.views.length - 1)];
-          draft.activeViewId = nextView.id;
-          draft.components = nextView.components || [];
-          draft.layers = nextView.layers || [];
-          draft.canvasConfig = nextView.canvasConfig ? { ...nextView.canvasConfig } : { ...DEFAULT_CANVAS_CONFIG };
-          draft.viewport = nextView.viewport ? { ...nextView.viewport, offset: { ...nextView.viewport.offset } } : { ...DEFAULT_VIEWPORT };
-          draft.eventBindings = nextView.eventBindings ? [...nextView.eventBindings] : [];
-          draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
-          const defaultLayer = draft.layers.find((l) => l.isDefault);
-          draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
+          if (draft.views.length === 0) {
+            // 删光分支：清空画布状态回空态引导。activeViewId 保留悬空 id
+            // （场景级状态，画布/右栏均按可选链容忍），下次建视图由 switchView 校正。
+            draft.components = [];
+            draft.layers = [];
+            draft.canvasConfig = { ...DEFAULT_CANVAS_CONFIG };
+            draft.viewport = { ...DEFAULT_VIEWPORT };
+            draft.eventBindings = [];
+            draft.activeLayerId = null;
+            draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
+          } else {
+            const nextView = draft.views[Math.min(idx, draft.views.length - 1)];
+            draft.activeViewId = nextView.id;
+            draft.components = nextView.components || [];
+            draft.layers = nextView.layers || [];
+            draft.canvasConfig = nextView.canvasConfig ? { ...nextView.canvasConfig } : { ...DEFAULT_CANVAS_CONFIG };
+            draft.viewport = nextView.viewport ? { ...nextView.viewport, offset: { ...nextView.viewport.offset } } : { ...DEFAULT_VIEWPORT };
+            draft.eventBindings = nextView.eventBindings ? [...nextView.eventBindings] : [];
+            draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
+            const defaultLayer = draft.layers.find((l) => l.isDefault);
+            draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
+          }
         } else {
           const activeView = draft.views.find((v) => v.id === draft.activeViewId);
           if (activeView) {

@@ -13,7 +13,6 @@ import logger from "../../utils/logger";
 import { componentRegistry } from "../registry";
 import { rendererCache } from "../plugins/PluginLoader";
 import { FallbackRenderer } from "../renderers/FallbackRenderer";
-import { DeviceComponentRenderer } from "../renderers/deviceVariants/DeviceComponentRenderer";
 import { EditorContextMenu } from "../components/EditorContextMenu";
 import { useComponentDataBinding } from "../hooks/useComponentDataBinding";
 import { useSpatialRendererContext } from "../hooks/useSpatialRendererContext";
@@ -214,12 +213,6 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
   const { transform, locked, type, config, zIndex } = component;
   const { x, y, width, height, rotation } = transform;
 
-  // 调试日志：仅在组件定义找不到时输出
-  if (!definition && type.startsWith("device:")) {
-    console.warn("[EditorCanvasComponent] Device component definition not found:", type);
-    console.log("[EditorCanvasComponent] All registered device types:", componentRegistry.getByCategory("device").map(d => d.type));
-    console.log("[EditorCanvasComponent] All registered types:", componentRegistry.getAll().map(d => d.type));
-  }
   const showBorder = isSelected || isHovered;
   const isCustomFitMode = type === "map-cad" && config.fitMode === "custom";
   const isCadViewAdjusting = isCustomFitMode && isRendererInteractionLocked;
@@ -472,19 +465,6 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
         });
         setRenderer(() => loaded || FallbackRenderer);
       });
-      return;
-    }
-    // 修复：对于 device:* 类型但 componentRegistry 中没有定义的情况，
-    // 直接使用 DeviceComponentRenderer（通用设备组件渲染器）。
-    // 这是因为真实设备的产品码（如 EC-18）不一定在静态产品定义中，
-    // 但只要 deviceStore.products 里有对应 productCode 的元数据，
-    // 渲染器就能从 metadata 中推断 category 并正常渲染。
-    if (type.startsWith("device:")) {
-      logger.info("EditorCanvasComponent", "Using DeviceComponentRenderer", {
-        componentId: component.id,
-        type,
-      });
-      setRenderer(() => DeviceComponentRenderer as unknown as React.ComponentType<ComponentRendererProps>);
       return;
     }
     // #region debug-point comp-tunnel-render-error

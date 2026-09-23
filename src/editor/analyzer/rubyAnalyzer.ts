@@ -1,4 +1,4 @@
-// project-sight: Ruby 分析器插件
+// sight-folio: Ruby 分析器插件
 // 后端支持：Tier 1（tree-sitter AST 度量：class/module/method 圈复杂度 + 嵌套）
 // 插件通过 AnalyzerManifest 向核心引擎声明能力，由 analyzerRegistry 注册。
 

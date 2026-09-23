@@ -19,6 +19,7 @@ import CodeIcon from "@mui/icons-material/Code";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import CallSplitIcon from "@mui/icons-material/CallSplit";
+import ImageIcon from "@mui/icons-material/Image";
 import { useEditorStore } from "../../store/editorStore";
 import { useProjectStore } from "../../store/projectStore";
 import { useSceneStore } from "../../store/sceneStore";
@@ -27,6 +28,7 @@ import { navigateToSource, navigateToSourceByPath } from "../utils/sourceNavigat
 import { PATTERN_CATEGORY_LABEL_KEY } from "../utils/fileInsights";
 import { topDirOf } from "../utils/architectureMetrics";
 import { triggerDiagnosis } from "../../ai/triggerDiagnosis";
+import { useAssetPickerStore } from "../../store/assetPickerStore";
 import { t } from "../../i18n";
 
 interface ContextMenuProps {
@@ -43,6 +45,7 @@ export function EditorContextMenu({ position, componentId, onClose }: ContextMen
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
   const clipboard = useEditorStore((s) => s.clipboard);
   const components = useEditorStore((s) => s.components);
+  const openAssetPicker = useAssetPickerStore((s) => s.openPicker);
 
   if (!componentId || !position) return null;
 
@@ -126,6 +129,15 @@ export function EditorContextMenu({ position, componentId, onClose }: ContextMen
         >
           <ListItemIcon sx={{ minWidth: 28 }}><CodeIcon sx={{ fontSize: 16 }} /></ListItemIcon>
           <ListItemText sx={{ "& .MuiListItemText-primary": { fontSize: 13 } }}>{t("panel.menu.openInSource")}</ListItemText>
+        </MenuItem>
+      )}
+      {/* 业务联动（H2 插画链路）：图片实体右键 → 更换插画（打开素材库替换模式） */}
+      {comp.type === "image" && (
+        <MenuItem onClick={() => handleAction(() => openAssetPicker({ replaceComponentId: comp.id }))} sx={itemSx}>
+          <ListItemIcon sx={{ minWidth: 28 }}><ImageIcon sx={{ fontSize: 16 }} /></ListItemIcon>
+          <ListItemText sx={{ "& .MuiListItemText-primary": { fontSize: 13 } }}>
+            {t("studio.illustration.replaceMenu")}
+          </ListItemText>
         </MenuItem>
       )}
       {/* 业务联动：文件实体右键 → 把该文件（或其中的语法错误）交给 AI 诊断，结论落库后自动投射画布 */}

@@ -1,4 +1,4 @@
-// project-sight: AI Agent 工具的「分析作用域」解析与覆盖度自检
+// sight-folio: AI Agent 工具的「分析作用域」解析与覆盖度自检
 //
 // 为什么必须有这一层：
 // 扫描产物是**按 analysis_id 分片**存进同一个库的（project_files / project_symbols /

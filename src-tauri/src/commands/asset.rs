@@ -72,8 +72,14 @@ fn get_project_root() -> Result<PathBuf, String> {
 }
 
 fn get_assets_dir(category: &str, subcategory: &str) -> Result<PathBuf, String> {
-    let project_root = get_project_root()?;
-    let assets_dir = project_root.join("assets").join(category).join(subcategory);
+    // 方案 2（2026-09-14 用户拍板）：素材归数据域 —— 与 config.db / scan_snapshots 同基座
+    // （app_data_dir，dev = workspace/data）。此前落 src-tauri/assets 的两宗罪：
+    // ① tauri dev watcher 盯着 src-tauri，上传封面即触发热重建（用户感知为「闪退」）；
+    // ② 用户私人图片混进源码树且未被 gitignore，污染仓库。
+    let assets_dir = crate::infrastructure::database::connection::app_data_dir()
+        .join("assets")
+        .join(category)
+        .join(subcategory);
     fs::create_dir_all(&assets_dir).map_err(|e| format!("Failed to create assets dir: {}", e))?;
     Ok(assets_dir)
 }
@@ -328,6 +334,21 @@ pub fn check_thumbnails_exist(types: Vec<String>) -> Result<Vec<bool>, String> {
         .map(|t| dir.join(format!("{}.png", t.replace(":", "__"))).exists())
         .collect();
     Ok(results)
+}
+
+/// 把正文 HTML 里存的相对引用 `assets/<cat>/<sub>/<name>` 解析为磁盘绝对路径。
+///
+/// 仅做「app_data_dir 基座 + 相对拼接」，并对 `..` / 绝对路径做拒入，
+/// 杜绝路径穿越。插画落库基座已迁到 app_data_dir（方案 2），故相对引用
+/// 一定落在数据域内，导出打包 / 渲染期定位都走它，不依赖机器绝对路径。
+#[tauri::command]
+pub fn resolve_asset_ref(rel: String) -> Result<String, String> {
+    if rel.contains("..") || rel.starts_with('/') {
+        return Err(format!("invalid asset ref: {}", rel));
+    }
+    let base = crate::infrastructure::database::connection::app_data_dir();
+    let path = base.join(&rel);
+    Ok(path.to_string_lossy().to_string())
 }
 
 // ─── 通用文件读取（图片/资源加载的统一入口）─────────────────────────────

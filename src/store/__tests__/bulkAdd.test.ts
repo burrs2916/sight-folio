@@ -15,20 +15,20 @@ describe("editorStore 批量动作（同步到画布性能基础）", () => {
     const ids = store.addComponentsBulk([
       { type: "file", name: "a.ts", x: 10, y: 20 },
       { type: "file", name: "b.ts", x: 30, y: 40, width: 180, height: 70 },
-      { type: "dependency-edge", name: "a→b", x: 0, y: 0, config: { fromFileId: "f1", toFileId: "f2" } },
+      { type: "annotation-text", name: "备注", x: 0, y: 0, config: { content: "第一卷起" } },
     ]);
 
     expect(ids).toHaveLength(3);
     const comps = useEditorStore.getState().components;
     expect(comps).toHaveLength(3);
-    expect(comps.map((c) => c.name)).toEqual(["a.ts", "b.ts", "a→b"]);
+    expect(comps.map((c) => c.name)).toEqual(["a.ts", "b.ts", "备注"]);
     // 尺寸覆盖生效
     const b = comps.find((c) => c.name === "b.ts")!;
     expect(b.transform.width).toBe(180);
     expect(b.transform.height).toBe(70);
     // config 合并生效
-    const edge = comps.find((c) => c.type === "dependency-edge")!;
-    expect(edge.config.fromFileId).toBe("f1");
+    const anno = comps.find((c) => c.type === "annotation-text")!;
+    expect(anno.config.content).toBe("第一卷起");
     // zIndex 顺序递增
     expect(comps.map((c) => c.zIndex)).toEqual([1, 2, 3]);
   });

@@ -370,7 +370,7 @@ export function Breadcrumbs({
                   <ListItemIcon sx={{ minWidth: 28 }}>
                     <AutoFixHighIcon sx={{ fontSize: 16 }} />
                   </ListItemIcon>
-                  <ListItemText primary={t("breadcrumb.diagnoseFile")} sx={{ "& .MuiListItemText-primary": { fontSize: 12 } }} />
+                  <ListItemText primary={t("workbench.breadcrumb.diagnoseFile")} sx={{ "& .MuiListItemText-primary": { fontSize: 12 } }} />
                 </ListItemButton>
               )}
               {ctxMenu?.kind === "symbol" && onDiagnoseSymbol && activeSym && (
@@ -378,7 +378,7 @@ export function Breadcrumbs({
                   <ListItemIcon sx={{ minWidth: 28 }}>
                     <AutoFixHighIcon sx={{ fontSize: 16 }} />
                   </ListItemIcon>
-                  <ListItemText primary={t("breadcrumb.diagnoseSymbol")} sx={{ "& .MuiListItemText-primary": { fontSize: 12 } }} />
+                  <ListItemText primary={t("workbench.breadcrumb.diagnoseSymbol")} sx={{ "& .MuiListItemText-primary": { fontSize: 12 } }} />
                 </ListItemButton>
               )}
               <Divider />
@@ -386,7 +386,7 @@ export function Breadcrumbs({
                 <ListItemIcon sx={{ minWidth: 28 }}>
                   <ContentCopyIcon sx={{ fontSize: 16 }} />
                 </ListItemIcon>
-                <ListItemText primary={t("breadcrumb.copyPath")} sx={{ "& .MuiListItemText-primary": { fontSize: 12 } }} />
+                <ListItemText primary={t("workbench.breadcrumb.copyPath")} sx={{ "& .MuiListItemText-primary": { fontSize: 12 } }} />
               </ListItemButton>
             </List>
           </Box>

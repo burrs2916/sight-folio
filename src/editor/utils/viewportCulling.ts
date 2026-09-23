@@ -1,4 +1,4 @@
-// project-sight: 画布实体视口虚拟化（性能优化）
+// sight-folio: 画布实体视口虚拟化（性能优化）
 //
 // 大项目（数百实体）同步到画布后，EditorCanvas 会对每个实体渲染完整
 // EditorCanvasComponent（含 renderer 渲染器）。视口外实体仍在 DOM 中，

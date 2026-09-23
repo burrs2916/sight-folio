@@ -178,7 +178,6 @@ pub fn save_scan_excludes(
     analysis_id: String,
     exclude_dirs: Vec<String>,
     exclude_resources: bool,
-    parse_cad_assets: bool,
 ) -> Result<(), AppError> {
     // 读旧 metadata，合并后写回（不覆盖其它键）
     let mut metadata = state
@@ -205,11 +204,6 @@ pub fn save_scan_excludes(
             "excludeResources".to_string(),
             serde_json::Value::Bool(exclude_resources),
         );
-        // v2.15 按需 CAD 解析：分析含 CAD 资产的项目时开启（详情面板解析 .cadbin 元数据）
-        map.insert(
-            "parseCadAssets".to_string(),
-            serde_json::Value::Bool(parse_cad_assets),
-        );
     }
 
     state
@@ -220,8 +214,8 @@ pub fn save_scan_excludes(
         "info",
         "AnalysisCommand",
         &format!(
-            "Scan excludes saved: id={}, dirs={:?}, resources={}, parseCad={}",
-            analysis_id, exclude_dirs, exclude_resources, parse_cad_assets
+            "Scan excludes saved: id={}, dirs={:?}, resources={}",
+            analysis_id, exclude_dirs, exclude_resources
         ),
     );
     Ok(())

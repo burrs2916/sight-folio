@@ -1,4 +1,4 @@
-// project-sight: 画布平移/缩放 —— 脱离 React 渲染循环的实现
+// sight-folio: 画布平移/缩放 —— 脱离 React 渲染循环的实现
 //
 // 为什么要这么写（用户反复反馈「非常卡顿，不够流畅」的第三层根因）：
 //
@@ -227,9 +227,26 @@ export function useCanvasPanZoom(options: UseCanvasPanZoomOptions): CanvasPanZoo
   );
 
   // ─── 原生 wheel 监听（React 的 onWheel 是 passive，无法 preventDefault）───
+  // G1 止血（载体设计视图不可滚诊断）：事件 target 存在「实际可滚动」的祖先元素时
+  // 放行原生滚动——此前无条件 preventDefault 把载体卡内 overflowY 列表的滚动
+  // 整个杀掉（内容一多列表永远滚不动，滚轮全变成平移画布）。
+  // 判定标准：祖先 overflow 为 auto/scroll/overlay 且内容确有溢出；
+  // 再校验滚轮方向上是否还有滚动余量（到边缘则回落画布平移，不白吃手势）。
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    const findScrollableAncestor = (start: EventTarget | null): HTMLElement | null => {
+      let node = start instanceof HTMLElement ? start : null;
+      while (node && node !== el && node !== document.body) {
+        const style = window.getComputedStyle(node);
+        const overflowRe = /(auto|scroll|overlay)/;
+        const canY = overflowRe.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1;
+        const canX = overflowRe.test(style.overflowX) && node.scrollWidth > node.clientWidth + 1;
+        if (canY || canX) return node;
+        node = node.parentElement;
+      }
+      return null;
+    };
     const onWheel = (e: WheelEvent) => {
       const rect = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) {
@@ -238,11 +255,26 @@ export function useCanvasPanZoom(options: UseCanvasPanZoomOptions): CanvasPanZoo
         const dir = e.deltaY > 0 ? -1 : 1;
         const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
         applyLive(zoomAtPoint(liveRef.current, liveRef.current.scale + dir * zoomStep, anchor, limits));
-      } else {
-        // 普通滚轮/触控板双指 = 平移画布（原实现完全无响应）
-        e.preventDefault();
-        applyLive(panBy(liveRef.current, -e.deltaX, -e.deltaY));
+        return;
       }
+      // 普通滚轮/触控板双指：命中可滚动祖先（且该方向有滚动余量）→ 放行原生滚动
+      const scrollable = findScrollableAncestor(e.target);
+      if (scrollable) {
+        const hasRoomY =
+          scrollable.scrollHeight > scrollable.clientHeight + 1 &&
+          ((e.deltaY < 0 && scrollable.scrollTop > 0) ||
+            (e.deltaY > 0 && scrollable.scrollTop + scrollable.clientHeight < scrollable.scrollHeight - 1) ||
+            e.deltaY === 0);
+        const hasRoomX =
+          scrollable.scrollWidth > scrollable.clientWidth + 1 &&
+          ((e.deltaX < 0 && scrollable.scrollLeft > 0) ||
+            (e.deltaX > 0 && scrollable.scrollLeft + scrollable.clientWidth < scrollable.scrollWidth - 1) ||
+            e.deltaX === 0);
+        if (hasRoomY || hasRoomX) return; // 不 preventDefault，交还原生滚动
+      }
+      // 否则 = 平移画布（原实现完全无响应的历史行为保留）
+      e.preventDefault();
+      applyLive(panBy(liveRef.current, -e.deltaX, -e.deltaY));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);

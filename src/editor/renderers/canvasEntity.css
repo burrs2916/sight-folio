@@ -108,3 +108,87 @@
 .ps-drill:hover {
   transform: scale(1.15);
 }
+
+/* ─── 载体工作台实体（writing-workbench）：画布上的可编辑纸面卡 ───
+   ProseMirror 布局与排版全部收口在这组静态规则里（渲染器零 Emotion 约定）。
+   外层 .ps-workbench 是 flex 容器，编辑面撑满卡片剩余高度并内部滚动。 */
+.ps-workbench {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ps-workbench .tiptap,
+.ps-workbench .ProseMirror {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  outline: none;
+  padding: 14px 20px 20px;
+  font-size: 14px;
+  line-height: 1.95;
+  box-sizing: border-box;
+}
+
+.ps-workbench .ProseMirror p {
+  margin: 0.6em 0;
+}
+
+.ps-workbench .ProseMirror h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 1em 0 0.5em;
+}
+
+.ps-workbench .ProseMirror h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1em 0 0.5em;
+}
+
+.ps-workbench .ProseMirror blockquote {
+  border-left: 3px solid #8b5cf655;
+  padding-left: 12px;
+  margin: 0.8em 0;
+  color: #64748b;
+}
+
+.ps-workbench .ProseMirror ul,
+.ps-workbench .ProseMirror ol {
+  padding-left: 1.4em;
+  margin: 0.6em 0;
+}
+
+/* 空卡占位提示（tiptap v3 Placeholder 扩展的 is-editor-empty 标记） */
+.ps-workbench .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+
+/* ─── 设计视图（WritingDesignView）输入态 ───
+   卡内编辑输入框平时无边框隐形，悬停/聚焦显形 —— 视觉干净且可发现。 */
+.ps-design input,
+.ps-design textarea {
+  font-family: inherit;
+}
+
+.ps-design input:hover,
+.ps-design textarea:hover {
+  border-color: rgba(128, 128, 128, 0.35);
+}
+
+.ps-design input:focus,
+.ps-design textarea:focus {
+  outline: none;
+  border-color: var(--template-palette-primary-main, #1976d2);
+  background: var(--template-palette-background-paper, #fff);
+}
+
+.ps-design input::placeholder,
+.ps-design textarea::placeholder {
+  color: var(--template-palette-text-disabled, rgba(0, 0, 0, 0.38));
+}

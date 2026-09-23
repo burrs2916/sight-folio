@@ -1,4 +1,4 @@
-// project-sight: 符号级引用索引工具
+// sight-folio: 符号级引用索引工具
 // 将后端 project_symbol_refs（引用边列表）聚合为「符号 → 引用点」映射，
 // 供左侧实体面板展示被引用计数与引用点列表。纯函数，便于单元测试。
 import type { ProjectSymbolRef } from "../../services/tauri";

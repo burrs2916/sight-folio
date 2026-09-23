@@ -1,4 +1,4 @@
-// project-sight: 类实体渲染器（精确画像）
+// sight-folio: 类实体渲染器（精确画像）
 // 类卡片：类名 + 方法数/复杂度，紫色系（与插件注册 color #8B5CF6 一致）
 //
 // R37 改为零 Emotion（纯 div/span + inline style）并接入 LOD，理由见 canvasTheme.ts。

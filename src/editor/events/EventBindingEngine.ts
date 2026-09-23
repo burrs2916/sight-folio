@@ -518,7 +518,7 @@ export class EventBindingEngine {
       }
       case 'closeDialog': {
         // 通过自定义事件通知对话框关闭
-        window.dispatchEvent(new CustomEvent('project-sight:closeDialog'));
+        window.dispatchEvent(new CustomEvent('sight-folio:closeDialog'));
         break;
       }
       case 'callApi': {

@@ -1,4 +1,4 @@
-// project-sight: 画布视口变换纯函数（平移 / 锚点缩放 / 钳制）
+// sight-folio: 画布视口变换纯函数（平移 / 锚点缩放 / 钳制）
 //
 // 背景（卡顿根因第三刀）：
 // ProjectCanvas 原先把 scale/panOffset 直接放在 React state 里，鼠标每移动一

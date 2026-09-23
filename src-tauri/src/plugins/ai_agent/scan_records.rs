@@ -1,4 +1,4 @@
-// project-sight: scan_records —— 扫描原始记录的下钻取数工具
+// sight-folio: scan_records —— 扫描原始记录的下钻取数工具
 //
 // 为什么需要它
 // ------------

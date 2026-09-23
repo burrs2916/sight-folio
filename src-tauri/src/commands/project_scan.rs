@@ -225,7 +225,7 @@ pub fn detect_language(path: &Path) -> Option<String> {
         | "mid" | "midi" => "asset", // 音视频
         "zip" | "tar" | "gz" | "tgz" | "bz2" | "xz" | "7z" | "rar" => "asset", // 压缩包
         "pdf" | "wasm" | "bin" | "dat" | "dll" | "so" | "dylib" | "exe" | "o" | "a" | "class"
-        | "jar" | "pak" | "cadbin" => "asset", // 其它二进制
+        | "jar" | "pak" => "asset", // 其它二进制
         _ => return None,
     }
     .to_string())

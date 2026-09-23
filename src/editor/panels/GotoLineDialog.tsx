@@ -14,7 +14,11 @@
  * 可读的「当前行/总行数/列」与实时解析提示，且与命令面板、面包屑共享同一套导航心智。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Dialog, TextField, Typography } from "@mui/material";
+// 大包导入改子路径（避免与 @mui/material/* 预构建双实例 split-brain，2026-09-14）
+import Box from "@mui/material/Box";
+import Dialog from "@mui/material/Dialog";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { t } from "../../i18n";
 import type { MonacoEditorHandle } from "./MonacoCodeEditor";
 

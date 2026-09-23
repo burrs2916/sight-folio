@@ -1,4 +1,4 @@
-// project-sight: AI Agent Tauri 命令
+// sight-folio: AI Agent Tauri 命令
 // 提供 CRUD + run_agent（流式对话 + 工具调用）给前端
 
 use serde::{Deserialize, Serialize};

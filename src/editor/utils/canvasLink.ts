@@ -1,4 +1,4 @@
-// project-sight: 画布联动工具
+// sight-folio: 画布联动工具
 // 左侧实体面板 / 文件树 / 审查结果 → 画布定位的共享逻辑。
 // 画布实体通过 config 中的 filePath / fileName / moduleName 等字段与
 // projectStore 的扫描结果（ProjectFile / ProjectModule / ProjectSymbol）双向匹配。

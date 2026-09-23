@@ -1,4 +1,4 @@
-// project-sight: 项目分析 / 场景编辑 类型定义
+// sight-folio: 项目分析 / 场景编辑 类型定义
 // 保留 biosphere 场景编辑完整模型（Scene*，来自参考实现），并叠加项目扫描/审查字段（Analysis*）。
 // 场景编辑功能与分析器能力在此共存：Scene* 供恢复出来的编辑器模块使用，Analysis* 供分析器前端使用。
 
@@ -30,8 +30,40 @@ export interface SceneView {
   canvasConfig?: import("../store/editorStore").CanvasConfig;
   viewport?: ViewportState;
   eventBindings?: EventBinding[];
-  /** 该视图中的设备摆位（V1 组态联动）— biosphere 遗留字段，project-sight 不使用 */
-  devicePlacements?: import("./devicePlacement").DevicePlacement[];
+  /**
+   * 写作嵌套 Tab（G2）：题材标记（novel/essay/...），L1 顶级 Tab 的分组键。
+   * 缺省 = 归「总览」组（含 default 结构视图与历史遗留载体视图）。
+   * 可选字段：JSON 落库自动兼容旧场景，零迁移。
+   */
+  carrierType?: string;
+  /**
+   * 写作类型化视图：L2 固定语义视图的单例标记，由调用方保证唯一。
+   *   - "catalog"       大纲视图（章节按卷/序排布）
+   *   - "characters"    人物/角色设定视图
+   *   - "worldview"     世界观视图（worldbuilding 设定卡网格）
+   *   - "timeline"      时间线视图（设定卡 timeline 事件按序铺开）
+   *   - "storylines"    剧情线视图（主线/支线/感情线推进，二期随线索数据模型）
+   *   - "foreshadowing" 伏笔视图（埋设→回收映射，二期随线索数据模型）
+   *   - "inspiration"   灵感视图（便签/素材箱）
+   *   - "proofread"     校对视图（文本检查发现清单）
+   *   - "stats"         统计视图（字数/状态/进度指标）
+   *   - "writing"       正文容器视图（内部挂卷/章节文档页签）
+   *   - "overview"      全书总览视图（跨维度统一仪表盘，L2 第一公民页签，
+   *                     由 openTypedCarrierView 创建，BookOverviewPanel 渲染）
+   * 缺省 = 自由视图（「＋」自建或载体落卡）。
+   */
+  kind?:
+    | "catalog"
+    | "characters"
+    | "worldview"
+    | "timeline"
+    | "storylines"
+    | "foreshadowing"
+    | "inspiration"
+    | "proofread"
+    | "stats"
+    | "writing"
+    | "overview";
 }
 
 export interface SceneLayer {
@@ -67,7 +99,7 @@ export type SceneLayerType =
   | "table"
   | "text"
   | "video"
-  // ─── 项目分析图层（project-sight 新增）───
+  // ─── 项目分析图层（sight-folio 新增）───
   | "files"
   | "modules"
   | "dependencies"

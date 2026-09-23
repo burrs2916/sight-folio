@@ -109,7 +109,7 @@ pub fn run_review_rules(
                 findings.extend(apply_metric_rule_on_files(&analysis_id, rule, &lang_files));
             }
             ("metadata", "module") => {
-                // project-sight: 模块暂存扫描结果中的目录聚合（暂用 directory file 代替）
+                // sight-folio: 模块暂存扫描结果中的目录聚合（暂用 directory file 代替）
                 let folders: Vec<ProjectFile> = files
                     .iter()
                     .filter(|f| f.is_directory && file_matches_rule_language(rule, f))

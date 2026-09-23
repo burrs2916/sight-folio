@@ -18,6 +18,7 @@ import {
   type QualityDisclosure,
 } from "../ai/insightReport";
 import type { AiContextQualityReport } from "../ai/contextTypes";
+import { generateBookReportHtml, generateBookReportSvg, generateBookReportJson } from "./bookReport";
 
 /** 模块依赖体检（v2.5）：报告里一段「架构健康摘要」 */
 export interface ModuleHealth {
@@ -530,6 +531,8 @@ const FRESHNESS_COLOR: Record<string, string> = {
  * 生成 HTML 分析报告
  */
 export function generateReportHtml(data: ReportData): string {
+  // 书场景（novel-zh）→ 生成「作品分析报告」，不掺代码分析章节（P0-1）
+  if (data.analysis.primaryLanguage === "novel-zh") return generateBookReportHtml(data.analysis, data.files);
   const { analysis, files, modules, dependencies, layers, findings, metrics, deadSymbols, callEdges, gitChurn, clones } = data;
   const cloneAgg = aggregateClones(clones);
   // AI 结论与可信度声明：两者都可能缺席（没接 AI / 没分析过），缺席时渲染成空串
@@ -1006,6 +1009,8 @@ function escapeHtml(str: string): string {
  * 符号索引/设计模式/符号引用/文件度量/审查发现），供程序化消费与二次分析。
  */
 export function generateReportJson(data: ReportData): string {
+  // 书场景（novel-zh）→ 作品分析报告 JSON（P0-1）
+  if (data.analysis.primaryLanguage === "novel-zh") return generateBookReportJson(data.analysis, data.files);
   const { analysis, files, modules, dependencies, layers, findings, symbols, patternHits, symbolRefs, metrics, techDebt, deadSymbols, callEdges, gitChurn, clones } = data;
   const ai = prepareAiBlocks(data);
 
@@ -1049,7 +1054,7 @@ export function generateReportJson(data: ReportData): string {
   }
 
   const report = {
-    format: "project-sight-analysis-report",
+    format: "sight-folio-analysis-report",
     // v2：新增 aiAnalysis（AI 结论 + 证据核验）与 dataQuality（可信度声明）两个顶层节点。
     // 消费方按 version 判定即可，v1 结构完全保留，旧的解析脚本不会因此失效。
     version: 2,
@@ -1341,6 +1346,8 @@ const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…
  * - 技术债明细、设计模式命中、审查发现汇总
  */
 export function generateReportSvg(data: ReportData): string {
+  // 书场景（novel-zh）→ 作品分析报告 SVG（P0-1）
+  if (data.analysis.primaryLanguage === "novel-zh") return generateBookReportSvg(data.analysis, data.files);
   const { analysis, files, modules, dependencies, layers, findings, metrics, techDebt, patternHits, deadSymbols, callEdges, gitChurn, clones } = data;
   const callAgg = aggregateCallGraph(callEdges);
   const cloneAgg = aggregateClones(clones, 14);

@@ -4,9 +4,9 @@ import enUS from "./en-US.json";
 
 /**
  * 轻量国际化引擎（零依赖，结构对齐参考项目 snap-craft 的 i18n/index.ts，
- * 但存储键与标题处理适配本项目 project-sight）。
+ * 但存储键与标题处理适配本项目 sight-folio）。
  *
- * - 语言：zh-CN / en-US，持久化到 localStorage('project-sight-locale')
+ * - 语言：zh-CN / en-US，持久化到 localStorage('sight-folio-locale')
  * - 启动时按 已保存 > 浏览器语言 推断
  * - 通过 useSyncExternalStore 订阅语言变化，切换时组件自动重渲染
  * - 纯前端 UI 文案翻译；后端返回的内容（OCR 文本、扫描数据等）不属于 UI 文案，不在此处理

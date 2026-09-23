@@ -1,4 +1,4 @@
-// project-sight: AI Agent 数据仓储层
+// sight-folio: AI Agent 数据仓储层
 // 6 张表：ai_providers, ai_endpoints, ai_models, ai_agents, ai_conversations, ai_messages
 
 use rusqlite::params;

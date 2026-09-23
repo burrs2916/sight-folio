@@ -1,5 +1,5 @@
 // ACP (Agent Client Protocol) host-side contract types.
-// Adapted from openclaw/packages/acp-core (MIT). project-sight reuses the same
+// Adapted from openclaw/packages/acp-core (MIT). sight-folio reuses the same
 // session / runtime-option / resource / tool shape so any ACP-compliant agent
 // (claw, OpenClaw coding-agent, or a future in-house agent) can drive this
 // workbench as its editor/host surface.
@@ -16,7 +16,7 @@ export interface AcpSessionRuntimeOptions {
   thinking?: string;
   /** Working directory override for the session turn. */
   cwd?: string;
-  /** Permission profile id (reuses project-sight's existing permission model). */
+  /** Permission profile id (reuses sight-folio's existing permission model). */
   permissionProfile?: string;
   /** Per-turn timeout in seconds. */
   timeoutSeconds?: number;
@@ -82,7 +82,7 @@ export function acpError(code: string, message: string): AcpError {
  * tool (write/danger). Surfaced to the user via AcpHostPanel; the user's
  * decision flows back through `AcpApprovalDecision`.
  *
- * Note: project-sight's in-house agent has a backend `agent-tool-approval`
+ * Note: sight-folio's in-house agent has a backend `agent-tool-approval`
  * channel, but that flow is coupled to the backend run loop (it holds the
  * pending execution and waits on `resolve_tool_approval`). The ACP host holds
  * its own pending execution on the frontend, so it uses this ACP-native gate

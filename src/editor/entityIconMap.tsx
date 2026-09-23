@@ -1,4 +1,4 @@
-// project-sight: 实体图标统一映射
+// sight-folio: 实体图标统一映射
 // 分析器插件注册的实体 icon 名（ComponentTypeRegistration.icon / ComponentDefinition.icon）
 // → MUI 图标组件。所有展示实体图标的地方（实体管理页 / 画像卡 / 面板）统一从这里解析，
 // 避免各处各自硬编码导致 class/function/interface 图标撞车。

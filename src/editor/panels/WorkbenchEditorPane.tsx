@@ -652,8 +652,6 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
     return chain.map((s) => ({ name: s.name, line: s.lineStart, kind: s.kind }));
   }, [caretLine, outlineSymbols]);
 
-  if (!pane) return null;
-
   const handleSetActive = (fileId: string) => {
     focusPane();
     setActive(fileId);
@@ -699,6 +697,10 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
     },
     [allFiles],
   );
+
+  // 早退必须放在所有 Hook 之后：pane 从有到无（关掉最后一个标签）时 Hook 数量才保持一致，
+  // 否则 React 抛 "Rendered fewer hooks than expected"。守卫后的三个 useCallback 都不读 pane。
+  if (!pane) return null;
 
   // 跨窗格落点整框发光：来源标签来自「其他窗格」且正悬停本窗格时，给本窗格加琥珀金 outline，
   // 使跨窗格目标被整框「瞄准」（与内部 DropEdge/移入徽标浮层叠加，落点更明确）。

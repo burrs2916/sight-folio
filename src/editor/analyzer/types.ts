@@ -1,4 +1,4 @@
-// project-sight: 分析器插件体系类型定义
+// sight-folio: 分析器插件体系类型定义
 // 对应需求文档 §4.3 AnalyzerManifest / §4.4 实体类型注册 / §4.5 视角模板
 // 每种编程语言对应一个分析器插件，通过 AnalyzerManifest 向核心引擎声明自身能力。
 
@@ -135,6 +135,11 @@ export interface AnalyzerManifest {
    * 否则 activateAnalyzerForLanguage("cpp") 永远匹配不到 "C/C++"。
    */
   languageAliases?: string[];
+  /**
+   * 语言分组的短展示名（i18n key），实体图鉴「按语言」分组标签用。
+   * 缺省回退 manifest.name（全名，如「小说写作分析器」——作分组标签太长）。
+   */
+  langNameKey?: string;
   /** 插件能力集 */
   capabilities: AnalyzerCapabilities;
   /** 插件注册的实体类型 */

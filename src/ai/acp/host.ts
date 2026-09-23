@@ -3,7 +3,7 @@
 // Speaks the ACP request/response/event envelope over a pluggable transport.
 // Today it runs on the InProcessTransport (same-app agents + local testing, zero
 // backend change). A future WebSocket bridge forwards frames to this same host,
-// so an out-of-process ACP agent (e.g. `claw`) can drive project-sight as its
+// so an out-of-process ACP agent (e.g. `claw`) can drive sight-folio as its
 // editor/host surface. Methods follow acp-core's session / resource / tool shape.
 
 import { InProcessTransport, type AcpTransport } from "./transport";

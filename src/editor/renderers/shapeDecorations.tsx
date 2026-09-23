@@ -1,4 +1,4 @@
-// project-sight: 实体类型形状装饰层（R 形状语言）
+// sight-folio: 实体类型形状装饰层（R 形状语言）
 //
 // 与 shellStyle 配合：shellStyle 给类型专属圆角，本组件再叠加 silhouette 细节
 // （折角 / 标签 / 层叠 / 分隔线 / lollipop）。全部用绝对定位 div + inline style，

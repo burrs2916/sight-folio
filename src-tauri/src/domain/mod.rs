@@ -1,9 +1,7 @@
 pub mod auth;
-pub mod cad;
 pub mod component_plugin;
 pub mod datasource;
 pub mod icons;
-pub mod map_library;
 pub mod analysis;
 pub mod project_files;
 pub mod project_modules;
@@ -22,5 +20,7 @@ pub mod project_call_edges;
 pub mod project_code_clones;
 pub mod project_change_coupling;
 pub mod project_data_flow;
+pub mod writing;
+pub mod corpus;
 
 pub use auth::*;
