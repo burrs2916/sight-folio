@@ -21,18 +21,22 @@
         "fullscreen": false,
         "decorations": true,
         "transparent": false,
-        "dragDropEnabled": false,
-        "devtools": true
+        "dragDropEnabled": false
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' data:; img-src 'self' asset: http://asset.localhost https: data: blob:; font-src 'self' data:; media-src 'self' asset: http://asset.localhost data: blob:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:23010 http://localhost:23010 blob:",
       "assetProtocol": {
         "enable": true,
         "scope": [
-          "$HOME/**",
+          "$RESOURCE/**",
           "$APPDATA/**",
-          "$RESOURCE/**"
+          "$EXE/**",
+          "$DOCUMENT/**",
+          "$DESKTOP/**",
+          "$DOWNLOAD/**",
+          "$PICTURE/**",
+          "$HOME/GithubProSpace/**"
         ]
       }
     }
