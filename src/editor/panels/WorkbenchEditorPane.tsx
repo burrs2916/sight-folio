@@ -55,8 +55,8 @@ import type {
 } from "../../store/codeWorkbenchStore";
 import type { ProjectFile, ProjectSymbol, SourceFileContent } from "../../services/tauri";
 import { parseFileMetricMeta, projectScanApi } from "../../services/tauri";
-import { ccLevel } from "./CodeWorkbench";
-import { EditorPane } from "./CodeWorkbench";
+import { ccLevel } from "./CodeWorkbenchTree";
+import { EditorPane } from "./CodeWorkbenchEditorPane";
 import { MonacoDiffEditor } from "./MonacoDiffEditor";
 import { WorkbenchMediaPreview, WorkbenchMarkdownPreview } from "./WorkbenchPreviewPanes";
 import { Breadcrumbs } from "./Breadcrumbs";
