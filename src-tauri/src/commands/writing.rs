@@ -3,10 +3,21 @@ use crate::domain::writing::{
     WritingOutline, WritingSetting, WritingStoryline, WritingTimelineEvent,
 };
 use crate::error::AppResult;
+use crate::infrastructure::database::analysis_repository::{AnalysisRepository, SqliteAnalysisRepository};
+use crate::infrastructure::database::project_file_repository::{
+    ProjectFileRepository, SqliteProjectFileRepository,
+};
+use crate::infrastructure::database::review_finding_repository::{
+    ReviewFindingRepository, SqliteReviewFindingRepository,
+};
 use crate::infrastructure::database::writing_repository::WritingRepository;
 use crate::infrastructure::database::SqliteWritingRepository;
 use std::sync::Arc;
 use tauri::State;
+
+// T4 领域下沉后，原命令层落地的常量/纯函数移居 application/writing；
+// 通过 pub use 再导出保持既有引用点（如 source_view.rs）零改动。
+pub use crate::application::writing::{WRITING_PATH_PREFIX, writing_analysis_id};
 
 /// 写作域命令（Sight Folio）：书籍与章节 CRUD。
 ///
@@ -98,14 +109,13 @@ pub fn save_writing_chapter_content(
 }
 
 /// 每章保留的快照上限（超过裁最旧的；切章自动存 + 手动存共用该上限）。
-const SNAPSHOT_KEEP_PER_CHAPTER: i64 = 20;
-
+/// 常量与裁剪口径集中在 application/writing（T4 领域下沉），命令层不再重复定义。
 #[tauri::command]
 pub fn save_writing_chapter_snapshot(
     snapshot: WritingChapterSnapshot,
     repo: State<'_, Arc<SqliteWritingRepository>>,
 ) -> AppResult<()> {
-    repo.save_chapter_snapshot(&snapshot, SNAPSHOT_KEEP_PER_CHAPTER)
+    crate::application::writing::save_chapter_snapshot(&snapshot, &*repo)
 }
 
 #[tauri::command]
@@ -113,7 +123,7 @@ pub fn list_writing_chapter_snapshots(
     chapter_id: String,
     repo: State<'_, Arc<SqliteWritingRepository>>,
 ) -> AppResult<Vec<WritingChapterSnapshot>> {
-    repo.list_chapter_snapshots(&chapter_id, SNAPSHOT_KEEP_PER_CHAPTER)
+    crate::application::writing::list_chapter_snapshots(&chapter_id, &*repo)
 }
 
 #[tauri::command]
@@ -281,836 +291,46 @@ pub fn delete_writing_foreshadowing(
     repo.delete_foreshadowing(&foreshadowing_id)
 }
 
-// ─── EPUB 导出（P5） ───
+// ─── EPUB 导出（P5）：实现在 application/writing（T4 领域下沉） ───
 
-/// EPUB 章节载荷：前端把当前书的章节（标题 + TipTap HTML）传上来，
-/// 后端只负责打包写盘——不在 Rust 侧重复查询与排序逻辑。
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EpubChapter {
-    pub title: String,
-    /// 章节正文（TipTap HTML，插画以 `<img data-asset="...">` 单一事实源存相对引用）。
-    pub content: String,
-    /// 章头图（批次 2）：相对引用 `assets/writing/illustrations/<name>`，无则 None。
-    /// 创作者主权：有/无等价合法，导出时仅当存在才接入。
-    #[serde(default)]
-    pub cover: Option<String>,
-}
-
-/// XML 转义（属性/文本两用，最保守的五个实体）。
-fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
-}
-
-/// 图片扩展名 → EPUB manifest media-type（默认 image/png）。
-fn image_media_type(path: &str) -> &'static str {
-    match path.rsplit('.').next().map(|e| e.to_ascii_lowercase()).as_deref() {
-        Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("gif") => "image/gif",
-        Some("svg") => "image/svg+xml",
-        Some("webp") => "image/webp",
-        Some("bmp") => "image/bmp",
-        _ => "image/png",
-    }
-}
-
-/// 取标签里某个双引号属性的取值，例如 `data-asset="a/b.png"` → `a/b.png`。
-fn attr_quoted_value(tag: &str, attr: &str) -> Option<String> {
-    let needle = format!("{}=\"", attr);
-    let idx = tag.find(&needle)?;
-    let after = idx + needle.len();
-    let rest = &tag[after..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_string())
-}
-
-/// 从一段 HTML 里提取所有 `data-asset="..."` 的相对引用（插画单一事实源）。
-/// 只扫 `<img ...>` 标签，不依赖外部解析库，符合本仓库受控的 TipTap 输出。
-fn extract_data_asset_refs(html: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut start = 0;
-    while let Some(pos) = html[start..].find("<img") {
-        let tag_start = start + pos;
-        let tag_end = match html[tag_start..].find('>') {
-            Some(i) => tag_start + i,
-            None => break,
-        };
-        let tag = &html[tag_start..=tag_end];
-        if let Some(val) = attr_quoted_value(tag, "data-asset") {
-            out.push(val);
-        }
-        start = tag_end + 1;
-    }
-    out
-}
-
-/// 把 `<img ...>` 的 src 重写到 EPUB 内相对路径，并确保自闭合（XHTML 兼容）。
-/// 仅当标签带 `data-asset` 且能在映射里命中时才改；否则原样保留（兼容外链图）。
-fn rewrite_img_to_epub(html: &str, rel_to_href: &std::collections::HashMap<String, String>) -> String {
-    let mut out = String::with_capacity(html.len());
-    let mut start = 0;
-    while let Some(pos) = html[start..].find("<img") {
-        let tag_start = start + pos;
-        let tag_end = match html[tag_start..].find('>') {
-            Some(i) => tag_start + i,
-            None => break,
-        };
-        let tag = &html[tag_start..=tag_end];
-        out.push_str(&html[start..tag_start]);
-        if let Some(rel) = attr_quoted_value(tag, "data-asset") {
-            if let Some(href) = rel_to_href.get(&rel) {
-                out.push_str(&set_img_src(tag, href));
-            } else {
-                out.push_str(tag);
-            }
-        } else {
-            out.push_str(tag);
-        }
-        start = tag_end + 1;
-    }
-    out.push_str(&html[start..]);
-    out
-}
-
-/// 把 `src="..."` 替换为 `src="href"`，并确保标签以 `/>` 结尾（XHTML 自闭合）。
-fn set_img_src(tag: &str, href: &str) -> String {
-    let needle = "src=\"";
-    let mut s = if let Some(idx) = tag.find(needle) {
-        let after = idx + needle.len();
-        let rest = &tag[after..];
-        match rest.find('"') {
-            Some(end) => {
-                let before = &tag[..idx];
-                let after_quote = &rest[end + 1..];
-                format!("{before}src=\"{href}\"{after_quote}")
-            }
-            None => tag.to_string(),
-        }
-    } else {
-        tag.to_string()
-    };
-    if !s.ends_with("/>") {
-        if let Some(strip) = s.strip_suffix('>') {
-            s = format!("{strip}/>");
-        }
-    }
-    s
-}
-
-/// 把 `<tag ...>`（未自闭合）改成 `<tag .../>`；已自闭合则原样（XHTML 兼容）。
-fn self_close_void(html: &str, tag: &str) -> String {
-    let open = format!("<{}", tag);
-    let exact = format!("<{}>", tag);
-    let mut out = String::with_capacity(html.len());
-    let mut start = 0;
-    while let Some(pos) = html[start..].find(&open) {
-        let tag_start = start + pos;
-        let tag_end = match html[tag_start..].find('>') {
-            Some(i) => tag_start + i,
-            None => break,
-        };
-        let snippet = &html[tag_start..=tag_end];
-        out.push_str(&html[start..tag_start]);
-        if snippet.ends_with("/>") || snippet.ends_with(" />") {
-            out.push_str(snippet);
-        } else if snippet.starts_with(&format!("<{} ", tag)) || snippet == exact {
-            let inner = &snippet[..snippet.len() - 1];
-            out.push_str(inner);
-            out.push_str("/>");
-        } else {
-            out.push_str(snippet);
-        }
-        start = tag_end + 1;
-    }
-    out.push_str(&html[start..]);
-    out
-}
-
-/// TipTap HTML → 严格 XHTML 可嵌入内容：
-/// - `&nbsp;` 等命名实体不是预定义 XML 实体，严格的 EPUB 阅读器会拒开，改数字引用；
-/// - void 元素（br / hr / img）自闭合，否则 EPUBCheck 会报 XML 良构错误。
-fn html_to_xhtml(html: &str) -> String {
-    let mut s = html.replace("&nbsp;", "&#160;");
-    s = self_close_void(&s, "br");
-    s = self_close_void(&s, "hr");
-    s = self_close_void(&s, "img");
-    s
-}
-
-/// 收集一个插画相对引用：解析磁盘绝对路径、读字节、去重、决定 EPUB 内路径。
-/// 结果写入 `img_entries`（写盘用）与 `rel_to_href`（正文 src 改写用）。
-fn collect_asset(
-    rel: &str,
-    rel_to_href: &mut std::collections::HashMap<String, String>,
-    img_entries: &mut Vec<(String, Vec<u8>, String)>,
-    used_names: &mut std::collections::HashMap<String, String>,
-) -> AppResult<()> {
-    if rel_to_href.contains_key(rel) {
-        return Ok(()); // 同一张图在多处引用，只打包一次
-    }
-    let abs = crate::commands::asset::resolve_asset_ref(rel.to_string())
-        .map_err(|e| crate::error::AppError::Internal(format!("resolve asset {rel}: {e}")))?;
-    let bytes = std::fs::read(&abs)
-        .map_err(|e| crate::error::AppError::Internal(format!("read asset {abs}: {e}")))?;
-    let base = std::path::Path::new(rel)
-        .file_name()
-        .map(|f| f.to_string_lossy().to_string())
-        .unwrap_or_else(|| "image.bin".to_string());
-    let mut name = base.clone();
-    let mut n = 1;
-    while used_names.contains_key(&name) {
-        n += 1;
-        match base.rfind('.') {
-            Some(d) => {
-                let (stem, ext) = base.split_at(d);
-                name = format!("{}_{}{}", stem, n, ext);
-            }
-            None => name = format!("{}_{}", base, n),
-        }
-    }
-    used_names.insert(name.clone(), rel.to_string());
-    let href = format!("images/{}", name);
-    let media = image_media_type(&abs).to_string();
-    img_entries.push((href.clone(), bytes, media));
-    rel_to_href.insert(rel.to_string(), href);
-    Ok(())
-}
-
-/// 生成 EPUB 3 并写到用户选定路径。
-///
-/// 结构：mimetype（STORED 首条目，规范要求不压缩）→ META-INF/container.xml
-/// → OEBPS/content.opf（元数据 + manifest + spine）→ OEBPS/nav.xhtml（EPUB3 目录）
-/// → OEBPS/images/*（插画 + 章头图）→ OEBPS/chapter_N.xhtml。
-///
-/// 图片接入（批次 3）：正文 `<img data-asset="相对引用">` 与章头图 `cover`
-/// 都经 `resolve_asset_ref` 解析绝对路径 → 读字节写入 OEBPS/images/，正文 src
-/// 改写为 EPUB 内相对路径；章头图作为章节首图前置到该章 `<body>`。无图章节不受影响。
 #[tauri::command]
 pub fn save_writing_epub(
     title: String,
     description: Option<String>,
-    chapters: Vec<EpubChapter>,
+    chapters: Vec<crate::application::writing::EpubChapter>,
     path: String,
 ) -> AppResult<()> {
-    use std::collections::HashMap;
-    use std::io::Write;
-    use zip::write::SimpleFileOptions;
-    use zip::ZipWriter;
-
-    // 1. 预扫描整书所有插画引用（正文 <img data-asset> + 章头图 cover），去重收集。
-    let mut rel_to_href: HashMap<String, String> = HashMap::new();
-    let mut img_entries: Vec<(String, Vec<u8>, String)> = Vec::new();
-    let mut used_names: HashMap<String, String> = HashMap::new();
-    for ch in &chapters {
-        if let Some(cover) = &ch.cover {
-            if !cover.is_empty() {
-                collect_asset(cover, &mut rel_to_href, &mut img_entries, &mut used_names)?;
-            }
-        }
-        for rel in extract_data_asset_refs(&ch.content) {
-            collect_asset(&rel, &mut rel_to_href, &mut img_entries, &mut used_names)?;
-        }
-    }
-
-    let file = std::fs::File::create(&path)
-        .map_err(|e| crate::error::AppError::Internal(format!("create {path}: {e}")))?;
-    let mut zip = ZipWriter::new(file);
-    let stored = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
-    let deflated = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
-
-    let esc_title = xml_escape(&title);
-    let uuid = uuid::Uuid::new_v4();
-    let lang = "zh";
-
-    // 2. mimetype（必须首条目且 STORED）
-    zip.start_file("mimetype", stored)
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-    zip.write_all(b"application/epub+zip")
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-
-    // 3. container.xml
-    let container = r#"<?xml version="1.0" encoding="UTF-8"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>"#;
-    zip.start_file("META-INF/container.xml", deflated)
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-    zip.write_all(container.as_bytes())
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-
-    // 4. 插画写入 OEBPS/images/（在 opf 之前，顺序无关，mimetype 已占首条目）
-    for (href, bytes, _media) in &img_entries {
-        zip.start_file(format!("OEBPS/{}", href), deflated)
-            .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-        zip.write_all(bytes)
-            .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-    }
-
-    // 5. content.opf（manifest = nav + 各章 + 各图）
-    let mut manifest = String::from(
-        r#"    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>"#,
-    );
-    let mut spine = String::new();
-    for (i, _ch) in chapters.iter().enumerate() {
-        let id = format!("chap_{i}");
-        let href = format!("chapter_{i}.xhtml");
-        manifest.push_str(&format!(
-            "\n    <item id=\"{id}\" href=\"{href}\" media-type=\"application/xhtml+xml\"/>"
-        ));
-        spine.push_str(&format!("\n    <itemref idref=\"{id}\"/>"));
-    }
-    for (k, (href, _bytes, media)) in img_entries.iter().enumerate() {
-        let id = format!("img_{k}");
-        manifest.push_str(&format!(
-            "\n    <item id=\"{id}\" href=\"{href}\" media-type=\"{media}\"/>"
-        ));
-    }
-    let desc = description
-        .as_deref()
-        .map(xml_escape)
-        .unwrap_or_default();
-    let opf = format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
-<package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="book-id">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="book-id">urn:uuid:{uuid}</dc:identifier>
-    <dc:title>{esc_title}</dc:title>
-    <dc:language>{lang}</dc:language>
-    {desc_tag}
-  </metadata>
-  <manifest>
-{manifest}
-  </manifest>
-  <spine>{spine}
-  </spine>
-</package>"#,
-        desc_tag = if desc.is_empty() {
-            String::new()
-        } else {
-            format!("<dc:description>{desc}</dc:description>")
-        },
-    );
-    zip.start_file("OEBPS/content.opf", deflated)
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-    zip.write_all(opf.as_bytes())
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-
-    // 6. nav.xhtml（EPUB3 目录）
-    let mut nav_lis = String::new();
-    for (i, ch) in chapters.iter().enumerate() {
-        nav_lis.push_str(&format!(
-            "\n      <li><a href=\"chapter_{i}.xhtml\">{}</a></li>",
-            xml_escape(&ch.title)
-        ));
-    }
-    let nav = format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-<head><title>{esc_title}</title></head>
-<body>
-  <nav epub:type="toc" id="toc">
-    <h1>{esc_title}</h1>
-    <ol>{nav_lis}
-    </ol>
-  </nav>
-</body>
-</html>"#
-    );
-    zip.start_file("OEBPS/nav.xhtml", deflated)
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-    zip.write_all(nav.as_bytes())
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-
-    // 7. 各章 xhtml（正文 src 改写 + 章头图前置）
-    for (i, ch) in chapters.iter().enumerate() {
-        let rewritten = rewrite_img_to_epub(&ch.content, &rel_to_href);
-        let body = html_to_xhtml(&rewritten);
-        let cover_img = match &ch.cover {
-            Some(c) if !c.is_empty() => rel_to_href
-                .get(c)
-                .map(|href| format!("<div class=\"chapter-cover\"><img alt=\"cover\" src=\"{href}\"/></div>\n")),
-            _ => None,
-        };
-        let xhtml = format!(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>{}</title></head>
-<body>
-{}{}
-</body>
-</html>"#,
-            xml_escape(&ch.title),
-            cover_img.unwrap_or_default(),
-            body
-        );
-        zip.start_file(format!("OEBPS/chapter_{i}.xhtml"), deflated)
-            .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-        zip.write_all(xhtml.as_bytes())
-            .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-    }
-
-    zip.finish()
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
-    Ok(())
+    crate::application::writing::export_epub(title, description, chapters, path)
 }
 
-#[cfg(test)]
-mod epub_tests {
-    use super::*;
+// ─── 分析器融合（F1）：实现在 application/writing::scan_book（T4 领域下沉） ───
+// 书 = 分析记录、章节 = 项目文件、死设定/未落地节拍 = review_findings，
+// 语义映射与写作域注释详见 application/writing/mod.rs。
 
-    #[test]
-    fn extract_data_asset_refs_finds_relative_refs_only() {
-        let html = r#"<p>text</p><img src="asset://x" data-asset="assets/writing/illustrations/a.png" alt="a"/><img src="https://e.com/b.jpg"/>"#;
-        let refs = extract_data_asset_refs(html);
-        assert_eq!(refs, vec!["assets/writing/illustrations/a.png".to_string()]);
-    }
-
-    #[test]
-    fn extract_data_asset_refs_keeps_all_occurrences() {
-        let html = r#"<img data-asset="assets/1.png"><img data-asset="assets/1.png"><img data-asset="assets/2.png">"#;
-        assert_eq!(extract_data_asset_refs(html).len(), 3);
-    }
-
-    #[test]
-    fn rewrite_img_to_epub_rewrites_src_and_self_closes() {
-        let mut map = std::collections::HashMap::new();
-        map.insert(
-            "assets/writing/illustrations/a.png".to_string(),
-            "images/a.png".to_string(),
-        );
-        let html = r#"<img src="asset://x" data-asset="assets/writing/illustrations/a.png" alt="a">"#;
-        let out = rewrite_img_to_epub(html, &map);
-        assert!(out.contains("src=\"images/a.png\""), "got: {out}");
-        assert!(out.trim_end().ends_with("/>"), "got: {out}");
-    }
-
-    #[test]
-    fn rewrite_img_to_epub_leaves_external_images_untouched() {
-        let map = std::collections::HashMap::new();
-        let html = r#"<img src="https://e.com/b.jpg"/>"#;
-        assert_eq!(rewrite_img_to_epub(html, &map), html);
-    }
-
-    #[test]
-    fn html_to_xhtml_self_closes_void_elements_and_fixes_nbsp() {
-        assert_eq!(
-            html_to_xhtml("a<br>b<hr>c<img src=\"x\">"),
-            "a<br/>b<hr/>c<img src=\"x\"/>"
-        );
-        assert_eq!(html_to_xhtml("&nbsp;"), "&#160;");
-        // 已自闭合的不重复处理
-        assert_eq!(html_to_xhtml("<br/>"), "<br/>");
-    }
-}
-
-// ─── 分析器融合（F1）：把书扫进既有分析记录体系 ───
-//
-// 语义映射：书 = 分析记录（analyses 行），章节 = 项目文件（project_files 行）。
-// 这是「分析器就是写作台」的地基：实体图鉴 / 代码工作台 / 画布全部消费
-// analyses + project_files，书扫进去之后这些既有面板无需任何前端改动即被点亮。
-//
-// path 约定 `writing://{book_id}/{chapter_id}.md`：
-// - chapter_id 可从 path 反解 → read_source_file 据此从 writing_chapters 取正文；
-// - 不落磁盘，正文唯一事实来源仍是写作库。
-// - `wscan_` 前缀隔离用户手动创建的分析记录，删除书籍时同步清理。
-
-use crate::domain::analysis::Analysis;
-use crate::domain::project_files::ProjectFile;
-use crate::domain::review_findings::ReviewFinding;
-use crate::infrastructure::database::analysis_repository::{AnalysisRepository, SqliteAnalysisRepository};
-use crate::infrastructure::database::project_file_repository::{
-    ProjectFileRepository, SqliteProjectFileRepository,
-};
-use crate::infrastructure::database::review_finding_repository::{
-    ReviewFindingRepository, SqliteReviewFindingRepository,
-};
-
-/// 写作扫描产物的 analysis id 前缀（wscan_{book_id}）
-pub fn writing_analysis_id(book_id: &str) -> String {
-    format!("wscan_{}", book_id)
-}
-
-/// 章节虚拟文件的 path 前缀（read_source_file 据此分流到写作库）
-pub const WRITING_PATH_PREFIX: &str = "writing://";
-
-/// 扫描结果摘要（前端 toast + 接线 projectStore 用）
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WritingScanSummary {
-    pub analysis_id: String,
-    pub file_count: i64,
-    pub total_words: i64,
-    /// 本次写作发现的条数（死设定 + 未落地节拍）
-    pub finding_count: i64,
-}
-
-/// 把一本书扫描为分析记录：upsert analyses 行 + 全量重建章节的 project_files 行，
-/// 并产出写作审查发现（对标死代码 / 技术债语义）：
-/// - **死设定**（rule `writing-dead-setting`）：人设/世界观卡全书 0 次提及 —— 对标 dead code；
-/// - **未落地节拍**（rule `writing-unbound-beat`）：大纲节拍未绑定任何章节 —— 对标 tech debt。
-/// findings 落 `review_findings`，target_type 对齐写作实体类型（writing-character 等），
-/// 实体图鉴按 targetType 聚合计数，审查面板 / 报告 / AI 工具零改动消费。
-///
-/// 幂等：analyses 走 INSERT OR REPLACE，章节文件与 findings 均先 delete 再 save_batch；
-/// 书删了（delete_writing_book）连带清理三表。
-///
-/// 人物出场统计（每张卡在各章的提及次数）写进章节 `project_files.metadata.appearances`，
-/// 供后续出场图谱 / 画布视角消费。
 #[tauri::command]
 pub fn scan_writing_book(
     book_id: String,
     writing_repo: State<'_, Arc<SqliteWritingRepository>>,
-    analysis_repo: State<'_, Arc<SqliteAnalysisRepository>>,
-    file_repo: State<'_, Arc<SqliteProjectFileRepository>>,
-    finding_repo: State<'_, Arc<SqliteReviewFindingRepository>>,
-) -> AppResult<WritingScanSummary> {
-    let book = writing_repo
-        .get_book(&book_id)?
-        .ok_or_else(|| crate::error::AppError::NotFound(format!("书籍不存在: {}", book_id)))?;
-    let chapters = writing_repo.list_chapters(&book_id)?;
-    let analysis_id = writing_analysis_id(&book_id);
-    let now = chrono::Utc::now().timestamp();
-    let total_words: i64 = chapters.iter().map(|c| c.word_count).sum();
-
-    // 1) analyses 行：书即分析记录（字数充当行数口径，主语言标记 novel-zh）。
-    //    INSERT OR REPLACE 是整行覆写：必须先把既有行读出来，把画布持久化字段
-    //    （editor_components/editor_layers/canvas_config/...）原样带回去，
-    //    否则每次重扫都会把用户在工作室画布上摆好的布局抹成 NULL（书=场景的数据丢失根因）。
-    let existing = analysis_repo.get_analysis_by_id(&analysis_id)?;
-    analysis_repo.save_analysis(&Analysis {
-        id: analysis_id.clone(),
-        name: book.title.clone(),
-        description: book.description.clone(),
-        project_root: format!("{}{}/", WRITING_PATH_PREFIX, book_id),
-        editor_components: existing.as_ref().and_then(|a| a.editor_components.clone()),
-        editor_layers: existing.as_ref().and_then(|a| a.editor_layers.clone()),
-        canvas_config: existing.as_ref().and_then(|a| a.canvas_config.clone()),
-        global_components: existing.as_ref().and_then(|a| a.global_components.clone()),
-        views: existing.as_ref().and_then(|a| a.views.clone()),
-        active_view_id: existing.as_ref().and_then(|a| a.active_view_id.clone()),
-        viewport_sync_rules: existing.as_ref().and_then(|a| a.viewport_sync_rules.clone()),
-        category_id: existing.as_ref().and_then(|a| a.category_id.clone()),
-        tags: "[\"writing\"]".to_string(),
-        scan_status: "ready".to_string(),
-        scan_progress: 100,
-        last_scanned_at: Some(now),
-        total_files: chapters.len() as i64,
-        total_lines: total_words,
-        primary_language: Some("novel-zh".to_string()),
-        created_at: existing.as_ref().map(|a| a.created_at).unwrap_or(now),
-        ..Default::default()
-    })?;
-
-    // 2) 设定卡（人设 + 世界观）：出场统计与死设定检测的检测对象
-    let characters = writing_repo.list_settings(&book_id, "character")?;
-    let worldbuilding = writing_repo.list_settings(&book_id, "worldbuilding")?;
-    let cards: Vec<&crate::domain::writing::WritingSetting> = characters
-        .iter()
-        .chain(worldbuilding.iter())
-        .filter(|s| !s.name.trim().is_empty())
-        .collect();
-
-    // 3) project_files 行：每章一个虚拟文件（按 sort_order 排序，卷名进 rel_path），
-    //    metadata.appearances 记录本章各设定卡提及次数
-    let mut sorted = chapters;
-    sorted.sort_by_key(|c| c.sort_order);
-    let mut files = Vec::with_capacity(sorted.len());
-    // 设定卡总提及次数（跨全书），收敛后判死设定
-    let mut card_totals: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
-    for (i, ch) in sorted.iter().enumerate() {
-        let num = i + 1;
-        let prefix = if ch.volume.is_empty() {
-            String::new()
-        } else {
-            format!("{}/", ch.volume)
-        };
-        // 正文段落近似行数（TipTap HTML 的 <p> 数）；空章至少 1 行
-        let para_count = (ch.content.matches("<p").count() as i64).max(1);
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        std::hash::Hash::hash(&ch.content, &mut hasher);
-        // 本章纯文本（出场统计的口径：正文提及，不含标题/大纲）
-        let plain = crate::commands::source_view::html_to_plain_text(&ch.content);
-        let mut appearances = Vec::new();
-        for card in &cards {
-            let count = plain.matches(card.name.as_str()).count() as i64;
-            if count > 0 {
-                *card_totals.entry(card.id.clone()).or_insert(0) += count;
-                appearances.push(serde_json::json!({
-                    "id": card.id,
-                    "name": card.name,
-                    // kind（character/worldbuilding）供实体图鉴按写作口径分别计数；
-                    // 旧数据没有该字段，前端按「人物」兜底，零回归。
-                    "kind": card.kind,
-                    "count": count,
-                }));
-            }
-        }
-        files.push(ProjectFile {
-            id: format!("wfile_{}", ch.id),
-            analysis_id: analysis_id.clone(),
-            path: format!("{}{}/{}.md", WRITING_PATH_PREFIX, book_id, ch.id),
-            rel_path: format!("{}{:02}-{}.md", prefix, num, ch.title),
-            name: ch.title.clone(),
-            extension: Some("md".to_string()),
-            language: Some("novel-zh".to_string()),
-            size: ch.word_count,
-            line_count: para_count,
-            content_hash: Some(format!("{:016x}", std::hash::Hasher::finish(&hasher))),
-            is_directory: false,
-            metadata: serde_json::json!({
-                "volume": ch.volume,
-                "chapterStatus": ch.status,
-                "bookId": book_id,
-                "appearances": appearances,
-            })
-            .to_string(),
-            scanned_at: now,
-            ..Default::default()
-        });
-    }
-    file_repo.delete_by_analysis(&analysis_id)?;
-    file_repo.save_batch(&files)?;
-
-    // 4) 写作审查发现（对标死代码 / 技术债，target_type 对齐图鉴写作实体类型）
-    let mut findings = Vec::new();
-    for card in &cards {
-        let total = card_totals.get(&card.id).copied().unwrap_or(0);
-        if total > 0 {
-            continue;
-        }
-        let is_character = card.kind == "character";
-        findings.push(ReviewFinding {
-            analysis_id: analysis_id.clone(),
-            rule_id: Some("writing-dead-setting".to_string()),
-            target_id: card.id.clone(),
-            target_type: if is_character {
-                "writing-character".to_string()
-            } else {
-                "writing-worldview".to_string()
-            },
-            severity: if is_character { "warning" } else { "info" }.to_string(),
-            message: if is_character {
-                format!("人物「{}」全书 {} 章均未出场", card.name, sorted.len())
-            } else {
-                format!("世界观「{}」全书均未提及", card.name)
-            },
-            suggestion: Some(
-                if is_character {
-                    "在正文中安排其出场，或确认该人设卡是否已废弃"
-                } else {
-                    "在正文中引入该设定，或确认该卡是否已废弃"
-                }
-                .to_string(),
-            ),
-            metadata: serde_json::json!({ "bookId": book_id, "settingName": card.name }).to_string(),
-            ..Default::default()
-        });
-    }
-    let outlines = writing_repo.list_outlines(&book_id)?;
-    for o in &outlines {
-        if o.chapter_id.is_some() {
-            continue;
-        }
-        findings.push(ReviewFinding {
-            analysis_id: analysis_id.clone(),
-            rule_id: Some("writing-unbound-beat".to_string()),
-            target_id: o.id.clone(),
-            target_type: "writing-outline".to_string(),
-            severity: "info".to_string(),
-            message: format!("大纲节拍「{}」尚未落地到任何章节", o.title),
-            suggestion: Some("在写作台大纲面板绑定章节，或将其纳入后续卷规划".to_string()),
-            metadata: serde_json::json!({ "bookId": book_id }).to_string(),
-            ..Default::default()
-        });
-    }
-    finding_repo.delete_by_analysis(&analysis_id)?;
-    finding_repo.save_batch(&findings)?;
-
-    Ok(WritingScanSummary {
-        analysis_id,
-        file_count: files.len() as i64,
-        total_words,
-        finding_count: findings.len() as i64,
-    })
+    analysis_repo: State<'_, Arc<crate::infrastructure::database::analysis_repository::SqliteAnalysisRepository>>,
+    file_repo: State<'_, Arc<crate::infrastructure::database::project_file_repository::SqliteProjectFileRepository>>,
+    finding_repo: State<'_, Arc<crate::infrastructure::database::review_finding_repository::SqliteReviewFindingRepository>>,
+) -> AppResult<crate::application::writing::WritingScanSummary> {
+    crate::application::writing::scan_book(
+        &book_id,
+        &*writing_repo,
+        &*analysis_repo,
+        &*file_repo,
+        &*finding_repo,
+    )
 }
 
-// ─── 导入作品（F4）：把已有 txt/md 全书导入写作库，工作室入口用 ───
+// ─── 导入作品（F4）：实现在 application/writing::import_book（T4 领域下沉） ───
 
-/// 导入结果摘要
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WritingImportSummary {
-    pub book_id: String,
-    pub title: String,
-    pub chapter_count: i64,
-    pub total_words: i64,
-    /// 章节切分策略：heading（按章节标题行）/ single（无标题，全书单章）
-    pub strategy: String,
-}
-
-/// 导入文件上限 10MB（长篇单文件足够，防误选巨型文件）
-const IMPORT_MAX_BYTES: u64 = 10 * 1024 * 1024;
-
-/// 章节标题行识别：第X章/节/卷/回、序章/楔子/尾声/终章/番外、Chapter N。
-/// 只认行首短行（≤40 字符），防止「他说这是第三章」这类正文句子误切。
-fn chapter_heading(line: &str) -> Option<String> {
-    let s = line.trim();
-    if s.is_empty() || s.chars().count() > 40 {
-        return None;
-    }
-    const MARKERS: [&str; 5] = ["序章", "楔子", "尾声", "终章", "番外"];
-    if MARKERS.iter().any(|m| s.starts_with(m) && s.chars().count() <= 20) {
-        return Some(s.to_string());
-    }
-    if s.starts_with('第') {
-        let head: String = s.chars().take(12).collect();
-        if head.contains(['章', '节', '卷', '回']) {
-            return Some(s.to_string());
-        }
-    }
-    let lower = s.to_lowercase();
-    if lower.starts_with("chapter ") && lower.chars().count() <= 30 {
-        return Some(s.to_string());
-    }
-    None
-}
-
-/// 纯文本 → TipTap 可解析的段落 HTML（每非空行一段，最小实体转义）
-fn text_to_html(text: &str) -> String {
-    let mut out = String::new();
-    for line in text.lines() {
-        let t = line.trim();
-        if t.is_empty() {
-            continue;
-        }
-        out.push_str("<p>");
-        for c in t.chars() {
-            match c {
-                '&' => out.push_str("&amp;"),
-                '<' => out.push_str("&lt;"),
-                '>' => out.push_str("&gt;"),
-                c => out.push(c),
-            }
-        }
-        out.push_str("</p>");
-    }
-    out
-}
-
-fn count_words(text: &str) -> i64 {
-    text.chars().filter(|c| !c.is_whitespace()).count() as i64
-}
-
-/// 导入一本已有作品：按章节标题行切分（第X章/序章/楔子/Chapter N），
-/// 无标题行则全书单章（strategy=single）。纯新增写库，不碰既有书籍。
 #[tauri::command]
 pub fn import_writing_book(
     file_path: String,
     title: Option<String>,
     writing_repo: State<'_, Arc<SqliteWritingRepository>>,
-) -> AppResult<WritingImportSummary> {
-    let meta = std::fs::metadata(&file_path)
-        .map_err(|e| crate::error::AppError::Internal(format!("读取文件失败: {e}")))?;
-    if meta.len() > IMPORT_MAX_BYTES {
-        return Err(crate::error::AppError::Validation(
-            "文件超过 10MB 导入上限".into(),
-        ));
-    }
-    let text = std::fs::read_to_string(&file_path).map_err(|e| {
-        crate::error::AppError::Internal(format!("无法以 UTF-8 文本读取: {e}"))
-    })?;
-    let book_title = title
-        .map(|t| t.trim().to_string())
-        .filter(|t| !t.is_empty())
-        .unwrap_or_else(|| {
-            std::path::Path::new(&file_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("导入作品")
-                .to_string()
-        });
-    let now = chrono::Utc::now().timestamp();
-
-    let lines: Vec<&str> = text.lines().collect();
-    let mut headings: Vec<(usize, String)> = Vec::new();
-    for (i, l) in lines.iter().enumerate() {
-        if let Some(h) = chapter_heading(l) {
-            headings.push((i, h));
-        }
-    }
-
-    let mut chapters: Vec<(String, String)> = Vec::new(); // (标题, 正文纯文本)
-    let strategy;
-    if headings.len() >= 2 {
-        strategy = "heading".to_string();
-        // 首个标题行之前的零散内容（书名页/作者语）字数可观时归入「开篇」
-        if headings[0].0 > 0 {
-            let pre: String = lines[..headings[0].0].join("\n");
-            if count_words(&pre) > 50 {
-                chapters.push(("开篇".to_string(), pre));
-            }
-        }
-        for (idx, (start, htitle)) in headings.iter().enumerate() {
-            let end = headings.get(idx + 1).map(|(e, _)| *e).unwrap_or(lines.len());
-            let body: String = lines[*start + 1..end].join("\n");
-            chapters.push((htitle.clone(), body));
-        }
-    } else {
-        strategy = "single".to_string();
-        chapters.push((book_title.clone(), text.clone()));
-    }
-
-    let book = crate::domain::writing::WritingBook {
-        id: format!("book_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
-        title: book_title.clone(),
-        description: None,
-        genre: String::new(),
-        medium: String::new(),
-        status: "draft".to_string(),
-        cover_color: "#4A338F".to_string(),
-        daily_goal: 0,
-        created_at: now,
-        updated_at: now,
-    };
-    writing_repo.save_book(&book)?;
-
-    let mut total_words = 0i64;
-    for (i, (ch_title, body)) in chapters.iter().enumerate() {
-        let wc = count_words(body);
-        total_words += wc;
-        writing_repo.save_chapter(&crate::domain::writing::WritingChapter {
-            id: format!("ch_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
-            book_id: book.id.clone(),
-            title: ch_title.chars().take(60).collect(),
-            content: text_to_html(body),
-            sort_order: i as i64,
-            word_count: wc,
-            status: "draft".to_string(),
-            volume: String::new(),
-            parent_id: None,
-            kind: "章".to_string(),
-            extra: "{}".to_string(),
-            created_at: now,
-            updated_at: now,
-        })?;
-    }
-
-    Ok(WritingImportSummary {
-        book_id: book.id,
-        title: book.title,
-        chapter_count: chapters.len() as i64,
-        total_words,
-        strategy,
-    })
+) -> AppResult<crate::application::writing::WritingImportSummary> {
+    crate::application::writing::import_book(file_path, title, &*writing_repo)
 }
