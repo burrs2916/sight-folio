@@ -25,7 +25,6 @@
 //! 换来的是零额外依赖、毫秒级增量、对任何语言都能跑。
 
 use crate::domain::project_call_edges::{CallEdge, CallGraphSummary, CallHotspot};
-use serde::{Deserialize, Serialize};
 use crate::domain::project_files::ProjectFile;
 use crate::domain::project_symbol_refs::SymbolRef;
 use crate::domain::project_symbols::ProjectSymbol;
@@ -35,10 +34,11 @@ use crate::infrastructure::database::project_file_repository::ProjectFileReposit
 use crate::infrastructure::database::project_symbol_ref_repository::ProjectSymbolRefRepository;
 use crate::infrastructure::database::project_symbol_repository::ProjectSymbolRepository;
 use crate::infrastructure::database::{
-    SqliteProjectCallEdgeRepository, SqliteProjectFileRepository,
-    SqliteProjectSymbolRefRepository, SqliteProjectSymbolRepository,
+    SqliteProjectCallEdgeRepository, SqliteProjectFileRepository, SqliteProjectSymbolRefRepository,
+    SqliteProjectSymbolRepository,
 };
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering as AtomicOrdering};
 use std::sync::Arc;
@@ -47,16 +47,46 @@ use tree_sitter::{Node, Parser};
 use tree_sitter_rust;
 
 /// 跨语言 AST 调用提取：依方言选 tree-sitter grammar 并解析接收者（对标 joern 各 frontend 的 CALL.receiver）。
-use crate::infrastructure::ast::{Dialect, dialect_for};
+use crate::infrastructure::ast::{dialect_for, Dialect};
 
 /// 边数上限：超大仓库全量调用边会拖垮画布与 IPC，截断后仍足够画热点
 const MAX_EDGES: usize = 40_000;
 
 /// 控制流 / 声明关键字：`if (` `for (` 这类不是函数调用
 const KEYWORDS: [&str; 34] = [
-    "if", "for", "while", "switch", "catch", "return", "match", "with", "do", "else", "function",
-    "fn", "def", "class", "struct", "impl", "enum", "trait", "interface", "typeof", "instanceof",
-    "await", "yield", "new", "super", "this", "self", "in", "of", "as", "and", "or", "not",
+    "if",
+    "for",
+    "while",
+    "switch",
+    "catch",
+    "return",
+    "match",
+    "with",
+    "do",
+    "else",
+    "function",
+    "fn",
+    "def",
+    "class",
+    "struct",
+    "impl",
+    "enum",
+    "trait",
+    "interface",
+    "typeof",
+    "instanceof",
+    "await",
+    "yield",
+    "new",
+    "super",
+    "this",
+    "self",
+    "in",
+    "of",
+    "as",
+    "and",
+    "or",
+    "not",
     "lambda",
 ];
 
@@ -75,8 +105,17 @@ fn is_caller_kind(kind: &str) -> bool {
 fn is_type_kind(kind: &str) -> bool {
     matches!(
         kind,
-        "class" | "struct" | "interface" | "trait" | "enum" | "impl" | "object" | "module"
-            | "namespace" | "type_alias" | "union"
+        "class"
+            | "struct"
+            | "interface"
+            | "trait"
+            | "enum"
+            | "impl"
+            | "object"
+            | "module"
+            | "namespace"
+            | "type_alias"
+            | "union"
     )
 }
 
@@ -86,7 +125,10 @@ fn is_method_like(kind: &str) -> bool {
 }
 
 /// 取包含符号 `s` 的最内层类型/容器符号（行区间嵌套，取最小范围）。
-fn enclosing_type<'a>(type_syms: &[&'a ProjectSymbol], s: &ProjectSymbol) -> Option<&'a ProjectSymbol> {
+fn enclosing_type<'a>(
+    type_syms: &[&'a ProjectSymbol],
+    s: &ProjectSymbol,
+) -> Option<&'a ProjectSymbol> {
     let mut best: Option<&ProjectSymbol> = None;
     for t in type_syms {
         if t.id == s.id {
@@ -298,9 +340,7 @@ fn collect_rust_impl_associations<'a>(
                     let line = n.start_position().row + 1;
                     for sym in file_syms {
                         let s = *sym;
-                        if s.name == mname
-                            && s.line_start == line as i64
-                            && is_method_like(&s.kind)
+                        if s.name == mname && s.line_start == line as i64 && is_method_like(&s.kind)
                         {
                             methods
                                 .entry((file_id.to_string(), type_name.clone()))
@@ -490,8 +530,7 @@ fn build_glob_import_index<'a>(
     for (consumer_id, modules) in glob_targets {
         name_candidates.clear();
         let mut visited: HashSet<String> = HashSet::new();
-        let mut queue: Vec<(String, usize)> =
-            modules.iter().map(|m| (m.clone(), 0usize)).collect();
+        let mut queue: Vec<(String, usize)> = modules.iter().map(|m| (m.clone(), 0usize)).collect();
         while let Some((rel, depth)) = queue.pop() {
             if depth >= GLOB_MAX_DEPTH || !visited.insert(rel.clone()) {
                 continue;
@@ -628,14 +667,20 @@ fn build_go_pkg_call_index<'a>(
         if f.is_directory {
             continue;
         }
-        dir_files.entry(dir_of(&f.rel_path)).or_default().push(f.id.as_str());
+        dir_files
+            .entry(dir_of(&f.rel_path))
+            .or_default()
+            .push(f.id.as_str());
     }
     if dir_files.is_empty() {
         return out;
     }
 
     let mut parser = Parser::new();
-    if parser.set_language(&tree_sitter_go::LANGUAGE.into()).is_err() {
+    if parser
+        .set_language(&tree_sitter_go::LANGUAGE.into())
+        .is_err()
+    {
         return out;
     }
 
@@ -674,8 +719,9 @@ fn build_go_pkg_call_index<'a>(
                         "dot" | "blank_identifier" => None,
                         _ => a.utf8_text(src).ok().map(|s| s.to_string()),
                     });
-                    let pkg = alias
-                        .unwrap_or_else(|| path.rsplit('/').next().unwrap_or(path.as_str()).to_string());
+                    let pkg = alias.unwrap_or_else(|| {
+                        path.rsplit('/').next().unwrap_or(path.as_str()).to_string()
+                    });
                     specs.push((pkg, path));
                 }
                 // import_spec 内不可能再嵌 import_spec，无需下钻
@@ -826,12 +872,13 @@ fn resolve_naive_tier<'a>(
         return Some(same_dir[0]);
     }
     // L2 种类消歧：调用形态决定候选种类
-    let want = if receiver.is_empty() { "function" } else { "method" };
-    let by_kind: Vec<&'a ProjectSymbol> = cands
-        .iter()
-        .copied()
-        .filter(|c| c.kind == want)
-        .collect();
+    let want = if receiver.is_empty() {
+        "function"
+    } else {
+        "method"
+    };
+    let by_kind: Vec<&'a ProjectSymbol> =
+        cands.iter().copied().filter(|c| c.kind == want).collect();
     if by_kind.len() == 1 {
         return Some(by_kind[0]);
     }
@@ -962,7 +1009,11 @@ fn extract_calls(line: &str) -> Vec<String> {
                 }
             }
             prev_token = ident;
-            i = if close < chars.len() { close + 1 } else { chars.len() };
+            i = if close < chars.len() {
+                close + 1
+            } else {
+                chars.len()
+            };
             continue;
         }
 
@@ -1067,7 +1118,7 @@ fn call_callee_receiver(func: Node, src: &[u8]) -> (String, String) {
                 .or_else(|| func.child_by_field_name("value"))
                 .or_else(|| func.child_by_field_name("argument"))
                 .or_else(|| func.child_by_field_name("expression")); // C# member_access_expression
-            // TS/JS `property`；Rust/C/C++/Java `field`；C# `name`
+                                                                     // TS/JS `property`；Rust/C/C++/Java `field`；C# `name`
             let prop = func
                 .child_by_field_name("property")
                 .or_else(|| func.child_by_field_name("field"))
@@ -1076,7 +1127,9 @@ fn call_callee_receiver(func: Node, src: &[u8]) -> (String, String) {
                 .map(|p| p.utf8_text(src).unwrap_or("").to_string())
                 .unwrap_or_default();
             let receiver = match obj {
-                Some(o) if o.kind() == "call_expression" || o.kind() == "parenthesized_expression" => {
+                Some(o)
+                    if o.kind() == "call_expression" || o.kind() == "parenthesized_expression" =>
+                {
                     String::new()
                 }
                 Some(o) => root_ident(o, src),
@@ -1146,7 +1199,10 @@ fn root_ident(node: Node, src: &[u8]) -> String {
     loop {
         match cur.kind() {
             "identifier" => return cur.utf8_text(src).unwrap_or("").to_string(),
-            "member_expression" | "field_expression" | "field_access" | "member_access_expression" => {
+            "member_expression"
+            | "field_expression"
+            | "field_access"
+            | "member_access_expression" => {
                 match cur
                     .child_by_field_name("object")
                     .or_else(|| cur.child_by_field_name("value"))
@@ -1376,7 +1432,9 @@ fn collect_calls_ast(node: Node, src: &[u8], out: &mut Vec<CallSite>, d: Dialect
                     }
                 }
                 "object_creation_expression" => {
-                    let ty = node.child_by_field_name("name").or_else(|| node.named_child(0));
+                    let ty = node
+                        .child_by_field_name("name")
+                        .or_else(|| node.named_child(0));
                     let callee = ty
                         .map(|t| t.utf8_text(src).unwrap_or("").to_string())
                         .unwrap_or_default();
@@ -1519,7 +1577,11 @@ pub fn analyze_call_graph(
     let refs = ref_repo.list_by_analysis(&analysis_id)?;
     let incremental = changed_rel_paths.is_some();
     // 增量仅重算变更/新增调用方文件的边，携带未变调用方的旧边。
-    let changed: HashSet<&str> = changed_rel_paths.iter().flatten().map(|s| s.as_str()).collect();
+    let changed: HashSet<&str> = changed_rel_paths
+        .iter()
+        .flatten()
+        .map(|s| s.as_str())
+        .collect();
     let current_rel: HashSet<&str> = files
         .iter()
         .filter(|f| !f.is_directory)
@@ -1675,7 +1737,14 @@ pub fn analyze_call_graph(
         file_id_by_rel.insert(f.rel_path.as_str(), f.id.as_str());
         file_by_rel.insert(f.rel_path.clone(), f);
     }
-    let glob_map = build_glob_import_index(&refs, &by_file, &by_id, &file_id_by_rel, &file_by_rel, &cache);
+    let glob_map = build_glob_import_index(
+        &refs,
+        &by_file,
+        &by_id,
+        &file_id_by_rel,
+        &file_by_rel,
+        &cache,
+    );
     // Go 包名/别名限定调用索引（joern `aliasToNameSpaceMapping` → `resolveAliasToFullName`）
     let go_pkg_map = build_go_pkg_call_index(&files, &by_file, &cache);
 
@@ -1803,9 +1872,7 @@ pub fn analyze_call_graph(
                                 .get(&(file.id.clone(), name.clone()))
                                 .and_then(|sid| by_id.get(sid.as_str()).copied());
                             // 2b) 通配导入（`use a::*;`）展开出的唯一同名符号
-                            let globbed = glob_map
-                                .get(&(file.id.clone(), name.clone()))
-                                .copied();
+                            let globbed = glob_map.get(&(file.id.clone(), name.clone())).copied();
                             // 3) 全局唯一同名符号
                             let global = by_name.get(name.as_str()).and_then(|v| {
                                 if v.len() == 1 {
@@ -1817,7 +1884,13 @@ pub fn analyze_call_graph(
                             // 4) Naive 兜底层（对标 joern NaiveCallLinker）：同名歧义时，
                             //    按「同目录唯一 / 调用形态对应的种类唯一」保守消歧后才连边。
                             let naive = resolve_naive_tier(&by_name, &name, caller_dir, &receiver);
-                            match local.or(go_pkg).or(imported).or(globbed).or(global).or(naive) {
+                            match local
+                                .or(go_pkg)
+                                .or(imported)
+                                .or(globbed)
+                                .or(global)
+                                .or(naive)
+                            {
                                 Some(c) => {
                                     go_pkg_hit = go_pkg.map(|g| g.id == c.id).unwrap_or(false);
                                     c
@@ -1846,10 +1919,7 @@ pub fn analyze_call_graph(
                         "cross-file"
                     };
                     out.push(CallEdge {
-                        id: format!(
-                            "call_{}",
-                            uuid::Uuid::new_v4().to_string().replace("-", "")
-                        ),
+                        id: format!("call_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
                         analysis_id: analysis_id.clone(),
                         caller_symbol_id: caller.id.clone(),
                         caller_name: caller.name.clone(),
@@ -2207,7 +2277,9 @@ pub fn query_call_reachability(
     }
     if let Some(fid) = &root_file_id {
         if !fid.is_empty() {
-            let syms = symbol_repo.list_by_analysis(&analysis_id).unwrap_or_default();
+            let syms = symbol_repo
+                .list_by_analysis(&analysis_id)
+                .unwrap_or_default();
             for s in syms {
                 if s.file_id == *fid {
                     roots.push(s.id);
@@ -2411,35 +2483,62 @@ mod tests {
     #[test]
     fn v23_new_and_optional_chain_calls() {
         let calls = extract_calls("const svc = new UserService(new Api(), cfg);");
-        assert!(calls.contains(&"UserService".to_string()), "new 构造调用漏掉: {calls:?}");
-        assert!(calls.contains(&"Api".to_string()), "new 嵌套构造调用漏掉: {calls:?}");
+        assert!(
+            calls.contains(&"UserService".to_string()),
+            "new 构造调用漏掉: {calls:?}"
+        );
+        assert!(
+            calls.contains(&"Api".to_string()),
+            "new 嵌套构造调用漏掉: {calls:?}"
+        );
         let calls2 = extract_calls("await api?.refresh?.();");
-        assert!(calls2.contains(&"refresh".to_string()), "可选链调用漏掉: {calls2:?}");
+        assert!(
+            calls2.contains(&"refresh".to_string()),
+            "可选链调用漏掉: {calls2:?}"
+        );
     }
 
     #[test]
     fn v23_bracket_index_calls() {
         let calls = extract_calls("handlers[\"save\"](payload);");
-        assert!(calls.contains(&"save".to_string()), "方括号索引调用漏掉: {calls:?}");
+        assert!(
+            calls.contains(&"save".to_string()),
+            "方括号索引调用漏掉: {calls:?}"
+        );
         let calls2 = extract_calls("handlers['load']();");
-        assert!(calls2.contains(&"load".to_string()), "单引号索引调用漏掉: {calls2:?}");
+        assert!(
+            calls2.contains(&"load".to_string()),
+            "单引号索引调用漏掉: {calls2:?}"
+        );
     }
 
     #[test]
     fn v23_skips_string_literal_calls() {
         // 字符串里的 ident( 不提取
         let calls = extract_calls("const msg = \"doWork(a)\";");
-        assert!(!calls.contains(&"doWork".to_string()), "字符串内误报: {calls:?}");
+        assert!(
+            !calls.contains(&"doWork".to_string()),
+            "字符串内误报: {calls:?}"
+        );
         let calls2 = extract_calls("console.log(`call doThing() now`);");
-        assert!(!calls2.contains(&"doThing".to_string()), "模板字符串内误报: {calls2:?}");
-        assert!(calls2.contains(&"log".to_string()), "真实调用漏掉: {calls2:?}");
+        assert!(
+            !calls2.contains(&"doThing".to_string()),
+            "模板字符串内误报: {calls2:?}"
+        );
+        assert!(
+            calls2.contains(&"log".to_string()),
+            "真实调用漏掉: {calls2:?}"
+        );
     }
 
     #[test]
     fn v23_inline_comment_calls_skipped() {
         let calls = extract_calls("doWork(); // really calls doOther()");
         assert!(calls.contains(&"doWork".to_string()));
-        assert!(!calls.contains(&"doOther".to_string()), "行注释内误报: {calls:?}");
+        assert!(
+            !calls.contains(&"doOther".to_string()),
+            "行注释内误报: {calls:?}"
+        );
     }
 
     // ---- extract_calls_ts：接收者感知（对标 joern 调用解析到 methodFullName + 接收者）----
@@ -2459,7 +2558,10 @@ mod tests {
             .iter()
             .find(|s| s.callee == "exec")
             .expect("exec 调用未捕获");
-        assert_eq!(hit.receiver, "child_process", "接收者根标识符应为 child_process");
+        assert_eq!(
+            hit.receiver, "child_process",
+            "接收者根标识符应为 child_process"
+        );
     }
 
     #[test]
@@ -2477,8 +2579,14 @@ mod tests {
         // 关键回归锁：taintFlow 的 RCE 假阳性根因——同名 exec 必须带接收者区分。
         // 正则对象方法调用 `re.exec` 接收者应为变量 `re`（非空），与裸 `exec()` / `child_process.exec` 区分。
         let sites = extract_calls_ts("const re = /x/; re.exec(input);");
-        let hit = sites.iter().find(|s| s.callee == "exec").expect("exec 未捕获");
-        assert_eq!(hit.receiver, "re", "正则对象接收者应为 re（非空，区别于裸 exec）");
+        let hit = sites
+            .iter()
+            .find(|s| s.callee == "exec")
+            .expect("exec 未捕获");
+        assert_eq!(
+            hit.receiver, "re",
+            "正则对象接收者应为 re（非空，区别于裸 exec）"
+        );
     }
 
     #[test]
@@ -2649,7 +2757,8 @@ mod tests {
 
     #[test]
     fn ast_php_captures_member_static_and_ctor() {
-        let src = "<?php\n$x = $obj->method();\nFoo::staticMethod();\nfree_fn();\n$inst = new Foo();\n";
+        let src =
+            "<?php\n$x = $obj->method();\nFoo::staticMethod();\nfree_fn();\n$inst = new Foo();\n";
         let sites = extract_calls_ast(Dialect::Php, src);
         // $obj->method() → 实例方法，接收者 obj（去 $ 前缀）
         assert_eq!(sites[0].callee, "method");
@@ -2834,11 +2943,17 @@ mod tests {
         let (rust_impl_methods, rust_caller_impl) =
             collect_rust_impl_associations(content, "f", fsyms.as_slice());
         // impl Foo 索引应含 bar、run，且 run 的 self 归属 Foo
-        assert!(rust_impl_methods
-            .get(&("f".to_string(), "Foo".to_string()))
-            .map(|v| v.len())
-            .unwrap_or(0) == 2);
-        assert_eq!(rust_caller_impl.get(&("f".to_string(), 4i64)).unwrap(), "Foo");
+        assert!(
+            rust_impl_methods
+                .get(&("f".to_string(), "Foo".to_string()))
+                .map(|v| v.len())
+                .unwrap_or(0)
+                == 2
+        );
+        assert_eq!(
+            rust_caller_impl.get(&("f".to_string(), 4i64)).unwrap(),
+            "Foo"
+        );
         let ctx = CallResolutionCtx {
             type_by_name: HashMap::new(),
             methods_by_type_id: HashMap::new(),
@@ -2868,7 +2983,10 @@ mod tests {
         go_method_by_type.insert(("f".to_string(), "Store".to_string()), vec![&s_validate]);
         go_method_by_type.insert(("f".to_string(), "Other".to_string()), vec![&o_validate]);
         let mut go_caller_receiver: HashMap<(String, i64), (String, String)> = HashMap::new();
-        go_caller_receiver.insert(("f".to_string(), 3i64), ("s".to_string(), "Store".to_string()));
+        go_caller_receiver.insert(
+            ("f".to_string(), 3i64),
+            ("s".to_string(), "Store".to_string()),
+        );
         let mut go_method_owner_type: HashMap<(String, i64), String> = HashMap::new();
         go_method_owner_type.insert(("f".to_string(), 4i64), "Store".to_string());
         let ctx = CallResolutionCtx {
@@ -2895,7 +3013,10 @@ mod tests {
         let mut go_method_by_type: HashMap<(String, String), Vec<&ProjectSymbol>> = HashMap::new();
         go_method_by_type.insert(("f".to_string(), "Store".to_string()), vec![&s_validate]);
         let mut go_caller_receiver: HashMap<(String, i64), (String, String)> = HashMap::new();
-        go_caller_receiver.insert(("f".to_string(), 3i64), ("s".to_string(), "Store".to_string()));
+        go_caller_receiver.insert(
+            ("f".to_string(), 3i64),
+            ("s".to_string(), "Store".to_string()),
+        );
         let ctx = CallResolutionCtx {
             type_by_name: HashMap::new(),
             methods_by_type_id: HashMap::new(),
@@ -2924,10 +3045,12 @@ func NewStore() *Store { return &Store{} }
         let fsyms = vec![&get, &put];
         let (mbt, cr, mot) = collect_go_receiver_associations(content, "f", fsyms.as_slice());
         // 指针接收者 *Store 去 * → Store；值接收者 Store 同键
-        assert!(mbt
-            .get(&("f".to_string(), "Store".to_string()))
-            .map(|v| v.len())
-            .unwrap_or(0) == 2);
+        assert!(
+            mbt.get(&("f".to_string(), "Store".to_string()))
+                .map(|v| v.len())
+                .unwrap_or(0)
+                == 2
+        );
         // caller 接收者名/类型
         assert_eq!(
             cr.get(&("f".to_string(), 2i64)),
@@ -2938,7 +3061,10 @@ func NewStore() *Store { return &Store{} }
             Some(&("r".to_string(), "Store".to_string()))
         );
         // 影响面板 owner 类型
-        assert_eq!(mot.get(&("f".to_string(), 2i64)), Some(&"Store".to_string()));
+        assert_eq!(
+            mot.get(&("f".to_string(), 2i64)),
+            Some(&"Store".to_string())
+        );
     }
 
     // ── Naive 兜底层（对标 joern NaiveCallLinker）────────────────────────
@@ -3120,7 +3246,12 @@ func NewStore() *Store { return &Store{} }
         let refs = vec![mk_ref("fc", "", "src/util.rs", None)];
         let cache = crate::commands::project_scan::ScanContentCache::new();
         let g = build_glob_import_index(&refs, &by_file, &by_id, &fid, &fbr, &cache);
-        assert_eq!(g.get(&("fc".to_string(), "helper".to_string())).copied().map(|s| s.id.as_str()), Some("sh"));
+        assert_eq!(
+            g.get(&("fc".to_string(), "helper".to_string()))
+                .copied()
+                .map(|s| s.id.as_str()),
+            Some("sh")
+        );
     }
 
     #[test]
@@ -3134,13 +3265,15 @@ func NewStore() *Store { return &Store{} }
         let syms = [pool.clone()];
         let (by_file, by_id, fid, fbr) = glob_fixture(&syms, &files);
         let refs = vec![
-            mk_ref("fc", "", "src/db/mod.rs", None),          // 消费方通配导入
+            mk_ref("fc", "", "src/db/mod.rs", None), // 消费方通配导入
             mk_ref("fm", "RedisPool", "src/db/pool.rs", Some("sp")), // mod.rs 点名再导出
         ];
         let cache = crate::commands::project_scan::ScanContentCache::new();
         let g = build_glob_import_index(&refs, &by_file, &by_id, &fid, &fbr, &cache);
         assert_eq!(
-            g.get(&("fc".to_string(), "RedisPool".to_string())).copied().map(|s| s.id.as_str()),
+            g.get(&("fc".to_string(), "RedisPool".to_string()))
+                .copied()
+                .map(|s| s.id.as_str()),
             Some("sp")
         );
     }
@@ -3205,7 +3338,10 @@ func NewStore() *Store { return &Store{} }
 
     /// 在临时目录里铺一组 Go 源文件，返回 (临时目录, ProjectFile 列表)。
     /// `content_by_rel` 以仓库相对路径为键。
-    fn go_fixture(tag: &str, content_by_rel: &[(&str, &str)]) -> (std::path::PathBuf, Vec<ProjectFile>) {
+    fn go_fixture(
+        tag: &str,
+        content_by_rel: &[(&str, &str)],
+    ) -> (std::path::PathBuf, Vec<ProjectFile>) {
         let base = std::env::temp_dir().join(format!("ps_go_pkg_{tag}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         let mut files = Vec::new();
@@ -3245,10 +3381,26 @@ func NewStore() *Store { return &Store{} }
         let (by_file, _by_id, _fid, _fbr) = glob_fixture(&syms, &files);
         let cache = crate::commands::project_scan::ScanContentCache::new();
         let g = build_go_pkg_call_index(&files, &by_file, &cache);
-        let got_static = g.get(&("gf0".to_string(), "static".to_string(), "CallGraph".to_string()));
-        let got_cha = g.get(&("gf0".to_string(), "cha".to_string(), "CallGraph".to_string()));
-        assert_eq!(got_static.map(|s| s.id.as_str()), Some("s1"), "static.CallGraph 须连到 static 包");
-        assert_eq!(got_cha.map(|s| s.id.as_str()), Some("s2"), "cha.CallGraph 须连到 cha 包");
+        let got_static = g.get(&(
+            "gf0".to_string(),
+            "static".to_string(),
+            "CallGraph".to_string(),
+        ));
+        let got_cha = g.get(&(
+            "gf0".to_string(),
+            "cha".to_string(),
+            "CallGraph".to_string(),
+        ));
+        assert_eq!(
+            got_static.map(|s| s.id.as_str()),
+            Some("s1"),
+            "static.CallGraph 须连到 static 包"
+        );
+        assert_eq!(
+            got_cha.map(|s| s.id.as_str()),
+            Some("s2"),
+            "cha.CallGraph 须连到 cha 包"
+        );
         let _ = std::fs::remove_dir_all(&base);
     }
 
@@ -3271,11 +3423,13 @@ func NewStore() *Store { return &Store{} }
         let cache = crate::commands::project_scan::ScanContentCache::new();
         let g = build_go_pkg_call_index(&files, &by_file, &cache);
         assert!(
-            g.get(&("gf0".to_string(), "st".to_string(), "Open".to_string())).is_some(),
+            g.get(&("gf0".to_string(), "st".to_string(), "Open".to_string()))
+                .is_some(),
             "别名 st 必须可查"
         );
         assert!(
-            g.get(&("gf0".to_string(), "store".to_string(), "Open".to_string())).is_none(),
+            g.get(&("gf0".to_string(), "store".to_string(), "Open".to_string()))
+                .is_none(),
             "别名生效时不应再按路径末段登记"
         );
         let _ = std::fs::remove_dir_all(&base);
@@ -3301,7 +3455,8 @@ func NewStore() *Store { return &Store{} }
         let cache = crate::commands::project_scan::ScanContentCache::new();
         let g = build_go_pkg_call_index(&files, &by_file, &cache);
         assert!(
-            g.get(&("gf0".to_string(), "store".to_string(), "Client".to_string())).is_some(),
+            g.get(&("gf0".to_string(), "store".to_string(), "Client".to_string()))
+                .is_some(),
             "类型位置的 store.Client 必须登记"
         );
         let _ = std::fs::remove_dir_all(&base);
@@ -3328,7 +3483,8 @@ func NewStore() *Store { return &Store{} }
         let cache = crate::commands::project_scan::ScanContentCache::new();
         let g = build_go_pkg_call_index(&files, &by_file, &cache);
         assert!(
-            g.get(&("gf0".to_string(), "util".to_string(), "Run".to_string())).is_none(),
+            g.get(&("gf0".to_string(), "util".to_string(), "Run".to_string()))
+                .is_none(),
             "包内歧义必须丢弃"
         );
         let _ = std::fs::remove_dir_all(&base);
@@ -3356,8 +3512,12 @@ func NewStore() *Store { return &Store{} }
         let (by_file, _by_id, _fid, _fbr) = glob_fixture(&syms, &files);
         let cache = crate::commands::project_scan::ScanContentCache::new();
         let g = build_go_pkg_call_index(&files, &by_file, &cache);
-        assert!(g.get(&("gf0".to_string(), "util".to_string(), "Foo".to_string())).is_some());
-        assert!(g.get(&("gf0".to_string(), "util".to_string(), "Bar".to_string())).is_none());
+        assert!(g
+            .get(&("gf0".to_string(), "util".to_string(), "Foo".to_string()))
+            .is_some());
+        assert!(g
+            .get(&("gf0".to_string(), "util".to_string(), "Bar".to_string()))
+            .is_none());
         let _ = std::fs::remove_dir_all(&base);
     }
 
@@ -3380,8 +3540,12 @@ func NewStore() *Store { return &Store{} }
         let (by_file, _by_id, _fid, _fbr) = glob_fixture(&syms, &files);
         let cache = crate::commands::project_scan::ScanContentCache::new();
         let g = build_go_pkg_call_index(&files, &by_file, &cache);
-        assert!(g.get(&("gf0".to_string(), "util".to_string(), "Foo".to_string())).is_some());
-        assert!(g.get(&("gf1".to_string(), "util".to_string(), "Foo".to_string())).is_none());
+        assert!(g
+            .get(&("gf0".to_string(), "util".to_string(), "Foo".to_string()))
+            .is_some());
+        assert!(g
+            .get(&("gf1".to_string(), "util".to_string(), "Foo".to_string()))
+            .is_none());
         let _ = std::fs::remove_dir_all(&base);
     }
 
@@ -3518,7 +3682,9 @@ func NewStore() *Store { return &Store{} }
         let mut n_files = 0usize;
         for p in &paths {
             let Some(lang) = lang_of(p) else { continue };
-            let Ok(content) = std::fs::read_to_string(p) else { continue };
+            let Ok(content) = std::fs::read_to_string(p) else {
+                continue;
+            };
             if content.len() > 2_000_000 {
                 continue;
             }
@@ -3553,15 +3719,16 @@ func NewStore() *Store { return &Store{} }
             } else {
                 Vec::new()
             };
-            let rel = p
-                .strip_prefix(&dir)
-                .unwrap_or(p.as_str())
-                .to_string();
+            let rel = p.strip_prefix(&dir).unwrap_or(p.as_str()).to_string();
             let d = std::path::Path::new(&rel)
                 .parent()
                 .map(|x| x.to_string_lossy().to_string())
                 .unwrap_or_default();
-            files.push(FileInfo { dir: d, syms, calls });
+            files.push(FileInfo {
+                dir: d,
+                syms,
+                calls,
+            });
             n_files += 1;
         }
 
@@ -3618,14 +3785,16 @@ func NewStore() *Store { return &Store{} }
                     st.n_amb += 1;
                     // ── Naive 兜底层（与 resolve_naive_tier 同逻辑）──
                     if v.len() >= 2 {
-                        let sd: Vec<&(usize, usize)> = v
-                            .iter()
-                            .filter(|(cf, _)| files[*cf].dir == f.dir)
-                            .collect();
+                        let sd: Vec<&(usize, usize)> =
+                            v.iter().filter(|(cf, _)| files[*cf].dir == f.dir).collect();
                         if sd.len() == 1 {
                             st.naive_gain += 1;
                         } else {
-                            let want = if receiver.is_empty() { "function" } else { "method" };
+                            let want = if receiver.is_empty() {
+                                "function"
+                            } else {
+                                "method"
+                            };
                             let bk: Vec<&(usize, usize)> = v
                                 .iter()
                                 .filter(|(cf, si)| files[*cf].syms[*si].1 == want)
@@ -3635,10 +3804,8 @@ func NewStore() *Store { return &Store{} }
                             }
                         }
                     }
-                    let same_dir: Vec<&(usize, usize)> = v
-                        .iter()
-                        .filter(|(cf, _)| files[*cf].dir == f.dir)
-                        .collect();
+                    let same_dir: Vec<&(usize, usize)> =
+                        v.iter().filter(|(cf, _)| files[*cf].dir == f.dir).collect();
                     if !same_dir.is_empty() {
                         st.amb_dir_hit += 1;
                     }
@@ -3656,7 +3823,9 @@ func NewStore() *Store { return &Store{} }
                     if in_subtree.len() == 1 {
                         st.amb_subtree_unique += 1;
                     }
-                    fn top(s: &str) -> &str { s.split('/').next().unwrap_or("") }
+                    fn top(s: &str) -> &str {
+                        s.split('/').next().unwrap_or("")
+                    }
                     let in_top: Vec<&(usize, usize)> = v
                         .iter()
                         .filter(|(cf, _)| top(&files[*cf].dir) == top(&f.dir))
@@ -3719,7 +3888,11 @@ func NewStore() *Store { return &Store{} }
                 if c.2 == *line || c.0 == *name {
                     continue;
                 }
-                let st = if receiver.is_empty() { &mut sfree } else { &mut smem };
+                let st = if receiver.is_empty() {
+                    &mut sfree
+                } else {
+                    &mut smem
+                };
                 classify(st, name, receiver, f);
             }
         }
@@ -3732,27 +3905,77 @@ func NewStore() *Store { return &Store{} }
             }
         };
         let pct = |a: usize, b: usize| -> f64 {
-            if b == 0 { 0.0 } else { a as f64 * 100.0 / b as f64 }
+            if b == 0 {
+                0.0
+            } else {
+                a as f64 * 100.0 / b as f64
+            }
         };
         let dump = |tag: &str, st: &Stat| {
             let total = st.n_local + st.n_global + st.n_none + st.n_amb;
             let base = st.n_local + st.n_global;
             println!("\n---- {} · 调用点 {} ----", tag, total);
-            println!("  同文件命中    {:>6} ({:.1}%)", st.n_local, pct(st.n_local, total));
-            println!("  全局唯一命中  {:>6} ({:.1}%)", st.n_global, pct(st.n_global, total));
-            println!("  无同名符号    {:>6} ({:.1}%)  <- 外部/标准库", st.n_none, pct(st.n_none, total));
-            println!("  同名歧义丢弃  {:>6} ({:.1}%)  <- 靶子", st.n_amb, pct(st.n_amb, total));
-            println!("  |- 同目录唯一 {} · 同子树唯一 {} · 邻居目录唯一 {}", st.amb_dir_unique, st.amb_subtree_unique, st.amb_sibling_unique);
-            println!("  |- 唯一method候选 {} · 唯一function候选 {}", st.amb_method_unique, st.amb_fn_unique);
-            println!("  |- 平均候选数 {:.1} · 全连将产 {} 条边", if st.n_amb == 0 { 0.0 } else { st.amb_cand_total as f64 / st.n_amb as f64 }, st.amb_cand_total);
+            println!(
+                "  同文件命中    {:>6} ({:.1}%)",
+                st.n_local,
+                pct(st.n_local, total)
+            );
+            println!(
+                "  全局唯一命中  {:>6} ({:.1}%)",
+                st.n_global,
+                pct(st.n_global, total)
+            );
+            println!(
+                "  无同名符号    {:>6} ({:.1}%)  <- 外部/标准库",
+                st.n_none,
+                pct(st.n_none, total)
+            );
+            println!(
+                "  同名歧义丢弃  {:>6} ({:.1}%)  <- 靶子",
+                st.n_amb,
+                pct(st.n_amb, total)
+            );
+            println!(
+                "  |- 同目录唯一 {} · 同子树唯一 {} · 邻居目录唯一 {}",
+                st.amb_dir_unique, st.amb_subtree_unique, st.amb_sibling_unique
+            );
+            println!(
+                "  |- 唯一method候选 {} · 唯一function候选 {}",
+                st.amb_method_unique, st.amb_fn_unique
+            );
+            println!(
+                "  |- 平均候选数 {:.1} · 全连将产 {} 条边",
+                if st.n_amb == 0 {
+                    0.0
+                } else {
+                    st.amb_cand_total as f64 / st.n_amb as f64
+                },
+                st.amb_cand_total
+            );
             println!("  |- 歧义名样例 {:?}", st.amb_names);
             println!("  |- 无符号名样例 {:?}", st.none_names);
             println!("  当前成功率 {:.1}% ({})", pct(base, total), base);
-            println!("  +同目录唯一 → {:.1}% (+{})", pct(base + st.amb_dir_unique, total), st.amb_dir_unique);
-            println!("  **Naive 兜底层合计 → {:.1}% (+{} 条边, 相对基线 {:+.1}%)**", pct(base + st.naive_gain, total), st.naive_gain, pct(base + st.naive_gain, total) - pct(base, total));
-            println!("  +种类消歧   → {:.1}% (+{})", pct(base + st.amb_method_unique.max(st.amb_fn_unique), total), st.amb_method_unique.max(st.amb_fn_unique));
+            println!(
+                "  +同目录唯一 → {:.1}% (+{})",
+                pct(base + st.amb_dir_unique, total),
+                st.amb_dir_unique
+            );
+            println!(
+                "  **Naive 兜底层合计 → {:.1}% (+{} 条边, 相对基线 {:+.1}%)**",
+                pct(base + st.naive_gain, total),
+                st.naive_gain,
+                pct(base + st.naive_gain, total) - pct(base, total)
+            );
+            println!(
+                "  +种类消歧   → {:.1}% (+{})",
+                pct(base + st.amb_method_unique.max(st.amb_fn_unique), total),
+                st.amb_method_unique.max(st.amb_fn_unique)
+            );
         };
-        println!("\n===== 调用解析丢边分布回放 dir={} · 源文件 {} =====", dir, n_files);
+        println!(
+            "\n===== 调用解析丢边分布回放 dir={} · 源文件 {} =====",
+            dir, n_files
+        );
         dump("自由调用(无接收者)", &sfree);
         dump("成员调用(有接收者)", &smem);
     }
@@ -3833,14 +4056,20 @@ func NewStore() *Store { return &Store{} }
         let mut n_files = 0usize;
         for p in &paths {
             // 继承语法目前仅 TS/JS/Java 解析（与 `parse_inheritance` 契约一致）
-            let lang = if p.ends_with(".ts") || p.ends_with(".tsx") || p.ends_with(".js") || p.ends_with(".jsx") {
+            let lang = if p.ends_with(".ts")
+                || p.ends_with(".tsx")
+                || p.ends_with(".js")
+                || p.ends_with(".jsx")
+            {
                 "typescript"
             } else if p.ends_with(".java") {
                 "java"
             } else {
                 continue;
             };
-            let Ok(content) = std::fs::read_to_string(p) else { continue };
+            let Ok(content) = std::fs::read_to_string(p) else {
+                continue;
+            };
             if content.len() > 2_000_000 {
                 continue;
             }
@@ -3911,7 +4140,12 @@ func NewStore() *Store { return &Store{} }
                     .collect()
             };
             n_files += 1;
-            files.push(FileInfo { types, mems, callers, calls });
+            files.push(FileInfo {
+                types,
+                mems,
+                callers,
+                calls,
+            });
         }
 
         // 类型名 → (file_idx, type_idx)：跨文件同名取首个（与生产 type_by_name 同口径）
@@ -3937,9 +4171,9 @@ func NewStore() *Store { return &Store{} }
         };
         let own_member = |f: &FileInfo, ti: usize, name: &str| -> bool {
             let t = &f.types[ti];
-            f.mems.iter().any(|m| {
-                m.name == name && m.line_start >= t.line_start && m.line_end <= t.line_end
-            })
+            f.mems
+                .iter()
+                .any(|m| m.name == name && m.line_start >= t.line_start && m.line_end <= t.line_end)
         };
 
         #[derive(Default)]
@@ -3984,11 +4218,16 @@ func NewStore() *Store { return &Store{} }
                         caller_line = Some(*ls);
                     }
                 }
-                let is_self = matches!(receiver.as_str(), "this" | "self" | "me" | "Self" | "THIS" | "cls");
+                let is_self = matches!(
+                    receiver.as_str(),
+                    "this" | "self" | "me" | "Self" | "THIS" | "cls"
+                );
                 // 接收者类型：(file, type_idx)
                 let recv: Option<(usize, usize)> = if is_self {
                     st.n_this += 1;
-                    caller_line.and_then(|cl| enclosing(f, cl)).map(|ti| (_fi, ti))
+                    caller_line
+                        .and_then(|cl| enclosing(f, cl))
+                        .map(|ti| (_fi, ti))
                 } else {
                     st.n_named += 1;
                     type_by_name.get(receiver.as_str()).copied()
@@ -4047,14 +4286,19 @@ func NewStore() *Store { return &Store{} }
                         st.missing_walked += 1;
                     }
                     if st.missing_samples.len() < 15 {
-                        st.missing_samples
-                            .push(format!("{}.{}", receiver, name));
+                        st.missing_samples.push(format!("{}.{}", receiver, name));
                     }
                 }
             }
         }
 
-        let pct = |a: usize, b: usize| -> f64 { if b == 0 { 0.0 } else { a as f64 * 100.0 / b as f64 } };
+        let pct = |a: usize, b: usize| -> f64 {
+            if b == 0 {
+                0.0
+            } else {
+                a as f64 * 100.0 / b as f64
+            }
+        };
         let n_types: usize = files.iter().map(|f| f.types.len()).sum();
         let n_with_parent: usize = files
             .iter()
@@ -4084,25 +4328,60 @@ func NewStore() *Store { return &Store{} }
                 .map(|(n, c)| format!("{}#{}", n, c))
                 .collect()
         };
-        println!("\n===== 继承链方法解析机会面 dir={} · 源文件 {} =====", dir, n_files);
-        println!("[自证] 类型符号 class/interface {} · 其中有父类 {} · this接收者 {} · 具名接收者 {}",
-            n_types, n_with_parent, st.n_this, st.n_named);
-        println!("[自证] 父类型引用 {} · 可解析到本库类型符号 {} ({:.1}%) · 未解析 Top {:?}",
-            n_parent_refs, n_parent_resolved, pct(n_parent_resolved, n_parent_refs), top_unresolved);
+        println!(
+            "\n===== 继承链方法解析机会面 dir={} · 源文件 {} =====",
+            dir, n_files
+        );
+        println!(
+            "[自证] 类型符号 class/interface {} · 其中有父类 {} · this接收者 {} · 具名接收者 {}",
+            n_types, n_with_parent, st.n_this, st.n_named
+        );
+        println!(
+            "[自证] 父类型引用 {} · 可解析到本库类型符号 {} ({:.1}%) · 未解析 Top {:?}",
+            n_parent_refs,
+            n_parent_resolved,
+            pct(n_parent_resolved, n_parent_refs),
+            top_unresolved
+        );
         println!("成员调用点合计   {:>6}", n_member_calls);
-        println!("  接收者类型未锁定 {:>6} ({:.1}%)  <- 非本轮范畴", st.no_type, pct(st.no_type, n_member_calls));
+        println!(
+            "  接收者类型未锁定 {:>6} ({:.1}%)  <- 非本轮范畴",
+            st.no_type,
+            pct(st.no_type, n_member_calls)
+        );
         let typed = st.own + st.inherited + st.missing;
-        println!("  已锁定接收者类型 {:>6} ({:.1}%)", typed, pct(typed, n_member_calls));
-        println!("  |- 类型自身已有成员   {:>6} ({:.1}% / 占已锁定 {:.1}%)  <- 当前已能解析",
-            st.own, pct(st.own, n_member_calls), pct(st.own, typed));
-        println!("  |- **继承自超类**     {:>6} ({:.1}% / 占已锁定 {:.1}%)  <- 本轮靶子",
-            st.inherited, pct(st.inherited, n_member_calls), pct(st.inherited, typed));
-        println!("  |- 整链都没有         {:>6} ({:.1}% / 占已锁定 {:.1}%)  <- 外部基类/标准库",
-            st.missing, pct(st.missing, n_member_calls), pct(st.missing, typed));
-        println!("     |- 其中接收者类型有可解析父类型 {} · 实际走过父类型层 {} · 样例 {:?}",
-            st.missing_with_parent, st.missing_walked, st.missing_samples);
+        println!(
+            "  已锁定接收者类型 {:>6} ({:.1}%)",
+            typed,
+            pct(typed, n_member_calls)
+        );
+        println!(
+            "  |- 类型自身已有成员   {:>6} ({:.1}% / 占已锁定 {:.1}%)  <- 当前已能解析",
+            st.own,
+            pct(st.own, n_member_calls),
+            pct(st.own, typed)
+        );
+        println!(
+            "  |- **继承自超类**     {:>6} ({:.1}% / 占已锁定 {:.1}%)  <- 本轮靶子",
+            st.inherited,
+            pct(st.inherited, n_member_calls),
+            pct(st.inherited, typed)
+        );
+        println!(
+            "  |- 整链都没有         {:>6} ({:.1}% / 占已锁定 {:.1}%)  <- 外部基类/标准库",
+            st.missing,
+            pct(st.missing, n_member_calls),
+            pct(st.missing, typed)
+        );
+        println!(
+            "     |- 其中接收者类型有可解析父类型 {} · 实际走过父类型层 {} · 样例 {:?}",
+            st.missing_with_parent, st.missing_walked, st.missing_samples
+        );
         if st.inherited > 0 {
-            println!("  |- 平均继承深度 {:.2}", st.depth_sum as f64 / st.inherited as f64);
+            println!(
+                "  |- 平均继承深度 {:.2}",
+                st.depth_sum as f64 / st.inherited as f64
+            );
             println!("  |- 样例 {:?}", st.samples);
         }
     }
@@ -4167,8 +4446,14 @@ func NewStore() *Store { return &Store{} }
                     let n = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
                     if matches!(
                         n,
-                        "node_modules" | "target" | "dist" | ".git" | "build" | "vendor"
-                            | ".next" | "out"
+                        "node_modules"
+                            | "target"
+                            | "dist"
+                            | ".git"
+                            | "build"
+                            | "vendor"
+                            | ".next"
+                            | "out"
                     ) {
                         continue;
                     }
@@ -4292,7 +4577,8 @@ func NewStore() *Store { return &Store{} }
                         let var = it.next()?;
                         let ty = it.next()?;
                         let t = base_type(ty);
-                        if t.is_empty() || !var.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                        if t.is_empty()
+                            || !var.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
                         {
                             return None;
                         }
@@ -4336,9 +4622,22 @@ func NewStore() *Store { return &Store{} }
                     }
                     let mut i = 0usize;
                     while i < toks.len()
-                        && matches!(toks[i], "public" | "private" | "protected" | "final"
-                            | "static" | "readonly" | "internal" | "const" | "auto" | "let"
-                            | "var" | "val" | "mut")
+                        && matches!(
+                            toks[i],
+                            "public"
+                                | "private"
+                                | "protected"
+                                | "final"
+                                | "static"
+                                | "readonly"
+                                | "internal"
+                                | "const"
+                                | "auto"
+                                | "let"
+                                | "var"
+                                | "val"
+                                | "mut"
+                        )
                     {
                         i += 1;
                     }
@@ -4403,7 +4702,9 @@ func NewStore() *Store { return &Store{} }
         let mut files: Vec<FileInfo> = Vec::new();
         for p in &paths {
             let Some(lang) = lang_of(p) else { continue };
-            let Ok(content) = std::fs::read_to_string(p) else { continue };
+            let Ok(content) = std::fs::read_to_string(p) else {
+                continue;
+            };
             if content.len() > 2_000_000 {
                 continue;
             }
@@ -4436,7 +4737,8 @@ func NewStore() *Store { return &Store{} }
                     (n.clone(), k.clone(), *l, end.max(*l))
                 })
                 .collect();
-            let calls: Vec<(String, String, i64)> = if lang == "typescript" || lang == "javascript" {
+            let calls: Vec<(String, String, i64)> = if lang == "typescript" || lang == "javascript"
+            {
                 extract_calls_ts(&content)
                     .into_iter()
                     .map(|c| (c.callee, c.receiver, c.line as i64))
@@ -4481,7 +4783,9 @@ func NewStore() *Store { return &Store{} }
                     }
                 }
                 if let Some(t) = best {
-                    *by_type_method.entry((t.0.clone(), s.0.clone())).or_default() += 1;
+                    *by_type_method
+                        .entry((t.0.clone(), s.0.clone()))
+                        .or_default() += 1;
                 }
             }
         }
@@ -4580,7 +4884,10 @@ func NewStore() *Store { return &Store{} }
                 }
 
                 let Some(t) = ty else { continue };
-                let cands = by_type_method.get(&(t.clone(), name.clone())).copied().unwrap_or(0);
+                let cands = by_type_method
+                    .get(&(t.clone(), name.clone()))
+                    .copied()
+                    .unwrap_or(0);
 
                 if resolved {
                     // 精度审计：名匹配命中的符号，其 enclosing type 是否就是推断类型？
@@ -4592,8 +4899,13 @@ func NewStore() *Store { return &Store{} }
                     if !hit_same_type && cands > 0 {
                         st.mismatch += 1;
                         if st.samples_mismatch.len() < 12 {
-                            st.samples_mismatch
-                                .push(format!("{}:{} {}.{}", short_path(&f.path), line, t, name));
+                            st.samples_mismatch.push(format!(
+                                "{}:{} {}.{}",
+                                short_path(&f.path),
+                                line,
+                                t,
+                                name
+                            ));
                         }
                     }
                     if cands == 1 {
@@ -4604,8 +4916,13 @@ func NewStore() *Store { return &Store{} }
                     if cands == 1 {
                         st.gain_unique += 1;
                         if st.samples_gain.len() < 12 {
-                            st.samples_gain
-                                .push(format!("{}:{} {}.{}", short_path(&f.path), line, t, name));
+                            st.samples_gain.push(format!(
+                                "{}:{} {}.{}",
+                                short_path(&f.path),
+                                line,
+                                t,
+                                name
+                            ));
                         }
                     } else if cands == 0 {
                         st.gain_zero += 1;
@@ -4652,17 +4969,39 @@ func NewStore() *Store { return &Store{} }
             }
         };
 
-        println!("\n===== 接收者 var→type 机会面回放 dir={} · 源文件 {} =====", dir, files.len());
+        println!(
+            "\n===== 接收者 var→type 机会面回放 dir={} · 源文件 {} =====",
+            dir,
+            files.len()
+        );
         println!("(类型,方法) 索引条目数 {}", by_type_method.len());
         println!("成员调用（非 self/this）  {}", st.total);
-        println!("  当前已解析    {:>6} ({:.1}%)", st.base_resolved, pct(st.base_resolved, st.total));
-        println!("  当前未解析    {:>6} ({:.1}%)", st.unresolved, pct(st.unresolved, st.total));
+        println!(
+            "  当前已解析    {:>6} ({:.1}%)",
+            st.base_resolved,
+            pct(st.base_resolved, st.total)
+        );
+        println!(
+            "  当前未解析    {:>6} ({:.1}%)",
+            st.unresolved,
+            pct(st.unresolved, st.total)
+        );
         println!("  ── 未解析中的 var→type 机会 ──");
-        println!("  |- 接收者可推断类型        {:>6} ({:.1}% of 未解析)", st.inferable, pct(st.inferable, st.unresolved));
-        println!("  |- **可唯一定位（纯增益）**{:>6} ({:.1}% of 未解析, 相对全量 {:+.1}%)", st.gain_unique, pct(st.gain_unique, st.unresolved), pct(st.gain_unique, st.total));
+        println!(
+            "  |- 接收者可推断类型        {:>6} ({:.1}% of 未解析)",
+            st.inferable,
+            pct(st.inferable, st.unresolved)
+        );
+        println!(
+            "  |- **可唯一定位（纯增益）**{:>6} ({:.1}% of 未解析, 相对全量 {:+.1}%)",
+            st.gain_unique,
+            pct(st.gain_unique, st.unresolved),
+            pct(st.gain_unique, st.total)
+        );
         println!("  |- 候选≥2 仍歧义           {:>6}", st.gain_multi);
         println!("  |- 候选 0（外部/继承）     {:>6}", st.gain_zero);
-        let mut zt: Vec<(String, usize)> = st.zero_types.iter().map(|(k, v)| (k.clone(), *v)).collect();
+        let mut zt: Vec<(String, usize)> =
+            st.zero_types.iter().map(|(k, v)| (k.clone(), *v)).collect();
         zt.sort_by(|a, b| b.1.cmp(&a.1));
         println!("  |- 零候选类型 Top20 {:?}", &zt[..zt.len().min(20)]);
         println!(
@@ -4671,7 +5010,11 @@ func NewStore() *Store { return &Store{} }
         );
         println!("  增益样例 {:?}", st.samples_gain);
         println!("  ── 已解析中的精度隐患 ──");
-        println!("  |- 名匹配连到别的类型      {:>6} ({:.1}% of 已解析)", st.mismatch, pct(st.mismatch, st.base_resolved));
+        println!(
+            "  |- 名匹配连到别的类型      {:>6} ({:.1}% of 已解析)",
+            st.mismatch,
+            pct(st.mismatch, st.base_resolved)
+        );
         println!("  |- 可加固为 (类型,名) 唯一 {:>6}", st.reinforce);
         println!("  隐患样例 {:?}", st.samples_mismatch);
         println!(
@@ -4711,7 +5054,17 @@ func NewStore() *Store { return &Store{} }
                 let p = e.path();
                 if p.is_dir() {
                     let n = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                    if matches!(n, "node_modules" | "target" | "dist" | ".git" | "build" | "vendor" | "testdata" | "out") {
+                    if matches!(
+                        n,
+                        "node_modules"
+                            | "target"
+                            | "dist"
+                            | ".git"
+                            | "build"
+                            | "vendor"
+                            | "testdata"
+                            | "out"
+                    ) {
                         continue;
                     }
                     walk(&p, out);
@@ -4756,11 +5109,17 @@ func NewStore() *Store { return &Store{} }
         let mut rels: Vec<String> = Vec::new();
         let mut dirs: Vec<String> = Vec::new();
         for p in &paths {
-            let Ok(content) = std::fs::read_to_string(p) else { continue };
+            let Ok(content) = std::fs::read_to_string(p) else {
+                continue;
+            };
             if content.len() > 2_000_000 {
                 continue;
             }
-            let rel = p.strip_prefix(&dir).unwrap_or(p.as_str()).trim_start_matches('/').to_string();
+            let rel = p
+                .strip_prefix(&dir)
+                .unwrap_or(p.as_str())
+                .trim_start_matches('/')
+                .to_string();
             let d = std::path::Path::new(&rel)
                 .parent()
                 .map(|x| x.to_string_lossy().to_string())
@@ -4782,14 +5141,13 @@ func NewStore() *Store { return &Store{} }
                     break;
                 }
             }
-            let calls: Vec<(String, String, i64)> =
-                match super::dialect_for("go", &rels[i]) {
-                    Some(d) => super::extract_calls_ast(d, content)
-                        .into_iter()
-                        .map(|c| (c.callee, c.receiver, c.line as i64))
-                        .collect(),
-                    None => Vec::new(),
-                };
+            let calls: Vec<(String, String, i64)> = match super::dialect_for("go", &rels[i]) {
+                Some(d) => super::extract_calls_ast(d, content)
+                    .into_iter()
+                    .map(|c| (c.callee, c.receiver, c.line as i64))
+                    .collect(),
+                None => Vec::new(),
+            };
             // import 规格 + 用量归集（与 `extract_go_symbol_imports` 同口径）
             let (imports, used) = go_probe_imports(content);
             let sym_base = syms.len();
@@ -4804,11 +5162,19 @@ func NewStore() *Store { return &Store{} }
                 });
             }
             let _ = sym_base;
-            infos.push(FInfo { rel: rels[i].clone(), dir: dirs[i].clone(), pkg, calls, imports, used });
+            infos.push(FInfo {
+                rel: rels[i].clone(),
+                dir: dirs[i].clone(),
+                pkg,
+                calls,
+                imports,
+                used,
+            });
         }
 
         // dir -> 该目录下文件索引
-        let mut dir_files: std::collections::HashMap<&str, Vec<usize>> = std::collections::HashMap::new();
+        let mut dir_files: std::collections::HashMap<&str, Vec<usize>> =
+            std::collections::HashMap::new();
         for (i, d) in dirs.iter().enumerate() {
             dir_files.entry(d.as_str()).or_default().push(i);
         }
@@ -4819,7 +5185,10 @@ func NewStore() *Store { return &Store{} }
         }
 
         /// 导入路径 → 仓库内目录：渐进剥离模块前缀（对标 `go_module_candidates`，≤5 段）
-        fn resolve_pkg_dir(path: &str, dir_files: &std::collections::HashMap<&str, Vec<usize>>) -> Option<String> {
+        fn resolve_pkg_dir(
+            path: &str,
+            dir_files: &std::collections::HashMap<&str, Vec<usize>>,
+        ) -> Option<String> {
             let segs: Vec<&str> = path.split('/').collect();
             for k in 0..segs.len().min(5) {
                 let cand = segs[k..].join("/");
@@ -4831,8 +5200,10 @@ func NewStore() *Store { return &Store{} }
         }
 
         // by_name / by_file
-        let mut by_name: std::collections::HashMap<&str, Vec<PS<'_>>> = std::collections::HashMap::new();
-        let mut by_file: std::collections::HashMap<&str, Vec<PS<'_>>> = std::collections::HashMap::new();
+        let mut by_name: std::collections::HashMap<&str, Vec<PS<'_>>> =
+            std::collections::HashMap::new();
+        let mut by_file: std::collections::HashMap<&str, Vec<PS<'_>>> =
+            std::collections::HashMap::new();
         for s in syms.iter() {
             if !super::is_callable(s.kind) {
                 continue;
@@ -4842,11 +5213,13 @@ func NewStore() *Store { return &Store{} }
         }
 
         // ── 基线 imported 层：裸名 → 符号（**last-write-wins**，与生产循环一致）──
-        let mut import_map: std::collections::HashMap<(usize, String), PS<'_>> = std::collections::HashMap::new();
+        let mut import_map: std::collections::HashMap<(usize, String), PS<'_>> =
+            std::collections::HashMap::new();
         // ── 新层：(文件, 包名, 成员名) → 符号（包名限定，跨包内多文件全收后取唯一）──
         let mut cand_stat: std::collections::HashMap<(usize, String, String), usize> =
             std::collections::HashMap::new();
-        let mut pkg_map: std::collections::HashMap<(usize, String, String), PS<'_>> = std::collections::HashMap::new();
+        let mut pkg_map: std::collections::HashMap<(usize, String, String), PS<'_>> =
+            std::collections::HashMap::new();
         let mut pkg_dir_ok = 0usize;
         let mut pkg_dir_miss = 0usize;
         for (fi, info) in infos.iter().enumerate() {
@@ -4880,7 +5253,10 @@ func NewStore() *Store { return &Store{} }
                     // 去重（同一符号可能被多次计入）
                     let mut uniq: Vec<PS<'_>> = Vec::new();
                     for c in cands {
-                        if !uniq.iter().any(|u| u.fi == c.fi && u.line == c.line && u.name == c.name) {
+                        if !uniq
+                            .iter()
+                            .any(|u| u.fi == c.fi && u.line == c.line && u.name == c.name)
+                        {
                             uniq.push(c);
                         }
                     }
@@ -4908,11 +5284,19 @@ func NewStore() *Store { return &Store{} }
             if cands.len() < 2 {
                 return None;
             }
-            let same_dir: Vec<PS<'a>> = cands.iter().copied().filter(|c| c.dir == caller_dir).collect();
+            let same_dir: Vec<PS<'a>> = cands
+                .iter()
+                .copied()
+                .filter(|c| c.dir == caller_dir)
+                .collect();
             if same_dir.len() == 1 {
                 return Some(same_dir[0]);
             }
-            let want = if receiver.is_empty() { "function" } else { "method" };
+            let want = if receiver.is_empty() {
+                "function"
+            } else {
+                "method"
+            };
             let by_kind: Vec<PS<'a>> = cands.iter().copied().filter(|c| c.kind == want).collect();
             if by_kind.len() == 1 {
                 Some(by_kind[0])
@@ -4942,8 +5326,9 @@ func NewStore() *Store { return &Store{} }
         let mut intree_new_only = 0usize;
         let mut intree_differ = 0usize;
         let mut intree_wrong_pkg = 0usize; // 基线解析到**别的包**的符号（最严重的错连）
-        // 「包名层未命中即不回退裸名」变体
-        let mut pkg_aliases: std::collections::HashSet<(usize, String)> = std::collections::HashSet::new();
+                                           // 「包名层未命中即不回退裸名」变体
+        let mut pkg_aliases: std::collections::HashSet<(usize, String)> =
+            std::collections::HashSet::new();
         let mut strict_resolved = 0usize;
         let mut strict_lost = 0usize;
         let mut strict_wrong_pkg = 0usize;
@@ -4981,7 +5366,13 @@ func NewStore() *Store { return &Store{} }
                     .get(info.rel.as_str())
                     .and_then(|v| v.iter().copied().find(|s| s.name == name.as_str()));
                 let imported = import_map.get(&(fi, name.clone())).copied();
-                let global = by_name.get(name.as_str()).and_then(|v| if v.len() == 1 { Some(v[0]) } else { None });
+                let global = by_name.get(name.as_str()).and_then(|v| {
+                    if v.len() == 1 {
+                        Some(v[0])
+                    } else {
+                        None
+                    }
+                });
                 let nv = naive(&by_name, name, &info.dir, receiver);
                 let base = local.or(imported).or(global).or(nv);
 
@@ -4996,14 +5387,21 @@ func NewStore() *Store { return &Store{} }
                     new
                 };
 
-                if by_name.get(name.as_str()).map(|v| v.len() > 1).unwrap_or(false) {
+                if by_name
+                    .get(name.as_str())
+                    .map(|v| v.len() > 1)
+                    .unwrap_or(false)
+                {
                     ambig_qualified += 1;
                 }
                 if pkgd.is_none() {
                     pkg_dir_unresolved_qualified += 1;
                 }
                 if in_tree {
-                    match cand_stat.get(&(fi, receiver.clone(), name.clone())).copied() {
+                    match cand_stat
+                        .get(&(fi, receiver.clone(), name.clone()))
+                        .copied()
+                    {
                         Some(1) => intree_pkg_hit += 1,
                         Some(0) | None => intree_pkg_zero += 1,
                         Some(_) => intree_pkg_amb += 1,
@@ -5063,33 +5461,82 @@ func NewStore() *Store { return &Store{} }
             }
         }
 
-        let pct = |a: usize, b: usize| if b == 0 { 0.0 } else { (a as f64 / b as f64) * 100.0 };
+        let pct = |a: usize, b: usize| {
+            if b == 0 {
+                0.0
+            } else {
+                (a as f64 / b as f64) * 100.0
+            }
+        };
         println!("\n===== replay_go_pkg_call_gain @ {} =====", dir);
-        println!("  Go 文件 {} · 可调用符号 {}", infos.len(), syms.iter().filter(|s| super::is_callable(s.kind)).count());
-        println!("  导入路径解析：命中目录 {} / 未命中 {}（未命中多为模块外依赖）", pkg_dir_ok, pkg_dir_miss);
+        println!(
+            "  Go 文件 {} · 可调用符号 {}",
+            infos.len(),
+            syms.iter().filter(|s| super::is_callable(s.kind)).count()
+        );
+        println!(
+            "  导入路径解析：命中目录 {} / 未命中 {}（未命中多为模块外依赖）",
+            pkg_dir_ok, pkg_dir_miss
+        );
         println!("  ── 调用点 ──");
         println!("  |- 总调用点                 {:>6}", total_calls);
-        println!("  |- 包名限定调用 pkg.F()     {:>6} ({:.1}% of 总)", qualified, pct(qualified, total_calls));
-        println!("  |- 其中裸名全局歧义         {:>6} ({:.1}%)", ambig_qualified, pct(ambig_qualified, qualified.max(1)));
-        println!("  |- 包名层未解析             {:>6} ({:.1}%)", pkg_dir_unresolved_qualified, pct(pkg_dir_unresolved_qualified, qualified.max(1)));
+        println!(
+            "  |- 包名限定调用 pkg.F()     {:>6} ({:.1}% of 总)",
+            qualified,
+            pct(qualified, total_calls)
+        );
+        println!(
+            "  |- 其中裸名全局歧义         {:>6} ({:.1}%)",
+            ambig_qualified,
+            pct(ambig_qualified, qualified.max(1))
+        );
+        println!(
+            "  |- 包名层未解析             {:>6} ({:.1}%)",
+            pkg_dir_unresolved_qualified,
+            pct(pkg_dir_unresolved_qualified, qualified.max(1))
+        );
         println!("  ── 解析率 ──");
-        println!("  |- 当前（裸名链）已解析     {:>6} ({:.1}% of 限定调用)", base_resolved, pct(base_resolved, qualified.max(1)));
-        println!("  |- 加包名限定层后           {:>6} ({:.1}%)", new_resolved, pct(new_resolved, qualified.max(1)));
+        println!(
+            "  |- 当前（裸名链）已解析     {:>6} ({:.1}% of 限定调用)",
+            base_resolved,
+            pct(base_resolved, qualified.max(1))
+        );
+        println!(
+            "  |- 加包名限定层后           {:>6} ({:.1}%)",
+            new_resolved,
+            pct(new_resolved, qualified.max(1))
+        );
         println!("  ── 净增益 ──");
         println!("  |- 召回（旧丢新连）         {:>6}", new_only);
         println!("  |- 精度（旧连错，新纠正）   {:>6}", differ);
         println!("  召回样例 {:?}", samples_recall);
         println!("  纠正样例 {:?}", samples_diff);
         println!("  ── 自证拆解（限定调用按「导入目标是否在仓内」分）──");
-        println!("  |- 仓内（可救）             {:>6} ({:.1}% of 限定调用)", qual_in_tree, pct(qual_in_tree, qualified.max(1)));
-        println!("  |- 仓外（标准库/三方，不可救）{:>6} ({:.1}%)", qual_external, pct(qual_external, qualified.max(1)));
+        println!(
+            "  |- 仓内（可救）             {:>6} ({:.1}% of 限定调用)",
+            qual_in_tree,
+            pct(qual_in_tree, qualified.max(1))
+        );
+        println!(
+            "  |- 仓外（标准库/三方，不可救）{:>6} ({:.1}%)",
+            qual_external,
+            pct(qual_external, qualified.max(1))
+        );
         println!("  |- 仓内·包名层唯一命中      {:>6}", intree_pkg_hit);
         println!("  |- 仓内·包名层 0 候选       {:>6}", intree_pkg_zero);
         println!("  |- 仓内·包名层歧义(≥2)      {:>6}", intree_pkg_amb);
-        println!("  |- 仓内·当前已解析          {:>6} ({:.1}% of 仓内)", intree_base_resolved, pct(intree_base_resolved, qual_in_tree.max(1)));
+        println!(
+            "  |- 仓内·当前已解析          {:>6} ({:.1}% of 仓内)",
+            intree_base_resolved,
+            pct(intree_base_resolved, qual_in_tree.max(1))
+        );
         println!("  |- 仓内·净新增(旧丢新连)    {:>6}", intree_new_only);
         println!("  |- 仓内·纠正(旧连错)        {:>6}", intree_differ);
-        println!("  |- 仓内·**跨包错连**(最严重){:>6} ({:.1}% of 仓内)", intree_wrong_pkg, pct(intree_wrong_pkg, qual_in_tree.max(1)));
+        println!(
+            "  |- 仓内·**跨包错连**(最严重){:>6} ({:.1}% of 仓内)",
+            intree_wrong_pkg,
+            pct(intree_wrong_pkg, qual_in_tree.max(1))
+        );
         println!("  ── 变体：包名已知但包名层未命中时，不回退裸名 imported ──");
         println!("  |- strict 仍解析           {:>6}", strict_resolved);
         println!("  |- strict 丢掉（回归风险） {:>6}", strict_lost);
@@ -5121,7 +5568,17 @@ func NewStore() *Store { return &Store{} }
                 let p = e.path();
                 if p.is_dir() {
                     let n = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                    if matches!(n, "node_modules" | "target" | "dist" | ".git" | "build" | "vendor" | "testdata" | "out") {
+                    if matches!(
+                        n,
+                        "node_modules"
+                            | "target"
+                            | "dist"
+                            | ".git"
+                            | "build"
+                            | "vendor"
+                            | "testdata"
+                            | "out"
+                    ) {
                         continue;
                     }
                     walk(&p, out);
@@ -5139,7 +5596,9 @@ func NewStore() *Store { return &Store{} }
         let mut files: Vec<ProjectFile> = Vec::new();
         let mut syms: Vec<ProjectSymbol> = Vec::new();
         for (i, p) in paths.iter().enumerate() {
-            let Ok(content) = std::fs::read_to_string(p) else { continue };
+            let Ok(content) = std::fs::read_to_string(p) else {
+                continue;
+            };
             if content.len() > 2_000_000 {
                 continue;
             }
@@ -5172,15 +5631,38 @@ func NewStore() *Store { return &Store{} }
 
         // 逐条核对量化阶段抓到的跨包错连样例：现在应指向**正确**的包
         let checks: &[(&str, &str, &str, &str)] = &[
-            ("cmd/callgraph/main.go", "static", "CallGraph", "go/callgraph/static/"),
-            ("cmd/callgraph/main.go", "cha", "CallGraph", "go/callgraph/cha/"),
+            (
+                "cmd/callgraph/main.go",
+                "static",
+                "CallGraph",
+                "go/callgraph/static/",
+            ),
+            (
+                "cmd/callgraph/main.go",
+                "cha",
+                "CallGraph",
+                "go/callgraph/cha/",
+            ),
             ("cmd/godoc/main.go", "gatefs", "New", "godoc/vfs/gatefs/"),
             ("cmd/godoc/main.go", "mapfs", "New", "godoc/vfs/mapfs/"),
-            ("go/analysis/multichecker/multichecker.go", "checker", "Run", "go/analysis/internal/checker/"),
+            (
+                "go/analysis/multichecker/multichecker.go",
+                "checker",
+                "Run",
+                "go/analysis/internal/checker/",
+            ),
         ];
-        let by_rel: HashMap<&str, &str> = files.iter().map(|f| (f.rel_path.as_str(), f.id.as_str())).collect();
+        let by_rel: HashMap<&str, &str> = files
+            .iter()
+            .map(|f| (f.rel_path.as_str(), f.id.as_str()))
+            .collect();
         println!("\n===== replay_go_pkg_index_verify @ {} =====", dir);
-        println!("  Go 文件 {} · 符号 {} · 索引条目 {}", files.len(), syms.len(), g.len());
+        println!(
+            "  Go 文件 {} · 符号 {} · 索引条目 {}",
+            files.len(),
+            syms.len(),
+            g.len()
+        );
         let mut ok = 0usize;
         let mut miss = 0usize;
         for (rel, pkg, member, expect_dir) in checks {
@@ -5195,7 +5677,10 @@ func NewStore() *Store { return &Store{} }
                 }
                 Some(s) => {
                     miss += 1;
-                    println!("  [MISS] {rel}::{pkg}.{member}() → {}（期望 {expect_dir}）", s.file_path);
+                    println!(
+                        "  [MISS] {rel}::{pkg}.{member}() → {}（期望 {expect_dir}）",
+                        s.file_path
+                    );
                 }
                 None => {
                     miss += 1;
@@ -5214,7 +5699,10 @@ func NewStore() *Store { return &Store{} }
         }
         let distinguished = per_file_member.values().filter(|v| v.len() > 1).count();
         println!("  ── 不变量 ──");
-        println!("  |- 同文件同名成员被区分到不同符号的条目 {:>4}（此前会 collapse 成 1 个）", distinguished);
+        println!(
+            "  |- 同文件同名成员被区分到不同符号的条目 {:>4}（此前会 collapse 成 1 个）",
+            distinguished
+        );
         println!("  |- 抽查样例：纠正 {} / 未纠正 {}", ok, miss);
     }
 
@@ -5229,7 +5717,10 @@ func NewStore() *Store { return &Store{} }
             crate::commands::code_structure::parse_imports_with_symbols("go", content);
         // `ParsedImport` 只带导入路径与符号名，包名（别名/末段）需自行推导
         let mut parser = tree_sitter::Parser::new();
-        if parser.set_language(&tree_sitter_go::LANGUAGE.into()).is_err() {
+        if parser
+            .set_language(&tree_sitter_go::LANGUAGE.into())
+            .is_err()
+        {
             return (imports, used);
         }
         let Some(tree) = parser.parse(content, None) else {
@@ -5251,7 +5742,9 @@ func NewStore() *Store { return &Store{} }
                         "dot" | "blank_identifier" => None,
                         _ => Some(a.utf8_text(src).unwrap_or("").to_string()),
                     });
-                    let pkg = alias.unwrap_or_else(|| path.rsplit('/').next().unwrap_or(path.as_str()).to_string());
+                    let pkg = alias.unwrap_or_else(|| {
+                        path.rsplit('/').next().unwrap_or(path.as_str()).to_string()
+                    });
                     specs.push((pkg, path));
                 }
                 continue;

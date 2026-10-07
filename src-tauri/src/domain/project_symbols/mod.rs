@@ -1,3 +1,3 @@
 pub mod models;
 
-pub use models::{ProjectSymbol, PatternHit, StructureSummary};
+pub use models::{PatternHit, ProjectSymbol, StructureSummary};

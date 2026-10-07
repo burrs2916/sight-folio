@@ -1,7 +1,8 @@
 use crate::domain::corpus::{
-    fingerprint, CorpusBook, CorpusBookSource, CorpusChunk, CorpusHitOccurrence,
-    CorpusSearchHit, CorpusStorageReport, SentenceDupGroup,
-};use crate::error::{AppError, AppResult};
+    fingerprint, CorpusBook, CorpusBookSource, CorpusChunk, CorpusHitOccurrence, CorpusSearchHit,
+    CorpusStorageReport, SentenceDupGroup,
+};
+use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::CorpusDatabase;
 use rusqlite::params;
 
@@ -111,7 +112,9 @@ pub struct SqliteCorpusRepository {
 
 impl Clone for SqliteCorpusRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -125,11 +128,13 @@ impl SqliteCorpusRepository {
     fn sync_tags_inner(&self, book_id: i64, tags: &[String]) -> AppResult<()> {
         let conn = self.db.0.lock().unwrap();
         let tx = conn.unchecked_transaction()?;
-        tx.execute("DELETE FROM corpus_book_tags WHERE book_id = ?1", params![book_id])?;
+        tx.execute(
+            "DELETE FROM corpus_book_tags WHERE book_id = ?1",
+            params![book_id],
+        )?;
         {
-            let mut stmt = tx.prepare(
-                "INSERT INTO corpus_book_tags (book_id, tag) VALUES (?1, ?2)",
-            )?;
+            let mut stmt =
+                tx.prepare("INSERT INTO corpus_book_tags (book_id, tag) VALUES (?1, ?2)")?;
             for tag in tags {
                 stmt.execute(params![book_id, tag])?;
             }
@@ -146,12 +151,9 @@ impl SqliteCorpusRepository {
         tx: &rusqlite::Transaction,
         book_ids: &[i64],
     ) -> AppResult<()> {
-        let mut sel = tx.prepare(
-            "SELECT tag FROM corpus_book_tags WHERE book_id = ?1 ORDER BY tag",
-        )?;
-        let mut upd = tx.prepare(
-            "UPDATE corpus_books SET category = ?2 WHERE id = ?1",
-        )?;
+        let mut sel =
+            tx.prepare("SELECT tag FROM corpus_book_tags WHERE book_id = ?1 ORDER BY tag")?;
+        let mut upd = tx.prepare("UPDATE corpus_books SET category = ?2 WHERE id = ?1")?;
         for book_id in book_ids {
             let tags: Vec<String> = sel
                 .query_map(params![book_id], |r| r.get::<_, String>(0))?
@@ -182,7 +184,8 @@ fn row_to_book(row: &rusqlite::Row) -> rusqlite::Result<CorpusBook> {
 }
 
 /// corpus_books 读取列（按列名，禁位置索引）。
-const BOOK_COLS: &str = "id, title, author, language, source, category, source_path, content_hash, \
+const BOOK_COLS: &str =
+    "id, title, author, language, source, category, source_path, content_hash, \
                          simhash, word_count, chunk_count, created_at";
 
 /// 标签分隔符：逗号 / 中文逗号 / 顿号 / 分号 / 中文分号 / 斜杠。
@@ -221,9 +224,8 @@ fn attach_tags_one(
     let tags = match map {
         Some(m) => m.get(&book.id).cloned().unwrap_or_default(),
         None => {
-            let mut stmt = conn.prepare(
-                "SELECT tag FROM corpus_book_tags WHERE book_id = ?1 ORDER BY tag",
-            )?;
+            let mut stmt =
+                conn.prepare("SELECT tag FROM corpus_book_tags WHERE book_id = ?1 ORDER BY tag")?;
             let tags = stmt
                 .query_map(params![book.id], |r| r.get::<_, String>(0))?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -243,9 +245,7 @@ fn load_tags_map(
     conn: &rusqlite::Connection,
 ) -> rusqlite::Result<std::collections::HashMap<i64, Vec<String>>> {
     let mut stmt = conn.prepare("SELECT book_id, tag FROM corpus_book_tags")?;
-    let rows = stmt.query_map([], |r| {
-        Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
-    })?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
     let mut map: std::collections::HashMap<i64, Vec<String>> = std::collections::HashMap::new();
     for row in rows {
         let (book_id, tag) = row?;
@@ -456,9 +456,8 @@ impl SqliteCorpusRepository {
         let book_id = tx.last_insert_rowid();
         // 标签真源表：与 INSERT 同一事务内用同一连接直接插入（禁调自带锁/独立事务的 sync_tags_inner）
         if !tags.is_empty() {
-            let mut stmt = tx.prepare(
-                "INSERT INTO corpus_book_tags (book_id, tag) VALUES (?1, ?2)",
-            )?;
+            let mut stmt =
+                tx.prepare("INSERT INTO corpus_book_tags (book_id, tag) VALUES (?1, ?2)")?;
             for tag in &tags {
                 stmt.execute(params![book_id, tag])?;
             }
@@ -631,7 +630,9 @@ impl CorpusRepository for SqliteCorpusRepository {
             // <3 字符：LIKE 回退（trigram 无法对 <3 字符建索引词；ESCAPE 转义 % _ \）
             let like = format!(
                 "%{}%",
-                q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+                q.replace('\\', "\\\\")
+                    .replace('%', "\\%")
+                    .replace('_', "\\_")
             );
             let mut stmt = conn.prepare(&format!(
                 "SELECT {BOOK_COLS} FROM corpus_books
@@ -709,9 +710,8 @@ impl CorpusRepository for SqliteCorpusRepository {
         let tx = conn.unchecked_transaction()?;
         // 受影响书目：当前带旧标签的书（去重）
         let affected: Vec<i64> = {
-            let mut stmt = tx.prepare(
-                "SELECT DISTINCT book_id FROM corpus_book_tags WHERE tag = ?1",
-            )?;
+            let mut stmt =
+                tx.prepare("SELECT DISTINCT book_id FROM corpus_book_tags WHERE tag = ?1")?;
             let rows = stmt
                 .query_map(params![from], |r| r.get::<_, i64>(0))?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -722,17 +722,13 @@ impl CorpusRepository for SqliteCorpusRepository {
         }
         // ① 旧标签批量换成新标签；目标标签已存在时 INSERT 冲突，需按书两段处理：
         //    先插新（OR IGNORE 去重已有 to），再删旧。
-        let mut stmt = tx.prepare(
-            "INSERT OR IGNORE INTO corpus_book_tags (book_id, tag) VALUES (?1, ?2)",
-        )?;
+        let mut stmt =
+            tx.prepare("INSERT OR IGNORE INTO corpus_book_tags (book_id, tag) VALUES (?1, ?2)")?;
         for book_id in &affected {
             stmt.execute(params![book_id, to])?;
         }
         drop(stmt);
-        tx.execute(
-            "DELETE FROM corpus_book_tags WHERE tag = ?1",
-            params![from],
-        )?;
+        tx.execute("DELETE FROM corpus_book_tags WHERE tag = ?1", params![from])?;
         // ② 同步受影响书 category 镜像（以标签表为真源重算顿号连接串）
         self.refresh_category_mirror(&tx, &affected)?;
         tx.commit()?;
@@ -754,9 +750,8 @@ impl CorpusRepository for SqliteCorpusRepository {
         let tx = conn.unchecked_transaction()?;
         let placeholders = vec!["?"; sources.len()].join(", ");
         // 受影响书目：带任一源标签的书
-        let sql = format!(
-            "SELECT DISTINCT book_id FROM corpus_book_tags WHERE tag IN ({placeholders})"
-        );
+        let sql =
+            format!("SELECT DISTINCT book_id FROM corpus_book_tags WHERE tag IN ({placeholders})");
         let affected: Vec<i64> = {
             let mut stmt = tx.prepare(&sql)?;
             let rows = stmt
@@ -771,17 +766,14 @@ impl CorpusRepository for SqliteCorpusRepository {
         }
         // 归并：不影响目标标签所在书（OR IGNORE），源标签逐书删除
         {
-            let mut ins = tx.prepare(
-                "INSERT OR IGNORE INTO corpus_book_tags (book_id, tag) VALUES (?1, ?2)",
-            )?;
+            let mut ins = tx
+                .prepare("INSERT OR IGNORE INTO corpus_book_tags (book_id, tag) VALUES (?1, ?2)")?;
             for book_id in &affected {
                 ins.execute(params![book_id, into])?;
             }
         }
         tx.execute(
-            &format!(
-                "DELETE FROM corpus_book_tags WHERE tag IN ({placeholders})"
-            ),
+            &format!("DELETE FROM corpus_book_tags WHERE tag IN ({placeholders})"),
             rusqlite::params_from_iter(sources.iter()),
         )?;
         self.refresh_category_mirror(&tx, &affected)?;
@@ -798,9 +790,8 @@ impl CorpusRepository for SqliteCorpusRepository {
         let conn = self.db.0.lock().unwrap();
         let tx = conn.unchecked_transaction()?;
         let affected: Vec<i64> = {
-            let mut stmt = tx.prepare(
-                "SELECT DISTINCT book_id FROM corpus_book_tags WHERE tag = ?1",
-            )?;
+            let mut stmt =
+                tx.prepare("SELECT DISTINCT book_id FROM corpus_book_tags WHERE tag = ?1")?;
             let rows = stmt
                 .query_map(params![tag], |r| r.get::<_, i64>(0))?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -809,10 +800,7 @@ impl CorpusRepository for SqliteCorpusRepository {
         if affected.is_empty() {
             return Ok(0);
         }
-        tx.execute(
-            "DELETE FROM corpus_book_tags WHERE tag = ?1",
-            params![tag],
-        )?;
+        tx.execute("DELETE FROM corpus_book_tags WHERE tag = ?1", params![tag])?;
         self.refresh_category_mirror(&tx, &affected)?;
         tx.commit()?;
         Ok(affected.len() as i64)
@@ -883,7 +871,10 @@ impl CorpusRepository for SqliteCorpusRepository {
             "DELETE FROM corpus_book_sources WHERE book_id = ?1",
             params![id],
         )?;
-        tx.execute("DELETE FROM corpus_book_tags WHERE book_id = ?1", params![id])?;
+        tx.execute(
+            "DELETE FROM corpus_book_tags WHERE book_id = ?1",
+            params![id],
+        )?;
         tx.execute("DELETE FROM corpus_books WHERE id = ?1", params![id])?;
         tx.commit()?;
         Ok(())
@@ -929,7 +920,9 @@ impl CorpusRepository for SqliteCorpusRepository {
         // <3 字符：LIKE 回退（ESCAPE 转义 % _ \）
         let like = format!(
             "%{}%",
-            q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+            q.replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_")
         );
         let rows: Vec<RawHit> = {
             let mut stmt = conn.prepare(
@@ -1012,13 +1005,9 @@ impl CorpusRepository for SqliteCorpusRepository {
         // ① 先合并 WAL：让 page_count × page_size 与实际文件字节一致（报告口径）
         conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
         let page_size: i64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0))?;
-        let page_count_before: i64 =
-            conn.query_row("PRAGMA page_count", [], |r| r.get(0))?;
-        let fts_rows_before: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM corpus_fts_data",
-            [],
-            |r| r.get(0),
-        )?;
+        let page_count_before: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0))?;
+        let fts_rows_before: i64 =
+            conn.query_row("SELECT COUNT(*) FROM corpus_fts_data", [], |r| r.get(0))?;
         let size_before = page_count_before.saturating_mul(page_size);
 
         // ② FTS5 rebuild：按 content 表重建倒排，清掉升级前旧库遗留的索引残留
@@ -1073,10 +1062,18 @@ mod tests {
     }
 
     fn import_sample(repo: &SqliteCorpusRepository) -> CorpusBook {
-        let chunks = parse_text("第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……");
+        let chunks = parse_text(
+            "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……",
+        );
         let parsed: Vec<(String, String, String)> = chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         repo.import_book(
             "测试书",
@@ -1095,16 +1092,35 @@ mod tests {
     #[test]
     fn import_stores_and_reads_raw_text_mirror() {
         let repo = make_repo();
-        let raw = "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……";
+        let raw =
+            "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……";
         let chunks = parse_text(raw);
         let parsed: Vec<(String, String, String)> = chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let book = repo
-            .import_book("镜像书", "作者甲", "zh", "", "epub", "/tmp/镜像书.epub", raw, &parsed)
+            .import_book(
+                "镜像书",
+                "作者甲",
+                "zh",
+                "",
+                "epub",
+                "/tmp/镜像书.epub",
+                raw,
+                &parsed,
+            )
             .unwrap();
-        let src = repo.get_book_source(book.id).unwrap().expect("mirror exists");
+        let src = repo
+            .get_book_source(book.id)
+            .unwrap()
+            .expect("mirror exists");
         assert_eq!(src.raw_text, raw);
         assert_eq!(src.source, "epub");
         // 不存在的书 → None（而非 Err）
@@ -1116,10 +1132,17 @@ mod tests {
     #[test]
     fn import_book_with_progress_matches_plain_and_reports_each_chunk() {
         let repo = make_repo();
-        let raw = "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……";
+        let raw =
+            "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……";
         let parsed: Vec<(String, String, String)> = parse_text(raw)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let n = parsed.len();
         assert!(n >= 2);
@@ -1143,12 +1166,25 @@ mod tests {
             )
             .unwrap();
         assert_eq!(done_seq.len(), n, "回调次数 = chunk 数");
-        assert_eq!(done_seq, (1..=n).collect::<Vec<_>>(), "done 从 1..n 严格递增");
+        assert_eq!(
+            done_seq,
+            (1..=n).collect::<Vec<_>>(),
+            "done 从 1..n 严格递增"
+        );
         assert!(totals.iter().all(|&t| t == n), "total 恒定为 {n}");
 
         // 产物与普通 import_book 完全一致：同一批 chunk 流下仅回调有无之分
         let book_plain = repo
-            .import_book("普通书", "作者甲", "zh", "", "txt", "/tmp/普通书.txt", raw, &parsed)
+            .import_book(
+                "普通书",
+                "作者甲",
+                "zh",
+                "",
+                "txt",
+                "/tmp/普通书.txt",
+                raw,
+                &parsed,
+            )
             .unwrap();
         assert_eq!(book_p.content_hash, book_plain.content_hash);
         assert_eq!(book_p.simhash, book_plain.simhash);
@@ -1164,11 +1200,26 @@ mod tests {
         let raw = "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！";
         let parsed: Vec<(String, String, String)> = parse_text(raw)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         // 分隔串入参（兼容编辑路径习惯：顿号 / 英文逗号）
         let book = repo
-            .import_book("分类书", "作者戊", "zh", "玄幻、热血 、热血", "txt", "/tmp/分类书.txt", raw, &parsed)
+            .import_book(
+                "分类书",
+                "作者戊",
+                "zh",
+                "玄幻、热血 、热血",
+                "txt",
+                "/tmp/分类书.txt",
+                raw,
+                &parsed,
+            )
             .unwrap();
         // 返回体：镜像列为顿号串，tags 为 trim 去重后（保序，与 set_book_tags 返回语义一致）
         assert_eq!(book.category, "玄幻、热血");
@@ -1180,9 +1231,17 @@ mod tests {
         read_tags.sort();
         assert_eq!(read_tags, vec!["热血".to_string(), "玄幻".to_string()]);
         // 检索命中分类（书级 FTS 含 category 列，≥3 字符走 trigram）
-        assert!(repo.search_books("玄幻", 10).unwrap().iter().any(|b| b.id == book.id));
+        assert!(repo
+            .search_books("玄幻", 10)
+            .unwrap()
+            .iter()
+            .any(|b| b.id == book.id));
         // 按标签精确过滤命中
-        assert!(repo.search_books_by_tag("热血").unwrap().iter().any(|b| b.id == book.id));
+        assert!(repo
+            .search_books_by_tag("热血")
+            .unwrap()
+            .iter()
+            .any(|b| b.id == book.id));
         // 目录书照旧可读
         assert_eq!(repo.list_books().unwrap().len(), 1);
         // 空分类 → 未分类（镜像空串、标签空）
@@ -1191,7 +1250,11 @@ mod tests {
             .unwrap();
         assert_eq!(bare.category, "");
         assert!(bare.tags.is_empty());
-        assert!(repo.search_books_by_tag("玄幻").unwrap().iter().all(|b| b.id != bare.id));
+        assert!(repo
+            .search_books_by_tag("玄幻")
+            .unwrap()
+            .iter()
+            .all(|b| b.id != bare.id));
     }
 
     /// 重建索引刷新镜像：replace 后读回的是新抽取文本（旧镜像被覆盖，不累积）。
@@ -1204,9 +1267,16 @@ mod tests {
         let raw2 = "第三章 重建\n\n崭新的句子出现了。";
         let parsed: Vec<(String, String, String)> = parse_text(raw2)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
-        repo.replace_book_chunks(book.id, "txt", raw2, &parsed).unwrap();
+        repo.replace_book_chunks(book.id, "txt", raw2, &parsed)
+            .unwrap();
         let new_src = repo.get_book_source(book.id).unwrap().unwrap();
         assert_eq!(new_src.raw_text, raw2);
         assert_eq!(new_src.source, "txt");
@@ -1245,8 +1315,8 @@ mod tests {
     }
 
     /// 导入期过滤 roundtrip：有效字符 <MIN_INDEX_CHARS 的孤立短句
-/// （“嗯。”“走吧。”类 1–2 字碎片，无后续句可并）在 parse_text 阶段即被
-/// Low 过滤不入库，搜索侧无需额外过滤即无法命中；正常完整句不受影响。
+    /// （“嗯。”“走吧。”类 1–2 字碎片，无后续句可并）在 parse_text 阶段即被
+    /// Low 过滤不入库，搜索侧无需额外过滤即无法命中；正常完整句不受影响。
     #[test]
     fn short_fragments_not_indexed_after_import() {
         let repo = make_repo();
@@ -1256,15 +1326,32 @@ mod tests {
         let chunks = parse_text(raw);
         // 孤立 1–2 字短句在导入阶段被过滤，不产生 chunk
         assert!(
-            !chunks.iter().any(|c| c.content == "嗯。" || c.content == "走吧。"),
+            !chunks
+                .iter()
+                .any(|c| c.content == "嗯。" || c.content == "走吧。"),
             "got: {chunks:?}"
         );
         let parsed: Vec<(String, String, String)> = chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let book = repo
-            .import_book("短句书", "作者甲", "zh", "", "txt", "/tmp/短句书.txt", raw, &parsed)
+            .import_book(
+                "短句书",
+                "作者甲",
+                "zh",
+                "",
+                "txt",
+                "/tmp/短句书.txt",
+                raw,
+                &parsed,
+            )
             .unwrap();
         // 全书仅 1 个章标题 + 1 个完整句（“走吧。”“嗯。”已被滤除）
         assert_eq!(book.chunk_count, 2, "got: {book:?}");
@@ -1285,8 +1372,7 @@ mod tests {
         let repo = make_repo();
         // “我的天！”“哎呀妈呀！”位于文末且无后续正文可并 → 纯感叹判 Low 应被过滤；
         // “我的天！”+正文合并单元保留
-        let raw =
-            "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n“我的天！”\n\n哎呀妈呀！";
+        let raw = "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n“我的天！”\n\n哎呀妈呀！";
         let chunks = parse_text(raw);
         // 独立感叹词行在导入阶段被过滤，不产生 chunk
         assert!(
@@ -1297,10 +1383,25 @@ mod tests {
         );
         let parsed: Vec<(String, String, String)> = chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let book = repo
-            .import_book("感叹词书", "作者乙", "zh", "", "txt", "/tmp/感叹词书.txt", raw, &parsed)
+            .import_book(
+                "感叹词书",
+                "作者乙",
+                "zh",
+                "",
+                "txt",
+                "/tmp/感叹词书.txt",
+                raw,
+                &parsed,
+            )
             .unwrap();
         // 全书 1 个章标题 + 1 个完整句（独立感叹词已滤除）
         assert_eq!(book.chunk_count, 2, "got: {book:?}");
@@ -1327,10 +1428,25 @@ mod tests {
         );
         let parsed: Vec<(String, String, String)> = chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let book = repo
-            .import_book("感叹词合并书", "作者丙", "zh", "", "txt", "/tmp/感叹词合并书.txt", raw, &parsed)
+            .import_book(
+                "感叹词合并书",
+                "作者丙",
+                "zh",
+                "",
+                "txt",
+                "/tmp/感叹词合并书.txt",
+                raw,
+                &parsed,
+            )
             .unwrap();
         assert_eq!(book.chunk_count, 2, "got: {book:?}");
         let hits = repo.search("漫天飞雪", None, 20, 0).expect("search ok");
@@ -1350,7 +1466,11 @@ mod tests {
             .filter(|c| c.kind == "chapter")
             .map(|c| c.content.clone())
             .collect();
-        assert_eq!(titles, vec!["第一章 出山", "第二百二十七章 异火的吞噬，启动！"], "got: {titles:?}");
+        assert_eq!(
+            titles,
+            vec!["第一章 出山", "第二百二十七章 异火的吞噬，启动！"],
+            "got: {titles:?}"
+        );
         // 独立求票行不产生任何 chunk
         assert!(
             !chunks.iter().any(|c| c.content.contains("月票")),
@@ -1358,7 +1478,13 @@ mod tests {
         );
         let parsed: Vec<(String, String, String)> = chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let book = repo
             .import_book(
@@ -1390,10 +1516,17 @@ mod tests {
     fn search_filters_by_book() {
         let repo = make_repo();
         let b1 = import_sample(&repo);
-        let other: Vec<(String, String, String)> = parse_text(" completely unrelated prose about rivers.")
-            .into_iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
-            .collect();
+        let other: Vec<(String, String, String)> =
+            parse_text(" completely unrelated prose about rivers.")
+                .into_iter()
+                .map(|c| {
+                    (
+                        c.kind.to_string(),
+                        c.content.clone(),
+                        c.chapter_title.clone(),
+                    )
+                })
+                .collect();
         let b2 = repo
             .import_book(
                 "第二本",
@@ -1409,7 +1542,10 @@ mod tests {
         let hits = repo.search("孤独", Some(b1.id), 20, 0).unwrap();
         assert!(hits.iter().all(|h| h.book_id == b1.id));
         assert!(repo.search("rivers", Some(b2.id), 20, 0).unwrap().len() >= 1);
-        assert!(repo.search("rivers", Some(b1.id), 20, 0).unwrap().is_empty());
+        assert!(repo
+            .search("rivers", Some(b1.id), 20, 0)
+            .unwrap()
+            .is_empty());
     }
 
     /// 删除级联：书删后 chunks 清空、FTS 倒排同步清理（再查无命中）。
@@ -1464,10 +1600,21 @@ mod tests {
         let new_chunks = parse_text("第三章 重建\n\n崭新的句子出现了。");
         let parsed: Vec<(String, String, String)> = new_chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
-        repo.replace_book_chunks(book.id, "epub", "第三章 重建\n\n崭新的句子出现了。", &parsed)
-            .unwrap();
+        repo.replace_book_chunks(
+            book.id,
+            "epub",
+            "第三章 重建\n\n崭新的句子出现了。",
+            &parsed,
+        )
+        .unwrap();
         let after = repo.get_book(book.id).unwrap();
         assert_eq!(after.source, "epub");
         assert_eq!(after.chunk_count, parsed.len() as i64);
@@ -1492,7 +1639,13 @@ mod tests {
         );
         let parsed: Vec<(String, String, String)> = chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let b = repo
             .import_book(
@@ -1521,10 +1674,21 @@ mod tests {
         let chunks = parse_text("完全不同的另一本书的内容，讲的是深海与星辰。");
         let parsed: Vec<(String, String, String)> = chunks
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
-        repo.replace_book_chunks(book.id, "txt", "完全不同的另一本书的内容，讲的是深海与星辰。", &parsed)
-            .unwrap();
+        repo.replace_book_chunks(
+            book.id,
+            "txt",
+            "完全不同的另一本书的内容，讲的是深海与星辰。",
+            &parsed,
+        )
+        .unwrap();
         let after = repo.get_book(book.id).unwrap().content_hash;
         assert_ne!(before, after);
         assert_eq!(after.len(), 32);
@@ -1541,7 +1705,8 @@ mod tests {
                 .map(|(_, c, _)| c.as_str())
                 .collect::<Vec<_>>()
                 .join("\n");
-            repo.import_book(title, "", "zh", "", "txt", "", &raw, &chunks).unwrap()
+            repo.import_book(title, "", "zh", "", "txt", "", &raw, &chunks)
+                .unwrap()
         };
         mk(
             "甲书",
@@ -1574,9 +1739,16 @@ mod tests {
             let text = format!("第一章\n\n{shared}\n\n{extra}");
             let parsed: Vec<(String, String, String)> = parse_text(&text)
                 .iter()
-                .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+                .map(|c| {
+                    (
+                        c.kind.to_string(),
+                        c.content.clone(),
+                        c.chapter_title.clone(),
+                    )
+                })
                 .collect();
-            repo.import_book(title, "", "zh", "", "txt", "", &text, &parsed).unwrap()
+            repo.import_book(title, "", "zh", "", "txt", "", &text, &parsed)
+                .unwrap()
         };
         mk("甲书", "山风很大，他回头望了一眼。");
         mk("乙书", "星空之下，万籁俱寂。");
@@ -1594,7 +1766,13 @@ mod tests {
     fn tuples(text: &str) -> Vec<(String, String, String)> {
         parse_text(text)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect()
     }
 
@@ -1658,8 +1836,17 @@ mod tests {
     fn search_does_not_merge_chapter_titles() {
         let repo = make_repo();
         for t in ["甲书", "乙书"] {
-            repo.import_book(t, "", "zh", "", "txt", "", "第一章\n\n正文一句。", &tuples("第一章\n\n正文一句。"))
-                .unwrap();
+            repo.import_book(
+                t,
+                "",
+                "zh",
+                "",
+                "txt",
+                "",
+                "第一章\n\n正文一句。",
+                &tuples("第一章\n\n正文一句。"),
+            )
+            .unwrap();
         }
         let hits = repo.search("第一章", None, 20, 0).unwrap();
         assert_eq!(hits.len(), 2, "章标题不应被合并");
@@ -1737,7 +1924,9 @@ mod tests {
         let by_author = repo.search_books("作者甲", 10).unwrap();
         assert_eq!(by_author.len(), 1);
         // 改名后：新书名可查、旧书名不再命中（UPDATE 触发器重建倒排）
-        let renamed = repo.update_book_meta(book.id, "全新书名", "作者乙", "zh", "").unwrap();
+        let renamed = repo
+            .update_book_meta(book.id, "全新书名", "作者乙", "zh", "")
+            .unwrap();
         assert_eq!(renamed.title, "全新书名");
         assert!(repo.search_books("测试书", 10).unwrap().is_empty());
         let by_new = repo.search_books("全新书名", 10).unwrap();
@@ -1760,7 +1949,7 @@ mod tests {
             .unwrap();
         assert_eq!(updated.tags, vec!["唯物", "悬疑"]);
         assert_eq!(updated.category, "唯物、悬疑"); // 双写同步：category 列 = 顿号连接
-        // 幂等替换：再设不同集合，旧标签被清掉
+                                                    // 幂等替换：再设不同集合，旧标签被清掉
         let replaced = repo.set_book_tags(book.id, &["科幻".into()]).unwrap();
         assert_eq!(replaced.tags, vec!["科幻"]);
         assert_eq!(replaced.category, "科幻");
@@ -1783,7 +1972,9 @@ mod tests {
         assert_eq!(updated.tags, vec!["悬疑", "推理", "本格"]);
         assert_eq!(updated.category, "悬疑、推理、本格");
         // 单值也成立（P0-3 前旧前端行为不变）
-        let single = repo.update_book_meta(book.id, "测试书", "作者甲", "zh", "玄幻").unwrap();
+        let single = repo
+            .update_book_meta(book.id, "测试书", "作者甲", "zh", "玄幻")
+            .unwrap();
         assert_eq!(single.tags, vec!["玄幻"]);
         assert_eq!(single.category, "玄幻");
     }
@@ -1793,7 +1984,9 @@ mod tests {
     fn read_paths_attach_tags() {
         let repo = make_repo();
         let book = import_sample(&repo);
-        let tagged = repo.set_book_tags(book.id, &["悬疑".into(), "推理".into()]).unwrap();
+        let tagged = repo
+            .set_book_tags(book.id, &["悬疑".into(), "推理".into()])
+            .unwrap();
         let via_get = repo.get_book(book.id).unwrap();
         assert_eq!(via_get.tags, tagged.tags);
         let via_list = repo.list_books().unwrap();
@@ -1808,7 +2001,8 @@ mod tests {
     fn search_books_matches_tag_table() {
         let repo = make_repo();
         let book = import_sample(&repo);
-        repo.set_book_tags(book.id, &["悬疑".into(), "硬核推理".into()]).unwrap();
+        repo.set_book_tags(book.id, &["悬疑".into(), "硬核推理".into()])
+            .unwrap();
         // ≥3 字符标签：书 FTS 命中（category 镜像 = "悬疑、硬核推理"）
         let hit = repo.search_books("硬核推理", 10).unwrap();
         assert!(!hit.is_empty());
@@ -1829,7 +2023,8 @@ mod tests {
         let book = import_sample(&repo);
         let second = import_sample(&repo);
         repo.set_book_tags(book.id, &["悬疑".into()]).unwrap();
-        repo.set_book_tags(second.id, &["悬疑".into(), "推理".into()]).unwrap();
+        repo.set_book_tags(second.id, &["悬疑".into(), "推理".into()])
+            .unwrap();
         let hit = repo.search_books_by_tag("悬疑").unwrap();
         assert_eq!(hit.len(), 2);
         assert!(hit.iter().all(|b| b.tags.contains(&"悬疑".to_string())));
@@ -1881,7 +2076,8 @@ mod tests {
         let repo = make_repo();
         let a = import_sample(&repo);
         let b = import_sample(&repo);
-        repo.set_book_tags(a.id, &["悬疑".into(), "推理".into()]).unwrap();
+        repo.set_book_tags(a.id, &["悬疑".into(), "推理".into()])
+            .unwrap();
         repo.set_book_tags(b.id, &["悬疑".into()]).unwrap();
         // 悬疑 → 推理：a 归并去重为「推理」，b 变为「推理」
         let affected = repo.rename_tag("悬疑", "推理").unwrap();
@@ -1917,15 +2113,14 @@ mod tests {
         let a = import_sample(&repo);
         let b = import_sample(&repo);
         let c = import_sample(&repo);
-        repo.set_book_tags(a.id, &["玄幻".into(), "推理".into()]).unwrap();
+        repo.set_book_tags(a.id, &["玄幻".into(), "推理".into()])
+            .unwrap();
         repo.set_book_tags(b.id, &["悬疑".into()]).unwrap();
-        repo.set_book_tags(c.id, &["科幻".into(), "悬疑".into()]).unwrap();
+        repo.set_book_tags(c.id, &["科幻".into(), "悬疑".into()])
+            .unwrap();
         // 玄幻 + 科幻 + 悬疑 → 推理（a 已有推理去重；b、c 直接改名）
         let affected = repo
-            .merge_tags(
-                &["玄幻".into(), "科幻".into(), "悬疑".into()],
-                "推理",
-            )
+            .merge_tags(&["玄幻".into(), "科幻".into(), "悬疑".into()], "推理")
             .unwrap();
         assert_eq!(affected, 3);
         let ta = repo.get_book(a.id).unwrap();
@@ -1953,7 +2148,8 @@ mod tests {
         let repo = make_repo();
         let a = import_sample(&repo);
         let b = import_sample(&repo);
-        repo.set_book_tags(a.id, &["悬疑".into(), "推理".into()]).unwrap();
+        repo.set_book_tags(a.id, &["悬疑".into(), "推理".into()])
+            .unwrap();
         repo.set_book_tags(b.id, &["悬疑".into()]).unwrap();
         assert_eq!(repo.delete_tag("悬疑").unwrap(), 2);
         let ta = repo.get_book(a.id).unwrap();
@@ -1975,9 +2171,11 @@ mod tests {
         let a = import_sample(&repo);
         let b = import_sample(&repo);
         let c = import_sample(&repo);
-        repo.set_book_tags(a.id, &["悬疑".into(), "推理".into()]).unwrap();
+        repo.set_book_tags(a.id, &["悬疑".into(), "推理".into()])
+            .unwrap();
         repo.set_book_tags(b.id, &["悬疑".into()]).unwrap();
-        repo.set_book_tags(c.id, &["悬疑".into(), "新科幻".into()]).unwrap();
+        repo.set_book_tags(c.id, &["悬疑".into(), "新科幻".into()])
+            .unwrap();
         let counts = repo.list_tag_counts().unwrap();
         let pairs: Vec<(String, i64)> = counts;
         assert_eq!(pairs.len(), 3);

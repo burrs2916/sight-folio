@@ -18,8 +18,8 @@ impl LanguageParser for CLikeParser {
 
     fn capabilities(&self) -> ParserCapabilities {
         ParserCapabilities {
-            symbols: true, // c-like 正则（class/struct/interface；不含函数）
-            deps: true,    // include 解析
+            symbols: true,     // c-like 正则（class/struct/interface；不含函数）
+            deps: true,        // include 解析
             symbol_refs: true, // `#include` 文件级引用（文本包含语义，见 parse_imports_with_symbols）
             ast: true,
         }
@@ -43,7 +43,11 @@ impl LanguageParser for CLikeParser {
     fn parse_deps(&self, content: &str) -> Vec<DepImport> {
         let line_based: Vec<DepImport> = review::parse_c_imports(content)
             .into_iter()
-            .map(|(path, line)| DepImport { path, line, kind: None })
+            .map(|(path, line)| DepImport {
+                path,
+                line,
+                kind: None,
+            })
             .collect();
         crate::parser::imports_ast::extract_imports_with_fallback(Dialect::C, content, line_based)
     }

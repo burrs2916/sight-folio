@@ -309,8 +309,7 @@ fn detect_unreachable_dead_code(
     finding_repo.delete_by_rule(analysis_id, DEAD_UNREACHABLE_RULE_ID)?;
 
     let all_files = file_repo.list_by_analysis(analysis_id)?;
-    let source_files: Vec<&ProjectFile> =
-        all_files.iter().filter(|f| !f.is_directory).collect();
+    let source_files: Vec<&ProjectFile> = all_files.iter().filter(|f| !f.is_directory).collect();
 
     let now = chrono::Utc::now().timestamp();
     let mut findings: Vec<ReviewFinding> = Vec::new();
@@ -919,12 +918,7 @@ pub fn detect_dead_symbols(
 
     // ── 全局不可达函数（joern 到达定义全库视图 reachableBy(entryPoints)）──
     // 与未使用导入互补：调用图 BFS 从入口点出发，确被调用却无入口可达路径的遗留自由函数（Rust）。
-    detect_unreachable_fn_dead_code(
-        &analysis_id,
-        &call_edge_repo,
-        &symbol_repo,
-        &finding_repo,
-    )?;
+    detect_unreachable_fn_dead_code(&analysis_id, &call_edge_repo, &symbol_repo, &finding_repo)?;
 
     crate::commands::project_scan::emit_stage_progress(
         &app,
@@ -980,15 +974,21 @@ mod tests {
     #[test]
     fn confidence_reflects_visibility_and_kind() {
         assert_eq!(
-            judge(&sym("src/a.ts", "foo", "function", "")).unwrap().confidence,
+            judge(&sym("src/a.ts", "foo", "function", ""))
+                .unwrap()
+                .confidence,
             "high"
         );
         assert_eq!(
-            judge(&sym("src/a.ts", "foo", "function", "export")).unwrap().confidence,
+            judge(&sym("src/a.ts", "foo", "function", "export"))
+                .unwrap()
+                .confidence,
             "medium"
         );
         assert_eq!(
-            judge(&sym("src/a.ts", "Foo", "interface", "export")).unwrap().confidence,
+            judge(&sym("src/a.ts", "Foo", "interface", "export"))
+                .unwrap()
+                .confidence,
             "low"
         );
     }
@@ -1048,7 +1048,11 @@ mod tests {
         let names: Vec<&str> = dead.iter().map(|d| d.name.as_str()).collect();
         assert!(names.contains(&"y"), "y should be dead: {:?}", names);
         assert!(names.contains(&"z"), "z should be dead: {:?}", names);
-        assert!(!names.contains(&"x"), "x has no caller -> not this rule: {:?}", names);
+        assert!(
+            !names.contains(&"x"),
+            "x has no caller -> not this rule: {:?}",
+            names
+        );
     }
 
     #[test]

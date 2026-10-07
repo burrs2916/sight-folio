@@ -101,7 +101,10 @@ pub fn extract_symbol_imports_ast(d: Dialect, content: &str) -> Option<(Vec<Pars
 /// `"math/rand"`，`importedAs` 取**末段** `"rand"` 作为包名——末段即默认包名，与此处一致。
 pub fn extract_go_symbol_imports(content: &str) -> Option<(Vec<ParsedImport>, bool)> {
     let mut parser = Parser::new();
-    if parser.set_language(&tree_sitter_go::LANGUAGE.into()).is_err() {
+    if parser
+        .set_language(&tree_sitter_go::LANGUAGE.into())
+        .is_err()
+    {
         return None;
     }
     let tree = parser.parse(content, None)?;
@@ -184,7 +187,11 @@ pub fn extract_go_symbol_imports(content: &str) -> Option<(Vec<ParsedImport>, bo
     for (i, (_pkg, path, line)) in specs.into_iter().enumerate() {
         let mut symbols: Vec<String> = used[i].iter().cloned().collect();
         symbols.sort(); // 确定性：Hashset 迭代序不稳定，会让同一文件两次扫描产出不同结果
-        out.push(ParsedImport { path, line, symbols });
+        out.push(ParsedImport {
+            path,
+            line,
+            symbols,
+        });
     }
     Some((out, root.has_error()))
 }
@@ -283,7 +290,11 @@ fn push_import(out: &mut Vec<ParsedImport>, path: String, line: usize, symbols: 
         }
         return;
     }
-    out.push(ParsedImport { path, line, symbols });
+    out.push(ParsedImport {
+        path,
+        line,
+        symbols,
+    });
 }
 
 fn walk(node: Node, src: &[u8], out: &mut Vec<ParsedImport>, d: Dialect) {
@@ -346,7 +357,9 @@ fn walk(node: Node, src: &[u8], out: &mut Vec<ParsedImport>, d: Dialect) {
                     match child.kind() {
                         "static" => is_static = true,
                         "asterisk" => wildcard = true,
-                        k if child.is_named() && (k == "scoped_identifier" || k == "identifier") => {
+                        k if child.is_named()
+                            && (k == "scoped_identifier" || k == "identifier") =>
+                        {
                             if entity.is_empty() {
                                 entity = text_of(child, src);
                             }
@@ -369,7 +382,11 @@ fn walk(node: Node, src: &[u8], out: &mut Vec<ParsedImport>, d: Dialect) {
                 } else {
                     // `import a.b.C` → 类路径本身即目标（类名 = 文件名约定），符号 = 类名
                     let cls = entity.rsplit('.').next().unwrap_or("").to_string();
-                    let symbols = if cls.is_empty() { Vec::new() } else { vec![cls] };
+                    let symbols = if cls.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![cls]
+                    };
                     (entity, symbols)
                 };
                 push_import(out, path, line_of(node), symbols);
@@ -384,7 +401,9 @@ fn walk(node: Node, src: &[u8], out: &mut Vec<ParsedImport>, d: Dialect) {
                 let mut cur = node.walk();
                 for child in node.children(&mut cur) {
                     match child.kind() {
-                        "qualified_identifier" | "identifier" if path.is_empty() && child.is_named() => {
+                        "qualified_identifier" | "identifier"
+                            if path.is_empty() && child.is_named() =>
+                        {
                             path = text_of(child, src);
                         }
                         "*" => wildcard = true,
@@ -399,7 +418,11 @@ fn walk(node: Node, src: &[u8], out: &mut Vec<ParsedImport>, d: Dialect) {
                 } else {
                     // 别名 `as Baz` 走独立 identifier 节点，不进 path → 符号取实体原名（joern importedEntity）
                     let last = path.rsplit('.').next().unwrap_or("").to_string();
-                    if last.is_empty() { Vec::new() } else { vec![last] }
+                    if last.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![last]
+                    }
                 };
                 push_import(out, path, line_of(node), symbols);
                 return;
@@ -464,7 +487,10 @@ fn walk_rust_use_tree(node: Node, src: &[u8], prefix: &[String], out: &mut Vec<R
             for child in node.named_children(&mut cur) {
                 segs.extend(rust_path_segments(child, src));
             }
-            out.push(RustLeaf { module: segs.join("::"), symbols: Vec::new() });
+            out.push(RustLeaf {
+                module: segs.join("::"),
+                symbols: Vec::new(),
+            });
         }
         "scoped_identifier" => {
             let mut segs = prefix.to_vec();
@@ -477,29 +503,47 @@ fn walk_rust_use_tree(node: Node, src: &[u8], prefix: &[String], out: &mut Vec<R
                 .unwrap_or_default();
             // `use std::io::self` 的 self 走 name 位（实测），语义 = 模块引用
             if name.is_empty() || name == "self" {
-                out.push(RustLeaf { module: segs.join("::"), symbols: Vec::new() });
+                out.push(RustLeaf {
+                    module: segs.join("::"),
+                    symbols: Vec::new(),
+                });
             } else {
-                out.push(RustLeaf { module: segs.join("::"), symbols: vec![name] });
+                out.push(RustLeaf {
+                    module: segs.join("::"),
+                    symbols: vec![name],
+                });
             }
         }
         // 单段：`use serde;` / `use {a, b::C}` 里的 `a` / `use m::{self}` 里的 self
         "self" | "crate" | "super" => {
-            out.push(RustLeaf { module: prefix.join("::"), symbols: Vec::new() });
+            out.push(RustLeaf {
+                module: prefix.join("::"),
+                symbols: Vec::new(),
+            });
         }
         "identifier" => {
             let name = text_of(node, src);
             if prefix.is_empty() {
                 // 顶层单段 → 当模块引用（无法区分 crate 名与符号名，按模块更保守）
-                out.push(RustLeaf { module: name, symbols: Vec::new() });
+                out.push(RustLeaf {
+                    module: name,
+                    symbols: Vec::new(),
+                });
             } else {
-                out.push(RustLeaf { module: prefix.join("::"), symbols: vec![name] });
+                out.push(RustLeaf {
+                    module: prefix.join("::"),
+                    symbols: vec![name],
+                });
             }
         }
         _ => {
             // 其他包装节点（如 `use_bounded_identifiers` 等未知形态）→ 保守取整段文本当模块
             let t = text_of(node, src);
             if !t.is_empty() && !t.contains('{') {
-                out.push(RustLeaf { module: join_rust(prefix, &t), symbols: Vec::new() });
+                out.push(RustLeaf {
+                    module: join_rust(prefix, &t),
+                    symbols: Vec::new(),
+                });
             }
         }
     }
@@ -520,7 +564,11 @@ fn rust_path_segments(node: Node, src: &[u8]) -> Vec<String> {
         }
         _ => {
             let t = text_of(node, src);
-            if t.is_empty() { Vec::new() } else { vec![t] }
+            if t.is_empty() {
+                Vec::new()
+            } else {
+                vec![t]
+            }
         }
     }
 }
@@ -541,7 +589,11 @@ fn python_imported_name(node: Node, src: &[u8]) -> Option<String> {
             .filter(|s| !s.is_empty()),
         "dotted_name" | "identifier" => {
             let t = text_of(node, src);
-            if t.is_empty() || t == "*" { None } else { Some(t) }
+            if t.is_empty() || t == "*" {
+                None
+            } else {
+                Some(t)
+            }
         }
         _ => None,
     }
@@ -666,7 +718,11 @@ func main() { fmt.Println(pkg.Slug("a")) }
         let (v, _) = extract_c_symbol_imports(Dialect::C, "#include \"foo/bar.h\"").unwrap();
         assert_eq!(v.len(), 1, "实际={:?}", v);
         assert_eq!(v[0].path, "foo/bar.h");
-        assert!(v[0].symbols.is_empty(), "不得臆造符号，实际={:?}", v[0].symbols);
+        assert!(
+            v[0].symbols.is_empty(),
+            "不得臆造符号，实际={:?}",
+            v[0].symbols
+        );
     }
 
     #[test]
@@ -745,7 +801,8 @@ func main() { fmt.Println(pkg.Slug("a")) }
             ]
         );
         // 旧逐行只产 1 条且 path 是最后一段
-        let old = crate::commands::code_structure::parse_rs_imports("use a::{b::C, d::{E as F, self}};");
+        let old =
+            crate::commands::code_structure::parse_rs_imports("use a::{b::C, d::{E as F, self}};");
         assert_eq!(old.len(), 1);
         assert_eq!(old[0].path, "a");
     }
@@ -853,7 +910,10 @@ func main() { fmt.Println(pkg.Slug("a")) }
     fn java_static_import_yields_member_symbol() {
         // 旧逐行 `!rest.starts_with("static ")` 整条丢弃
         assert_eq!(
-            collect(Dialect::Java, "import static org.junit.Assert.assertEquals;"),
+            collect(
+                Dialect::Java,
+                "import static org.junit.Assert.assertEquals;"
+            ),
             vec![(
                 "org.junit.Assert".to_string(),
                 vec!["assertEquals".to_string()]
@@ -951,7 +1011,9 @@ func main() { fmt.Println(pkg.Slug("a")) }
         };
         let mut c = vec![resolved.clone()];
         if !resolved.contains('.') {
-            for ext in ["ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "c", "h", "cpp", "hpp"] {
+            for ext in [
+                "ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "c", "h", "cpp", "hpp",
+            ] {
                 c.push(format!("{}.{}", resolved, ext));
                 c.push(format!("{}/index.{}", resolved, ext));
                 c.push(format!("{}/mod.{}", resolved, ext));
@@ -974,7 +1036,9 @@ func main() { fmt.Println(pkg.Slug("a")) }
         };
         let root = std::path::Path::new(&dir);
         fn walk_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            let Ok(rd) = std::fs::read_dir(dir) else {
+                return;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 if p.is_dir() {
@@ -1160,12 +1224,17 @@ func main() { fmt.Println(pkg.Slug("a")) }
         };
         let root = std::path::Path::new(&dir);
         fn walk_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            let Ok(rd) = std::fs::read_dir(dir) else {
+                return;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 if p.is_dir() {
                     if p.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
-                        matches!(n, "node_modules" | "target" | ".git" | "vendor" | "dist" | "build")
+                        matches!(
+                            n,
+                            "node_modules" | "target" | ".git" | "vendor" | "dist" | "build"
+                        )
                     }) {
                         continue;
                     }
@@ -1258,9 +1327,13 @@ func main() { fmt.Println(pkg.Slug("a")) }
                             // 与真实消费点 analyze_symbol_references 同口径：TS/JS 走
                             // ts_module_candidates，其余语言走 module_ref_candidates。
                             if matches!(lang, "typescript" | "javascript") {
-                                crate::commands::code_structure::ts_module_candidates(from_rel, path)
+                                crate::commands::code_structure::ts_module_candidates(
+                                    from_rel, path,
+                                )
                             } else {
-                                crate::commands::code_structure::module_ref_candidates(lang, from_rel, path)
+                                crate::commands::code_structure::module_ref_candidates(
+                                    lang, from_rel, path,
+                                )
                             }
                             .into_iter()
                             .find(|c| known.contains(c))
@@ -1296,8 +1369,16 @@ func main() { fmt.Println(pkg.Slug("a")) }
         let (mut t_sym, mut t_hit, mut t_file, mut t_unres, mut t_resc) = (0, 0, 0, 0, 0);
         for l in langs {
             let s = stat[*l];
-            let rate = if s[0] == 0 { 0.0 } else { s[1] as f64 * 100.0 / s[0] as f64 };
-            let base = if s[0] == 0 { 0.0 } else { (s[1] - s[4]) as f64 * 100.0 / s[0] as f64 };
+            let rate = if s[0] == 0 {
+                0.0
+            } else {
+                s[1] as f64 * 100.0 / s[0] as f64
+            };
+            let base = if s[0] == 0 {
+                0.0
+            } else {
+                (s[1] - s[4]) as f64 * 100.0 / s[0] as f64
+            };
             println!(
                 "  {l:<10} symbolLevelRows={:<5} toSymbolIdHit={:<5} ({rate:.1}%, 改前 {base:.1}%)  reexportRescued={:<5} fileLevelRows={:<5} unresolved={}",
                 s[0], s[1], s[4], s[2], s[3]
@@ -1308,8 +1389,16 @@ func main() { fmt.Println(pkg.Slug("a")) }
             t_unres += s[3];
             t_resc += s[4];
         }
-        let rate = if t_sym == 0 { 0.0 } else { t_hit as f64 * 100.0 / t_sym as f64 };
-        let base = if t_sym == 0 { 0.0 } else { (t_hit - t_resc) as f64 * 100.0 / t_sym as f64 };
+        let rate = if t_sym == 0 {
+            0.0
+        } else {
+            t_hit as f64 * 100.0 / t_sym as f64
+        };
+        let base = if t_sym == 0 {
+            0.0
+        } else {
+            (t_hit - t_resc) as f64 * 100.0 / t_sym as f64
+        };
         println!(
             "  TOTAL      symbolLevelRows={t_sym} toSymbolIdHit={t_hit} ({rate:.1}%, 改前 {base:.1}%)  reexportRescued={t_resc} fileLevelRows={t_file} unresolved={t_unres}"
         );

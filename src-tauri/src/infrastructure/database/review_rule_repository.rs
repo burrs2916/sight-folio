@@ -16,7 +16,9 @@ pub struct SqliteReviewRuleRepository {
 
 impl Clone for SqliteReviewRuleRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -45,7 +47,11 @@ fn row_to_rule(row: &rusqlite::Row) -> rusqlite::Result<ReviewRule> {
 
 impl ReviewRuleRepository for SqliteReviewRuleRepository {
     fn list_all(&self) -> AppResult<Vec<ReviewRule>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, rule_type, target_type, rule_body, severity, enabled, scope, builtin, created_at, updated_at
              FROM review_rules ORDER BY builtin DESC, target_type ASC, name ASC",
@@ -57,7 +63,11 @@ impl ReviewRuleRepository for SqliteReviewRuleRepository {
     }
 
     fn list_enabled(&self) -> AppResult<Vec<ReviewRule>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, rule_type, target_type, rule_body, severity, enabled, scope, builtin, created_at, updated_at
              FROM review_rules WHERE enabled = 1 ORDER BY target_type ASC",
@@ -69,7 +79,11 @@ impl ReviewRuleRepository for SqliteReviewRuleRepository {
     }
 
     fn get(&self, id: &str) -> AppResult<Option<ReviewRule>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, rule_type, target_type, rule_body, severity, enabled, scope, builtin, created_at, updated_at
              FROM review_rules WHERE id = ?1",
@@ -82,7 +96,11 @@ impl ReviewRuleRepository for SqliteReviewRuleRepository {
     }
 
     fn save(&self, rule: &ReviewRule) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO review_rules
              (id, name, description, rule_type, target_type, rule_body, severity, enabled, scope, builtin, created_at, updated_at)

@@ -261,8 +261,8 @@ impl AgentEngine {
                         }
 
                         let tool_name = &tc.function.name;
-                        let args: Value = serde_json::from_str(&tc.function.arguments)
-                            .unwrap_or(Value::Null);
+                        let args: Value =
+                            serde_json::from_str(&tc.function.arguments).unwrap_or(Value::Null);
 
                         on_tool_call(ToolCallEvent {
                             tool_name: tool_name.clone(),
@@ -276,17 +276,10 @@ impl AgentEngine {
                         // 仅 run_command 走此闸门：即便助手已授权该工具，每条 shell 命令仍须用户在 UI
                         // 确认（对标 VS Code Agent「Run command?」拦截）。其余工具保持原行为，零回归。
                         let approved = if tool_name == "run_command" {
-                            let cmd = args
-                                .get("command")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("");
-                            let sub = args
-                                .get("cwd")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("");
+                            let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
+                            let sub = args.get("cwd").and_then(|v| v.as_str()).unwrap_or("");
                             let key = format!("{}:{}", run_id, tc.id);
-                            let mut rx =
-                                crate::plugins::ai_agent::register_approval(&key);
+                            let mut rx = crate::plugins::ai_agent::register_approval(&key);
                             on_approval(ToolApprovalRequest {
                                 run_id: run_id.to_string(),
                                 tool_call_id: tc.id.clone(),
@@ -436,7 +429,8 @@ impl AgentEngine {
         let mut finish_reason = None;
 
         // 收集 tool_calls（按 index 合并 arguments）
-        let mut tool_call_map: HashMap<i32, (Option<String>, Option<String>, String)> = HashMap::new();
+        let mut tool_call_map: HashMap<i32, (Option<String>, Option<String>, String)> =
+            HashMap::new();
 
         for chunk in &chunks {
             // 注意：文本已在 emit 里实时推送过，此处只做聚合，绝不能再调 on_chunk（会翻倍）

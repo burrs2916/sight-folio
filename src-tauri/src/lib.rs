@@ -15,22 +15,21 @@ use application::{
     SavePresetConfigUseCase, UpdateConfigUseCase,
 };
 use commands::{
-    init_logger_state, AuthState, ComponentPluginState, CorpusState, DatasourceState, IconsState,
-    AnalysisState, SettingsState, FileWatcherState,
-    TerminalManager,
+    init_logger_state, AnalysisState, AuthState, ComponentPluginState, CorpusState,
+    DatasourceState, FileWatcherState, IconsState, SettingsState, TerminalManager,
 };
 use infrastructure::database::{init_tables, migrate};
 use infrastructure::{
-    Database, SqliteAuthRepository, SqliteDatasourceRepository, SqliteIconRepository,
-    SqliteAnalysisRepository, SqliteSettingsRepository,
-    SqliteProjectFileRepository, SqliteProjectModuleRepository, SqliteProjectDependencyRepository,
-    SqliteProjectLayerRepository, SqliteReviewRuleRepository, SqliteReviewFindingRepository,
-    SqliteScanJobRepository, SqliteProjectSymbolRepository, SqliteProjectSymbolRefRepository,
-    SqliteProjectFileMetricRepository, SqliteProjectTechDebtRepository,
-    SqliteProjectCodeIndexRepository, SqliteProjectGitChurnRepository,
-    SqliteProjectCallEdgeRepository, SqliteProjectCodeCloneRepository,
-    SqliteProjectChangeCouplingRepository, SqliteProjectDataFlowRepository,
-    SqliteWritingRepository, CorpusDatabase, SqliteCorpusRepository,
+    CorpusDatabase, Database, SqliteAnalysisRepository, SqliteAuthRepository,
+    SqliteCorpusRepository, SqliteDatasourceRepository, SqliteIconRepository,
+    SqliteProjectCallEdgeRepository, SqliteProjectChangeCouplingRepository,
+    SqliteProjectCodeCloneRepository, SqliteProjectCodeIndexRepository,
+    SqliteProjectDataFlowRepository, SqliteProjectDependencyRepository,
+    SqliteProjectFileMetricRepository, SqliteProjectFileRepository,
+    SqliteProjectGitChurnRepository, SqliteProjectLayerRepository, SqliteProjectModuleRepository,
+    SqliteProjectSymbolRefRepository, SqliteProjectSymbolRepository,
+    SqliteProjectTechDebtRepository, SqliteReviewFindingRepository, SqliteReviewRuleRepository,
+    SqliteScanJobRepository, SqliteSettingsRepository, SqliteWritingRepository,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -113,19 +112,27 @@ pub fn run() {
             // ─── sight-folio 7 个核心 repository ───
             let project_file_repo = Arc::new(SqliteProjectFileRepository::new(db_arc.clone()));
             let project_module_repo = Arc::new(SqliteProjectModuleRepository::new(db_arc.clone()));
-            let project_dependency_repo = Arc::new(SqliteProjectDependencyRepository::new(db_arc.clone()));
+            let project_dependency_repo =
+                Arc::new(SqliteProjectDependencyRepository::new(db_arc.clone()));
             let project_layer_repo = Arc::new(SqliteProjectLayerRepository::new(db_arc.clone()));
             let review_rule_repo = Arc::new(SqliteReviewRuleRepository::new(db_arc.clone()));
             let review_finding_repo = Arc::new(SqliteReviewFindingRepository::new(db_arc.clone()));
             let scan_job_repo = Arc::new(SqliteScanJobRepository::new(db_arc.clone()));
             let project_symbol_repo = Arc::new(SqliteProjectSymbolRepository::new(db_arc.clone()));
-            let project_symbol_ref_repo = Arc::new(SqliteProjectSymbolRefRepository::new(db_arc.clone()));
-            let project_file_metric_repo = Arc::new(SqliteProjectFileMetricRepository::new(db_arc.clone()));
-            let project_tech_debt_repo = Arc::new(SqliteProjectTechDebtRepository::new(db_arc.clone()));
-            let project_code_index_repo = Arc::new(SqliteProjectCodeIndexRepository::new(db_arc.clone()));
-            let project_git_churn_repo = Arc::new(SqliteProjectGitChurnRepository::new(db_arc.clone()));
-            let project_call_edge_repo = Arc::new(SqliteProjectCallEdgeRepository::new(db_arc.clone()));
-            let project_code_clone_repo = Arc::new(SqliteProjectCodeCloneRepository::new(db_arc.clone()));
+            let project_symbol_ref_repo =
+                Arc::new(SqliteProjectSymbolRefRepository::new(db_arc.clone()));
+            let project_file_metric_repo =
+                Arc::new(SqliteProjectFileMetricRepository::new(db_arc.clone()));
+            let project_tech_debt_repo =
+                Arc::new(SqliteProjectTechDebtRepository::new(db_arc.clone()));
+            let project_code_index_repo =
+                Arc::new(SqliteProjectCodeIndexRepository::new(db_arc.clone()));
+            let project_git_churn_repo =
+                Arc::new(SqliteProjectGitChurnRepository::new(db_arc.clone()));
+            let project_call_edge_repo =
+                Arc::new(SqliteProjectCallEdgeRepository::new(db_arc.clone()));
+            let project_code_clone_repo =
+                Arc::new(SqliteProjectCodeCloneRepository::new(db_arc.clone()));
             let project_change_coupling_repo =
                 Arc::new(SqliteProjectChangeCouplingRepository::new(db_arc.clone()));
             let project_data_flow_repo =
@@ -139,9 +146,9 @@ pub fn run() {
             // 前端经 corpus_status 探测后显示「语料库不可用」。
             // （历史教训：这里的 `.expect()` 曾因 schema 升级失败让应用启动即 SIGABRT。）
             let corpus_state = match CorpusDatabase::new() {
-                Ok(corpus_db) => CorpusState::ready(Arc::new(SqliteCorpusRepository::new(Arc::new(
-                    corpus_db,
-                )))),
+                Ok(corpus_db) => {
+                    CorpusState::ready(Arc::new(SqliteCorpusRepository::new(Arc::new(corpus_db))))
+                }
                 Err(e) => {
                     eprintln!("[sight-folio] corpus database unavailable, degrading: {e}");
                     CorpusState::unavailable(e.to_string())

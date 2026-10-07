@@ -12,10 +12,10 @@ use crate::infrastructure::database::project_file_repository::ProjectFileReposit
 use crate::infrastructure::database::{
     SqliteProjectCodeIndexRepository, SqliteProjectFileRepository,
 };
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering as AtomicOrdering};
 use std::sync::Arc;
-use rayon::prelude::*;
 use tauri::{AppHandle, State};
 
 /// 简单判定：该行是否值得索引（非空、非纯注释、长度合理）
@@ -63,7 +63,10 @@ pub fn index_code_content(
     let changed_set: std::collections::HashSet<String> =
         changed_rel_paths.unwrap_or_default().into_iter().collect();
     let process_files: Vec<&ProjectFile> = if incremental {
-        all_files.iter().filter(|f| changed_set.contains(&f.rel_path)).collect()
+        all_files
+            .iter()
+            .filter(|f| changed_set.contains(&f.rel_path))
+            .collect()
     } else {
         all_files.iter().collect()
     };
@@ -73,7 +76,10 @@ pub fn index_code_content(
     crate::commands::project_scan::emit_stage_progress(
         &app,
         crate::commands::project_scan::ScanStage::Index,
-        0, 0, process_total, "建立代码全文索引…",
+        0,
+        0,
+        process_total,
+        "建立代码全文索引…",
     );
 
     // 携带未变更文件的既有索引行（按 file_path 重映射 file_id，避免悬挂引用）
@@ -135,7 +141,10 @@ pub fn index_code_content(
 
     crate::commands::project_scan::emit_stage_progress(
         &app,
-        crate::commands::project_scan::ScanStage::Index, 100, process_total, process_total,
+        crate::commands::project_scan::ScanStage::Index,
+        100,
+        process_total,
+        process_total,
         "建立代码全文索引…",
     );
     index_repo.delete_by_analysis(&analysis_id)?;

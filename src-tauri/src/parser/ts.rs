@@ -3,8 +3,8 @@
 use crate::commands::{code_structure, review};
 use crate::infrastructure::ast::Dialect;
 use crate::parser::ts_imports;
-use crate::parser::{ParsedImport, SymbolCandidate};
 use crate::parser::{DepImport, LanguageParser, ParserCapabilities};
+use crate::parser::{ParsedImport, SymbolCandidate};
 
 /// TypeScript / JavaScript 解析器。
 ///
@@ -55,7 +55,11 @@ impl LanguageParser for TypeScriptParser {
         let line_based = || -> Vec<DepImport> {
             review::parse_js_imports(content)
                 .into_iter()
-                .map(|(path, line)| DepImport { path, line, kind: None })
+                .map(|(path, line)| DepImport {
+                    path,
+                    line,
+                    kind: None,
+                })
                 .collect()
         };
         let Some((ast_imports, has_error)) = ts_imports::extract_ts_imports(content) else {

@@ -69,7 +69,11 @@ pub fn collect_rust_format_names(text: &str, refs: &mut Vec<(String, usize)>) {
             }
             let start = i + 1;
             let mut j = start;
-            while j < bytes.len() && bytes[j] != b'}' && bytes[j] != b':' && !bytes[j].is_ascii_whitespace() {
+            while j < bytes.len()
+                && bytes[j] != b'}'
+                && bytes[j] != b':'
+                && !bytes[j].is_ascii_whitespace()
+            {
                 j += 1;
             }
             let name = &text[start..j];
@@ -198,12 +202,21 @@ fn has_ancestor_function(d: Dialect, node: Node) -> bool {
 }
 
 /// 把某节点下所有直接/间接的 identifier 命名子节点收集进 `out`（用于 Go 名字列表等）
-pub fn collect_idents<'a>(node: Node<'a>, source: &[u8], out: &mut Vec<(String, usize, usize, String)>) {
+pub fn collect_idents<'a>(
+    node: Node<'a>,
+    source: &[u8],
+    out: &mut Vec<(String, usize, usize, String)>,
+) {
     let mut cursor = node.walk();
     for c in node.named_children(&mut cursor) {
         if c.kind() == "identifier" {
             if let Ok(t) = c.utf8_text(source) {
-                out.push((t.to_string(), c.id(), c.start_position().row + 1, snippet_of(c, source)));
+                out.push((
+                    t.to_string(),
+                    c.id(),
+                    c.start_position().row + 1,
+                    snippet_of(c, source),
+                ));
             }
         }
     }
@@ -222,10 +235,14 @@ pub fn snippet_of<'a>(node: Node<'a>, source: &[u8]) -> String {
 /// 取 Rust `let` 模式里的简单标识符绑定（排除元组/结构体/通配等解构）
 fn rust_let_name<'a>(pat: Node<'a>, source: &[u8]) -> Option<(String, usize, usize, String)> {
     if pat.kind() == "identifier" {
-        return pat
-            .utf8_text(source)
-            .ok()
-            .map(|t| (t.to_string(), pat.id(), pat.start_position().row + 1, snippet_of(pat, source)));
+        return pat.utf8_text(source).ok().map(|t| {
+            (
+                t.to_string(),
+                pat.id(),
+                pat.start_position().row + 1,
+                snippet_of(pat, source),
+            )
+        });
     }
     // 单层包裹（如 `mutable_binding_pattern`）取唯一 identifier 子节点
     let mut cursor = pat.walk();
@@ -245,7 +262,11 @@ fn rust_let_name<'a>(pat: Node<'a>, source: &[u8]) -> Option<(String, usize, usi
 
 /// 提取单条声明节点绑定的简单标识符名（无则返回空）——对标 joern 只认「具名 DEF」
 /// 返回 (名字, 声明节点 id, 行号, 片段)
-fn decl_bindings<'a>(d: Dialect, node: Node<'a>, source: &[u8]) -> Vec<(String, usize, usize, String)> {
+fn decl_bindings<'a>(
+    d: Dialect,
+    node: Node<'a>,
+    source: &[u8],
+) -> Vec<(String, usize, usize, String)> {
     let mut out: Vec<(String, usize, usize, String)> = Vec::new();
     match d {
         Dialect::TypeScript | Dialect::Tsx | Dialect::Java | Dialect::CSharp => {
@@ -253,7 +274,12 @@ fn decl_bindings<'a>(d: Dialect, node: Node<'a>, source: &[u8]) -> Vec<(String, 
                 if let Some(name) = node.child_by_field_name("name") {
                     if name.kind() == "identifier" {
                         if let Ok(t) = name.utf8_text(source) {
-                            out.push((t.to_string(), name.id(), name.start_position().row + 1, snippet_of(name, source)));
+                            out.push((
+                                t.to_string(),
+                                name.id(),
+                                name.start_position().row + 1,
+                                snippet_of(name, source),
+                            ));
                         }
                     }
                 }
@@ -265,7 +291,12 @@ fn decl_bindings<'a>(d: Dialect, node: Node<'a>, source: &[u8]) -> Vec<(String, 
                 if let Some(decl) = node.child_by_field_name("declarator") {
                     if decl.kind() == "identifier" {
                         if let Ok(t) = decl.utf8_text(source) {
-                            out.push((t.to_string(), decl.id(), decl.start_position().row + 1, snippet_of(decl, source)));
+                            out.push((
+                                t.to_string(),
+                                decl.id(),
+                                decl.start_position().row + 1,
+                                snippet_of(decl, source),
+                            ));
                         }
                     }
                 }
@@ -286,7 +317,12 @@ fn decl_bindings<'a>(d: Dialect, node: Node<'a>, source: &[u8]) -> Vec<(String, 
                 if let Some(left) = node.child_by_field_name("left") {
                     if left.kind() == "identifier" {
                         if let Ok(t) = left.utf8_text(source) {
-                            out.push((t.to_string(), left.id(), left.start_position().row + 1, snippet_of(left, source)));
+                            out.push((
+                                t.to_string(),
+                                left.id(),
+                                left.start_position().row + 1,
+                                snippet_of(left, source),
+                            ));
                         }
                     }
                 }
@@ -295,7 +331,12 @@ fn decl_bindings<'a>(d: Dialect, node: Node<'a>, source: &[u8]) -> Vec<(String, 
                 if let Some(left) = node.child_by_field_name("left") {
                     if left.kind() == "identifier" {
                         if let Ok(t) = left.utf8_text(source) {
-                            out.push((t.to_string(), left.id(), left.start_position().row + 1, snippet_of(left, source)));
+                            out.push((
+                                t.to_string(),
+                                left.id(),
+                                left.start_position().row + 1,
+                                snippet_of(left, source),
+                            ));
                         }
                     }
                 }
@@ -449,7 +490,11 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(names(&r).contains(&"unused".to_string()), "应检出未使用 const unused，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"unused".to_string()),
+            "应检出未使用 const unused，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -474,7 +519,11 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(!names(&r).contains(&"x".to_string()), "简写返回应视为使用，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"x".to_string()),
+            "简写返回应视为使用，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -524,7 +573,11 @@ fn f() -> i32 {
 }
 "#;
         let r = run("rust", src);
-        assert!(names(&r).contains(&"unused".to_string()), "应检出未使用 let unused，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"unused".to_string()),
+            "应检出未使用 let unused，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -537,7 +590,11 @@ fn f() -> i32 {
 }
 "#;
         let r = run("rust", src);
-        assert!(!names(&r).contains(&"acc".to_string()), "let mut 被使用不应误报，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"acc".to_string()),
+            "let mut 被使用不应误报，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -550,7 +607,11 @@ fn f() -> String {
 }
 "#;
         let r = run("rust", src);
-        assert!(!names(&r).contains(&"name".to_string()), "format! 命名插值应视为使用，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"name".to_string()),
+            "format! 命名插值应视为使用，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -564,7 +625,11 @@ fn probe() {
 }
 "#;
         let r = run("rust", src);
-        assert!(!names(&r).contains(&"unused".to_string()), "#[test] 函数应跳过，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"unused".to_string()),
+            "#[test] 函数应跳过，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -579,7 +644,11 @@ mod tests {
 }
 "#;
         let r = run("rust", src);
-        assert!(!names(&r).contains(&"unused".to_string()), "#[cfg(test)] mod 应跳过，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"unused".to_string()),
+            "#[cfg(test)] mod 应跳过，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -590,7 +659,11 @@ def f():
     return 1
 "#;
         let r = run("python", src);
-        assert!(names(&r).contains(&"unused".to_string()), "应检出未使用赋值 unused，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"unused".to_string()),
+            "应检出未使用赋值 unused，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -614,7 +687,11 @@ func f() int {
 }
 "#;
         let r = run("go", src);
-        assert!(names(&r).contains(&"unused".to_string()), "应检出未使用 := unused，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"unused".to_string()),
+            "应检出未使用 := unused，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -628,7 +705,11 @@ class A {
 }
 "#;
         let r = run("java", src);
-        assert!(names(&r).contains(&"unused".to_string()), "应检出未使用局部 int unused，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"unused".to_string()),
+            "应检出未使用局部 int unused，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -640,7 +721,11 @@ int f() {
 }
 "#;
         let r = run("c", src);
-        assert!(names(&r).contains(&"unused".to_string()), "应检出未使用局部 int unused，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"unused".to_string()),
+            "应检出未使用局部 int unused，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -654,7 +739,11 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(!names(&r).contains(&"x".to_string()), "被嵌套函数使用的外层变量不应误报，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"x".to_string()),
+            "被嵌套函数使用的外层变量不应误报，实际: {:?}",
+            names(&r)
+        );
     }
 
     /// 真实目录回放探针（env-gated，与历轮 replay_* 同口径）：统计某目录下各语言未使用局部变量数量，
@@ -666,7 +755,8 @@ function f() {
             Err(_) => return, // 无 env 时不运行，避免污染普通 test
         };
         let mut total = 0usize;
-        let mut by_lang: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut by_lang: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut parsed_files = 0usize;
         let verbose = std::env::var("REPLAY_UNUSED_VERBOSE").is_ok();
         let mut samples: Vec<String> = Vec::new();
@@ -710,13 +800,22 @@ function f() {
         };
         if p.is_dir() {
             if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-                if matches!(name, "node_modules" | "target" | ".git" | "dist" | "dist-i18n") {
+                if matches!(
+                    name,
+                    "node_modules" | "target" | ".git" | "dist" | "dist-i18n"
+                ) {
                     return;
                 }
             }
             if let Ok(entries) = std::fs::read_dir(p) {
                 for e in entries.flatten() {
-                    replay_dir(&e.path(), total, by_lang, parsed_files, samples.as_deref_mut());
+                    replay_dir(
+                        &e.path(),
+                        total,
+                        by_lang,
+                        parsed_files,
+                        samples.as_deref_mut(),
+                    );
                 }
             }
         } else if p.is_file() {
@@ -731,7 +830,10 @@ function f() {
                         *total += found.len();
                         if let Some(s) = samples {
                             for f in &found {
-                                s.push(format!("{}:{}  {}  ({})", rel, f.line_start, f.name, f.snippet));
+                                s.push(format!(
+                                    "{}:{}  {}  ({})",
+                                    rel, f.line_start, f.name, f.snippet
+                                ));
                             }
                         }
                     }

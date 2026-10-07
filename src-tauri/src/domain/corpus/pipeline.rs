@@ -51,18 +51,84 @@ const TONE_WORDS: &str = "嗯啊哦噢喔唉呃咦诶欸呀哇啦咧嘞喂哟唷
 fn is_quote_or_punct(c: char) -> bool {
     matches!(
         c,
-        '“' | '”' | '‘' | '’' | '「' | '」' | '『' | '』' | '《' | '》' | '〈' | '〉'
-            | '(' | ')' | '（' | '）' | '【' | '】' | '[' | ']' | '{' | '}'
-            | '。' | '．' | '.' | '！' | '!' | '？' | '?' | '…' | '~' | '～' | '、'
-            | '，' | ',' | '；' | ';' | '：' | ':' | '-' | '—' | '_' | '·' | '*'
-            | '#' | '%' | '&' | '=' | '+' | '@' | '$' | '^' | '<' | '>' | '/' | '\\' | '|'
+        '“' | '”'
+            | '‘'
+            | '’'
+            | '「'
+            | '」'
+            | '『'
+            | '』'
+            | '《'
+            | '》'
+            | '〈'
+            | '〉'
+            | '('
+            | ')'
+            | '（'
+            | '）'
+            | '【'
+            | '】'
+            | '['
+            | ']'
+            | '{'
+            | '}'
+            | '。'
+            | '．'
+            | '.'
+            | '！'
+            | '!'
+            | '？'
+            | '?'
+            | '…'
+            | '~'
+            | '～'
+            | '、'
+            | '，'
+            | ','
+            | '；'
+            | ';'
+            | '：'
+            | ':'
+            | '-'
+            | '—'
+            | '_'
+            | '·'
+            | '*'
+            | '#'
+            | '%'
+            | '&'
+            | '='
+            | '+'
+            | '@'
+            | '$'
+            | '^'
+            | '<'
+            | '>'
+            | '/'
+            | '\\'
+            | '|'
     )
 }
 
 /// 站点水印/页脚短语（限短行命中，降低误伤正文概率）。
 const WATERMARK_PHRASES: [&str; 17] = [
-    "www.", "http://", "https://", ".com", ".net", ".cn", ".org", ".cc", "天才一秒记住",
-    "本站地址", "最新章节", "无错章节", "请记住本书", "手机阅读", "书友群", "上一页", "下一页",
+    "www.",
+    "http://",
+    "https://",
+    ".com",
+    ".net",
+    ".cn",
+    ".org",
+    ".cc",
+    "天才一秒记住",
+    "本站地址",
+    "最新章节",
+    "无错章节",
+    "请记住本书",
+    "手机阅读",
+    "书友群",
+    "上一页",
+    "下一页",
 ];
 
 /// 书外运营词（作者向读者求票/求订阅/汇报票数的运营商用语，小说正文零出现）。
@@ -130,9 +196,15 @@ pub fn is_noise_text(raw: &str) -> bool {
     //      分享」）；注意「版权归作者所有，投稿请注明来源」类正文说明不以这些前缀起头，
     //      不受影响。存量实证其中「本书版权由…提供。2016」同行句号破句出「2016」纯数字
     //      碎句，行首前缀拦截后整行消失，附带清除该破句产物。
-    if t.starts_with("PS:") || t.starts_with("PS：") || t.starts_with("ps:")
-        || t.starts_with("ps：") || t.starts_with("Ps:") || t.starts_with("Ps：")
-        || t.starts_with("pS:") || t.starts_with("pS：") || t.starts_with("再PS:")
+    if t.starts_with("PS:")
+        || t.starts_with("PS：")
+        || t.starts_with("ps:")
+        || t.starts_with("ps：")
+        || t.starts_with("Ps:")
+        || t.starts_with("Ps：")
+        || t.starts_with("pS:")
+        || t.starts_with("pS：")
+        || t.starts_with("再PS:")
         || t.starts_with("再PS：")
     {
         return true;
@@ -166,8 +238,16 @@ pub fn is_noise_text(raw: &str) -> bool {
     }
     if (t.ends_with(')') || t.ends_with('）'))
         && [
-            "鞠躬", "拜谢", "感谢", "为了荣耀", "看大家", "大家", "万分感谢", "绝不",
-            "土豆", "抱歉",
+            "鞠躬",
+            "拜谢",
+            "感谢",
+            "为了荣耀",
+            "看大家",
+            "大家",
+            "万分感谢",
+            "绝不",
+            "土豆",
+            "抱歉",
         ]
         .iter()
         .any(|w| t.contains(w))
@@ -186,10 +266,22 @@ pub fn is_noise_text(raw: &str) -> bool {
         return true;
     }
     for p in [
-        "作者：", "作者:", "作者的话", "本章说", "上架感言", "完本感言", "求月票", "求收藏",
-        "求推荐", "求订阅", "求点击",
+        "作者：",
+        "作者:",
+        "作者的话",
+        "本章说",
+        "上架感言",
+        "完本感言",
+        "求月票",
+        "求收藏",
+        "求推荐",
+        "求订阅",
+        "求点击",
         // 求票短语变体（存量实证：求保底月票/求一声月票/求五百票 等短行）
-        "求保底月票", "求声保底月票", "求一声月票", "求五百票",
+        "求保底月票",
+        "求声保底月票",
+        "求一声月票",
+        "求五百票",
     ] {
         if t.starts_with(p) {
             return true;
@@ -276,7 +368,16 @@ fn is_dialog_turn_boundary(prev: &str, next: &str) -> bool {
 
 /// 常见卷章关键词（需后随空白或行尾，避免「尾声的…」被误判为标题）。
 const CHAPTER_KEYWORDS: [&str; 10] = [
-    "序章", "序言", "楔子", "引子", "前言", "尾声", "后记", "番外", "终章", "大结局",
+    "序章",
+    "序言",
+    "楔子",
+    "引子",
+    "前言",
+    "尾声",
+    "后记",
+    "番外",
+    "终章",
+    "大结局",
 ];
 
 /// 剥离行尾「【作者注」：从第一个「【」起截断（含其后全部），返回剩余部分。
@@ -326,8 +427,21 @@ fn is_heading_structure(t: &str) -> bool {
                 !matches!(
                     c,
                     '0'..='9'
-                        | '零' | '一' | '二' | '三' | '四' | '五' | '六' | '七' | '八' | '九'
-                        | '十' | '百' | '千' | '万' | '亿'
+                        | '零'
+                        | '一'
+                        | '二'
+                        | '三'
+                        | '四'
+                        | '五'
+                        | '六'
+                        | '七'
+                        | '八'
+                        | '九'
+                        | '十'
+                        | '百'
+                        | '千'
+                        | '万'
+                        | '亿'
                 )
             })
             .map(|(i, _)| i)
@@ -551,11 +665,7 @@ pub fn parse_text(text: &str) -> Vec<ParsedChunk> {
 /// 跨段语气词落库：按 [`super::reference::tier_of`] 判级（含 MIN_INDEX_CHARS
 /// 长度门槛），Low（有效字符 <3 的孤立语气词）不入索引；非 Low 保留为独立单元。
 /// 调用点：章标题前 / 后续语气行前 / EOF——即语气词确定无法与正文并入的时刻。
-fn flush_pending_tone(
-    pending: &mut Option<String>,
-    chapter: &str,
-    out: &mut Vec<ParsedChunk>,
-) {
+fn flush_pending_tone(pending: &mut Option<String>, chapter: &str, out: &mut Vec<ParsedChunk>) {
     if let Some(tone) = pending.take() {
         let tier = super::reference::tier_of(&tone);
         if tier != super::reference::ReferenceTier::Low {
@@ -629,11 +739,7 @@ fn flush_paragraph(para: &str, chapter: &str, out: &mut Vec<ParsedChunk>) -> Opt
 /// 长度门槛），Low（有效字符 <3 的孤立碎片）不入索引；非 Low 保留为独立单元。
 /// 调用点：章标题前 / 新语气行前 / 新段尾短句前 / EOF——即短句确定无法与
 /// 后续正文并入的时刻。
-fn flush_pending_short(
-    pending: &mut Option<String>,
-    chapter: &str,
-    out: &mut Vec<ParsedChunk>,
-) {
+fn flush_pending_short(pending: &mut Option<String>, chapter: &str, out: &mut Vec<ParsedChunk>) {
     if let Some(short) = pending.take() {
         let tier = super::reference::tier_of(&short);
         if tier != super::reference::ReferenceTier::Low {
@@ -692,8 +798,7 @@ fn split_sentences(para: &str) -> Vec<String> {
             // ② 下一个非空白字符是开引号（同行双轮，“碎心掌!” “劈石腿!”）。
             if quote_depth == 0 {
                 // 闭引号已 push 进 buf；判断其**前一个**字符（台词尾标点）是否为终止符
-                let buf_ends_terminator =
-                    matches!(buf[..buf.len() - c.len_utf8()].chars().next_back(),
+                let buf_ends_terminator = matches!(buf[..buf.len() - c.len_utf8()].chars().next_back(),
                         Some(ch) if is_sentence_terminator(ch));
                 let mut rest = chars.clone();
                 let mut next_char = None;
@@ -773,7 +878,10 @@ mod tests {
         assert_eq!(chunks[1].kind, "sentence");
         assert_eq!(chunks[1].chapter_title, "第一章 出山");
         // 短句「山风很大。」并入后句：索引单元是一句完整的话
-        assert_eq!(chunks[1].content, "山风很大。他回头看了一眼，脚下是万丈深渊！");
+        assert_eq!(
+            chunks[1].content,
+            "山风很大。他回头看了一眼，脚下是万丈深渊！"
+        );
         assert_eq!(chunks[2].kind, "chapter");
         // 「你来了。」并入「老者说。」
         assert_eq!(chunks[3].content, "「你来了。」老者说。");
@@ -795,7 +903,9 @@ mod tests {
         let chunks = parse_text(&text);
         let total: usize = chunks.iter().map(|c| c.content.chars().count()).sum();
         assert!(total >= 510);
-        assert!(chunks.iter().all(|c| c.content.chars().count() <= MAX_SENTENCE_CHARS));
+        assert!(chunks
+            .iter()
+            .all(|c| c.content.chars().count() <= MAX_SENTENCE_CHARS));
     }
 
     #[test]
@@ -898,22 +1008,29 @@ mod tests {
             Some("第三百四十四章 一触即发"),
         );
         assert_eq!(clean_chapter_heading("第一章 出山"), Some("第一章 出山"));
-        assert_eq!(clean_chapter_heading("第一章的内容很精彩，值得一看。"), None);
+        assert_eq!(
+            clean_chapter_heading("第一章的内容很精彩，值得一看。"),
+            None
+        );
         assert_eq!(clean_chapter_heading("……"), None);
 
         // parse_text 集成：净标题入 chapter，作者注不混入标题内容
-        let chunks = parse_text(
-            "第一章 出山\n\n山风很大。\n\n第二章 入世【第三更！】\n\n他点点头。",
-        );
-        assert!(chunks
-            .iter()
-            .any(|c| c.kind == "chapter" && c.content == "第二章 入世"),
+        let chunks =
+            parse_text("第一章 出山\n\n山风很大。\n\n第二章 入世【第三更！】\n\n他点点头。");
+        assert!(
+            chunks
+                .iter()
+                .any(|c| c.kind == "chapter" && c.content == "第二章 入世"),
             "got: {chunks:?}"
         );
-        assert!(!chunks.iter().any(|c| c.content.contains('更')), "got: {chunks:?}");
-        assert!(chunks
-            .iter()
-            .any(|c| c.kind == "sentence" && c.content == "他点点头。"),
+        assert!(
+            !chunks.iter().any(|c| c.content.contains('更')),
+            "got: {chunks:?}"
+        );
+        assert!(
+            chunks
+                .iter()
+                .any(|c| c.kind == "sentence" && c.content == "他点点头。"),
             "got: {chunks:?}"
         );
         // 章标题 tier 恒 High 的既有契约保持
@@ -938,16 +1055,43 @@ mod tests {
     #[test]
     fn noise_text_rules() {
         for n in [
-            "嘭!", "嘭！", "“嗯。”", "“嗤!”", "……", "......", "...", "“噗嗤!”", "“呼...”",
-            "轰隆隆!", "“轰隆隆!”", "“咔嚓!”", "“砰砰砰!”", "(第一更!", "(第二更到!", "（求月票）",
-            "作者：天蚕土豆", "本书由www.example.com提供下载", "天才一秒记住本站地址", "123456",
+            "嘭!",
+            "嘭！",
+            "“嗯。”",
+            "“嗤!”",
+            "……",
+            "......",
+            "...",
+            "“噗嗤!”",
+            "“呼...”",
+            "轰隆隆!",
+            "“轰隆隆!”",
+            "“咔嚓!”",
+            "“砰砰砰!”",
+            "(第一更!",
+            "(第二更到!",
+            "（求月票）",
+            "作者：天蚕土豆",
+            "本书由www.example.com提供下载",
+            "天才一秒记住本站地址",
+            "123456",
         ] {
             assert!(is_noise_text(n), "should be noise: {n}");
         }
         for k in [
-            "八极崩!", "是!", "走!", "怎么回事?", "药老笑道。", "“这是...", "“你...",
-            "山风很大。", "第一章 出山", "他点点头。", "“喂？”他喊了一声。",
-            "【系统提示】你获得了新任务", "【我要让世界面临一股狂潮——炼金狂潮!!",
+            "八极崩!",
+            "是!",
+            "走!",
+            "怎么回事?",
+            "药老笑道。",
+            "“这是...",
+            "“你...",
+            "山风很大。",
+            "第一章 出山",
+            "他点点头。",
+            "“喂？”他喊了一声。",
+            "【系统提示】你获得了新任务",
+            "【我要让世界面临一股狂潮——炼金狂潮!!",
         ] {
             assert!(!is_noise_text(k), "should NOT be noise: {k}");
         }
@@ -1091,7 +1235,8 @@ mod tests {
     /// 拟声效果行、多字语气、内容词行、作者注均不放行。
     #[test]
     fn retainable_tone_line_guards() {
-        for keep in ["“嗯。”", "“啊？”", "“嗯嗯。”", "“喂？”", "“唉……”"] {
+        for keep in ["“嗯。”", "“啊？”", "“嗯嗯。”", "“喂？”", "“唉……”"]
+        {
             assert!(is_retainable_tone_line(keep), "should keep: {keep}");
         }
         for drop in [
@@ -1119,14 +1264,20 @@ mod tests {
             "got: {chunks:?}"
         );
         // 不产出孤立的“嗯。”碎单元
-        assert!(!chunks.iter().any(|c| c.content == "“嗯。”"), "got: {chunks:?}");
+        assert!(
+            !chunks.iter().any(|c| c.content == "“嗯。”"),
+            "got: {chunks:?}"
+        );
     }
 
     /// 语气词行前已有正文时：前文先收尾成单元，语气词作为新段起点并入后续句。
     #[test]
     fn tone_line_after_previous_text_starts_new_unit() {
         let chunks = parse_text("山风很大。\n“啊？”\n他回头看了一眼。");
-        assert!(chunks.iter().any(|c| c.content == "山风很大。"), "got: {chunks:?}");
+        assert!(
+            chunks.iter().any(|c| c.content == "山风很大。"),
+            "got: {chunks:?}"
+        );
         assert!(
             chunks.iter().any(|c| c.content == "“啊？”他回头看了一眼。"),
             "got: {chunks:?}"
@@ -1143,7 +1294,10 @@ mod tests {
             "got: {chunks:?}"
         );
         // 不再产出孤立的“嗯。”碎单元
-        assert!(!chunks.iter().any(|c| c.content == "“嗯。”"), "got: {chunks:?}");
+        assert!(
+            !chunks.iter().any(|c| c.content == "“嗯。”"),
+            "got: {chunks:?}"
+        );
     }
 
     /// 跨段语气词后无正文（文末落款）：EOF 落库时按判级过滤——
@@ -1152,7 +1306,10 @@ mod tests {
     fn tone_line_at_eof_short_is_filtered_out() {
         let text = "他点点头。\n\n“嗯。”";
         let chunks = parse_text(text);
-        assert!(chunks.iter().any(|c| c.content == "他点点头。"), "got: {chunks:?}");
+        assert!(
+            chunks.iter().any(|c| c.content == "他点点头。"),
+            "got: {chunks:?}"
+        );
         assert!(
             !chunks.iter().any(|c| c.content == "“嗯。”"),
             "got: {chunks:?}"
@@ -1176,7 +1333,10 @@ mod tests {
                 .any(|c| c.kind == "chapter" && c.content == "第二章 入世"),
             "got: {chunks:?}"
         );
-        assert!(chunks.iter().any(|c| c.content == "他点点头。"), "got: {chunks:?}");
+        assert!(
+            chunks.iter().any(|c| c.content == "他点点头。"),
+            "got: {chunks:?}"
+        );
         // 不与标题后正文合并（不跨标题粘合）
         assert!(
             !chunks.iter().any(|c| c.content.contains("“嗯。”他点点头")),
@@ -1207,9 +1367,18 @@ mod tests {
     fn onomatopoeia_lines_still_dropped() {
         let text = "“嘭！”\n\n“轰隆隆!”\n\n山风很大。";
         let chunks = parse_text(text);
-        assert!(!chunks.iter().any(|c| c.content.contains('嘭')), "got: {chunks:?}");
-        assert!(!chunks.iter().any(|c| c.content.contains('轰')), "got: {chunks:?}");
-        assert!(chunks.iter().any(|c| c.content == "山风很大。"), "got: {chunks:?}");
+        assert!(
+            !chunks.iter().any(|c| c.content.contains('嘭')),
+            "got: {chunks:?}"
+        );
+        assert!(
+            !chunks.iter().any(|c| c.content.contains('轰')),
+            "got: {chunks:?}"
+        );
+        assert!(
+            chunks.iter().any(|c| c.content == "山风很大。"),
+            "got: {chunks:?}"
+        );
     }
 
     /// 多字感叹词行（“我的天！”）：不命中噪声字符集（含非拟声字），
@@ -1246,7 +1415,10 @@ mod tests {
     #[test]
     fn exclamation_line_after_previous_text_starts_new_unit() {
         let chunks = parse_text("山风很大。\n“哎呀妈呀！”\n他连退三步。");
-        assert!(chunks.iter().any(|c| c.content == "山风很大。"), "got: {chunks:?}");
+        assert!(
+            chunks.iter().any(|c| c.content == "山风很大。"),
+            "got: {chunks:?}"
+        );
         assert!(
             chunks
                 .iter()
@@ -1260,7 +1432,10 @@ mod tests {
     #[test]
     fn exclamation_line_at_eof_is_filtered_out() {
         let chunks = parse_text("他点点头。\n\n“我的天！”");
-        assert!(chunks.iter().any(|c| c.content == "他点点头。"), "got: {chunks:?}");
+        assert!(
+            chunks.iter().any(|c| c.content == "他点点头。"),
+            "got: {chunks:?}"
+        );
         assert!(
             !chunks.iter().any(|c| c.content == "“我的天！”"),
             "got: {chunks:?}"
@@ -1283,9 +1458,14 @@ mod tests {
                 .any(|c| c.kind == "chapter" && c.content == "第二章 入世"),
             "got: {chunks:?}"
         );
-        assert!(chunks.iter().any(|c| c.content == "他点点头。"), "got: {chunks:?}");
         assert!(
-            !chunks.iter().any(|c| c.content.contains("“我的天！”他点点头")),
+            chunks.iter().any(|c| c.content == "他点点头。"),
+            "got: {chunks:?}"
+        );
+        assert!(
+            !chunks
+                .iter()
+                .any(|c| c.content.contains("“我的天！”他点点头")),
             "got: {chunks:?}"
         );
     }
@@ -1301,9 +1481,7 @@ mod tests {
             "got: {chunks:?}"
         );
         assert!(
-            chunks
-                .iter()
-                .any(|c| c.content == "“老天爷！”他连退三步。"),
+            chunks.iter().any(|c| c.content == "“老天爷！”他连退三步。"),
             "got: {chunks:?}"
         );
     }
@@ -1313,13 +1491,22 @@ mod tests {
     #[test]
     fn exclamation_with_body_is_not_pure_line() {
         let chunks = parse_text("“哎哟，这可不得了。”\n他赶紧扶住桌子。");
-        assert!(chunks.iter().any(|c| c.content.contains("这可不得了")), "got: {chunks:?}");
+        assert!(
+            chunks.iter().any(|c| c.content.contains("这可不得了")),
+            "got: {chunks:?}"
+        );
     }
 
     /// 纯感叹词行判定：多字感叹短语整体命中；带正文、纯数字、空行不命中。
     #[test]
     fn pure_exclamation_line_guards() {
-        for keep in ["“我的天！”", "我的天！", "「老天爷！」", "“哎呀妈呀！”", "好家伙！"] {
+        for keep in [
+            "“我的天！”",
+            "我的天！",
+            "「老天爷！」",
+            "“哎呀妈呀！”",
+            "好家伙！",
+        ] {
             assert!(is_pure_exclamation_line(keep), "should keep: {keep}");
         }
         for drop in [
@@ -1360,8 +1547,14 @@ mod tests {
         use super::super::reference::ReferenceTier;
         // 无引号孤立语气词“嗯。”单独成段 → Low 过滤；章标题（chapter）不经评分，始终保留
         let chunks = parse_text("第一章 出山\n\n嗯。");
-        assert!(!chunks.iter().any(|c| c.content == "嗯。"), "got: {chunks:?}");
-        assert!(chunks.iter().any(|c| c.kind == "chapter"), "got: {chunks:?}");
+        assert!(
+            !chunks.iter().any(|c| c.content == "嗯。"),
+            "got: {chunks:?}"
+        );
+        assert!(
+            chunks.iter().any(|c| c.kind == "chapter"),
+            "got: {chunks:?}"
+        );
         // 叙事正文（High/Medium）保留
         let chunks2 = parse_text("山风很大。他回头看了一眼，脚下是万丈深渊！");
         assert_eq!(chunks2.len(), 1, "got: {chunks2:?}");
@@ -1379,7 +1572,8 @@ mod tests {
     #[test]
     fn sentence_tiers_are_tagged_on_chunks() {
         use super::super::reference::ReferenceTier;
-        let chunks = parse_text("第一章 出山\n\n山风很大。他回头看了一眼，脚下是万丈深渊！\n\n孤独是宿命……");
+        let chunks =
+            parse_text("第一章 出山\n\n山风很大。他回头看了一眼，脚下是万丈深渊！\n\n孤独是宿命……");
         // 章标题：导航结构，恒 High
         assert_eq!(chunks[0].tier, ReferenceTier::High);
         // 叙事+意象句 → High
@@ -1392,10 +1586,14 @@ mod tests {
     /// 短句合并：索引单元尽量是一句完整的话；长句不受影响。
     #[test]
     fn short_sentences_merge_into_complete_units() {
-        let chunks = parse_text("“嗯。”他点点头，转身离开。\n\n山风很大，他回头看了一眼，脚下是万丈深渊！");
+        let chunks =
+            parse_text("“嗯。”他点点头，转身离开。\n\n山风很大，他回头看了一眼，脚下是万丈深渊！");
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].content, "“嗯。”他点点头，转身离开。");
-        assert_eq!(chunks[1].content, "山风很大，他回头看了一眼，脚下是万丈深渊！");
+        assert_eq!(
+            chunks[1].content,
+            "山风很大，他回头看了一眼，脚下是万丈深渊！"
+        );
     }
 
     /// 短句合并的英文边界：句点结尾续下一句时补空格。
@@ -1432,9 +1630,7 @@ mod tests {
     fn cross_para_short_dialogue_merges_into_narrative() {
         let chunks = parse_text("“两万五!”\n\n加列毕笑道。");
         assert!(
-            chunks
-                .iter()
-                .any(|c| c.content == "“两万五!”加列毕笑道。"),
+            chunks.iter().any(|c| c.content == "“两万五!”加列毕笑道。"),
             "got: {chunks:?}"
         );
     }
@@ -1452,7 +1648,9 @@ mod tests {
         );
         // 第二轮正常并入后续正文
         assert!(
-            chunks.iter().any(|c| c.content == "“吹火掌!”萧炎身形一动。"),
+            chunks
+                .iter()
+                .any(|c| c.content == "“吹火掌!”萧炎身形一动。"),
             "got: {chunks:?}"
         );
         // 两轮对话绝不粘合
@@ -1468,7 +1666,9 @@ mod tests {
     fn cross_para_short_continues_absorbing_until_complete() {
         let chunks = parse_text("地.玄.黄!\n\n而每一阶,又分初,中,高三级!");
         assert!(
-            chunks.iter().any(|c| c.content == "地.玄.黄!而每一阶,又分初,中,高三级!"),
+            chunks
+                .iter()
+                .any(|c| c.content == "地.玄.黄!而每一阶,又分初,中,高三级!"),
             "got: {chunks:?}"
         );
     }
@@ -1490,7 +1690,9 @@ mod tests {
             "got: {chunks:?}"
         );
         assert!(
-            !chunks.iter().any(|c| c.content.contains("萧战苦笑道。他点点头")),
+            !chunks
+                .iter()
+                .any(|c| c.content.contains("萧战苦笑道。他点点头")),
             "got: {chunks:?}"
         );
     }
@@ -1545,13 +1747,13 @@ mod tests {
             "got: {chunks:?}"
         );
         assert!(
-            chunks
-                .iter()
-                .any(|c| c.content.contains("“劈石腿!”")),
+            chunks.iter().any(|c| c.content.contains("“劈石腿!”")),
             "got: {chunks:?}"
         );
         assert!(
-            !chunks.iter().any(|c| c.content.contains("“碎心掌!”“劈石腿!”")),
+            !chunks
+                .iter()
+                .any(|c| c.content.contains("“碎心掌!”“劈石腿!”")),
             "双轮被粘合: {chunks:?}"
         );
     }
@@ -1634,5 +1836,4 @@ mod tests {
         // 正文人物致谢长行（含叙事语境）不受影响
         assert!(!is_noise_text("萧炎拱手道:“多谢诸位相助,谢谢大家。”"));
     }
-
-    }
+}

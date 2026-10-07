@@ -85,11 +85,13 @@ pub fn export_docx(
 
     // 构建 word/document.xml
     let mut doc_xml = String::new();
-    doc_xml.push_str(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    doc_xml.push_str(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
   xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
-<w:body>"#);
+<w:body>"#,
+    );
 
     // 书名作为标题
     doc_xml.push_str(&heading1_paragraph(&title));
@@ -126,7 +128,8 @@ pub fn export_docx(
 
     // 写入 word/_rels/document.xml.rels
     let mut doc_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#.to_string();
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#
+        .to_string();
     for (i, (rel, (ext, _))) in img_cache.iter().enumerate() {
         let rel_id = format!("imgRel{i}");
         let ct = match ext.as_str() {
@@ -145,7 +148,8 @@ pub fn export_docx(
     zip.write_all(doc_rels.as_bytes())
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    zip.finish().map_err(|e| AppError::Internal(e.to_string()))?;
+    zip.finish()
+        .map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(())
 }
 
@@ -223,7 +227,8 @@ fn parse_html_to_segments(html: &str, img_rel_ids: &HashMap<String, String>) -> 
                     "img" => {
                         // 独立 <img> 标签（不带包裹）
                         if let Some(rel_id) = extract_img_rel(after_tag, img_rel_ids) {
-                            segments.push(DocxSegment::Image(rel_id, 4000000, 3000000)); // 默认 4×3 EMU
+                            segments.push(DocxSegment::Image(rel_id, 4000000, 3000000));
+                            // 默认 4×3 EMU
                         }
                     }
                     "table" => {
@@ -279,7 +284,20 @@ fn parse_html_to_segments(html: &str, img_rel_ids: &HashMap<String, String>) -> 
 }
 
 fn find_block_tag(html: &str) -> Option<(usize, String)> {
-    let block_tags = ["p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "ul", "ol", "img", "table"];
+    let block_tags = [
+        "p",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "ul",
+        "ol",
+        "img",
+        "table",
+    ];
     let mut earliest: Option<(usize, String)> = None;
     for tag in &block_tags {
         let open = format!("<{tag}");
@@ -352,17 +370,27 @@ fn parse_inline_elements(html: &str) -> Vec<DocxRun> {
                     current.text.clear();
                 }
                 current.underline = false;
-            } else if tag.starts_with("<s>") || tag.starts_with("<del>") || tag.starts_with("<strike>") {
+            } else if tag.starts_with("<s>")
+                || tag.starts_with("<del>")
+                || tag.starts_with("<strike>")
+            {
                 current.strike = true;
-            } else if tag.starts_with("</s>") || tag.starts_with("</del>") || tag.starts_with("</strike>") {
+            } else if tag.starts_with("</s>")
+                || tag.starts_with("</del>")
+                || tag.starts_with("</strike>")
+            {
                 if !current.text.is_empty() {
                     runs.push(current.clone());
                     current.text.clear();
                 }
                 current.strike = false;
-            } else if tag.starts_with("<mark>") || (tag.starts_with("<span") && tag.contains("background")) {
+            } else if tag.starts_with("<mark>")
+                || (tag.starts_with("<span") && tag.contains("background"))
+            {
                 current.highlight = true;
-            } else if tag.starts_with("</mark>") || (tag.starts_with("</span") && tag.contains("background")) {
+            } else if tag.starts_with("</mark>")
+                || (tag.starts_with("</span") && tag.contains("background"))
+            {
                 if !current.text.is_empty() {
                     runs.push(current.clone());
                     current.text.clear();
@@ -627,13 +655,17 @@ fn load_image_bytes(rel: &str) -> AppResult<(String, Vec<u8>)> {
     let abs = crate::commands::asset::resolve_asset_ref(rel.to_string())
         .or_else(|_| Ok::<String, String>(rel.to_string()))
         .map_err(|e| AppError::Internal(format!("resolve asset {rel}: {e}")))?;
-    let bytes = std::fs::read(&abs)
-        .map_err(|e| AppError::Internal(format!("read image {abs}: {e}")))?;
+    let bytes =
+        std::fs::read(&abs).map_err(|e| AppError::Internal(format!("read image {abs}: {e}")))?;
     let ext = std::path::Path::new(&abs)
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("png")
         .to_lowercase();
-    let ext = if ext == "jpg" { "jpeg".to_string() } else { ext };
+    let ext = if ext == "jpg" {
+        "jpeg".to_string()
+    } else {
+        ext
+    };
     Ok((ext, bytes))
 }

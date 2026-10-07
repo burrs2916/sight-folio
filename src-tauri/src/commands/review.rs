@@ -1,6 +1,6 @@
 use crate::commands::AnalysisState;
-use crate::domain::project_files::ProjectFile;
 use crate::domain::project_dependencies::ProjectDependency;
+use crate::domain::project_files::ProjectFile;
 use crate::domain::project_modules::ProjectModule;
 use crate::domain::review_findings::ReviewFinding;
 use crate::domain::review_rules::ReviewRule;
@@ -124,17 +124,32 @@ pub fn run_review_rules(
             }
             ("metadata", "file") => {
                 let lang_files = filter_files_by_rule(rule, &files);
-                findings.extend(apply_metadata_rule_on_files(&analysis_id, rule, &lang_files, None));
+                findings.extend(apply_metadata_rule_on_files(
+                    &analysis_id,
+                    rule,
+                    &lang_files,
+                    None,
+                ));
             }
             ("unsafe", "file") => {
                 // Rust 专属：unsafe 代码块检测（种子规则 rs-unsafe 使用）
                 let lang_files = filter_files_by_rule(rule, &files);
-                findings.extend(apply_unsafe_rule_on_files(&analysis_id, rule, &lang_files, &*cache));
+                findings.extend(apply_unsafe_rule_on_files(
+                    &analysis_id,
+                    rule,
+                    &lang_files,
+                    &*cache,
+                ));
             }
             ("friendly", "file") => {
                 // 对外友好性：throw 空消息 / 硬编码中文错误消息（种子规则 rule_user_facing_message）
                 let lang_files = filter_files_by_rule(rule, &files);
-                findings.extend(apply_friendly_rule_on_files(&analysis_id, rule, &lang_files, &*cache));
+                findings.extend(apply_friendly_rule_on_files(
+                    &analysis_id,
+                    rule,
+                    &lang_files,
+                    &*cache,
+                ));
             }
             ("graph", "module") | ("graph", "file") => {
                 let parsed: serde_json::Value =
@@ -146,7 +161,10 @@ pub fn run_review_rules(
                 match algorithm {
                     "circular" => {
                         findings.extend(apply_circular_dependency_rule(
-                            &analysis_id, rule, &deps, &files,
+                            &analysis_id,
+                            rule,
+                            &deps,
+                            &files,
                         ));
                     }
                     "in_degree_zero" => {
@@ -188,7 +206,8 @@ pub fn rule_is_backend_executable(rule: &ReviewRule) -> bool {
     match rule.rule_type.as_str() {
         "unsafe" | "graph" | "metadata" => true,
         "metric" => {
-            let parsed: serde_json::Value = serde_json::from_str(&rule.rule_body).unwrap_or_default();
+            let parsed: serde_json::Value =
+                serde_json::from_str(&rule.rule_body).unwrap_or_default();
             let metric = parsed.get("metric").and_then(|v| v.as_str()).unwrap_or("");
             matches!(metric, "line_count" | "size")
         }
@@ -234,7 +253,10 @@ fn apply_metric_rule_on_files(
     let parsed: serde_json::Value = serde_json::from_str(&rule.rule_body).unwrap_or_default();
     let metric = parsed.get("metric").and_then(|v| v.as_str()).unwrap_or("");
     let op = parsed.get("op").and_then(|v| v.as_str()).unwrap_or(">");
-    let threshold = parsed.get("threshold").and_then(|v| v.as_i64()).unwrap_or(0);
+    let threshold = parsed
+        .get("threshold")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
 
     let mut out = Vec::new();
     for file in files {
@@ -325,10 +347,7 @@ fn apply_metadata_rule_on_files(
                 target_id: file.id.clone(),
                 target_type: target_type_override.unwrap_or("file").to_string(),
                 severity: rule.severity.clone(),
-                message: format!(
-                    "{} 缺少必填字段 {}",
-                    file.rel_path, field
-                ),
+                message: format!("{} 缺少必填字段 {}", file.rel_path, field),
                 suggestion: Some(format!("请将 {} 归入对应的架构分层", file.name)),
                 status: "open".to_string(),
                 found_at: chrono::Utc::now().timestamp(),
@@ -355,10 +374,7 @@ fn apply_unsafe_rule_on_files(
     cache: &crate::commands::project_scan::ScanContentCache,
 ) -> Vec<ReviewFinding> {
     let parsed: serde_json::Value = serde_json::from_str(&rule.rule_body).unwrap_or_default();
-    let min_hits = parsed
-        .get("min_hits")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1) as usize;
+    let min_hits = parsed.get("min_hits").and_then(|v| v.as_i64()).unwrap_or(1) as usize;
 
     let mut out = Vec::new();
     for file in files {
@@ -449,10 +465,7 @@ fn apply_friendly_rule_on_files(
     cache: &crate::commands::project_scan::ScanContentCache,
 ) -> Vec<ReviewFinding> {
     let parsed: serde_json::Value = serde_json::from_str(&rule.rule_body).unwrap_or_default();
-    let min_hits = parsed
-        .get("min_hits")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1) as usize;
+    let min_hits = parsed.get("min_hits").and_then(|v| v.as_i64()).unwrap_or(1) as usize;
 
     let mut out = Vec::new();
     for file in files {
@@ -478,7 +491,8 @@ fn apply_friendly_rule_on_files(
             continue;
         }
 
-        let (first_line, first_snippet, _) = hits.first().cloned().unwrap_or((0, String::new(), "empty"));
+        let (first_line, first_snippet, _) =
+            hits.first().cloned().unwrap_or((0, String::new(), "empty"));
         let line_nums: Vec<String> = hits.iter().map(|(n, _, _)| n.to_string()).collect();
         // 分类统计
         let empty_cnt = hits.iter().filter(|(_, _, k)| *k == "empty").count();
@@ -548,10 +562,8 @@ fn unfriendly_message_kind(trimmed: &str) -> Option<&'static str> {
     // 注意：只认「真正的参数化」形态（${...} / {...} / %s / %d），
     // 避免把消息正文里恰好出现的普通花括号误判为参数化。
     let has_cjk = msg.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c));
-    let has_placeholder = msg.contains("${")
-        || msg.contains("{")
-        || msg.contains("%s")
-        || msg.contains("%d");
+    let has_placeholder =
+        msg.contains("${") || msg.contains("{") || msg.contains("%s") || msg.contains("%d");
     if has_cjk && !has_placeholder {
         return Some("hardcoded");
     }
@@ -574,10 +586,7 @@ fn extract_error_message(trimmed: &str) -> Option<String> {
         "throw new SyntaxError(",
         "assert!(",
     ];
-    let pos = patterns
-        .iter()
-        .filter_map(|p| trimmed.find(p))
-        .min()?;
+    let pos = patterns.iter().filter_map(|p| trimmed.find(p)).min()?;
     let after = &trimmed[pos..];
     // 找到第一个引号（单/双），取其内容
     let quote_pos = match after.find(|c| c == '"' || c == '\'') {
@@ -633,8 +642,14 @@ fn apply_circular_dependency_rule(
         if !seen.insert((dep.from_id.clone(), dep.to_id.clone())) {
             continue;
         }
-        let from_name = name_map.get(&dep.from_id).cloned().unwrap_or(dep.from_id.clone());
-        let to_name = name_map.get(&dep.to_id).cloned().unwrap_or(dep.to_id.clone());
+        let from_name = name_map
+            .get(&dep.from_id)
+            .cloned()
+            .unwrap_or(dep.from_id.clone());
+        let to_name = name_map
+            .get(&dep.to_id)
+            .cloned()
+            .unwrap_or(dep.to_id.clone());
         out.push(ReviewFinding {
             id: format!(
                 "finding_{}",
@@ -707,7 +722,9 @@ fn apply_dead_code_rule(
                     "{} 未被任何其他文件依赖（{} 行），可能是死代码",
                     file.rel_path, file.line_count
                 ),
-                suggestion: Some("确认是否仍被动态引用（反射/脚本入口），否则可考虑删除或归档".to_string()),
+                suggestion: Some(
+                    "确认是否仍被动态引用（反射/脚本入口），否则可考虑删除或归档".to_string(),
+                ),
                 status: "open".to_string(),
                 found_at: chrono::Utc::now().timestamp(),
                 fixed_at: None,
@@ -814,10 +831,7 @@ pub fn detect_dependencies(
             } else {
                 // 可能是包名（npm/pip/cargo/go module），跳过并记为 external
                 deps.push(ProjectDependency {
-                    id: format!(
-                        "dep_{}",
-                        uuid::Uuid::new_v4().to_string().replace("-", "")
-                    ),
+                    id: format!("dep_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
                     analysis_id: analysis_id.to_string(),
                     from_id: file.id.clone(),
                     from_type: "file".to_string(),
@@ -827,7 +841,10 @@ pub fn detect_dependencies(
                     line_no: Some(line_no as i64),
                     is_circular: false,
                     weight: 1,
-                    metadata: format!(r#"{{"raw":"{}","resolved":"external"}}"#, import_path.replace('"', "\\\"")),
+                    metadata: format!(
+                        r#"{{"raw":"{}","resolved":"external"}}"#,
+                        import_path.replace('"', "\\\"")
+                    ),
                     detected_at: chrono::Utc::now().timestamp(),
                 });
                 continue;
@@ -838,10 +855,15 @@ pub fn detect_dependencies(
                 let mut candidates: Vec<String> = Vec::new();
                 candidates.push(resolved_rel.clone());
                 if !resolved_rel.contains('.') {
-                    for ext in ["ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "c", "h", "cpp", "hpp"] {
+                    for ext in [
+                        "ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "c", "h", "cpp", "hpp",
+                    ] {
                         candidates.push(format!("{}/index.{}", resolved_rel, ext));
                     }
-                    candidates.push(guess_extension(&resolved_rel, file.language.as_deref().unwrap_or("")));
+                    candidates.push(guess_extension(
+                        &resolved_rel,
+                        file.language.as_deref().unwrap_or(""),
+                    ));
                 }
                 candidates
                     .iter()
@@ -851,10 +873,7 @@ pub fn detect_dependencies(
             };
 
             deps.push(ProjectDependency {
-                id: format!(
-                    "dep_{}",
-                    uuid::Uuid::new_v4().to_string().replace("-", "")
-                ),
+                id: format!("dep_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
                 analysis_id: analysis_id.to_string(),
                 from_id: file.id.clone(),
                 from_type: "file".to_string(),
@@ -891,7 +910,11 @@ pub fn detect_dependencies(
                 continue;
             }
             let top = if f.rel_path.contains('/') {
-                f.rel_path.split('/').next().unwrap_or(&f.rel_path).to_string()
+                f.rel_path
+                    .split('/')
+                    .next()
+                    .unwrap_or(&f.rel_path)
+                    .to_string()
             } else {
                 "root".to_string()
             };
@@ -913,8 +936,7 @@ pub fn detect_dependencies(
         }
 
         let module_palette = [
-            "#6366F1", "#10B981", "#F59E0B", "#EC4899", "#06B6D4", "#8B5CF6", "#EF4444",
-            "#14B8A6",
+            "#6366F1", "#10B981", "#F59E0B", "#EC4899", "#06B6D4", "#8B5CF6", "#EF4444", "#14B8A6",
         ];
         let mut sorted_top: Vec<(&String, &Vec<String>)> = top_files.iter().collect();
         sorted_top.sort_by(|a, b| a.0.cmp(b.0));
@@ -985,7 +1007,9 @@ pub fn parse_js_imports(content: &str) -> Vec<(String, usize)> {
 }
 
 fn regex_js_import(line: &str) -> Option<String> {
-    let line = line.trim_start_matches("export ").trim_start_matches("import ");
+    let line = line
+        .trim_start_matches("export ")
+        .trim_start_matches("import ");
     let from_idx = line.find("from")?;
     let after = &line[from_idx + 4..];
     let s = after.trim().trim_start_matches(',').trim();
@@ -1012,14 +1036,27 @@ pub fn parse_python_imports(content: &str) -> Vec<(String, usize)> {
             // import x / import x.y / import x as y
             let rest = trimmed.trim_start_matches("import ").trim();
             let module = rest.split_whitespace().next().unwrap_or("");
-            if !module.is_empty() && module.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) {
+            if !module.is_empty()
+                && module
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false)
+            {
                 out.push((module.to_string(), i + 1));
             }
         } else if trimmed.starts_with("from ") {
             // from x import y
             let rest = trimmed.trim_start_matches("from ").trim();
             let module = rest.split_whitespace().next().unwrap_or("");
-            if !module.is_empty() && module.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) && module != "import" {
+            if !module.is_empty()
+                && module
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false)
+                && module != "import"
+            {
                 out.push((module.to_string(), i + 1));
             }
         }
@@ -1241,44 +1278,98 @@ mod review_tests {
     #[test]
     fn backend_executable_rule_filter() {
         // 后端能执行的：unsafe / graph / metadata / metric(line_count|size)
-        assert!(rule_is_backend_executable(&rule("unsafe", r#"{"keywords":["unsafe"],"min_hits":1}"#)));
-        assert!(rule_is_backend_executable(&rule("graph", r#"{"algorithm":"circular"}"#)));
-        assert!(rule_is_backend_executable(&rule("metadata", r#"{"required_field":"layer_id"}"#)));
-        assert!(rule_is_backend_executable(&rule("metric", r#"{"metric":"line_count","op":">","threshold":800}"#)));
-        assert!(rule_is_backend_executable(&rule("metric", r#"{"metric":"size","op":">","threshold":100}"#)));
+        assert!(rule_is_backend_executable(&rule(
+            "unsafe",
+            r#"{"keywords":["unsafe"],"min_hits":1}"#
+        )));
+        assert!(rule_is_backend_executable(&rule(
+            "graph",
+            r#"{"algorithm":"circular"}"#
+        )));
+        assert!(rule_is_backend_executable(&rule(
+            "metadata",
+            r#"{"required_field":"layer_id"}"#
+        )));
+        assert!(rule_is_backend_executable(&rule(
+            "metric",
+            r#"{"metric":"line_count","op":">","threshold":800}"#
+        )));
+        assert!(rule_is_backend_executable(&rule(
+            "metric",
+            r#"{"metric":"size","op":">","threshold":100}"#
+        )));
         // 后端不支持的 AST 类指标 → 拒绝（避免死规则）
-        assert!(!rule_is_backend_executable(&rule("metric", r#"{"metric":"cyclomatic_complexity","op":">","threshold":10}"#)));
-        assert!(!rule_is_backend_executable(&rule("metric", r#"{"metric":"max_nesting_depth","op":">","threshold":4}"#)));
-        assert!(!rule_is_backend_executable(&rule("metric", r#"{"metric":"max_function_lines","op":">","threshold":80}"#)));
-        assert!(!rule_is_backend_executable(&rule("metric", r#"{"metric":"max_function_params","op":">","threshold":5}"#)));
-        assert!(!rule_is_backend_executable(&rule("metric", r#"{"metric":"import_count","op":">","threshold":15}"#)));
-        assert!(!rule_is_backend_executable(&rule("metric", r#"{"metric":"magic_number_count","op":">","threshold":3}"#)));
+        assert!(!rule_is_backend_executable(&rule(
+            "metric",
+            r#"{"metric":"cyclomatic_complexity","op":">","threshold":10}"#
+        )));
+        assert!(!rule_is_backend_executable(&rule(
+            "metric",
+            r#"{"metric":"max_nesting_depth","op":">","threshold":4}"#
+        )));
+        assert!(!rule_is_backend_executable(&rule(
+            "metric",
+            r#"{"metric":"max_function_lines","op":">","threshold":80}"#
+        )));
+        assert!(!rule_is_backend_executable(&rule(
+            "metric",
+            r#"{"metric":"max_function_params","op":">","threshold":5}"#
+        )));
+        assert!(!rule_is_backend_executable(&rule(
+            "metric",
+            r#"{"metric":"import_count","op":">","threshold":15}"#
+        )));
+        assert!(!rule_is_backend_executable(&rule(
+            "metric",
+            r#"{"metric":"magic_number_count","op":">","threshold":3}"#
+        )));
         // 未知 rule_type 也拒绝
         assert!(!rule_is_backend_executable(&rule("ai", "{}")));
     }
 
     #[test]
     fn empty_message_is_unfriendly() {
-        assert_eq!(unfriendly_message_kind("throw new Error(\"\")"), Some("empty"));
+        assert_eq!(
+            unfriendly_message_kind("throw new Error(\"\")"),
+            Some("empty")
+        );
         assert_eq!(unfriendly_message_kind("throw new Error()"), Some("empty"));
     }
 
     #[test]
     fn hardcoded_cjk_message_is_unfriendly() {
-        assert_eq!(unfriendly_message_kind("throw new Error(\"创建失败，请检查输入\")"), Some("hardcoded"));
-        assert_eq!(unfriendly_message_kind("panic!(\"初始化失败\")"), Some("hardcoded"));
+        assert_eq!(
+            unfriendly_message_kind("throw new Error(\"创建失败，请检查输入\")"),
+            Some("hardcoded")
+        );
+        assert_eq!(
+            unfriendly_message_kind("panic!(\"初始化失败\")"),
+            Some("hardcoded")
+        );
     }
 
     #[test]
     fn parameterized_message_is_friendly() {
-        assert_eq!(unfriendly_message_kind("throw new Error(`创建失败: ${err.message}`)"), None);
-        assert_eq!(unfriendly_message_kind("throw new Error(\"File not found: {path}\")"), None);
+        assert_eq!(
+            unfriendly_message_kind("throw new Error(`创建失败: ${err.message}`)"),
+            None
+        );
+        assert_eq!(
+            unfriendly_message_kind("throw new Error(\"File not found: {path}\")"),
+            None
+        );
     }
 
     #[test]
     fn vague_placeholder_is_unfriendly() {
-        assert_eq!(unfriendly_message_kind("throw new Error(\"error\")"), Some("vague"));
-        assert_eq!(unfriendly_message_kind("throw new Error(\"failed\")"), Some("vague"));
+        assert_eq!(
+            unfriendly_message_kind("throw new Error(\"error\")"),
+            Some("vague")
+        );
+        assert_eq!(
+            unfriendly_message_kind("throw new Error(\"failed\")"),
+            Some("vague")
+        );
     }
 
     #[test]

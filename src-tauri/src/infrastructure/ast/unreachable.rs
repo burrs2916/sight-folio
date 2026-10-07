@@ -130,7 +130,9 @@ fn is_if<'a>(d: Dialect, node: Node<'a>) -> bool {
         Dialect::TypeScript | Dialect::Tsx => k == "if_statement",
         Dialect::Rust => k == "if_expression",
         Dialect::Python => k == "if_statement",
-        Dialect::Go | Dialect::Java | Dialect::CSharp | Dialect::Cpp | Dialect::C => k == "if_statement",
+        Dialect::Go | Dialect::Java | Dialect::CSharp | Dialect::Cpp | Dialect::C => {
+            k == "if_statement"
+        }
         _ => false,
     }
 }
@@ -155,8 +157,9 @@ fn if_condition<'a>(node: Node<'a>) -> Option<Node<'a>> {
 fn if_alternative<'a>(node: Node<'a>) -> Option<Node<'a>> {
     let mut cursor = node.walk();
     let kids: Vec<Node<'a>> = node.named_children(&mut cursor).collect();
-    kids.into_iter()
-        .find(|c| c.kind().starts_with("else") || c.kind() == "alternative" || c.kind() == "else_clause")
+    kids.into_iter().find(|c| {
+        c.kind().starts_with("else") || c.kind() == "alternative" || c.kind() == "else_clause"
+    })
 }
 
 /// 取 if 的 consequence（第一个非条件、非 else 的命名子节点）
@@ -164,7 +167,10 @@ fn if_consequence<'a>(node: Node<'a>, cond: Node<'a>) -> Option<Node<'a>> {
     let mut cursor = node.walk();
     let kids: Vec<Node<'a>> = node.named_children(&mut cursor).collect();
     kids.into_iter().find(|c| {
-        c.id() != cond.id() && !c.kind().starts_with("else") && c.kind() != "alternative" && c.kind() != "else_clause"
+        c.id() != cond.id()
+            && !c.kind().starts_with("else")
+            && c.kind() != "alternative"
+            && c.kind() != "else_clause"
     })
 }
 
@@ -216,7 +222,9 @@ fn bool_literal_value<'a>(node: Node<'a>, source: &[u8]) -> Option<bool> {
 /// 兼容 TS `variable_declarator`(name/value)、C/C++ `init_declarator`(declarator/value)、
 /// Java/C# `variable_declarator`。
 fn binding_from_declarator<'a>(decl: Node<'a>, source: &[u8]) -> Option<(String, bool)> {
-    let name_node = decl.child_by_field_name("name").or_else(|| decl.child_by_field_name("declarator"))?;
+    let name_node = decl
+        .child_by_field_name("name")
+        .or_else(|| decl.child_by_field_name("declarator"))?;
     if name_node.kind() != "identifier" {
         return None;
     }
@@ -480,8 +488,13 @@ fn go_for_condition<'a>(node: Node<'a>) -> Option<Node<'a>> {
 fn is_dead_loop<'a>(d: Dialect, node: Node<'a>, source: &[u8], consts: &ConstBindings) -> bool {
     let k = node.kind();
     match d {
-        Dialect::TypeScript | Dialect::Tsx | Dialect::Rust | Dialect::Java | Dialect::CSharp
-        | Dialect::Cpp | Dialect::C => {
+        Dialect::TypeScript
+        | Dialect::Tsx
+        | Dialect::Rust
+        | Dialect::Java
+        | Dialect::CSharp
+        | Dialect::Cpp
+        | Dialect::C => {
             if k == "while_statement" || k == "while_expression" {
                 if let Some(cond) = loop_condition(node) {
                     return eval_bool(cond, source, consts) == Some(false);
@@ -534,21 +547,44 @@ fn is_terminator_node<'a>(d: Dialect, node: Node<'a>) -> bool {
 }
 
 /// 把一个死分支体里的「顶层语句」登记为不可达
-fn record_dead_branch<'a>(d: Dialect, branch: Node<'a>, source: &[u8], out: &mut Vec<UnreachableStmt>) {
+fn record_dead_branch<'a>(
+    d: Dialect,
+    branch: Node<'a>,
+    source: &[u8],
+    out: &mut Vec<UnreachableStmt>,
+) {
     if is_block(d, branch) {
         let mut cursor = branch.walk();
         for stmt in branch.named_children(&mut cursor) {
             if is_comment(stmt.kind()) {
                 continue; // 注释不是可执行语句，不算死代码
             }
-            push_stmt(stmt, source, out, "medium", "常量条件分支永不被选中，分支体内语句不可达");
+            push_stmt(
+                stmt,
+                source,
+                out,
+                "medium",
+                "常量条件分支永不被选中，分支体内语句不可达",
+            );
         }
     } else {
-        push_stmt(branch, source, out, "medium", "常量条件分支永不被选中，该语句不可达");
+        push_stmt(
+            branch,
+            source,
+            out,
+            "medium",
+            "常量条件分支永不被选中，该语句不可达",
+        );
     }
 }
 
-fn push_stmt<'a>(node: Node<'a>, source: &[u8], out: &mut Vec<UnreachableStmt>, confidence: &'static str, reason: &'static str) {
+fn push_stmt<'a>(
+    node: Node<'a>,
+    source: &[u8],
+    out: &mut Vec<UnreachableStmt>,
+    confidence: &'static str,
+    reason: &'static str,
+) {
     out.push(UnreachableStmt {
         line_start: node.start_position().row + 1,
         line_end: node.end_position().row + 1,
@@ -587,7 +623,13 @@ pub fn detect_unreachable(lang: &str, rel_path: &str, content: &str) -> Vec<Unre
 }
 
 /// 递归扫描：每个语句块处理尾随不可达；每个 if / 三元处理常量条件死分支；每个循环处理死循环。
-fn scan<'a>(node: Node<'a>, d: Dialect, source: &[u8], consts: &ConstBindings, out: &mut Vec<UnreachableStmt>) {
+fn scan<'a>(
+    node: Node<'a>,
+    d: Dialect,
+    source: &[u8],
+    consts: &ConstBindings,
+    out: &mut Vec<UnreachableStmt>,
+) {
     // 1) if 常量条件死分支
     if is_if(d, node) {
         if let Some(cond) = if_condition(node) {
@@ -644,7 +686,13 @@ fn scan<'a>(node: Node<'a>, d: Dialect, source: &[u8], consts: &ConstBindings, o
             if terminated {
                 // 块级终结符之后的兄弟语句永远执行不到（注释除外，它不是可执行语句）
                 if !is_comment(kid.kind()) {
-                    push_stmt(kid, source, out, "high", "前面的 return/throw 已终结本块，此语句不可达");
+                    push_stmt(
+                        kid,
+                        source,
+                        out,
+                        "high",
+                        "前面的 return/throw 已终结本块，此语句不可达",
+                    );
                 }
             }
             if is_terminator_node(d, kid) {
@@ -681,8 +729,12 @@ function f(x) {
 "#;
         let r = run("typescript", src);
         // return 2 之后的 const y / console.log 不可达
-        assert!(r.iter().any(|u| u.snippet.contains("const y") && u.confidence == "high"));
-        assert!(r.iter().any(|u| u.snippet.contains("console.log") && u.confidence == "high"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("const y") && u.confidence == "high"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("console.log") && u.confidence == "high"));
     }
 
     #[test]
@@ -698,7 +750,10 @@ function f(x) {
 "#;
         let r = run("typescript", src);
         // 内层 return 只终结 if 块，外层 const y 仍可达 → 不应有 high 发现
-        assert!(!r.iter().any(|u| u.snippet.contains("const y")), "外层语句被误判不可达");
+        assert!(
+            !r.iter().any(|u| u.snippet.contains("const y")),
+            "外层语句被误判不可达"
+        );
     }
 
     #[test]
@@ -713,7 +768,9 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -729,7 +786,9 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -757,7 +816,9 @@ fn f() -> i32 {
 }
 "#;
         let r = run("rust", src);
-        assert!(r.iter().any(|u| u.snippet.contains("let z") && u.confidence == "high"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("let z") && u.confidence == "high"));
     }
 
     #[test]
@@ -768,7 +829,9 @@ def f():
     print("never")
 "#;
         let r = run("python", src);
-        assert!(r.iter().any(|u| u.snippet.contains("print") && u.confidence == "high"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("print") && u.confidence == "high"));
     }
 
     #[test]
@@ -781,7 +844,9 @@ func f() int {
 }
 "#;
         let r = run("go", src);
-        assert!(r.iter().any(|u| u.snippet.contains("return 2") && u.confidence == "high"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("return 2") && u.confidence == "high"));
     }
 
     #[test]
@@ -797,7 +862,9 @@ func f() {
 }
 "#;
         let r = run("go", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -812,11 +879,14 @@ class A {
 }
 "#;
         let r = run("java", src);
-        assert!(r.iter().any(|u| u.snippet.contains("return 2") && u.confidence == "high"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("return 2") && u.confidence == "high"));
     }
 
     #[test]
-    fn no_false_positive_on_break() {        // break 不算块级终结符：循环之后的语句仍可达
+    fn no_false_positive_on_break() {
+        // break 不算块级终结符：循环之后的语句仍可达
         let src = r#"
 function f() {
   for (let i = 0; i < 10; i++) {
@@ -845,7 +915,9 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -862,7 +934,9 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -879,7 +953,9 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -896,7 +972,9 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -911,7 +989,9 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
     }
 
     #[test]
@@ -923,7 +1003,9 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("deadValue") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("deadValue") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("liveValue")));
     }
 
@@ -940,7 +1022,9 @@ fn f() {
 }
 "#;
         let r = run("rust", src);
-        assert!(r.iter().any(|u| u.snippet.contains("do_dead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("do_dead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("do_live")));
     }
 
@@ -958,7 +1042,9 @@ func f() {
 }
 "#;
         let r = run("go", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -973,7 +1059,9 @@ func f() {
 }
 "#;
         let r = run("go", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
     }
 
     #[test]
@@ -991,7 +1079,9 @@ class A {
 }
 "#;
         let r = run("java", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
+        assert!(r
+            .iter()
+            .any(|u| u.snippet.contains("doDead") && u.confidence == "medium"));
         assert!(!r.iter().any(|u| u.snippet.contains("doLive")));
     }
 
@@ -1007,7 +1097,10 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().any(|u| u.snippet.contains("doDead")), "模块级常量应被传播");
+        assert!(
+            r.iter().any(|u| u.snippet.contains("doDead")),
+            "模块级常量应被传播"
+        );
     }
 
     #[test]
@@ -1041,7 +1134,10 @@ function f() {
 }
 "#;
         let r = run("typescript", src);
-        assert!(r.iter().all(|u| !u.snippet.trim_start().starts_with("//")), "死分支注释被误报");
+        assert!(
+            r.iter().all(|u| !u.snippet.trim_start().starts_with("//")),
+            "死分支注释被误报"
+        );
     }
 }
 
@@ -1055,7 +1151,9 @@ fn replay_unreachable_const_prop() {
     }
     use std::collections::HashMap;
     fn collect_files(dir: &str, exts: &[&str], out: &mut Vec<(String, String)>) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return; };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for e in entries.flatten() {
             let p = e.path();
             if p.is_dir() {

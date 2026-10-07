@@ -442,7 +442,11 @@ function f(a, b) {
 }
 "#;
         let r = run("typescript", src);
-        assert!(names(&r).is_empty(), "两个参数都被使用不应报错，实际: {:?}", names(&r));
+        assert!(
+            names(&r).is_empty(),
+            "两个参数都被使用不应报错，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -464,7 +468,11 @@ function f(a, b = 1) {
 }
 "#;
         let r = run("typescript", src);
-        assert!(names(&r).contains(&"b".to_string()), "带默认值的未用参数也应检出，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"b".to_string()),
+            "带默认值的未用参数也应检出，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -476,7 +484,11 @@ class A {
 }
 "#;
         let r = run("typescript", src);
-        assert!(!names(&r).contains(&"x".to_string()), "参数属性不应报未用，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"x".to_string()),
+            "参数属性不应报未用，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -487,7 +499,11 @@ fn f(a: i32, b: i32) -> i32 {
 }
 "#;
         let r = run("rust", src);
-        assert!(names(&r).contains(&"b".to_string()), "应检出未使用参数 b，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"b".to_string()),
+            "应检出未使用参数 b，实际: {:?}",
+            names(&r)
+        );
         assert!(!names(&r).contains(&"a".to_string()));
     }
 
@@ -522,7 +538,11 @@ def f(a, b):
     return a
 "#;
         let r = run("python", src);
-        assert!(names(&r).contains(&"b".to_string()), "应检出未使用参数 b，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"b".to_string()),
+            "应检出未使用参数 b，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -536,8 +556,16 @@ func (r *Repo) Get(a int, b int) int {
 }
 "#;
         let r = run("go", src);
-        assert!(!names(&r).contains(&"r".to_string()), "接收者 r 不应报未用，实际: {:?}", names(&r));
-        assert!(names(&r).contains(&"b".to_string()), "未用参数 b 应报，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"r".to_string()),
+            "接收者 r 不应报未用，实际: {:?}",
+            names(&r)
+        );
+        assert!(
+            names(&r).contains(&"b".to_string()),
+            "未用参数 b 应报，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -551,7 +579,11 @@ func f(a, b int) int {
 "#;
         let r = run("go", src);
         assert!(!names(&r).contains(&"a".to_string()));
-        assert!(names(&r).contains(&"b".to_string()), "a,b int 中 b 未用应报，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"b".to_string()),
+            "a,b int 中 b 未用应报，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -564,7 +596,11 @@ class A {
 }
 "#;
         let r = run("java", src);
-        assert!(names(&r).contains(&"b".to_string()), "应检出未使用参数 b，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"b".to_string()),
+            "应检出未使用参数 b，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -575,7 +611,11 @@ int f(int a, int b) {
 }
 "#;
         let r = run("c", src);
-        assert!(names(&r).contains(&"b".to_string()), "应检出未使用参数 b，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"b".to_string()),
+            "应检出未使用参数 b，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -588,7 +628,11 @@ class A {
 }
 "#;
         let r = run("csharp", src);
-        assert!(names(&r).contains(&"b".to_string()), "应检出未使用参数 b，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"b".to_string()),
+            "应检出未使用参数 b，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -601,7 +645,11 @@ function f(a, b) {
 }
 "#;
         let r = run("typescript", src);
-        assert!(!names(&r).contains(&"b".to_string()), "被嵌套函数使用的参数不应误报，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"b".to_string()),
+            "被嵌套函数使用的参数不应误报，实际: {:?}",
+            names(&r)
+        );
     }
 
     /// 真实目录回放探针（env-gated，与历轮 replay_* 同口径）：统计某目录下各语言未使用参数数量，
@@ -613,7 +661,8 @@ function f(a, b) {
             Err(_) => return, // 无 env 时不运行，避免污染普通 test
         };
         let mut total = 0usize;
-        let mut by_lang: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut by_lang: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut parsed_files = 0usize;
         let verbose = std::env::var("REPLAY_UNUSED_PARAM_VERBOSE").is_ok();
         let mut samples: Vec<String> = Vec::new();
@@ -657,13 +706,22 @@ function f(a, b) {
         };
         if p.is_dir() {
             if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-                if matches!(name, "node_modules" | "target" | ".git" | "dist" | "dist-i18n") {
+                if matches!(
+                    name,
+                    "node_modules" | "target" | ".git" | "dist" | "dist-i18n"
+                ) {
                     return;
                 }
             }
             if let Ok(entries) = std::fs::read_dir(p) {
                 for e in entries.flatten() {
-                    replay_dir(&e.path(), total, by_lang, parsed_files, samples.as_deref_mut());
+                    replay_dir(
+                        &e.path(),
+                        total,
+                        by_lang,
+                        parsed_files,
+                        samples.as_deref_mut(),
+                    );
                 }
             }
         } else if p.is_file() {
@@ -678,7 +736,10 @@ function f(a, b) {
                         *total += found.len();
                         if let Some(s) = samples {
                             for f in &found {
-                                s.push(format!("{}:{}  {}  ({})", rel, f.line_start, f.name, f.snippet));
+                                s.push(format!(
+                                    "{}:{}  {}  ({})",
+                                    rel, f.line_start, f.name, f.snippet
+                                ));
                             }
                         }
                     }
@@ -687,4 +748,3 @@ function f(a, b) {
         }
     }
 }
-

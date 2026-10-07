@@ -22,7 +22,9 @@ pub struct SqliteProjectCallEdgeRepository {
 
 impl Clone for SqliteProjectCallEdgeRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -73,7 +75,11 @@ const CALL_COLS: &str = "id, analysis_id, caller_symbol_id, caller_name, caller_
 
 impl ProjectCallEdgeRepository for SqliteProjectCallEdgeRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<CallEdge>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_call_edges WHERE analysis_id = ?1
              ORDER BY caller_file_path ASC, line_no ASC",
@@ -86,10 +92,14 @@ impl ProjectCallEdgeRepository for SqliteProjectCallEdgeRepository {
     }
 
     fn save_batch(&self, items: &[CallEdge]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
-            let mut stmt =             tx.prepare(
+            let mut stmt = tx.prepare(
                 "INSERT OR REPLACE INTO project_call_edges
                  (id, analysis_id, caller_symbol_id, caller_name, caller_file_id,
                   caller_file_path, callee_symbol_id, callee_name, callee_file_id,
@@ -121,7 +131,11 @@ impl ProjectCallEdgeRepository for SqliteProjectCallEdgeRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "DELETE FROM project_call_edges WHERE analysis_id = ?1",
             [analysis_id],
@@ -137,7 +151,11 @@ impl ProjectCallEdgeRepository for SqliteProjectCallEdgeRepository {
         if rel_paths.is_empty() {
             return Ok(());
         }
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let placeholders: Vec<&str> = (0..rel_paths.len()).map(|_| "?").collect();
         let sql = format!(
             "DELETE FROM project_call_edges WHERE analysis_id = ?1 AND caller_file_path IN ({})",
@@ -210,11 +228,18 @@ mod tests {
         let repo = make_repo();
         repo.save_batch(&[edge()]).unwrap();
         let got = repo.list_by_analysis("a1").unwrap();
-        assert_eq!(got.len(), 1, "应读回一条边（错位时会直接报 Invalid column type）");
+        assert_eq!(
+            got.len(),
+            1,
+            "应读回一条边（错位时会直接报 Invalid column type）"
+        );
         let e = &got[0];
         assert_eq!(e.callee_receiver, "obj", "接收者不得读到 receiver_target");
         assert_eq!(e.receiver_target, "ClassA", "接收者类型不得读到 created_at");
-        assert_eq!(e.created_at, 1700000000, "created_at 不得读到 callee_receiver");
+        assert_eq!(
+            e.created_at, 1700000000,
+            "created_at 不得读到 callee_receiver"
+        );
         assert_eq!(e.line_no, 42);
         assert_eq!(e.kind, "cross-file");
     }

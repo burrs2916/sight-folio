@@ -1775,7 +1775,10 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute("ALTER TABLE writing_chapters ADD COLUMN parent_id TEXT", [])?;
     }
     if !ch_cols.is_empty() && !ch_cols.contains(&"kind".to_string()) {
-        conn.execute("ALTER TABLE writing_chapters ADD COLUMN kind TEXT NOT NULL DEFAULT ''", [])?;
+        conn.execute(
+            "ALTER TABLE writing_chapters ADD COLUMN kind TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
     }
     // 回填：parent_id 仍为 NULL 且带了旧 volume 的章，按 volume 归并成 卷 父节点后 reparent。
     // 幂等：只动 parent_id IS NULL 的行；首跑后这些章已挂到 卷 下，后续启动不再触发。
@@ -1823,7 +1826,10 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
     // ─── 旧字段迁移：从 connection → config，bound_components → linked_entities ───
     if ds_columns.is_empty() || !ds_columns.contains(&"config".to_string()) {
         if !ds_columns.is_empty() && ds_columns.contains(&"connection".to_string()) {
-            conn.execute("ALTER TABLE data_sources RENAME COLUMN connection TO config", [])?;
+            conn.execute(
+                "ALTER TABLE data_sources RENAME COLUMN connection TO config",
+                [],
+            )?;
         } else {
             conn.execute(
                 "ALTER TABLE data_sources ADD COLUMN config TEXT NOT NULL DEFAULT '{}'",
@@ -1834,7 +1840,10 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     if ds_columns.is_empty() || !ds_columns.contains(&"linked_entities".to_string()) {
         if !ds_columns.is_empty() && ds_columns.contains(&"bound_components".to_string()) {
-            conn.execute("ALTER TABLE data_sources RENAME COLUMN bound_components TO linked_entities", [])?;
+            conn.execute(
+                "ALTER TABLE data_sources RENAME COLUMN bound_components TO linked_entities",
+                [],
+            )?;
         } else {
             conn.execute(
                 "ALTER TABLE data_sources ADD COLUMN linked_entities TEXT NOT NULL DEFAULT '[]'",
@@ -1851,7 +1860,10 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
     }
 
     if ds_columns.is_empty() || !ds_columns.contains(&"last_sync_at".to_string()) {
-        conn.execute("ALTER TABLE data_sources ADD COLUMN last_sync_at INTEGER", [])?;
+        conn.execute(
+            "ALTER TABLE data_sources ADD COLUMN last_sync_at INTEGER",
+            [],
+        )?;
     }
 
     // fork 遗留失配修复：datasource repository 的 SELECT/INSERT 引用 response_mapping / test_apis
@@ -1935,10 +1947,7 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
     }
 
     if analysis_columns.is_empty() || !analysis_columns.contains(&"primary_language".to_string()) {
-        conn.execute(
-            "ALTER TABLE analyses ADD COLUMN primary_language TEXT",
-            [],
-        )?;
+        conn.execute("ALTER TABLE analyses ADD COLUMN primary_language TEXT", [])?;
     }
 
     if analysis_columns.is_empty() || !analysis_columns.contains(&"editor_components".to_string()) {
@@ -1972,8 +1981,12 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn.execute("ALTER TABLE analyses ADD COLUMN active_view_id TEXT", [])?;
     }
 
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"viewport_sync_rules".to_string()) {
-        conn.execute("ALTER TABLE analyses ADD COLUMN viewport_sync_rules TEXT", [])?;
+    if analysis_columns.is_empty() || !analysis_columns.contains(&"viewport_sync_rules".to_string())
+    {
+        conn.execute(
+            "ALTER TABLE analyses ADD COLUMN viewport_sync_rules TEXT",
+            [],
+        )?;
     }
 
     {
@@ -2490,7 +2503,11 @@ fn seed_project_plugins(conn: &Connection) -> Result<(), rusqlite::Error> {
 /// - layer_violation: 检查模块是否归类到架构分层
 /// - dead_code_detect: 标记未被引用的模块（warning）
 fn seed_default_review_rules(conn: &Connection) -> Result<(), rusqlite::Error> {
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM review_rules WHERE builtin = 1", [], |row| row.get(0))?;
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM review_rules WHERE builtin = 1",
+        [],
+        |row| row.get(0),
+    )?;
     if count > 0 {
         return Ok(());
     }
@@ -2778,4 +2795,3 @@ fn seed_analysis_categories(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     Ok(())
 }
-

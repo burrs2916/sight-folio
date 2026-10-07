@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{Emitter, State};
 
-use crate::infrastructure::Database;
 use crate::infrastructure::database::ai_repository::*;
+use crate::infrastructure::Database;
 
 // ─── DTO（前后端传输对象）───
 
@@ -93,51 +93,80 @@ pub struct MessageDto {
 
 fn to_provider_dto(p: &AiProviderRow) -> ProviderDto {
     ProviderDto {
-        id: p.id.clone(), name: p.name.clone(), api_key: p.api_key.clone(),
-        color: p.color.clone(), enabled: p.enabled, created_at: p.created_at, updated_at: p.updated_at,
+        id: p.id.clone(),
+        name: p.name.clone(),
+        api_key: p.api_key.clone(),
+        color: p.color.clone(),
+        enabled: p.enabled,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
     }
 }
 
 fn to_endpoint_dto(e: &AiEndpointRow) -> EndpointDto {
     EndpointDto {
-        id: e.id.clone(), provider_id: e.provider_id.clone(), name: e.name.clone(),
-        api_type: e.api_type.clone(), base_url: e.base_url.clone(), auth_type: e.auth_type.clone(),
-        custom_auth_header: e.custom_auth_header.clone(), enabled: e.enabled,
-        created_at: e.created_at, updated_at: e.updated_at,
+        id: e.id.clone(),
+        provider_id: e.provider_id.clone(),
+        name: e.name.clone(),
+        api_type: e.api_type.clone(),
+        base_url: e.base_url.clone(),
+        auth_type: e.auth_type.clone(),
+        custom_auth_header: e.custom_auth_header.clone(),
+        enabled: e.enabled,
+        created_at: e.created_at,
+        updated_at: e.updated_at,
     }
 }
 
 fn to_model_dto(m: &AiModelRow) -> ModelDto {
     ModelDto {
-        id: m.id.clone(), name: m.name.clone(), ref_key: m.ref_key.clone(),
-        endpoint_id: m.endpoint_id.clone(), reasoning: m.reasoning,
-        input_types: m.input_types.clone(), context_window: m.context_window,
-        max_tokens: m.max_tokens, enabled: m.enabled,
-        created_at: m.created_at, updated_at: m.updated_at,
+        id: m.id.clone(),
+        name: m.name.clone(),
+        ref_key: m.ref_key.clone(),
+        endpoint_id: m.endpoint_id.clone(),
+        reasoning: m.reasoning,
+        input_types: m.input_types.clone(),
+        context_window: m.context_window,
+        max_tokens: m.max_tokens,
+        enabled: m.enabled,
+        created_at: m.created_at,
+        updated_at: m.updated_at,
     }
 }
 
 fn to_agent_dto(a: &AiAgentRow) -> AgentDto {
     AgentDto {
-        id: a.id.clone(), name: a.name.clone(), description: a.description.clone(),
-        model_id: a.model_id.clone(), system_prompt: a.system_prompt.clone(),
-        temperature: a.temperature, max_iterations: a.max_iterations,
-        tool_ids: a.tool_ids.clone(), created_at: a.created_at, updated_at: a.updated_at,
+        id: a.id.clone(),
+        name: a.name.clone(),
+        description: a.description.clone(),
+        model_id: a.model_id.clone(),
+        system_prompt: a.system_prompt.clone(),
+        temperature: a.temperature,
+        max_iterations: a.max_iterations,
+        tool_ids: a.tool_ids.clone(),
+        created_at: a.created_at,
+        updated_at: a.updated_at,
     }
 }
 
 fn to_conversation_dto(c: &AiConversationRow) -> ConversationDto {
     ConversationDto {
-        id: c.id.clone(), agent_id: c.agent_id.clone(), title: c.title.clone(),
-        created_at: c.created_at, updated_at: c.updated_at,
+        id: c.id.clone(),
+        agent_id: c.agent_id.clone(),
+        title: c.title.clone(),
+        created_at: c.created_at,
+        updated_at: c.updated_at,
     }
 }
 
 fn to_message_dto(m: &AiMessageRow) -> MessageDto {
     MessageDto {
-        id: m.id.clone(), conversation_id: m.conversation_id.clone(),
-        role: m.role.clone(), content: m.content.clone(),
-        tool_calls: m.tool_calls.clone(), created_at: m.created_at,
+        id: m.id.clone(),
+        conversation_id: m.conversation_id.clone(),
+        role: m.role.clone(),
+        content: m.content.clone(),
+        tool_calls: m.tool_calls.clone(),
+        created_at: m.created_at,
     }
 }
 
@@ -158,11 +187,18 @@ pub fn list_providers(db: State<'_, Arc<Database>>) -> Result<Vec<ProviderDto>, 
 
 #[tauri::command]
 pub fn save_provider(db: State<'_, Arc<Database>>, provider: ProviderDto) -> Result<(), String> {
-    AiProviderRepo::save(&db, &AiProviderRow {
-        id: provider.id, name: provider.name, api_key: provider.api_key,
-        color: provider.color, enabled: provider.enabled,
-        created_at: provider.created_at, updated_at: provider.updated_at,
-    })
+    AiProviderRepo::save(
+        &db,
+        &AiProviderRow {
+            id: provider.id,
+            name: provider.name,
+            api_key: provider.api_key,
+            color: provider.color,
+            enabled: provider.enabled,
+            created_at: provider.created_at,
+            updated_at: provider.updated_at,
+        },
+    )
 }
 
 #[tauri::command]
@@ -179,19 +215,31 @@ pub fn list_endpoints(db: State<'_, Arc<Database>>) -> Result<Vec<EndpointDto>, 
 }
 
 #[tauri::command]
-pub fn list_endpoints_by_provider(db: State<'_, Arc<Database>>, provider_id: String) -> Result<Vec<EndpointDto>, String> {
+pub fn list_endpoints_by_provider(
+    db: State<'_, Arc<Database>>,
+    provider_id: String,
+) -> Result<Vec<EndpointDto>, String> {
     let rows = AiEndpointRepo::list_by_provider(&db, &provider_id)?;
     Ok(rows.iter().map(to_endpoint_dto).collect())
 }
 
 #[tauri::command]
 pub fn save_endpoint(db: State<'_, Arc<Database>>, endpoint: EndpointDto) -> Result<(), String> {
-    AiEndpointRepo::save(&db, &AiEndpointRow {
-        id: endpoint.id, provider_id: endpoint.provider_id, name: endpoint.name,
-        api_type: endpoint.api_type, base_url: endpoint.base_url, auth_type: endpoint.auth_type,
-        custom_auth_header: endpoint.custom_auth_header, enabled: endpoint.enabled,
-        created_at: endpoint.created_at, updated_at: endpoint.updated_at,
-    })
+    AiEndpointRepo::save(
+        &db,
+        &AiEndpointRow {
+            id: endpoint.id,
+            provider_id: endpoint.provider_id,
+            name: endpoint.name,
+            api_type: endpoint.api_type,
+            base_url: endpoint.base_url,
+            auth_type: endpoint.auth_type,
+            custom_auth_header: endpoint.custom_auth_header,
+            enabled: endpoint.enabled,
+            created_at: endpoint.created_at,
+            updated_at: endpoint.updated_at,
+        },
+    )
 }
 
 #[tauri::command]
@@ -208,20 +256,32 @@ pub fn list_models(db: State<'_, Arc<Database>>) -> Result<Vec<ModelDto>, String
 }
 
 #[tauri::command]
-pub fn list_models_by_endpoint(db: State<'_, Arc<Database>>, endpoint_id: String) -> Result<Vec<ModelDto>, String> {
+pub fn list_models_by_endpoint(
+    db: State<'_, Arc<Database>>,
+    endpoint_id: String,
+) -> Result<Vec<ModelDto>, String> {
     let rows = AiModelRepo::list_by_endpoint(&db, &endpoint_id)?;
     Ok(rows.iter().map(to_model_dto).collect())
 }
 
 #[tauri::command]
 pub fn save_model(db: State<'_, Arc<Database>>, model: ModelDto) -> Result<(), String> {
-    AiModelRepo::save(&db, &AiModelRow {
-        id: model.id, name: model.name, ref_key: model.ref_key,
-        endpoint_id: model.endpoint_id, reasoning: model.reasoning,
-        input_types: model.input_types, context_window: model.context_window,
-        max_tokens: model.max_tokens, enabled: model.enabled,
-        created_at: model.created_at, updated_at: model.updated_at,
-    })
+    AiModelRepo::save(
+        &db,
+        &AiModelRow {
+            id: model.id,
+            name: model.name,
+            ref_key: model.ref_key,
+            endpoint_id: model.endpoint_id,
+            reasoning: model.reasoning,
+            input_types: model.input_types,
+            context_window: model.context_window,
+            max_tokens: model.max_tokens,
+            enabled: model.enabled,
+            created_at: model.created_at,
+            updated_at: model.updated_at,
+        },
+    )
 }
 
 #[tauri::command]
@@ -232,12 +292,19 @@ pub fn delete_model(db: State<'_, Arc<Database>>, id: String) -> Result<(), Stri
 // ─── 连接测试 ───
 
 #[tauri::command]
-pub async fn test_endpoint_connection(db: State<'_, Arc<Database>>, endpoint_id: String) -> Result<String, String> {
+pub async fn test_endpoint_connection(
+    db: State<'_, Arc<Database>>,
+    endpoint_id: String,
+) -> Result<String, String> {
     let endpoints = AiEndpointRepo::list(&db)?;
-    let endpoint = endpoints.iter().find(|e| e.id == endpoint_id)
+    let endpoint = endpoints
+        .iter()
+        .find(|e| e.id == endpoint_id)
         .ok_or_else(|| "Endpoint not found".to_string())?;
     let providers = AiProviderRepo::list(&db)?;
-    let provider = providers.iter().find(|p| p.id == endpoint.provider_id)
+    let provider = providers
+        .iter()
+        .find(|p| p.id == endpoint.provider_id)
         .ok_or_else(|| "Provider not found".to_string())?;
 
     let url = format!("{}/models", endpoint.base_url.trim_end_matches('/'));
@@ -245,37 +312,53 @@ pub async fn test_endpoint_connection(db: State<'_, Arc<Database>>, endpoint_id:
     let mut req = client.get(&url);
 
     // 与真实调用共用同一套 auth 解析，杜绝「测试通过但真实调用失败」的漂移
-    let (auth_header_name, auth_header_value) =
-        crate::plugins::ai_agent::provider::auth_header_for(
-            &endpoint.auth_type,
-            &endpoint.custom_auth_header,
-            &provider.api_key,
-        );
+    let (auth_header_name, auth_header_value) = crate::plugins::ai_agent::provider::auth_header_for(
+        &endpoint.auth_type,
+        &endpoint.custom_auth_header,
+        &provider.api_key,
+    );
     req = req.header(&auth_header_name, &auth_header_value);
 
-    let resp = req.send().await.map_err(|e| format!("Connection failed: {}", e))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("Connection failed: {}", e))?;
     let status = resp.status();
     if status.is_success() {
         Ok(format!("Connection successful (HTTP {})", status))
     } else {
         let body = resp.text().await.unwrap_or_default();
-        Err(format!("Connection failed (HTTP {}): {}", status, body.chars().take(200).collect::<String>()))
+        Err(format!(
+            "Connection failed (HTTP {}): {}",
+            status,
+            body.chars().take(200).collect::<String>()
+        ))
     }
 }
 
 #[tauri::command]
-pub async fn test_model_chat(db: State<'_, Arc<Database>>, model_id: String) -> Result<String, String> {
+pub async fn test_model_chat(
+    db: State<'_, Arc<Database>>,
+    model_id: String,
+) -> Result<String, String> {
     let models = AiModelRepo::list(&db)?;
-    let model = models.iter().find(|m| m.id == model_id)
+    let model = models
+        .iter()
+        .find(|m| m.id == model_id)
         .ok_or_else(|| "Model not found".to_string())?;
     let endpoints = AiEndpointRepo::list(&db)?;
-    let endpoint = endpoints.iter().find(|e| e.id == model.endpoint_id)
+    let endpoint = endpoints
+        .iter()
+        .find(|e| e.id == model.endpoint_id)
         .ok_or_else(|| "Endpoint not found".to_string())?;
     let providers = AiProviderRepo::list(&db)?;
-    let provider = providers.iter().find(|p| p.id == endpoint.provider_id)
+    let provider = providers
+        .iter()
+        .find(|p| p.id == endpoint.provider_id)
         .ok_or_else(|| "Provider not found".to_string())?;
 
-    let url = crate::plugins::ai_agent::provider::chat_url_for(&endpoint.base_url, &endpoint.api_type);
+    let url =
+        crate::plugins::ai_agent::provider::chat_url_for(&endpoint.base_url, &endpoint.api_type);
     let client = reqwest::Client::new();
 
     let body = serde_json::json!({
@@ -285,12 +368,11 @@ pub async fn test_model_chat(db: State<'_, Arc<Database>>, model_id: String) -> 
     });
 
     // 与真实调用共用同一套 auth 解析，杜绝「测试通过但真实调用失败」的漂移
-    let (auth_header_name, auth_header_value) =
-        crate::plugins::ai_agent::provider::auth_header_for(
-            &endpoint.auth_type,
-            &endpoint.custom_auth_header,
-            &provider.api_key,
-        );
+    let (auth_header_name, auth_header_value) = crate::plugins::ai_agent::provider::auth_header_for(
+        &endpoint.auth_type,
+        &endpoint.custom_auth_header,
+        &provider.api_key,
+    );
     let mut req = client
         .post(&url)
         .header("Content-Type", "application/json")
@@ -301,13 +383,20 @@ pub async fn test_model_chat(db: State<'_, Arc<Database>>, model_id: String) -> 
         req = req.header("anthropic-version", "2023-06-01");
     }
 
-    let resp = req.send().await.map_err(|e| format!("Request failed: {}", e))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
     let status = resp.status();
     if status.is_success() {
         Ok(format!("Model test successful (HTTP {})", status))
     } else {
         let body = resp.text().await.unwrap_or_default();
-        Err(format!("Model test failed (HTTP {}): {}", status, body.chars().take(200).collect::<String>()))
+        Err(format!(
+            "Model test failed (HTTP {}): {}",
+            status,
+            body.chars().take(200).collect::<String>()
+        ))
     }
 }
 
@@ -321,12 +410,21 @@ pub fn list_agents(db: State<'_, Arc<Database>>) -> Result<Vec<AgentDto>, String
 
 #[tauri::command]
 pub fn save_agent(db: State<'_, Arc<Database>>, agent: AgentDto) -> Result<(), String> {
-    AiAgentRepo::save(&db, &AiAgentRow {
-        id: agent.id, name: agent.name, description: agent.description,
-        model_id: agent.model_id, system_prompt: agent.system_prompt,
-        temperature: agent.temperature, max_iterations: agent.max_iterations,
-        tool_ids: agent.tool_ids, created_at: agent.created_at, updated_at: agent.updated_at,
-    })
+    AiAgentRepo::save(
+        &db,
+        &AiAgentRow {
+            id: agent.id,
+            name: agent.name,
+            description: agent.description,
+            model_id: agent.model_id,
+            system_prompt: agent.system_prompt,
+            temperature: agent.temperature,
+            max_iterations: agent.max_iterations,
+            tool_ids: agent.tool_ids,
+            created_at: agent.created_at,
+            updated_at: agent.updated_at,
+        },
+    )
 }
 
 #[tauri::command]
@@ -337,13 +435,20 @@ pub fn delete_agent(db: State<'_, Arc<Database>>, id: String) -> Result<(), Stri
 // ─── Conversation 命令 ───
 
 #[tauri::command]
-pub fn list_conversations(db: State<'_, Arc<Database>>, agent_id: String) -> Result<Vec<ConversationDto>, String> {
+pub fn list_conversations(
+    db: State<'_, Arc<Database>>,
+    agent_id: String,
+) -> Result<Vec<ConversationDto>, String> {
     let rows = AiConversationRepo::list_by_agent(&db, &agent_id)?;
     Ok(rows.iter().map(to_conversation_dto).collect())
 }
 
 #[tauri::command]
-pub fn create_conversation(db: State<'_, Arc<Database>>, agent_id: String, title: String) -> Result<ConversationDto, String> {
+pub fn create_conversation(
+    db: State<'_, Arc<Database>>,
+    agent_id: String,
+    title: String,
+) -> Result<ConversationDto, String> {
     let now = now_ms();
     let conv = AiConversationRow {
         id: uuid::Uuid::new_v4().to_string(),
@@ -364,7 +469,10 @@ pub fn delete_conversation(db: State<'_, Arc<Database>>, id: String) -> Result<(
 // ─── Message 命令 ───
 
 #[tauri::command]
-pub fn list_messages(db: State<'_, Arc<Database>>, conversation_id: String) -> Result<Vec<MessageDto>, String> {
+pub fn list_messages(
+    db: State<'_, Arc<Database>>,
+    conversation_id: String,
+) -> Result<Vec<MessageDto>, String> {
     let rows = AiMessageRepo::list_by_conversation(&db, &conversation_id)?;
     Ok(rows.iter().map(to_message_dto).collect())
 }
@@ -382,11 +490,17 @@ pub fn delete_messages(db: State<'_, Arc<Database>>, ids: Vec<String>) -> Result
 
 #[tauri::command]
 pub fn save_message(db: State<'_, Arc<Database>>, msg: MessageDto) -> Result<(), String> {
-    AiMessageRepo::save(&db, &AiMessageRow {
-        id: msg.id, conversation_id: msg.conversation_id,
-        role: msg.role, content: msg.content,
-        tool_calls: msg.tool_calls, created_at: msg.created_at,
-    })
+    AiMessageRepo::save(
+        &db,
+        &AiMessageRow {
+            id: msg.id,
+            conversation_id: msg.conversation_id,
+            role: msg.role,
+            content: msg.content,
+            tool_calls: msg.tool_calls,
+            created_at: msg.created_at,
+        },
+    )
 }
 
 // ─── run_agent: 核心 AI 对话命令（流式 + 工具调用）───
@@ -404,7 +518,9 @@ pub async fn run_agent(
 ) -> Result<String, String> {
     // 1. 加载 Agent 配置
     let agents = AiAgentRepo::list(&db)?;
-    let agent = agents.iter().find(|a| a.id == agent_id)
+    let agent = agents
+        .iter()
+        .find(|a| a.id == agent_id)
         .ok_or_else(|| "Agent not found".to_string())?;
 
     // 2. 加载关联的 Model → Endpoint → Provider
@@ -416,13 +532,19 @@ pub async fn run_agent(
         .clone()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| agent.model_id.clone());
-    let model = models.iter().find(|m| m.id == effective_model_id)
+    let model = models
+        .iter()
+        .find(|m| m.id == effective_model_id)
         .ok_or_else(|| "Model not found".to_string())?;
     let endpoints = AiEndpointRepo::list(&db)?;
-    let endpoint = endpoints.iter().find(|e| e.id == model.endpoint_id)
+    let endpoint = endpoints
+        .iter()
+        .find(|e| e.id == model.endpoint_id)
         .ok_or_else(|| "Endpoint not found".to_string())?;
     let providers = AiProviderRepo::list(&db)?;
-    let provider = providers.iter().find(|p| p.id == endpoint.provider_id)
+    let provider = providers
+        .iter()
+        .find(|p| p.id == endpoint.provider_id)
         .ok_or_else(|| "Provider not found".to_string())?;
 
     // 3. 构建 LLM Provider
@@ -434,7 +556,8 @@ pub async fn run_agent(
         custom_auth_header: endpoint.custom_auth_header.clone(),
     };
     let llm_provider = crate::plugins::ai_agent::openai_provider::OpenAiCompatProvider::new(config);
-    let llm_provider_arc: Arc<dyn crate::plugins::ai_agent::provider::LlmProvider> = Arc::new(llm_provider);
+    let llm_provider_arc: Arc<dyn crate::plugins::ai_agent::provider::LlmProvider> =
+        Arc::new(llm_provider);
 
     // 4. 注册工具
     // `allowed_tools` 是「单次调用的工具白名单覆盖」：传入时本次调用在 Agent 既有工具基础上
@@ -486,25 +609,35 @@ pub async fn run_agent(
     if !convs.iter().any(|c| c.id == conv_id) {
         let now = now_ms();
         let title: String = message.chars().take(30).collect();
-        let _ = AiConversationRepo::save(&db, &AiConversationRow {
-            id: conv_id.clone(),
-            agent_id: agent_id.clone(),
-            title: if title.is_empty() { "新对话".to_string() } else { title },
-            created_at: now,
-            updated_at: now,
-        });
+        let _ = AiConversationRepo::save(
+            &db,
+            &AiConversationRow {
+                id: conv_id.clone(),
+                agent_id: agent_id.clone(),
+                title: if title.is_empty() {
+                    "新对话".to_string()
+                } else {
+                    title
+                },
+                created_at: now,
+                updated_at: now,
+            },
+        );
     }
 
     // 历史 = 本轮之前已落库的消息。防御性剔除尾部与本轮完全相同的 user 消息，
     // 兼容「调用方已经预存过一次」的旧行为，避免同一句话进两遍上下文白烧 token。
     let mut history: Vec<crate::plugins::ai_agent::provider::ChatMessage> =
         if let Ok(db_msgs) = AiMessageRepo::list_by_conversation(&db, &conv_id) {
-            db_msgs.iter().map(|m| crate::plugins::ai_agent::provider::ChatMessage {
-                role: m.role.clone(),
-                content: m.content.clone(),
-                tool_calls: None,
-                tool_call_id: None,
-            }).collect()
+            db_msgs
+                .iter()
+                .map(|m| crate::plugins::ai_agent::provider::ChatMessage {
+                    role: m.role.clone(),
+                    content: m.content.clone(),
+                    tool_calls: None,
+                    tool_call_id: None,
+                })
+                .collect()
         } else {
             Vec::new()
         };
@@ -517,14 +650,17 @@ pub async fn run_agent(
     } else {
         // 未预存 → 由后端落库用户消息
         let now = now_ms();
-        let _ = AiMessageRepo::save(&db, &AiMessageRow {
-            id: uuid::Uuid::new_v4().to_string(),
-            conversation_id: conv_id.clone(),
-            role: "user".to_string(),
-            content: message.clone(),
-            tool_calls: String::new(),
-            created_at: now,
-        });
+        let _ = AiMessageRepo::save(
+            &db,
+            &AiMessageRow {
+                id: uuid::Uuid::new_v4().to_string(),
+                conversation_id: conv_id.clone(),
+                role: "user".to_string(),
+                content: message.clone(),
+                tool_calls: String::new(),
+                created_at: now,
+            },
+        );
     }
 
     // 7. 运行 Agent（流式 + 工具调用）
@@ -543,39 +679,53 @@ pub async fn run_agent(
         Arc::new(std::sync::Mutex::new(Vec::new()));
     let trace_sink = tool_trace.clone();
 
-    let result = engine.run(
-        &message,
-        history,
-        &run_id,
-        Some(cancel_token.clone()),
-        move |chunk| {
-            let _ = emit_handle.emit("agent-chunk", serde_json::json!({
-                "conversationId": conv_id_clone,
-                "chunk": chunk,
-            }));
-        },
-        move |tool_event| {
-            // 先记账再推事件：即使前端窗口错过事件（切窗口/新开面板），落库轨迹也不会缺步骤
-            if let Ok(mut trace) = trace_sink.lock() {
-                crate::plugins::ai_agent::engine::merge_tool_call_event(&mut trace, &tool_event);
-            }
-            let _ = emit_tool.emit("agent-tool-call", serde_json::json!({
-                "conversationId": conv_id_tool,
-                "toolCall": tool_event,
-            }));
-        },
-        move |approval: crate::plugins::ai_agent::engine::ToolApprovalRequest| {
-            // 高危工具（run_command）执行前推审批请求，前端弹确认框，用户落定后引擎继续。
-            let _ = emit_approval.emit("agent-tool-approval", serde_json::json!({
-                "conversationId": conv_id_approval,
-                "runId": run_id_approval,
-                "toolCallId": approval.tool_call_id,
-                "tool": approval.tool,
-                "command": approval.command,
-                "cwd": approval.cwd,
-            }));
-        },
-    ).await;
+    let result = engine
+        .run(
+            &message,
+            history,
+            &run_id,
+            Some(cancel_token.clone()),
+            move |chunk| {
+                let _ = emit_handle.emit(
+                    "agent-chunk",
+                    serde_json::json!({
+                        "conversationId": conv_id_clone,
+                        "chunk": chunk,
+                    }),
+                );
+            },
+            move |tool_event| {
+                // 先记账再推事件：即使前端窗口错过事件（切窗口/新开面板），落库轨迹也不会缺步骤
+                if let Ok(mut trace) = trace_sink.lock() {
+                    crate::plugins::ai_agent::engine::merge_tool_call_event(
+                        &mut trace,
+                        &tool_event,
+                    );
+                }
+                let _ = emit_tool.emit(
+                    "agent-tool-call",
+                    serde_json::json!({
+                        "conversationId": conv_id_tool,
+                        "toolCall": tool_event,
+                    }),
+                );
+            },
+            move |approval: crate::plugins::ai_agent::engine::ToolApprovalRequest| {
+                // 高危工具（run_command）执行前推审批请求，前端弹确认框，用户落定后引擎继续。
+                let _ = emit_approval.emit(
+                    "agent-tool-approval",
+                    serde_json::json!({
+                        "conversationId": conv_id_approval,
+                        "runId": run_id_approval,
+                        "toolCallId": approval.tool_call_id,
+                        "tool": approval.tool,
+                        "command": approval.command,
+                        "cwd": approval.cwd,
+                    }),
+                );
+            },
+        )
+        .await;
 
     // 运行结束，移除取消令牌（避免表无限增长）
     crate::plugins::ai_agent::deregister_run_token(&run_id);
@@ -592,32 +742,44 @@ pub async fn run_agent(
                 .unwrap_or_default();
 
             // 助手回复落库（与用户消息同一权威路径），任何调用方都能直接从 DB 回看
-            let _ = AiMessageRepo::save(&db, &AiMessageRow {
-                id: uuid::Uuid::new_v4().to_string(),
-                conversation_id: conv_id.clone(),
-                role: "assistant".to_string(),
-                content: response.clone(),
-                tool_calls: tool_trace_json,
-                created_at: now_ms(),
-            });
+            let _ = AiMessageRepo::save(
+                &db,
+                &AiMessageRow {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    conversation_id: conv_id.clone(),
+                    role: "assistant".to_string(),
+                    content: response.clone(),
+                    tool_calls: tool_trace_json,
+                    created_at: now_ms(),
+                },
+            );
             if was_cancelled {
                 // 真取消：通知前端本轮是被用户中止的（前端据此保留「已停止」状态）
-                let _ = app_handle.emit("agent-cancelled", serde_json::json!({
-                    "conversationId": conv_id,
-                    "runId": run_id,
-                }));
+                let _ = app_handle.emit(
+                    "agent-cancelled",
+                    serde_json::json!({
+                        "conversationId": conv_id,
+                        "runId": run_id,
+                    }),
+                );
             }
-            let _ = app_handle.emit("agent-done", serde_json::json!({
-                "conversationId": conv_id,
-                "response": response,
-            }));
+            let _ = app_handle.emit(
+                "agent-done",
+                serde_json::json!({
+                    "conversationId": conv_id,
+                    "response": response,
+                }),
+            );
             Ok(response)
         }
         Err(e) => {
-            let _ = app_handle.emit("agent-error", serde_json::json!({
-                "conversationId": conv_id,
-                "error": e,
-            }));
+            let _ = app_handle.emit(
+                "agent-error",
+                serde_json::json!({
+                    "conversationId": conv_id,
+                    "error": e,
+                }),
+            );
             Err(e)
         }
     }

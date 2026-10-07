@@ -37,10 +37,7 @@ pub struct SymbolRef {
 impl Default for SymbolRef {
     fn default() -> Self {
         Self {
-            id: format!(
-                "ref_{}",
-                uuid::Uuid::new_v4().to_string().replace("-", "")
-            ),
+            id: format!("ref_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
             analysis_id: String::new(),
             from_file_id: String::new(),
             from_file_path: String::new(),

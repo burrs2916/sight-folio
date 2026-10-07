@@ -15,7 +15,9 @@ pub struct SqliteProjectTechDebtRepository {
 
 impl Clone for SqliteProjectTechDebtRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -44,7 +46,11 @@ const DEBT_COLS: &str = "id, analysis_id, file_id, file_path, line_no, marker,
 
 impl ProjectTechDebtRepository for SqliteProjectTechDebtRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<TechDebtItem>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_tech_debt WHERE analysis_id = ?1
              ORDER BY
@@ -59,7 +65,11 @@ impl ProjectTechDebtRepository for SqliteProjectTechDebtRepository {
     }
 
     fn save_batch(&self, items: &[TechDebtItem]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -70,8 +80,15 @@ impl ProjectTechDebtRepository for SqliteProjectTechDebtRepository {
             )?;
             for it in items {
                 stmt.execute(rusqlite::params![
-                    it.id, it.analysis_id, it.file_id, it.file_path, it.line_no,
-                    it.marker, it.severity, it.snippet, it.created_at,
+                    it.id,
+                    it.analysis_id,
+                    it.file_id,
+                    it.file_path,
+                    it.line_no,
+                    it.marker,
+                    it.severity,
+                    it.snippet,
+                    it.created_at,
                 ])?;
             }
         }
@@ -80,8 +97,15 @@ impl ProjectTechDebtRepository for SqliteProjectTechDebtRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_tech_debt WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_tech_debt WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 }

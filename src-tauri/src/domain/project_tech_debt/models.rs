@@ -31,10 +31,7 @@ pub struct TechDebtItem {
 impl Default for TechDebtItem {
     fn default() -> Self {
         Self {
-            id: format!(
-                "debt_{}",
-                uuid::Uuid::new_v4().to_string().replace("-", "")
-            ),
+            id: format!("debt_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
             analysis_id: String::new(),
             file_id: String::new(),
             file_path: String::new(),

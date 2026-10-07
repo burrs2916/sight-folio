@@ -35,7 +35,8 @@ fn text_of(node: Node, src: &[u8]) -> String {
 fn strip_quotes(s: &str) -> String {
     let t = s.trim();
     let n = t.len();
-    if n >= 2 && ((t.starts_with('"') && t.ends_with('"')) || (t.starts_with('\'') && t.ends_with('\'')))
+    if n >= 2
+        && ((t.starts_with('"') && t.ends_with('"')) || (t.starts_with('\'') && t.ends_with('\'')))
     {
         return t[1..n - 1].to_string();
     }
@@ -85,7 +86,11 @@ pub fn extract_imports_ast(d: Dialect, content: &str) -> Option<(Vec<DepImport>,
 }
 
 /// 优先 AST；`None`（解析失败）回退 `line_based`；`has_error` 时与 `line_based` 并集去重（只增不减）。
-pub fn extract_imports_with_fallback(d: Dialect, content: &str, line_based: Vec<DepImport>) -> Vec<DepImport> {
+pub fn extract_imports_with_fallback(
+    d: Dialect,
+    content: &str,
+    line_based: Vec<DepImport>,
+) -> Vec<DepImport> {
     let Some((ast, has_error)) = extract_imports_ast(d, content) else {
         return line_based;
     };
@@ -213,7 +218,9 @@ fn walk_imports(node: Node, src: &[u8], out: &mut Vec<DepImport>, d: Dialect) {
                 for child in node.children(&mut cur) {
                     match child.kind() {
                         // 首个命名路径节点即模块路径；别名 identifier 出现在其后，不会覆盖
-                        "qualified_identifier" | "identifier" if path.is_empty() && child.is_named() => {
+                        "qualified_identifier" | "identifier"
+                            if path.is_empty() && child.is_named() =>
+                        {
                             path = text_of(child, src);
                         }
                         "*" => wildcard = true,
@@ -253,8 +260,14 @@ mod tests {
     }
     #[test]
     fn py_from_import() {
-        assert_eq!(collect(Dialect::Python, "from sys import argv"), vec!["sys"]);
-        assert_eq!(collect(Dialect::Python, "from a.b import c, d"), vec!["a.b"]);
+        assert_eq!(
+            collect(Dialect::Python, "from sys import argv"),
+            vec!["sys"]
+        );
+        assert_eq!(
+            collect(Dialect::Python, "from a.b import c, d"),
+            vec!["a.b"]
+        );
     }
     #[test]
     fn py_multiline_from_is_captured() {
@@ -276,7 +289,10 @@ mod tests {
     // ───────────── Rust ─────────────
     #[test]
     fn rust_use_simple() {
-        assert_eq!(collect(Dialect::Rust, "use std::fs::File;"), vec!["std::fs::File"]);
+        assert_eq!(
+            collect(Dialect::Rust, "use std::fs::File;"),
+            vec!["std::fs::File"]
+        );
     }
     #[test]
     fn rust_use_list() {
@@ -349,7 +365,8 @@ mod tests {
     fn java_static_import_is_no_longer_dropped() {
         // 旧逐行 `review::parse_java_imports` 会把 static 导入整条丢掉（依赖凭空消失）；
         // AST 分支对标 joern 照常产出。
-        let src = "package a;\nimport java.util.List;\nimport static org.junit.Assert.assertEquals;\n";
+        let src =
+            "package a;\nimport java.util.List;\nimport static org.junit.Assert.assertEquals;\n";
         assert_eq!(
             collect(Dialect::Java, src),
             vec!["java.util.List", "org.junit.Assert.assertEquals"]
@@ -390,15 +407,17 @@ mod tests {
             collect(Dialect::Kotlin, "import com.foo.Bar as Baz\n"),
             vec!["com.foo.Bar"]
         );
-        let old: Vec<String> = crate::commands::review::parse_java_imports("import com.foo.Bar as Baz\n")
-            .into_iter()
-            .map(|(p, _)| p)
-            .collect();
+        let old: Vec<String> =
+            crate::commands::review::parse_java_imports("import com.foo.Bar as Baz\n")
+                .into_iter()
+                .map(|(p, _)| p)
+                .collect();
         assert_eq!(old, vec!["com.foo.Bar as Baz"], "旧逐行确实带 as 尾巴");
     }
     #[test]
     fn kotlin_multiple_imports_and_package_not_counted() {
-        let src = "package com.example.app\n\nimport a.B\nimport c.d.*\nimport e.F as G\n\nclass X\n";
+        let src =
+            "package com.example.app\n\nimport a.B\nimport c.d.*\nimport e.F as G\n\nclass X\n";
         assert_eq!(collect(Dialect::Kotlin, src), vec!["a.B", "c.d.*", "e.F"]);
     }
     #[test]
@@ -411,10 +430,7 @@ mod tests {
         let src = "package p\n\nimport a.B\n\nimport c.D\n";
         let got = extract_imports_ast(Dialect::Kotlin, src).unwrap().0;
         let pairs: Vec<(String, usize)> = got.into_iter().map(|x| (x.path, x.line)).collect();
-        assert_eq!(
-            pairs,
-            vec![("a.B".to_string(), 3), ("c.D".to_string(), 5)]
-        );
+        assert_eq!(pairs, vec![("a.B".to_string(), 3), ("c.D".to_string(), 5)]);
     }
 
     // ───────────── 注册表路由（java vs kotlin 必须走不同方言）─────────────
@@ -445,7 +461,9 @@ mod tests {
             return;
         };
         fn walk_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            let Ok(rd) = std::fs::read_dir(dir) else {
+                return;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 if p.is_dir() {
@@ -514,10 +532,14 @@ mod tests {
                     // 逐文件路径级差异（不只是计数）：定位「AST 多抓 / 逐行脏值」的真实位置
                     let ast_paths: Vec<String> = imports.iter().map(|x| x.path.clone()).collect();
                     if ast_paths != line_paths && diffs.len() < 8 {
-                        let only_ast: Vec<&String> =
-                            ast_paths.iter().filter(|p| !line_paths.contains(p)).collect();
-                        let only_line: Vec<&String> =
-                            line_paths.iter().filter(|p| !ast_paths.contains(p)).collect();
+                        let only_ast: Vec<&String> = ast_paths
+                            .iter()
+                            .filter(|p| !line_paths.contains(p))
+                            .collect();
+                        let only_line: Vec<&String> = line_paths
+                            .iter()
+                            .filter(|p| !ast_paths.contains(p))
+                            .collect();
                         diffs.push(format!(
                             "{}: +ast{:?} -line{:?}",
                             f.display(),
@@ -550,4 +572,3 @@ mod tests {
         }
     }
 }
-

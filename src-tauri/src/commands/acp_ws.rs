@@ -7,18 +7,18 @@
 // 发起请求的连接；host 主动 event 广播到全部连接）。前端 host 仍是连接无关的单一实例，会话
 // 由各自 agent 的 session/new 区分。后端只做传输层桥接，不含任何业务逻辑。
 
+use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Mutex, OnceLock,
 };
+use tauri::{AppHandle, Emitter};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
-use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
-use futures::{SinkExt, StreamExt};
 
 type WsTx = mpsc::UnboundedSender<String>;
 type ConnId = String;

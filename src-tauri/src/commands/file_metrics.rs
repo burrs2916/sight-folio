@@ -13,18 +13,24 @@ use crate::domain::project_file_metrics::{complexity_level_of, FileMetric};
 use crate::domain::project_files::ProjectFile;
 use crate::error::AppResult;
 use crate::infrastructure::ast;
-use crate::infrastructure::database::project_file_repository::ProjectFileRepository;
 use crate::infrastructure::database::project_file_metric_repository::ProjectFileMetricRepository;
+use crate::infrastructure::database::project_file_repository::ProjectFileRepository;
 use crate::infrastructure::database::{
     SqliteProjectFileMetricRepository, SqliteProjectFileRepository,
 };
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use rayon::prelude::*;
 use tauri::{AppHandle, State};
 
 /// 计算单个文件的度量指标
-fn compute_metric(file_id: &str, analysis_id: &str, rel_path: &str, lang: &str, content: &str) -> FileMetric {
+fn compute_metric(
+    file_id: &str,
+    analysis_id: &str,
+    rel_path: &str,
+    lang: &str,
+    content: &str,
+) -> FileMetric {
     let lines: Vec<&str> = content.lines().collect();
     let total = lines.len() as i64;
 
@@ -70,7 +76,10 @@ fn compute_metric(file_id: &str, analysis_id: &str, rel_path: &str, lang: &str, 
     let (cc, engine, max_nesting, function_count, max_function_cc, hot_function, magic_count, meta) =
         match &astr {
             Some(a) => {
-                let hot = a.hottest_function().map(|f| f.name.clone()).unwrap_or_default();
+                let hot = a
+                    .hottest_function()
+                    .map(|f| f.name.clone())
+                    .unwrap_or_default();
                 let meta = serde_json::json!({
                     "language": lang,
                     "engine": "ast",
@@ -93,7 +102,8 @@ fn compute_metric(file_id: &str, analysis_id: &str, rel_path: &str, lang: &str, 
             }
             None => {
                 let cc = estimate_complexity(lang, &lines);
-                let meta = serde_json::json!({ "language": lang, "engine": "heuristic" }).to_string();
+                let meta =
+                    serde_json::json!({ "language": lang, "engine": "heuristic" }).to_string();
                 (cc, "heuristic", 0, 0, 0, String::new(), 0, meta)
             }
         };
@@ -157,14 +167,20 @@ fn estimate_complexity(lang: &str, lines: &[&str]) -> i64 {
             continue;
         }
         // 控制流关键字（每出现一个分支/循环/异常处理 +1）
-        for kw in ["if ", "for ", "while ", "switch ", "case ", "catch ", "except ", "elif "] {
+        for kw in [
+            "if ", "for ", "while ", "switch ", "case ", "catch ", "except ", "elif ",
+        ] {
             if line.contains(kw) {
                 cc += 1;
             }
         }
         // Rust match / if let / loop
         if lang == "rust" {
-            if line.contains("match ") || line.contains("if let ") || line == "loop" || line.starts_with("loop ") {
+            if line.contains("match ")
+                || line.contains("if let ")
+                || line == "loop"
+                || line.starts_with("loop ")
+            {
                 cc += 1;
             }
         }

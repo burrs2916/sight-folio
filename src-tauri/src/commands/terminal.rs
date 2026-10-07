@@ -357,14 +357,8 @@ pub async fn terminal_replay(
             session_id,
             data.len()
         );
-        app.emit(
-            "terminal-output",
-            TerminalOutput {
-                session_id,
-                data,
-            },
-        )
-        .map_err(|e| format!("[terminal] replay emit failed: {e}"))?;
+        app.emit("terminal-output", TerminalOutput { session_id, data })
+            .map_err(|e| format!("[terminal] replay emit failed: {e}"))?;
     }
     Ok(())
 }

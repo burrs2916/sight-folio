@@ -290,7 +290,8 @@ fn get_thumbnails_dir() -> Result<PathBuf, String> {
     while dir.parent().is_some() {
         if dir.join("package.json").exists() {
             let thumb_dir = dir.join("public").join("thumbnails");
-            fs::create_dir_all(&thumb_dir).map_err(|e| format!("Failed to create thumbnails dir: {}", e))?;
+            fs::create_dir_all(&thumb_dir)
+                .map_err(|e| format!("Failed to create thumbnails dir: {}", e))?;
             return Ok(thumb_dir);
         }
         dir = dir.parent().unwrap();
@@ -369,8 +370,13 @@ pub async fn read_file_bytes(path: String) -> Result<tauri::ipc::Response, Strin
         return Err(format!("not a file: {path}"));
     }
     if meta.len() > MAX_ASSET_BYTES {
-        return Err(format!("file too large: {} bytes (max {MAX_ASSET_BYTES})", meta.len()));
+        return Err(format!(
+            "file too large: {} bytes (max {MAX_ASSET_BYTES})",
+            meta.len()
+        ));
     }
-    let bytes = tokio::fs::read(p).await.map_err(|e| format!("read failed: {e}"))?;
+    let bytes = tokio::fs::read(p)
+        .await
+        .map_err(|e| format!("read failed: {e}"))?;
     Ok(tauri::ipc::Response::new(bytes))
 }

@@ -1,11 +1,12 @@
 use crate::domain::writing::{
     CompletedWork, WritingAnnotation, WritingBook, WritingChapter, WritingChapterSnapshot,
-    WritingNote,
-    WritingDailyStat, WritingForeshadowing, WritingOutline, WritingSetting, WritingStoryline,
-    WritingTimelineEvent,
+    WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline, WritingSetting,
+    WritingStoryline, WritingTimelineEvent,
 };
 use crate::error::AppResult;
-use crate::infrastructure::database::analysis_repository::{AnalysisRepository, SqliteAnalysisRepository};
+use crate::infrastructure::database::analysis_repository::{
+    AnalysisRepository, SqliteAnalysisRepository,
+};
 use crate::infrastructure::database::project_file_repository::{
     ProjectFileRepository, SqliteProjectFileRepository,
 };
@@ -19,7 +20,7 @@ use tauri::State;
 
 // T4 领域下沉后，原命令层落地的常量/纯函数移居 application/writing；
 // 通过 pub use 再导出保持既有引用点（如 source_view.rs）零改动。
-pub use crate::application::writing::{WRITING_PATH_PREFIX, writing_analysis_id};
+pub use crate::application::writing::{writing_analysis_id, WRITING_PATH_PREFIX};
 
 /// 写作域命令（Sight Folio）：书籍与章节 CRUD。
 ///
@@ -101,7 +102,12 @@ pub fn save_writing_chapter_content(
     word_count: i64,
     repo: State<'_, Arc<SqliteWritingRepository>>,
 ) -> AppResult<()> {
-    repo.save_chapter_content(&chapter_id, &content, word_count, chrono::Utc::now().timestamp())?;
+    repo.save_chapter_content(
+        &chapter_id,
+        &content,
+        word_count,
+        chrono::Utc::now().timestamp(),
+    )?;
     if let Ok(Some(ch)) = repo.get_chapter(&chapter_id) {
         if let Err(e) = repo.record_daily_snapshot(&ch.book_id, &local_today()) {
             eprintln!("[writing] daily snapshot failed (ignored): {e}");
@@ -201,8 +207,7 @@ pub fn delete_writing_setting(
 /// 避免为单一导出功能扩一整套文件系统能力。
 #[tauri::command]
 pub fn save_text_file(path: String, contents: String) -> AppResult<()> {
-    std::fs::write(&path, contents)
-        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
+    std::fs::write(&path, contents).map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
     Ok(())
 }
 
@@ -382,8 +387,14 @@ pub fn save_writing_epub(
 pub fn scan_writing_book(
     book_id: String,
     writing_repo: State<'_, Arc<SqliteWritingRepository>>,
-    analysis_repo: State<'_, Arc<crate::infrastructure::database::analysis_repository::SqliteAnalysisRepository>>,
-    file_repo: State<'_, Arc<crate::infrastructure::database::project_file_repository::SqliteProjectFileRepository>>,
+    analysis_repo: State<
+        '_,
+        Arc<crate::infrastructure::database::analysis_repository::SqliteAnalysisRepository>,
+    >,
+    file_repo: State<
+        '_,
+        Arc<crate::infrastructure::database::project_file_repository::SqliteProjectFileRepository>,
+    >,
     finding_repo: State<'_, Arc<crate::infrastructure::database::review_finding_repository::SqliteReviewFindingRepository>>,
 ) -> AppResult<crate::application::writing::WritingScanSummary> {
     crate::application::writing::scan_book(
@@ -449,28 +460,33 @@ pub fn backup_writing_book(
 
     let dest = PathBuf::from(&path);
     if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            crate::error::AppError::Internal(format!("backup dir {parent:?}: {e}"))
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| crate::error::AppError::Internal(format!("backup dir {parent:?}: {e}")))?;
     }
     // VACUUM INTO 的目标路径不支持参数绑定；单引号会破坏 SQL 字符串，
     // 这里做最小转义（SQLite 字符串字面量内 '' 表示单个 '）。
     let escaped = path.replace('\'', "''");
     let sql = format!("VACUUM INTO '{}'", escaped);
 
-    let conn = db.0.lock().map_err(|e| {
-        crate::error::AppError::Internal(format!("backup lock: {e}"))
-    })?;
+    let conn =
+        db.0.lock()
+            .map_err(|e| crate::error::AppError::Internal(format!("backup lock: {e}")))?;
     let journal_before = conn
         .query_row("PRAGMA journal_mode", [], |r| r.get::<_, String>(0))
         .ok();
-    println!("[backup] journal_mode={:?} → VACUUM INTO {path}", journal_before);
+    println!(
+        "[backup] journal_mode={:?} → VACUUM INTO {path}",
+        journal_before
+    );
     conn.execute_batch(&sql)
         .map_err(|e| crate::error::AppError::Internal(format!("backup vacuum into: {e}")))?;
 
     // 校验：备份文件可独立只读打开且能读取 writing_books 表。
-    let check = Connection::open(&dest)
-        .and_then(|c| c.query_row("SELECT COUNT(*) FROM writing_books", [], |r| r.get::<_, i64>(0)));
+    let check = Connection::open(&dest).and_then(|c| {
+        c.query_row("SELECT COUNT(*) FROM writing_books", [], |r| {
+            r.get::<_, i64>(0)
+        })
+    });
     match check {
         Ok(count) => println!("[backup] verified {path}: writing_books={count}"),
         Err(e) => {
@@ -498,33 +514,24 @@ pub fn restore_writing_book(
         )));
     }
     // 2. 源文件只读打开（不篡改备份）
-    let src = Connection::open_with_flags(
-        &path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .map_err(|e| {
-        crate::error::AppError::Internal(format!("open backup {path}: {e}"))
-    })?;
+    let src = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| crate::error::AppError::Internal(format!("open backup {path}: {e}")))?;
 
     // 3. 目标连接加锁，用 backup API 整库导入（安全替换活动连接内容）
-    let mut conn = db.0.lock().map_err(|e| {
-        crate::error::AppError::Internal(format!("restore lock: {e}"))
-    })?;
-    let backup =
-        rusqlite::backup::Backup::new(&src, &mut conn).map_err(|e| {
-            crate::error::AppError::Internal(format!("backup init: {e}"))
-        })?;
-    backup.run_to_completion(5, std::time::Duration::from_millis(100), None).map_err(|e| {
-        crate::error::AppError::Internal(format!("backup restore: {e}"))
-    })?;
+    let mut conn =
+        db.0.lock()
+            .map_err(|e| crate::error::AppError::Internal(format!("restore lock: {e}")))?;
+    let backup = rusqlite::backup::Backup::new(&src, &mut conn)
+        .map_err(|e| crate::error::AppError::Internal(format!("backup init: {e}")))?;
+    backup
+        .run_to_completion(5, std::time::Duration::from_millis(100), None)
+        .map_err(|e| crate::error::AppError::Internal(format!("backup restore: {e}")))?;
     drop(backup);
 
     // 4. 完整性校验 + 业务表确认
     let integrity: String = conn
         .query_row("PRAGMA integrity_check", [], |r| r.get(0))
-        .map_err(|e| {
-            crate::error::AppError::Internal(format!("integrity check: {e}"))
-        })?;
+        .map_err(|e| crate::error::AppError::Internal(format!("integrity check: {e}")))?;
     if integrity != "ok" {
         return Err(crate::error::AppError::Internal(format!(
             "restored db integrity failed: {integrity}"
@@ -532,9 +539,7 @@ pub fn restore_writing_book(
     }
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM writing_books", [], |r| r.get(0))
-        .map_err(|e| {
-            crate::error::AppError::Internal(format!("verify writing_books: {e}"))
-        })?;
+        .map_err(|e| crate::error::AppError::Internal(format!("verify writing_books: {e}")))?;
     println!("[restore] ok from {path}: integrity={integrity}, writing_books={count}");
     Ok(())
 }
@@ -607,7 +612,9 @@ pub fn move_completed_work(
     repo: State<'_, Arc<SqliteWritingRepository>>,
 ) -> AppResult<()> {
     if new_path.trim().is_empty() {
-        return Err(crate::error::AppError::Validation("new path is empty".into()));
+        return Err(crate::error::AppError::Validation(
+            "new path is empty".into(),
+        ));
     }
     let existing = repo
         .list_completed_works()?
@@ -658,7 +665,9 @@ pub fn import_completed_works(
             skipped += 1;
             continue;
         }
-        let file_size = std::fs::metadata(&path).map(|m| m.len() as i64).unwrap_or(0);
+        let file_size = std::fs::metadata(&path)
+            .map(|m| m.len() as i64)
+            .unwrap_or(0);
         let work = CompletedWork {
             id: format!("cw_{}", uuid::Uuid::new_v4().simple()),
             book_id: book_id.clone(),

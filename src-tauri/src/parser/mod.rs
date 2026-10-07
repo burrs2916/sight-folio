@@ -235,7 +235,7 @@ fn builtin_parsers() -> Vec<Box<dyn LanguageParser>> {
         Box::new(python::PythonParser),
         Box::new(rust::RustParser),
         Box::new(go::GoParser),
-        Box::new(java::JavaParser),   // java + kotlin
+        Box::new(java::JavaParser),    // java + kotlin
         Box::new(c_like::CLikeParser), // c / cpp
         Box::new(other::CSharpParser),
         Box::new(other::PhpParser),
@@ -348,7 +348,8 @@ mod tests {
         assert_eq!(k[0].symbols, vec!["C".to_string()]);
 
         // Java：静态导入不再整条丢弃
-        let j = parse_imports_with_symbols("java", "import static org.junit.Assert.assertEquals;\n");
+        let j =
+            parse_imports_with_symbols("java", "import static org.junit.Assert.assertEquals;\n");
         assert_eq!(j.len(), 1);
         assert_eq!(j[0].path, "org.junit.Assert");
         assert_eq!(j[0].symbols, vec!["assertEquals".to_string()]);

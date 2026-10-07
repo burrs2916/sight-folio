@@ -26,18 +26,18 @@
 //! 分析能力缺失时宁可高估影响面，也不能让用户漏掉真实风险。
 
 use crate::domain::project_data_flow::{DataFlowFact, DataFlowHotspot, DataFlowSummary};
+use crate::domain::project_files::ProjectFile;
 use crate::error::AppResult;
 use crate::infrastructure::ast::dataflow::{analyze_dataflow, FunctionFlow};
 use crate::infrastructure::database::project_data_flow_repository::ProjectDataFlowRepository;
 use crate::infrastructure::database::project_file_repository::ProjectFileRepository;
-use crate::domain::project_files::ProjectFile;
 use crate::infrastructure::database::{
     SqliteProjectDataFlowRepository, SqliteProjectFileRepository,
 };
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering as AtomicOrdering};
 use std::sync::Arc;
-use rayon::prelude::*;
 use tauri::{AppHandle, State};
 
 /// 摘要条数上限：超大仓库全量函数摘要会撑爆 IPC，截断后仍足够剪枝
@@ -273,7 +273,10 @@ mod tests {
 
     #[test]
     fn blocking_function_is_marked_not_propagating() {
-        let f = flow_of("function sink(msg: string) {\n  console.warn(msg);\n}\n", "sink");
+        let f = flow_of(
+            "function sink(msg: string) {\n  console.warn(msg);\n}\n",
+            "sink",
+        );
         let fact = to_fact("an1", "f1", "src/a.ts", &f, 0);
         assert!(!fact.propagates, "只消费不产出的函数必须落库为阻断点");
         assert_eq!(fact.param_to_return, "");

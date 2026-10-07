@@ -25,10 +25,7 @@ pub struct ProjectDependency {
 impl Default for ProjectDependency {
     fn default() -> Self {
         Self {
-            id: format!(
-                "dep_{}",
-                uuid::Uuid::new_v4().to_string().replace("-", "")
-            ),
+            id: format!("dep_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
             analysis_id: String::new(),
             from_id: String::new(),
             from_type: "file".to_string(),

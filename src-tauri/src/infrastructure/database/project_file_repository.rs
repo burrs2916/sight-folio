@@ -16,7 +16,9 @@ pub struct SqliteProjectFileRepository {
 
 impl Clone for SqliteProjectFileRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -52,7 +54,11 @@ fn row_to_file(row: &rusqlite::Row) -> rusqlite::Result<ProjectFile> {
 
 impl ProjectFileRepository for SqliteProjectFileRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<ProjectFile>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, analysis_id, path, rel_path, name, extension, language, size, line_count,
                     content_hash, parent_id, is_directory, layer_id, x, y, width, height, metadata, scanned_at
@@ -65,7 +71,11 @@ impl ProjectFileRepository for SqliteProjectFileRepository {
     }
 
     fn get(&self, id: &str) -> AppResult<Option<ProjectFile>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, analysis_id, path, rel_path, name, extension, language, size, line_count,
                     content_hash, parent_id, is_directory, layer_id, x, y, width, height, metadata, scanned_at
@@ -79,7 +89,11 @@ impl ProjectFileRepository for SqliteProjectFileRepository {
     }
 
     fn save_batch(&self, files: &[ProjectFile]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -90,10 +104,25 @@ impl ProjectFileRepository for SqliteProjectFileRepository {
             )?;
             for file in files {
                 stmt.execute(rusqlite::params![
-                    file.id, file.analysis_id, file.path, file.rel_path, file.name,
-                    file.extension, file.language, file.size, file.line_count, file.content_hash,
-                    file.parent_id, file.is_directory as i64, file.layer_id,
-                    file.x, file.y, file.width, file.height, file.metadata, file.scanned_at,
+                    file.id,
+                    file.analysis_id,
+                    file.path,
+                    file.rel_path,
+                    file.name,
+                    file.extension,
+                    file.language,
+                    file.size,
+                    file.line_count,
+                    file.content_hash,
+                    file.parent_id,
+                    file.is_directory as i64,
+                    file.layer_id,
+                    file.x,
+                    file.y,
+                    file.width,
+                    file.height,
+                    file.metadata,
+                    file.scanned_at,
                 ])?;
             }
         }
@@ -102,8 +131,15 @@ impl ProjectFileRepository for SqliteProjectFileRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_files WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_files WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 }

@@ -16,15 +16,15 @@ use crate::domain::project_symbols::{PatternHit, ProjectSymbol, StructureSummary
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::ast::Dialect;
 use crate::infrastructure::database::project_file_repository::ProjectFileRepository;
-use crate::infrastructure::database::project_symbol_repository::ProjectSymbolRepository;
 use crate::infrastructure::database::project_symbol_ref_repository::ProjectSymbolRefRepository;
+use crate::infrastructure::database::project_symbol_repository::ProjectSymbolRepository;
 use crate::infrastructure::database::{
-    SqliteProjectFileRepository, SqliteProjectSymbolRepository, SqliteProjectSymbolRefRepository,
+    SqliteProjectFileRepository, SqliteProjectSymbolRefRepository, SqliteProjectSymbolRepository,
 };
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use rayon::prelude::*;
 use tauri::{AppHandle, State};
 use tree_sitter::{Node, Parser};
 
@@ -71,7 +71,15 @@ fn ts_method_name(line: &str) -> Option<String> {
     loop {
         let mut stripped = false;
         for kw in [
-            "static ", "async ", "get ", "set ", "public ", "private ", "protected ", "readonly ", "abstract ",
+            "static ",
+            "async ",
+            "get ",
+            "set ",
+            "public ",
+            "private ",
+            "protected ",
+            "readonly ",
+            "abstract ",
         ] {
             if let Some(rest) = t.strip_prefix(kw) {
                 t = rest.trim_start();
@@ -104,7 +112,10 @@ fn ts_method_name(line: &str) -> Option<String> {
     {
         return None;
     }
-    if !before.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$') {
+    if !before
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+    {
         return None;
     }
     Some(before.to_string())
@@ -137,7 +148,10 @@ fn java_method_name(line: &str) -> Option<String> {
         return None;
     }
     let name = before.split_whitespace().last()?;
-    if !name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$') {
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+    {
         return None;
     }
     Some(name.to_string())
@@ -185,11 +199,15 @@ fn looks_like_vue(content: &str) -> bool {
     // 旧实现用裸 `<style` / 裸 `<script`（无闭合标签）判定，会误命中普通 .ts 文件里
     // 注释 / 字符串中的 `<style>` 字样（如 editor/renderers/canvasTheme.ts 第 12 行注释），
     // 导致整文件被当成 SFC 走正则回退、const 符号全丢失（renderable≠useful 死功能）。
-    content.contains("<template")
-        || (content.contains("<script") && content.contains("</script"))
+    content.contains("<template") || (content.contains("<script") && content.contains("</script"))
 }
 
-fn collect_ts_symbols(node: Node, src: &[u8], out: &mut Vec<SymbolCandidate>, reexported: &HashSet<String>) {
+fn collect_ts_symbols(
+    node: Node,
+    src: &[u8],
+    out: &mut Vec<SymbolCandidate>,
+    reexported: &HashSet<String>,
+) {
     match node.kind() {
         "function_declaration" | "generator_function_declaration" => {
             if let Some(n) = node.child_by_field_name("name") {
@@ -222,9 +240,10 @@ fn collect_ts_symbols(node: Node, src: &[u8], out: &mut Vec<SymbolCandidate>, re
             }
         }
         "variable_declarator" => {
-            if let (Some(nn), Some(vn)) =
-                (node.child_by_field_name("name"), node.child_by_field_name("value"))
-            {
+            if let (Some(nn), Some(vn)) = (
+                node.child_by_field_name("name"),
+                node.child_by_field_name("value"),
+            ) {
                 if nn.kind() == "identifier" {
                     let name_str = text_of(nn, src);
                     // 导出判定：① 行内 `export const X`（祖先是 export_statement）；
@@ -321,7 +340,13 @@ fn text_of(node: Node, src: &[u8]) -> String {
     node.utf8_text(src).unwrap_or("").to_string()
 }
 
-fn push_ts_sym(out: &mut Vec<SymbolCandidate>, mut name: String, kind: &str, node: Node, src: &[u8]) {
+fn push_ts_sym(
+    out: &mut Vec<SymbolCandidate>,
+    mut name: String,
+    kind: &str,
+    node: Node,
+    src: &[u8],
+) {
     if name.is_empty() {
         return;
     }
@@ -348,8 +373,13 @@ fn extract_ts_symbols_regex(content: &str) -> Vec<SymbolCandidate> {
     let mut in_body = false;
     for (i, raw_line) in content.lines().enumerate() {
         let line = raw_line.trim();
-        let top_level_close = line.starts_with('}') && !raw_line.starts_with(' ') && !raw_line.starts_with('\t');
-        if line.is_empty() || line.starts_with("//") || line.starts_with("/*") || line.starts_with('*') {
+        let top_level_close =
+            line.starts_with('}') && !raw_line.starts_with(' ') && !raw_line.starts_with('\t');
+        if line.is_empty()
+            || line.starts_with("//")
+            || line.starts_with("/*")
+            || line.starts_with('*')
+        {
             continue;
         }
         // 类体结束
@@ -438,8 +468,17 @@ fn extract_ts_symbols_regex(content: &str) -> Vec<SymbolCandidate> {
         if m.starts_with("const ") || m.starts_with("let ") || m.starts_with("var ") {
             let rest = m;
             if let Some(eq_pos) = rest.find('=') {
-                let name = rest[..eq_pos].replace("const", "").replace("let", "").replace("var", "").trim().to_string();
-                if !name.is_empty() && !name.contains(' ') && !name.contains('(') && !name.contains(')') {
+                let name = rest[..eq_pos]
+                    .replace("const", "")
+                    .replace("let", "")
+                    .replace("var", "")
+                    .trim()
+                    .to_string();
+                if !name.is_empty()
+                    && !name.contains(' ')
+                    && !name.contains('(')
+                    && !name.contains(')')
+                {
                     let after_eq = rest[eq_pos + 1..].trim();
                     // v2.27 补全：现代 TS/React 项目大量采用「柯里化调用」写法，箭头在下一行，
                     // 例如 Zustand 的 `const useX = create<T>()((set) => ({...}))`、HOC 的
@@ -457,9 +496,16 @@ fn extract_ts_symbols_regex(content: &str) -> Vec<SymbolCandidate> {
                         .map_or(false, |c| c.is_alphabetic() || c == '_')
                         && after_eq.contains('(');
                     let looks_like_grouped_call = after_eq.starts_with('(')
-                        && after_eq.chars().nth(1).map_or(false, |c| c.is_alphabetic() || c == '_');
+                        && after_eq
+                            .chars()
+                            .nth(1)
+                            .map_or(false, |c| c.is_alphabetic() || c == '_');
                     let multiline_call = looks_like_call || looks_like_grouped_call;
-                    if after_eq.starts_with("async") || after_eq.contains("=>") || after_eq.starts_with("function") || multiline_call {
+                    if after_eq.starts_with("async")
+                        || after_eq.contains("=>")
+                        || after_eq.starts_with("function")
+                        || multiline_call
+                    {
                         out.push(SymbolCandidate {
                             name,
                             kind: "function".to_string(),
@@ -505,12 +551,34 @@ fn strip_keyword<'a>(line: &'a str, kw: &str) -> Option<&'a str> {
 
 fn first_word(s: &str) -> &str {
     // 含 `;`：防御某些声明行尾残留分号（如 `struct Foo;` / 旧解析器遗留），避免符号名变成 `Foo;` 污染画像与跳转 key。
-    s.trim().split(|c: char| c.is_whitespace() || c == '{' || c == '(' || c == '<' || c == ':' || c == '=' || c == ';').next().unwrap_or("")
+    s.trim()
+        .split(|c: char| {
+            c.is_whitespace()
+                || c == '{'
+                || c == '('
+                || c == '<'
+                || c == ':'
+                || c == '='
+                || c == ';'
+        })
+        .next()
+        .unwrap_or("")
 }
 
 fn extract_modifiers(line: &str) -> String {
     let mut mods: Vec<&str> = Vec::new();
-    for m in ["export", "default", "abstract", "async", "pub", "private", "public", "protected", "static", "readonly"] {
+    for m in [
+        "export",
+        "default",
+        "abstract",
+        "async",
+        "pub",
+        "private",
+        "public",
+        "protected",
+        "static",
+        "readonly",
+    ] {
         if line.contains(m) && !mods.contains(&m) {
             mods.push(m);
         }
@@ -538,7 +606,12 @@ pub fn extract_python_symbols(content: &str) -> Vec<SymbolCandidate> {
         }
         // class X:
         if let Some(rest) = strip_keyword(line, "class") {
-            let name = rest.split(['(', ':', '{']).next().unwrap_or("").trim().to_string();
+            let name = rest
+                .split(['(', ':', '{'])
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string();
             out.push(SymbolCandidate {
                 name,
                 kind: "class".to_string(),
@@ -555,7 +628,11 @@ pub fn extract_python_symbols(content: &str) -> Vec<SymbolCandidate> {
             let is_method = class_indent.map(|ci| indent > ci).unwrap_or(false);
             out.push(SymbolCandidate {
                 name,
-                kind: if is_method { "method".to_string() } else { "function".to_string() },
+                kind: if is_method {
+                    "method".to_string()
+                } else {
+                    "function".to_string()
+                },
                 line: i + 1,
                 signature: raw_line.trim().to_string(),
                 modifiers: String::new(),
@@ -588,7 +665,8 @@ pub fn extract_rust_symbols(content: &str) -> Vec<SymbolCandidate> {
     let mut in_impl = false;
     for (i, raw_line) in content.lines().enumerate() {
         let line = raw_line.trim();
-        let top_level_close = line == "}" && !raw_line.starts_with(' ') && !raw_line.starts_with('\t');
+        let top_level_close =
+            line == "}" && !raw_line.starts_with(' ') && !raw_line.starts_with('\t');
         if line.is_empty() || line.starts_with("//") {
             continue;
         }
@@ -648,7 +726,10 @@ pub fn extract_rust_symbols(content: &str) -> Vec<SymbolCandidate> {
             if let Some(after) = strip_keyword(rest, "extern") {
                 // `extern "C" fn` / `extern fn`（`extern crate x;` 剥完没有 item 关键字，自然不产符号）
                 let a = after.trim_start();
-                let a = match a.strip_prefix('"').and_then(|q| q.find('"').map(|e| &q[e + 1..])) {
+                let a = match a
+                    .strip_prefix('"')
+                    .and_then(|q| q.find('"').map(|e| &q[e + 1..]))
+                {
                     Some(tail) => tail.trim_start(),
                     None => a,
                 };
@@ -692,7 +773,11 @@ pub fn extract_rust_symbols(content: &str) -> Vec<SymbolCandidate> {
             if let Some(after) = strip_keyword(rest, kw) {
                 let name = first_word(after).to_string();
                 // impl 块内的 fn → 方法（方法级符号 v2.3）
-                let final_kind = if kw == "fn" && in_impl { "method" } else { kind };
+                let final_kind = if kw == "fn" && in_impl {
+                    "method"
+                } else {
+                    kind
+                };
                 out.push(SymbolCandidate {
                     name,
                     kind: final_kind.to_string(),
@@ -731,7 +816,11 @@ pub fn extract_go_symbols(content: &str) -> Vec<SymbolCandidate> {
             };
             if !name.is_empty() {
                 // v2.3 方法级符号：带接收者 = 方法
-                let kind = if rest.starts_with('(') { "method" } else { "function" };
+                let kind = if rest.starts_with('(') {
+                    "method"
+                } else {
+                    "function"
+                };
                 out.push(SymbolCandidate {
                     name: name.to_string(),
                     kind: kind.to_string(),
@@ -745,7 +834,11 @@ pub fn extract_go_symbols(content: &str) -> Vec<SymbolCandidate> {
         // type X struct / interface
         if let Some(rest) = strip_keyword(line, "type") {
             let name = first_word(rest).to_string();
-            let kind = if rest.contains("interface") { "interface" } else { "struct" };
+            let kind = if rest.contains("interface") {
+                "interface"
+            } else {
+                "struct"
+            };
             out.push(SymbolCandidate {
                 name,
                 kind: kind.to_string(),
@@ -766,8 +859,13 @@ pub fn extract_java_symbols(content: &str) -> Vec<SymbolCandidate> {
     let mut in_body = false;
     for (i, raw_line) in content.lines().enumerate() {
         let line = raw_line.trim();
-        let top_level_close = line.starts_with('}') && !raw_line.starts_with(' ') && !raw_line.starts_with('\t');
-        if line.is_empty() || line.starts_with("//") || line.starts_with("/*") || line.starts_with('*') {
+        let top_level_close =
+            line.starts_with('}') && !raw_line.starts_with(' ') && !raw_line.starts_with('\t');
+        if line.is_empty()
+            || line.starts_with("//")
+            || line.starts_with("/*")
+            || line.starts_with('*')
+        {
             continue;
         }
         if in_body && top_level_close {
@@ -780,7 +878,14 @@ pub fn extract_java_symbols(content: &str) -> Vec<SymbolCandidate> {
         loop {
             let mut stripped = false;
             for kw in [
-                "public ", "private ", "protected ", "abstract ", "final ", "static ", "synchronized ", "strictfp ",
+                "public ",
+                "private ",
+                "protected ",
+                "abstract ",
+                "final ",
+                "static ",
+                "synchronized ",
+                "strictfp ",
             ] {
                 if let Some(rest) = decl.strip_prefix(kw) {
                     decl = rest.trim_start();
@@ -792,7 +897,11 @@ pub fn extract_java_symbols(content: &str) -> Vec<SymbolCandidate> {
             }
         }
         let mut matched = false;
-        for (kw, kind) in [("class", "class"), ("interface", "interface"), ("enum", "enum")] {
+        for (kw, kind) in [
+            ("class", "class"),
+            ("interface", "interface"),
+            ("enum", "enum"),
+        ] {
             // 避免匹配到 "classpath" 等
             if let Some(rest) = strip_keyword(decl, kw) {
                 if rest.starts_with('=') || rest.starts_with('(') {
@@ -840,7 +949,12 @@ pub fn extract_c_like_symbols(content: &str) -> Vec<SymbolCandidate> {
     let mut out = Vec::new();
     for (i, raw_line) in content.lines().enumerate() {
         let line = raw_line.trim();
-        if line.is_empty() || line.starts_with("//") || line.starts_with("/*") || line.starts_with('*') || line.starts_with('#') {
+        if line.is_empty()
+            || line.starts_with("//")
+            || line.starts_with("/*")
+            || line.starts_with('*')
+            || line.starts_with('#')
+        {
             continue;
         }
         if let Some(rest) = strip_keyword(line, "class") {
@@ -949,12 +1063,10 @@ fn c_decl_name(node: Node, src: &[u8]) -> Option<(String, bool)> {
         }
         // `Foo::bar` → 取 `name` 字段（末段），并标记成员
         "qualified_identifier" => {
-            let seg = node
-                .child_by_field_name("name")
-                .or_else(|| {
-                    let mut cur = node.walk();
-                    node.named_children(&mut cur).last()
-                })?;
+            let seg = node.child_by_field_name("name").or_else(|| {
+                let mut cur = node.walk();
+                node.named_children(&mut cur).last()
+            })?;
             c_decl_name(seg, src).map(|(n, _)| (n, true))
         }
         _ => {
@@ -1017,9 +1129,20 @@ fn c_signature(node: Node, src: &[u8]) -> String {
 fn c_modifiers(signature: &str, is_static: bool) -> String {
     let mut mods: Vec<&str> = Vec::new();
     let low = signature.to_ascii_lowercase();
-    for m in ["static", "inline", "extern", "virtual", "constexpr", "public", "private", "protected"] {
+    for m in [
+        "static",
+        "inline",
+        "extern",
+        "virtual",
+        "constexpr",
+        "public",
+        "private",
+        "protected",
+    ] {
         // 整词匹配：`externally` 不该命中 `extern`
-        let hit = low.split(|c: char| !c.is_alphanumeric() && c != '_').any(|w| w == m);
+        let hit = low
+            .split(|c: char| !c.is_alphanumeric() && c != '_')
+            .any(|w| w == m);
         if hit {
             mods.push(m);
         }
@@ -1051,11 +1174,11 @@ pub fn extract_c_like_symbols_ast(
     let mut stack: Vec<(Node, bool)> = vec![(tree.root_node(), false)];
 
     let push_sym = |out: &mut Vec<SymbolCandidate>,
-                   name: String,
-                   kind: &str,
-                   line: usize,
-                   signature: String,
-                   modifiers: String| {
+                    name: String,
+                    kind: &str,
+                    line: usize,
+                    signature: String,
+                    modifiers: String| {
         if name.is_empty() {
             return;
         }
@@ -1075,26 +1198,21 @@ pub fn extract_c_like_symbols_ast(
                 if let Some(decl) = n.child_by_field_name("declarator") {
                     if let Some((name, qualified)) = c_decl_name(decl, src) {
                         let sig = c_signature(n, src);
-                        let kind = if qualified || in_class { "method" } else { "function" };
+                        let kind = if qualified || in_class {
+                            "method"
+                        } else {
+                            "function"
+                        };
                         let is_static = sig
                             .split(|c: char| !c.is_alphanumeric() && c != '_')
                             .any(|w| w == "static");
                         let mods = c_modifiers(&sig, is_static);
-                        push_sym(
-                            &mut out,
-                            name,
-                            kind,
-                            n.start_position().row + 1,
-                            sig,
-                            mods,
-                        );
+                        push_sym(&mut out, name, kind, n.start_position().row + 1, sig, mods);
                     }
                 }
             }
             // 记录型声明：必须有 body 才收，跳过前向声明（`struct Foo;`）
-            k @ ("struct_specifier" | "class_specifier" | "union_specifier"
-            | "enum_specifier") =>
-            {
+            k @ ("struct_specifier" | "class_specifier" | "union_specifier" | "enum_specifier") => {
                 if let Some(kind) = c_record_kind(k) {
                     if n.child_by_field_name("body").is_some() {
                         if let Some(name_node) = n.child_by_field_name("name") {
@@ -1140,7 +1258,14 @@ pub fn extract_c_like_symbols_ast(
                 // 匿名记录 + 别名：`typedef struct {..} Foo;` → **记录名就是别名**
                 if spec_kind.is_some() && spec_named.is_none() {
                     if let Some(a) = alias {
-                        push_sym(&mut out, a, spec_kind.unwrap_or("struct"), line, sig, String::new());
+                        push_sym(
+                            &mut out,
+                            a,
+                            spec_kind.unwrap_or("struct"),
+                            line,
+                            sig,
+                            String::new(),
+                        );
                     }
                     // 匿名体内仍可能嵌套具名记录，下钻（但不再收匿名体本身）
                     if let Some(body) = spec.and_then(|s| s.child_by_field_name("body")) {
@@ -1183,7 +1308,10 @@ pub fn extract_c_like_symbols_ast(
 /// 与 `parser::symbol_imports_ast::extract_symbol_imports_with_fallback` 同一形态：
 /// tree-sitter 遇到预处理密集的 C 代码常报 error，此时正则补集能救回一部分
 /// 大括号换行风格不一致的声明。
-pub fn extract_c_like_symbols_with_fallback(dialect: Dialect, content: &str) -> Vec<SymbolCandidate> {
+pub fn extract_c_like_symbols_with_fallback(
+    dialect: Dialect,
+    content: &str,
+) -> Vec<SymbolCandidate> {
     let Some((ast, has_error)) = extract_c_like_symbols_ast(dialect, content) else {
         return extract_c_like_symbols(content);
     };
@@ -1487,10 +1615,7 @@ fn analyze_file_structure(
         name_ordinal.insert(cand.name.clone(), ordinal + 1);
         let sym_id = format!(
             "sym_{}_{}_{}_{}",
-            analysis_id,
-            file.rel_path,
-            cand.name,
-            ordinal
+            analysis_id, file.rel_path, cand.name, ordinal
         );
 
         syms.push(ProjectSymbol {
@@ -1531,7 +1656,11 @@ pub fn analyze_code_structure(
     let files = file_repo.list_by_analysis(&analysis_id)?;
     let incremental = changed_rel_paths.is_some();
     // 增量仅重算变更/新增文件的符号，携带未变文件的旧符号（见下方 file_id 重映射）。
-    let changed: HashSet<&str> = changed_rel_paths.iter().flatten().map(|s| s.as_str()).collect();
+    let changed: HashSet<&str> = changed_rel_paths
+        .iter()
+        .flatten()
+        .map(|s| s.as_str())
+        .collect();
     let current_rel: HashSet<&str> = files
         .iter()
         .filter(|f| !f.is_directory)
@@ -1560,7 +1689,9 @@ pub fn analyze_code_structure(
     // 上一轮符号，用于增量携带。确定性 symbol id（sym_{analysis_id}_{rel_path}_{name}_{ordinal}）
     // 跨重扫稳定，是安全携带的前提；file_id 每次扫描随机，故携带时按 rel_path 重映射到当前 file_id。
     let existing: Vec<ProjectSymbol> = if incremental {
-        symbol_repo.list_by_analysis(&analysis_id).unwrap_or_default()
+        symbol_repo
+            .list_by_analysis(&analysis_id)
+            .unwrap_or_default()
     } else {
         Vec::new()
     };
@@ -1701,7 +1832,11 @@ fn pattern_hits_from_symbols(symbols: &[ProjectSymbol]) -> Vec<PatternHit> {
             let signals: Vec<String> = d
                 .and_then(|v| v.get("signals"))
                 .and_then(|v| v.as_array())
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
             let category = d
                 .and_then(|v| v.get("category"))
@@ -1709,7 +1844,10 @@ fn pattern_hits_from_symbols(symbols: &[ProjectSymbol]) -> Vec<PatternHit> {
                 .unwrap_or("")
                 .to_string();
             let evidence = if signals.is_empty() {
-                format!("{} 于 {}:{}（旧扫描数据，重新扫描可获得判定依据）", s.name, s.file_path, s.line_start)
+                format!(
+                    "{} 于 {}:{}（旧扫描数据，重新扫描可获得判定依据）",
+                    s.name, s.file_path, s.line_start
+                )
             } else {
                 signals.join("；")
             };
@@ -1727,7 +1865,11 @@ fn pattern_hits_from_symbols(symbols: &[ProjectSymbol]) -> Vec<PatternHit> {
         }
     }
     // 置信度降序：前端画像/面板默认按可信程度排列
-    hits.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+    hits.sort_by(|a, b| {
+        b.confidence
+            .partial_cmp(&a.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     hits
 }
 
@@ -1843,7 +1985,11 @@ pub fn redetect_design_patterns_impl(
             if detected.is_empty() {
                 // 无命中也要清掉陈旧 patterns，避免旧引擎残留误判
                 if s.patterns != "[]" {
-                    symbol_repo.update_patterns(&s.id, "[]", &merge_pattern_detail(&s.metadata, &[]))?;
+                    symbol_repo.update_patterns(
+                        &s.id,
+                        "[]",
+                        &merge_pattern_detail(&s.metadata, &[]),
+                    )?;
                 }
                 continue;
             }
@@ -1861,7 +2007,8 @@ pub fn redetect_design_patterns_impl(
                 .collect::<Vec<_>>());
             let patterns_json =
                 serde_json::to_string(&pattern_ids).unwrap_or_else(|_| "[]".to_string());
-            let metadata_json = merge_pattern_detail(&s.metadata, pattern_detail.as_array().unwrap());
+            let metadata_json =
+                merge_pattern_detail(&s.metadata, pattern_detail.as_array().unwrap());
             symbol_repo.update_patterns(&s.id, &patterns_json, &metadata_json)?;
 
             for p in &detected {
@@ -1972,7 +2119,11 @@ pub fn parse_ts_imports(content: &str) -> Vec<ParsedImport> {
         // require('path')：仅文件级，无符号名
         if line.starts_with("const ") && line.contains("require(") {
             if let Some(path) = line.split("require(").nth(1).and_then(extract_quoted) {
-                out.push(ParsedImport { path, line: i + 1, symbols: Vec::new() });
+                out.push(ParsedImport {
+                    path,
+                    line: i + 1,
+                    symbols: Vec::new(),
+                });
             }
             continue;
         }
@@ -1991,7 +2142,10 @@ pub fn parse_ts_imports(content: &str) -> Vec<ParsedImport> {
             // 提取符号名：花括号 {A, B as C}、默认导入、命名空间导入
             let mut symbols = Vec::new();
             if let Some(brace_start) = body.find('{') {
-                let brace_end = body[brace_start + 1..].find('}').map(|e| brace_start + 1 + e).unwrap_or(body.len());
+                let brace_end = body[brace_start + 1..]
+                    .find('}')
+                    .map(|e| brace_start + 1 + e)
+                    .unwrap_or(body.len());
                 let inner = &body[brace_start + 1..brace_end];
                 for part in inner.split(',') {
                     // 先剥 ` as ` 别名取原名，再剥内联 `type` 限定符
@@ -2003,7 +2157,11 @@ pub fn parse_ts_imports(content: &str) -> Vec<ParsedImport> {
                 }
             }
             // 默认导入 / 命名空间导入（在 { 之前）
-            let head = if let Some(b) = body.find('{') { &body[..b] } else { body };
+            let head = if let Some(b) = body.find('{') {
+                &body[..b]
+            } else {
+                body
+            };
             let head = head.split(" from ").next().unwrap_or(head).trim();
             for part in head.split(',') {
                 let part = part.trim();
@@ -2021,7 +2179,11 @@ pub fn parse_ts_imports(content: &str) -> Vec<ParsedImport> {
                 }
             }
             symbols.dedup();
-            out.push(ParsedImport { path, line: i + 1, symbols });
+            out.push(ParsedImport {
+                path,
+                line: i + 1,
+                symbols,
+            });
         }
     }
     out
@@ -2048,11 +2210,19 @@ pub fn parse_py_imports(content: &str) -> Vec<ParsedImport> {
                     }
                 }
             }
-            out.push(ParsedImport { path: module.to_string(), line: i + 1, symbols });
+            out.push(ParsedImport {
+                path: module.to_string(),
+                line: i + 1,
+                symbols,
+            });
         } else if let Some(rest) = line.strip_prefix("import ") {
             let module = rest.split_whitespace().next().unwrap_or("");
             if !module.is_empty() && module != "." {
-                out.push(ParsedImport { path: module.to_string(), line: i + 1, symbols: Vec::new() });
+                out.push(ParsedImport {
+                    path: module.to_string(),
+                    line: i + 1,
+                    symbols: Vec::new(),
+                });
             }
         }
     }
@@ -2071,7 +2241,10 @@ pub fn parse_rs_imports(content: &str) -> Vec<ParsedImport> {
             // use x::{A, B} | use x::y::A | use x::y as z
             let mut symbols = Vec::new();
             let path_part = if let Some(brace_idx) = rest.find('{') {
-                let brace_end = rest[brace_idx + 1..].find('}').map(|e| brace_idx + 1 + e).unwrap_or(rest.len());
+                let brace_end = rest[brace_idx + 1..]
+                    .find('}')
+                    .map(|e| brace_idx + 1 + e)
+                    .unwrap_or(rest.len());
                 for part in rest[brace_idx + 1..brace_end].split(',') {
                     let name = part.split(" as ").next().unwrap_or(part).trim();
                     if !name.is_empty() && name != "self" && name != "super" && name != "crate" {
@@ -2095,7 +2268,11 @@ pub fn parse_rs_imports(content: &str) -> Vec<ParsedImport> {
                     symbols.push(last.to_string());
                 }
             }
-            out.push(ParsedImport { path, line: i + 1, symbols });
+            out.push(ParsedImport {
+                path,
+                line: i + 1,
+                symbols,
+            });
         }
     }
     out
@@ -2115,7 +2292,11 @@ pub fn parse_java_imports(content: &str) -> Vec<ParsedImport> {
             if !class_name.is_empty() && class_name != "*" {
                 symbols.push(class_name);
             }
-            out.push(ParsedImport { path: rest.to_string(), line: i + 1, symbols });
+            out.push(ParsedImport {
+                path: rest.to_string(),
+                line: i + 1,
+                symbols,
+            });
         }
     }
     out
@@ -2157,7 +2338,9 @@ pub(crate) fn ts_module_candidates(from_rel: &str, path: &str) -> Vec<String> {
     };
     let mut candidates = vec![resolved_rel.clone()];
     if !resolved_rel.contains('.') {
-        for ext in ["ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "c", "h", "cpp", "hpp"] {
+        for ext in [
+            "ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "c", "h", "cpp", "hpp",
+        ] {
             candidates.push(format!("{}.{}", resolved_rel, ext));
             candidates.push(format!("{}/index.{}", resolved_rel, ext));
             candidates.push(format!("{}/mod.{}", resolved_rel, ext));
@@ -2281,7 +2464,10 @@ pub fn module_ref_candidates(lang: &str, from_rel: &str, module_path: &str) -> V
         .collect();
     // Rust 路径限定符：`crate` / `self` / `super` 不是目录名，剥掉（祖先扫描已覆盖其语义）
     if lang == "rust" {
-        while matches!(segs.first().map(|s| s.as_str()), Some("crate" | "self" | "super")) {
+        while matches!(
+            segs.first().map(|s| s.as_str()),
+            Some("crate" | "self" | "super")
+        ) {
             segs.remove(0);
         }
     }
@@ -2578,7 +2764,9 @@ pub fn rust_reexport_lines(content: &str) -> Vec<ParsedImport> {
             // wildcard 转发：整个目标文件都是候选
             (prefix.to_string(), Vec::new())
         } else if let Some(brace) = tree.find("::{") {
-            let Some(close) = tree.rfind('}') else { continue };
+            let Some(close) = tree.rfind('}') else {
+                continue;
+            };
             if close < brace {
                 continue;
             }
@@ -2594,13 +2782,19 @@ pub fn rust_reexport_lines(content: &str) -> Vec<ParsedImport> {
             (tree[..brace].to_string(), names)
         } else {
             // 点名：`a::b::Name` → path `a::b` + 符号 `Name`
-            let Some(sep) = tree.rfind("::") else { continue };
+            let Some(sep) = tree.rfind("::") else {
+                continue;
+            };
             (tree[..sep].to_string(), vec![tree[sep + 2..].to_string()])
         };
         if path.is_empty() {
             continue;
         }
-        out.push(ParsedImport { path, line: i + 1, symbols });
+        out.push(ParsedImport {
+            path,
+            line: i + 1,
+            symbols,
+        });
     }
     out
 }
@@ -2613,8 +2807,10 @@ pub fn reexport_imports_for(lang: &str, content: &str) -> Vec<ParsedImport> {
     let mut out = parse_imports_with_symbols(lang, content);
     if lang == "rust" {
         // AST 已抽到的（path, symbols）不重复入列，避免 BFS 重复展开同一目标
-        let seen: HashSet<(String, Vec<String>)> =
-            out.iter().map(|i| (i.path.clone(), i.symbols.clone())).collect();
+        let seen: HashSet<(String, Vec<String>)> = out
+            .iter()
+            .map(|i| (i.path.clone(), i.symbols.clone()))
+            .collect();
         for imp in rust_reexport_lines(content) {
             if !seen.contains(&(imp.path.clone(), imp.symbols.clone())) {
                 out.push(imp);
@@ -2789,7 +2985,8 @@ fn find_keyword_index(haystack: &str, keyword: &str, from: usize) -> Option<usiz
     let mut i = from;
     while i + kw_len <= chars.len() {
         if chars[i..i + kw_len] == kw_chars[..] {
-            let prev_ok = i == 0 || !(chars[i - 1].is_alphanumeric() || chars[i - 1] == '_' || chars[i - 1] == '$');
+            let prev_ok = i == 0
+                || !(chars[i - 1].is_alphanumeric() || chars[i - 1] == '_' || chars[i - 1] == '$');
             let next = i + kw_len;
             let next_ok = next >= chars.len()
                 || !(chars[next].is_alphanumeric() || chars[next] == '_' || chars[next] == '$');
@@ -2844,7 +3041,11 @@ pub fn analyze_symbol_references(
     let symbols = symbol_repo.list_by_analysis(&analysis_id)?;
     let incremental = changed_rel_paths.is_some();
     // 增量仅重算变更/新增文件（changed 含新增），携带未变文件的旧引用。
-    let changed: HashSet<&str> = changed_rel_paths.iter().flatten().map(|s| s.as_str()).collect();
+    let changed: HashSet<&str> = changed_rel_paths
+        .iter()
+        .flatten()
+        .map(|s| s.as_str())
+        .collect();
     let current_rel: HashSet<&str> = files
         .iter()
         .filter(|f| !f.is_directory)
@@ -2889,10 +3090,11 @@ pub fn analyze_symbol_references(
             .or_default()
             .entry(s.name.clone())
             .or_insert_with(|| s.id.clone());
-        symbols_by_name
-            .entry(s.name.clone())
-            .or_default()
-            .push((s.file_id.clone(), s.id.clone(), s.file_path.clone()));
+        symbols_by_name.entry(s.name.clone()).or_default().push((
+            s.file_id.clone(),
+            s.id.clone(),
+            s.file_path.clone(),
+        ));
     }
 
     // 读文件内容（供 import 解析）：增量只读取变更文件
@@ -2947,17 +3149,29 @@ pub fn analyze_symbol_references(
         // 故在 analyze_symbol_references 内一并生成，避免被本命令的删除循环冲掉。
         // 仅对单行类声明语言（TS/JS/Java）解析；Rust/Python 跳过。
         if matches!(lang, "typescript" | "javascript" | "java") {
-            for s in symbols.iter().filter(|s| s.file_id == file.id && (s.kind == "class" || s.kind == "interface")) {
+            for s in symbols
+                .iter()
+                .filter(|s| s.file_id == file.id && (s.kind == "class" || s.kind == "interface"))
+            {
                 for (parent, rel_kind) in parse_inheritance(&s.signature) {
-                    let to = symbols_by_name.get(&parent).and_then(|v| v.first()).cloned();
+                    let to = symbols_by_name
+                        .get(&parent)
+                        .and_then(|v| v.first())
+                        .cloned();
                     new_refs.push(SymbolRef {
                         id: format!("ref_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
                         analysis_id: analysis_id.clone(),
                         from_file_id: file.id.clone(),
                         from_file_path: file.rel_path.clone(),
                         to_symbol_id: to.as_ref().map(|(_, sid, _)| sid.clone()),
-                        to_file_id: to.as_ref().map(|(fid, _, _)| fid.clone()).unwrap_or_else(|| file.id.clone()),
-                        to_file_path: to.as_ref().map(|(_, _, fp)| fp.clone()).unwrap_or_else(|| file.rel_path.clone()),
+                        to_file_id: to
+                            .as_ref()
+                            .map(|(fid, _, _)| fid.clone())
+                            .unwrap_or_else(|| file.id.clone()),
+                        to_file_path: to
+                            .as_ref()
+                            .map(|(_, _, fp)| fp.clone())
+                            .unwrap_or_else(|| file.rel_path.clone()),
                         symbol_name: parent,
                         ref_line: s.line_start,
                         ref_text: s.signature.chars().take(90).collect(),
@@ -2974,10 +3188,7 @@ pub fn analyze_symbol_references(
             // 1) 解析相对路径 → 目标文件候选（TS/JS 模块记号解析，与再导出链 resolve_path 共用）
             let candidates = ts_module_candidates(&file.rel_path, &imp.path);
 
-            let mut to_file_id = candidates
-                .iter()
-                .find_map(|c| path_to_id.get(c))
-                .cloned();
+            let mut to_file_id = candidates.iter().find_map(|c| path_to_id.get(c)).cloned();
 
             // 兜底：非 TS/JS 的**模块记号**解析（Rust `crate::a::b` / Python `a.b` / `.foo` /
             // Java・Kotlin `com.foo.Bar`）。上面的候选生成是按 TS 语义写的，对这些记号必然空手
@@ -2990,8 +3201,7 @@ pub fn analyze_symbol_references(
                 } else if lang == "go" {
                     // Go 包目录回退：包体是目录且文件不必与包同名
                     // （`internal/api/handler.go`），按目录找包内文件。
-                    to_file_id =
-                        resolve_go_pkg_dir(&cands, &imp.symbols, &files, &symbols_by_file);
+                    to_file_id = resolve_go_pkg_dir(&cands, &imp.symbols, &files, &symbols_by_file);
                 }
             }
 
@@ -2999,7 +3209,11 @@ pub fn analyze_symbol_references(
                 .as_ref()
                 .and_then(|id| files.iter().find(|f| &f.id == id));
 
-            let ref_text = lines.get(imp.line.saturating_sub(1)).unwrap_or(&"").trim().to_string();
+            let ref_text = lines
+                .get(imp.line.saturating_sub(1))
+                .unwrap_or(&"")
+                .trim()
+                .to_string();
             let ref_text = if ref_text.chars().count() > 90 {
                 let s: String = ref_text.chars().take(87).collect();
                 format!("{}...", s)
@@ -3014,7 +3228,10 @@ pub fn analyze_symbol_references(
             };
 
             // 3) 符号名匹配：目标文件符号表内精确匹配
-            let target_symbols = symbols_by_file.get(&to_file_id).cloned().unwrap_or_default();
+            let target_symbols = symbols_by_file
+                .get(&to_file_id)
+                .cloned()
+                .unwrap_or_default();
 
             if imp.symbols.is_empty() {
                 // 文件级引用（未点名符号）：to_symbol_id = None
@@ -3188,7 +3405,9 @@ mod tests {
     use super::*;
 
     fn kinds_of(syms: &[SymbolCandidate]) -> Vec<String> {
-        syms.iter().map(|s| format!("{}:{}", s.kind, s.name)).collect()
+        syms.iter()
+            .map(|s| format!("{}:{}", s.kind, s.name))
+            .collect()
     }
 
     // ══════════════ 模块记号解析（非 TS/JS 符号级引用的解析层）══════════════
@@ -3251,18 +3470,27 @@ mod tests {
     fn go_nested_package_resolves_relative_to_file_dir_too() {
         // 祖先回溯：同仓库内的相对布局也要覆盖
         let c = module_ref_candidates("go", "internal/api/handler.go", "internal/store");
-        assert!(c.contains(&"internal/store/store.go".to_string()), "实际={:?}", c);
+        assert!(
+            c.contains(&"internal/store/store.go".to_string()),
+            "实际={:?}",
+            c
+        );
     }
 
     #[test]
     fn go_candidates_are_most_specific_first() {
         // 最具体的（剥离最少）必须排在前面，否则浅层同名包会抢先命中成假目标
         let c = module_ref_candidates("go", "main.go", "github.com/u/repo/internal/store");
-        let full = c.iter().position(|p| p == "github.com/u/repo/internal/store/store.go");
+        let full = c
+            .iter()
+            .position(|p| p == "github.com/u/repo/internal/store/store.go");
         let stripped = c.iter().position(|p| p == "internal/store/store.go");
         let shallow = c.iter().position(|p| p == "store/store.go");
         assert!(full.is_some() && stripped.is_some(), "实际={:?}", c);
-        assert!(full.unwrap() < stripped.unwrap(), "完整路径必须优先于剥离路径");
+        assert!(
+            full.unwrap() < stripped.unwrap(),
+            "完整路径必须优先于剥离路径"
+        );
         if let Some(s) = shallow {
             assert!(stripped.unwrap() < s, "深层路径必须优先于浅层");
         }
@@ -3274,8 +3502,17 @@ mod tests {
     fn c_include_keeps_own_extension() {
         // 通用分支会拼成 `foo/bar.h.go`；C 必须原样保留
         let c = module_ref_candidates("c", "src/main.c", "foo/bar.h");
-        assert_eq!(c.first().map(|s| s.as_str()), Some("src/foo/bar.h"), "实际={:?}", c);
-        assert!(!c.iter().any(|p| p.ends_with(".h.go")), "不得拼出 .h.go，实际={:?}", c);
+        assert_eq!(
+            c.first().map(|s| s.as_str()),
+            Some("src/foo/bar.h"),
+            "实际={:?}",
+            c
+        );
+        assert!(
+            !c.iter().any(|p| p.ends_with(".h.go")),
+            "不得拼出 .h.go，实际={:?}",
+            c
+        );
     }
 
     #[test]
@@ -3291,14 +3528,22 @@ mod tests {
         // `#include "bar.c"` 是合法但罕见的写法：不应反向臆造 bar.h/bar.hpp
         let c = module_ref_candidates("c", "src/main.c", "bar.c");
         assert!(c.contains(&"src/bar.c".to_string()), "实际={:?}", c);
-        assert!(!c.iter().any(|p| p.ends_with("bar.h")), "不得反向臆造头文件，实际={:?}", c);
+        assert!(
+            !c.iter().any(|p| p.ends_with("bar.h")),
+            "不得反向臆造头文件，实际={:?}",
+            c
+        );
     }
 
     #[test]
     fn c_ancestor_walk_covers_include_search_dirs() {
         // 没有编译数据库，用祖先回溯替代 include 搜索路径
         let c = module_ref_candidates("c", "src/core/net/sock.c", "inc/config.h");
-        assert!(c.contains(&"src/core/net/inc/config.h".to_string()), "实际={:?}", c);
+        assert!(
+            c.contains(&"src/core/net/inc/config.h".to_string()),
+            "实际={:?}",
+            c
+        );
         assert!(c.contains(&"inc/config.h".to_string()), "实际={:?}", c);
     }
 
@@ -3312,7 +3557,11 @@ mod tests {
     #[test]
     fn python_dotted_module_resolves_with_package_init() {
         let c = module_ref_candidates("python", "src/app/api/views.py", "app.models.user");
-        assert!(c.contains(&"src/app/models/user.py".to_string()), "实际={:?}", c);
+        assert!(
+            c.contains(&"src/app/models/user.py".to_string()),
+            "实际={:?}",
+            c
+        );
         assert!(c.contains(&"src/app/models/user/__init__.py".to_string()));
     }
 
@@ -3320,13 +3569,21 @@ mod tests {
     fn python_relative_import_resolves_against_own_package() {
         // `from .helpers import x`
         let c = module_ref_candidates("python", "pkg/sub/mod.py", ".helpers");
-        assert!(c.contains(&"pkg/sub/helpers.py".to_string()), "实际={:?}", c);
+        assert!(
+            c.contains(&"pkg/sub/helpers.py".to_string()),
+            "实际={:?}",
+            c
+        );
         // `from ..core import y` → 上一级包
         let c2 = module_ref_candidates("python", "pkg/sub/mod.py", "..core");
         assert!(c2.contains(&"pkg/core.py".to_string()), "实际={:?}", c2);
         // `from . import x` → 当前包本体
         let c3 = module_ref_candidates("python", "pkg/sub/mod.py", ".");
-        assert!(c3.contains(&"pkg/sub/__init__.py".to_string()), "实际={:?}", c3);
+        assert!(
+            c3.contains(&"pkg/sub/__init__.py".to_string()),
+            "实际={:?}",
+            c3
+        );
     }
 
     #[test]
@@ -3347,13 +3604,21 @@ mod tests {
     #[test]
     fn java_nested_class_falls_back_to_outer_file() {
         let c = module_ref_candidates("java", "src/A.java", "com.acme.Outer.Inner");
-        assert!(c.contains(&"com/acme/Outer.java".to_string()), "实际={:?}", c);
+        assert!(
+            c.contains(&"com/acme/Outer.java".to_string()),
+            "实际={:?}",
+            c
+        );
     }
 
     #[test]
     fn kotlin_uses_kt_extension() {
         let c = module_ref_candidates("kotlin", "src/main/kotlin/a/B.kt", "a.c.D");
-        assert!(c.contains(&"src/main/kotlin/a/c/D.kt".to_string()), "实际={:?}", c);
+        assert!(
+            c.contains(&"src/main/kotlin/a/c/D.kt".to_string()),
+            "实际={:?}",
+            c
+        );
     }
 
     /// 端到端链路证明「不再是死功能」：抽取层给出模块 + 符号，解析层把模块记号落到真实文件。
@@ -3433,7 +3698,10 @@ mod tests {
         // `import { type Alpha, Beta }` → 必须是 [Alpha, Beta]，而非 [type Alpha, Beta]
         let imp = parse_ts_imports("import { type Alpha, Beta } from './mod';");
         assert_eq!(imp.len(), 1);
-        assert_eq!(imp[0].symbols, vec!["Alpha".to_string(), "Beta".to_string()]);
+        assert_eq!(
+            imp[0].symbols,
+            vec!["Alpha".to_string(), "Beta".to_string()]
+        );
 
         // `import type { Gamma }` 整条类型导入 → [Gamma]
         let whole = parse_ts_imports("import type { Gamma } from './t';");
@@ -3449,9 +3717,11 @@ mod tests {
 
         // 名为 `typeX` 的符号绝不被误伤
         let named_typex = parse_ts_imports("import { typeX, type Y } from './m';");
-        assert_eq!(named_typex[0].symbols, vec!["typeX".to_string(), "Y".to_string()]);
+        assert_eq!(
+            named_typex[0].symbols,
+            vec!["typeX".to_string(), "Y".to_string()]
+        );
     }
-
 
     // ══════════════ TS/JS barrel（再导出）链解析（对标 joern ReExport 语义）══════════════
 
@@ -3620,15 +3890,39 @@ export class UserService {
 ";
         let syms = extract_ts_symbols(src);
         let k = kinds_of(&syms);
-        assert!(k.contains(&"class:UserService".to_string()), "class missing: {k:?}");
-        assert!(k.contains(&"method:constructor".to_string()), "constructor missing: {k:?}");
-        assert!(k.contains(&"method:fetchUser".to_string()), "fetchUser missing: {k:?}");
-        assert!(k.contains(&"method:create".to_string()), "static create missing: {k:?}");
-        assert!(k.contains(&"method:displayName".to_string()), "getter missing: {k:?}");
-        assert!(k.contains(&"method:secret".to_string()), "private missing: {k:?}");
+        assert!(
+            k.contains(&"class:UserService".to_string()),
+            "class missing: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:constructor".to_string()),
+            "constructor missing: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:fetchUser".to_string()),
+            "fetchUser missing: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:create".to_string()),
+            "static create missing: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:displayName".to_string()),
+            "getter missing: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:secret".to_string()),
+            "private missing: {k:?}"
+        );
         // 方法体内的调用/属性不误报为方法
-        assert!(!k.contains(&"method:get".to_string()), "this.get() 误报: {k:?}");
-        assert!(!k.contains(&"method:set".to_string()), "this.set() 误报: {k:?}");
+        assert!(
+            !k.contains(&"method:get".to_string()),
+            "this.get() 误报: {k:?}"
+        );
+        assert!(
+            !k.contains(&"method:set".to_string()),
+            "this.set() 误报: {k:?}"
+        );
     }
 
     #[test]
@@ -3708,7 +4002,10 @@ export { FOO as BAR };
         let src = "export { Something } from './other';";
         let syms = extract_ts_symbols(src);
         let names: Vec<&str> = syms.iter().map(|s| s.name.as_str()).collect();
-        assert!(!names.contains(&"Something"), "外部再导出误建本地符号: {names:?}");
+        assert!(
+            !names.contains(&"Something"),
+            "外部再导出误建本地符号: {names:?}"
+        );
     }
 
     #[test]
@@ -3745,8 +4042,12 @@ export { SPLIT };
             let mut i = 0;
             while i < n {
                 let is_export = i + 6 <= n
-                    && chars[i] == 'e' && chars[i + 1] == 'x' && chars[i + 2] == 'p'
-                    && chars[i + 3] == 'o' && chars[i + 4] == 'r' && chars[i + 5] == 't';
+                    && chars[i] == 'e'
+                    && chars[i + 1] == 'x'
+                    && chars[i + 2] == 'p'
+                    && chars[i + 3] == 'o'
+                    && chars[i + 4] == 'r'
+                    && chars[i + 5] == 't';
                 let prev_ok = i == 0 || !(chars[i - 1].is_alphanumeric() || chars[i - 1] == '_');
                 if is_export && prev_ok {
                     let mut j = i + 6;
@@ -3790,7 +4091,9 @@ export { SPLIT };
 
         let root = std::path::Path::new(&dir);
         fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            let Ok(rd) = std::fs::read_dir(dir) else {
+                return;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 if p.is_dir() {
@@ -3812,11 +4115,15 @@ export { SPLIT };
         let mut files_with_new = 0usize;
         let mut samples: Vec<String> = Vec::new();
         for f in &files {
-            let Some(ext) = f.extension().and_then(|s| s.to_str()) else { continue };
+            let Some(ext) = f.extension().and_then(|s| s.to_str()) else {
+                continue;
+            };
             if !matches!(ext, "ts" | "tsx" | "js" | "jsx") {
                 continue;
             }
-            let Ok(content) = std::fs::read_to_string(f) else { continue };
+            let Ok(content) = std::fs::read_to_string(f) else {
+                continue;
+            };
             let new_const = extract_ts_symbols(&content)
                 .into_iter()
                 .filter(|s| s.kind == "const")
@@ -3859,8 +4166,14 @@ export { SPLIT };
         let src = "export const make = () => 1;";
         let syms = extract_ts_symbols(src);
         let k = kinds_of(&syms);
-        assert!(k.contains(&"function:make".to_string()), "callable const 应为 function: {k:?}");
-        assert!(!k.contains(&"const:make".to_string()), "callable const 不应是 const: {k:?}");
+        assert!(
+            k.contains(&"function:make".to_string()),
+            "callable const 应为 function: {k:?}"
+        );
+        assert!(
+            !k.contains(&"const:make".to_string()),
+            "callable const 不应是 const: {k:?}"
+        );
     }
 
     #[test]
@@ -3896,8 +4209,14 @@ class Panel {
 ";
         let syms = extract_ts_symbols(src);
         let k = kinds_of(&syms);
-        assert!(k.contains(&"method:render".to_string()), "render missing: {k:?}");
-        assert!(!k.contains(&"method:onClick".to_string()), "箭头属性误报: {k:?}");
+        assert!(
+            k.contains(&"method:render".to_string()),
+            "render missing: {k:?}"
+        );
+        assert!(
+            !k.contains(&"method:onClick".to_string()),
+            "箭头属性误报: {k:?}"
+        );
         assert!(!k.contains(&"method:state".to_string()), "if 误报: {k:?}");
     }
 
@@ -3915,11 +4234,23 @@ export function bootstrap() {}
 ";
         let syms = extract_ts_symbols(src);
         let k = kinds_of(&syms);
-        assert!(k.contains(&"interface:UserRepo".to_string()), "interface 漏抓: {k:?}");
+        assert!(
+            k.contains(&"interface:UserRepo".to_string()),
+            "interface 漏抓: {k:?}"
+        );
         assert!(k.contains(&"enum:Status".to_string()), "enum 漏抓: {k:?}");
-        assert!(k.contains(&"type_alias:Id".to_string()), "type alias 漏抓: {k:?}");
-        assert!(k.contains(&"function:makeClient".to_string()), "箭头 const 应为 function: {k:?}");
-        assert!(k.contains(&"function:bootstrap".to_string()), "顶层 fn 漏抓: {k:?}");
+        assert!(
+            k.contains(&"type_alias:Id".to_string()),
+            "type alias 漏抓: {k:?}"
+        );
+        assert!(
+            k.contains(&"function:makeClient".to_string()),
+            "箭头 const 应为 function: {k:?}"
+        );
+        assert!(
+            k.contains(&"function:bootstrap".to_string()),
+            "顶层 fn 漏抓: {k:?}"
+        );
     }
 
     #[test]
@@ -3936,11 +4267,26 @@ fn helper() {}
 ";
         let syms = extract_rust_symbols(src);
         let k = kinds_of(&syms);
-        assert!(k.contains(&"struct:Repository".to_string()), "struct missing: {k:?}");
-        assert!(k.contains(&"method:new".to_string()), "impl new 应为 method: {k:?}");
-        assert!(k.contains(&"method:save".to_string()), "impl save 应为 method: {k:?}");
-        assert!(k.contains(&"function:helper".to_string()), "顶层 fn 应为 function: {k:?}");
-        assert!(!k.contains(&"function:save".to_string()), "save 不应是 function: {k:?}");
+        assert!(
+            k.contains(&"struct:Repository".to_string()),
+            "struct missing: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:new".to_string()),
+            "impl new 应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:save".to_string()),
+            "impl save 应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"function:helper".to_string()),
+            "顶层 fn 应为 function: {k:?}"
+        );
+        assert!(
+            !k.contains(&"function:save".to_string()),
+            "save 不应是 function: {k:?}"
+        );
     }
 
     /// 受限可见（`pub(crate)` / `pub(super)` / `pub(in path)`）必须与 `pub` 同等入表。
@@ -3973,12 +4319,22 @@ fn private_fn() {}
             "function:plain_public",
             "function:private_fn",
         ] {
-            assert!(k.contains(&want.to_string()), "受限可见符号漏抓 {want}: {k:?}");
+            assert!(
+                k.contains(&want.to_string()),
+                "受限可见符号漏抓 {want}: {k:?}"
+            );
         }
         // 可见性只是修饰符，不能污染符号名（`pub(crate)` 不得残留在 name 里）
-        let mini = syms.iter().find(|s| s.name == "looks_minified").expect("looks_minified");
+        let mini = syms
+            .iter()
+            .find(|s| s.name == "looks_minified")
+            .expect("looks_minified");
         assert_eq!(mini.kind, "function");
-        assert!(mini.modifiers.contains("pub"), "pub(crate) 应记为 pub 修饰: {:?}", mini.modifiers);
+        assert!(
+            mini.modifiers.contains("pub"),
+            "pub(crate) 应记为 pub 修饰: {:?}",
+            mini.modifiers
+        );
     }
 
     /// item 关键字前的修饰符（async / unsafe / extern "C" / const fn / default）不得挡住符号。
@@ -4020,14 +4376,33 @@ impl Link {
             "const:DEP_KIND",
             "const:GLOBAL",
         ] {
-            assert!(k.contains(&want.to_string()), "修饰符前缀符号漏抓 {want}: {k:?}");
+            assert!(
+                k.contains(&want.to_string()),
+                "修饰符前缀符号漏抓 {want}: {k:?}"
+            );
         }
         // `unsafe impl` / `impl` 块内的方法必须是 method 而不是顶层 function
-        assert!(k.contains(&"method:connect".to_string()), "impl 内 async fn 应为 method: {k:?}");
-        assert!(k.contains(&"method:detach".to_string()), "impl 内 unsafe fn 应为 method: {k:?}");
-        assert!(!k.contains(&"function:connect".to_string()), "connect 不应是顶层 function: {k:?}");
-        let spawn = syms.iter().find(|s| s.name == "spawn_task").expect("spawn_task");
-        assert!(spawn.modifiers.contains("async"), "async 应记入修饰符: {:?}", spawn.modifiers);
+        assert!(
+            k.contains(&"method:connect".to_string()),
+            "impl 内 async fn 应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:detach".to_string()),
+            "impl 内 unsafe fn 应为 method: {k:?}"
+        );
+        assert!(
+            !k.contains(&"function:connect".to_string()),
+            "connect 不应是顶层 function: {k:?}"
+        );
+        let spawn = syms
+            .iter()
+            .find(|s| s.name == "spawn_task")
+            .expect("spawn_task");
+        assert!(
+            spawn.modifiers.contains("async"),
+            "async 应记入修饰符: {:?}",
+            spawn.modifiers
+        );
     }
 
     #[test]
@@ -4048,11 +4423,26 @@ def another():
 ";
         let syms = extract_python_symbols(src);
         let k = kinds_of(&syms);
-        assert!(k.contains(&"class:Service".to_string()), "class missing: {k:?}");
-        assert!(k.contains(&"method:__init__".to_string()), "__init__ 应为 method: {k:?}");
-        assert!(k.contains(&"method:run".to_string()), "run 应为 method: {k:?}");
-        assert!(k.contains(&"function:module_fn".to_string()), "顶层 def 应为 function: {k:?}");
-        assert!(k.contains(&"function:another".to_string()), "class 后顶层 def 应为 function: {k:?}");
+        assert!(
+            k.contains(&"class:Service".to_string()),
+            "class missing: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:__init__".to_string()),
+            "__init__ 应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:run".to_string()),
+            "run 应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"function:module_fn".to_string()),
+            "顶层 def 应为 function: {k:?}"
+        );
+        assert!(
+            k.contains(&"function:another".to_string()),
+            "class 后顶层 def 应为 function: {k:?}"
+        );
     }
 
     #[test]
@@ -4066,9 +4456,18 @@ func NewStore() *Store { return &Store{} }
 ";
         let syms = extract_go_symbols(src);
         let k = kinds_of(&syms);
-        assert!(k.contains(&"method:Get".to_string()), "接收者方法应为 method: {k:?}");
-        assert!(k.contains(&"method:Put".to_string()), "接收者方法应为 method: {k:?}");
-        assert!(k.contains(&"function:NewStore".to_string()), "自由函数应为 function: {k:?}");
+        assert!(
+            k.contains(&"method:Get".to_string()),
+            "接收者方法应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:Put".to_string()),
+            "接收者方法应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"function:NewStore".to_string()),
+            "自由函数应为 function: {k:?}"
+        );
     }
 
     #[test]
@@ -4093,13 +4492,31 @@ public class AccountService {
 ";
         let syms = extract_java_symbols(src);
         let k = kinds_of(&syms);
-        assert!(k.contains(&"class:AccountService".to_string()), "class missing: {k:?}");
-        assert!(k.contains(&"method:AccountService".to_string()), "构造器应为 method: {k:?}");
-        assert!(k.contains(&"method:get".to_string()), "get 应为 method: {k:?}");
-        assert!(k.contains(&"method:create".to_string()), "static create 应为 method: {k:?}");
-        assert!(!k.contains(&"method:find".to_string()), "ledger.find() 调用误报: {k:?}");
+        assert!(
+            k.contains(&"class:AccountService".to_string()),
+            "class missing: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:AccountService".to_string()),
+            "构造器应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:get".to_string()),
+            "get 应为 method: {k:?}"
+        );
+        assert!(
+            k.contains(&"method:create".to_string()),
+            "static create 应为 method: {k:?}"
+        );
+        assert!(
+            !k.contains(&"method:find".to_string()),
+            "ledger.find() 调用误报: {k:?}"
+        );
         // 防误报验证：if 行不产生方法
-        assert!(!k.iter().any(|s| s.contains("method:") && s.contains("id")), "if 误报: {k:?}");
+        assert!(
+            !k.iter().any(|s| s.contains("method:") && s.contains("id")),
+            "if 误报: {k:?}"
+        );
     }
 
     // ─── 文档注释提取（docsCoverage 真·数据来源）───
@@ -4208,8 +4625,8 @@ def total(items):
     // ─── 设计模式重检测（redetect_design_patterns_impl）───
     fn redetect_repo() -> SqliteProjectSymbolRepository {
         use crate::infrastructure::database::Database;
-        use std::sync::{Arc, Mutex};
         use rusqlite::Connection;
+        use std::sync::{Arc, Mutex};
 
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(

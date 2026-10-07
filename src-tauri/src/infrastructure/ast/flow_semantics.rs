@@ -142,48 +142,202 @@ pub enum FlowKind {
 
 const PASS_THROUGH: &[&str] = &[
     // ── TS / JS：String ──
-    "trim", "trimstart", "trimend", "trimleft", "trimright",
-    "tolowercase", "touppercase", "tolocalelowercase", "tolocaleuppercase",
-    "substring", "substr", "slice", "split", "concat", "repeat",
-    "padstart", "padend", "charat", "charcodeat", "codepointat",
-    "indexof", "lastindexof", "includes", "startswith", "endswith",
-    "replace", "replaceall", "match", "matchall", "search",
-    "normalize", "normalise", "tostring", "valueof", "tolocalestring",
+    "trim",
+    "trimstart",
+    "trimend",
+    "trimleft",
+    "trimright",
+    "tolowercase",
+    "touppercase",
+    "tolocalelowercase",
+    "tolocaleuppercase",
+    "substring",
+    "substr",
+    "slice",
+    "split",
+    "concat",
+    "repeat",
+    "padstart",
+    "padend",
+    "charat",
+    "charcodeat",
+    "codepointat",
+    "indexof",
+    "lastindexof",
+    "includes",
+    "startswith",
+    "endswith",
+    "replace",
+    "replaceall",
+    "match",
+    "matchall",
+    "search",
+    "normalize",
+    "normalise",
+    "tostring",
+    "valueof",
+    "tolocalestring",
     // 数字格式化：值仍由入参决定（NaN 也属于「入参决定」）
-    "tofixed", "toprecision", "toexponential", "tolocaledatestring", "toisostring",
+    "tofixed",
+    "toprecision",
+    "toexponential",
+    "tolocaledatestring",
+    "toisostring",
     // ── TS / JS：Array / Object / JSON ──
-    "join", "reverse", "sort", "flat", "flatmap", "map", "filter",
-    "find", "findindex", "findlast", "findlastindex", "some", "every",
-    "keys", "values", "entries", "from", "of", "assign", "freeze", "seal",
-    "reduce", "reduceright", "foreach", "at", "with", "tosorted", "toreversed",
-    "stringify", "parse", "clone", "structuredclone",
+    "join",
+    "reverse",
+    "sort",
+    "flat",
+    "flatmap",
+    "map",
+    "filter",
+    "find",
+    "findindex",
+    "findlast",
+    "findlastindex",
+    "some",
+    "every",
+    "keys",
+    "values",
+    "entries",
+    "from",
+    "of",
+    "assign",
+    "freeze",
+    "seal",
+    "reduce",
+    "reduceright",
+    "foreach",
+    "at",
+    "with",
+    "tosorted",
+    "toreversed",
+    "stringify",
+    "parse",
+    "clone",
+    "structuredclone",
     // ── TS / JS：包装器与内建 ──
-    "string", "boolean", "symbol", "bigint", "regexp", "date",
-    "abs", "floor", "ceil", "round", "trunc", "sign", "pow", "sqrt", "max", "min",
+    "string",
+    "boolean",
+    "symbol",
+    "bigint",
+    "regexp",
+    "date",
+    "abs",
+    "floor",
+    "ceil",
+    "round",
+    "trunc",
+    "sign",
+    "pow",
+    "sqrt",
+    "max",
+    "min",
     // decodeURI* 是 encodeURI* 的逆操作，解码后的串**更**危险，绝不阻断
-    "decodeuri", "decodeuricomponent", "unescape",
+    "decodeuri",
+    "decodeuricomponent",
+    "unescape",
     // ── Rust：std 纯变换 ──
     // 注：`to_string` 是 Rust 侧出现频次最高的中间调用（真实仓库探针 Top20 之首），
     // 它与 JS 的 `toString` 是同一个语义，只是命名风格不同，两条都要收录。
-    "to_string", "to_owned", "to_vec", "as_str", "as_ref", "as_mut", "as_bytes", "as_path",
-    "to_string_lossy", "to_str", "to_mut", "deref", "borrow",
-    "iter", "iter_mut", "into_iter", "cloned", "copied", "collect",
-    "filter_map", "flatten", "zip", "enumerate", "rev", "take", "skip", "chain",
-    "unwrap_or", "unwrap_or_else", "unwrap_or_default", "ok_or", "ok_or_else",
-    "and_then", "or_else", "map_or", "map_or_else", "map_err", "inspect",
-    "to_lowercase", "to_uppercase", "split_whitespace", "splitn", "rsplitn",
-    "trim_start", "trim_end", "replacen", "chars", "lines", "bytes",
-    "display", "stringify_macro", "abs_diff", "clamp", "saturating_add",
-    "fold", "sum", "product", "count", "position", "rposition",
+    "to_string",
+    "to_owned",
+    "to_vec",
+    "as_str",
+    "as_ref",
+    "as_mut",
+    "as_bytes",
+    "as_path",
+    "to_string_lossy",
+    "to_str",
+    "to_mut",
+    "deref",
+    "borrow",
+    "iter",
+    "iter_mut",
+    "into_iter",
+    "cloned",
+    "copied",
+    "collect",
+    "filter_map",
+    "flatten",
+    "zip",
+    "enumerate",
+    "rev",
+    "take",
+    "skip",
+    "chain",
+    "unwrap_or",
+    "unwrap_or_else",
+    "unwrap_or_default",
+    "ok_or",
+    "ok_or_else",
+    "and_then",
+    "or_else",
+    "map_or",
+    "map_or_else",
+    "map_err",
+    "inspect",
+    "to_lowercase",
+    "to_uppercase",
+    "split_whitespace",
+    "splitn",
+    "rsplitn",
+    "trim_start",
+    "trim_end",
+    "replacen",
+    "chars",
+    "lines",
+    "bytes",
+    "display",
+    "stringify_macro",
+    "abs_diff",
+    "clamp",
+    "saturating_add",
+    "fold",
+    "sum",
+    "product",
+    "count",
+    "position",
+    "rposition",
     // 宏（`!` 后缀在 normalize_callee 里去掉，故按裸名收录）
     "vec",
     // ── Python：内建与 str / 容器 ──
-    "strip", "lstrip", "rstrip", "casefold", "capitalize", "swapcase",
-    "rsplit", "splitlines", "zfill", "ljust", "rjust", "center",
-    "encode", "decode", "format", "format_map", "join",
-    "sorted", "reversed", "tuple", "frozenset", "repr", "ascii", "ord", "chr",
-    "deepcopy", "dumps", "items", "get", "setdefault", "pop", "copy",
-    "hex", "oct", "bin",
+    "strip",
+    "lstrip",
+    "rstrip",
+    "casefold",
+    "capitalize",
+    "swapcase",
+    "rsplit",
+    "splitlines",
+    "zfill",
+    "ljust",
+    "rjust",
+    "center",
+    "encode",
+    "decode",
+    "format",
+    "format_map",
+    "join",
+    "sorted",
+    "reversed",
+    "tuple",
+    "frozenset",
+    "repr",
+    "ascii",
+    "ord",
+    "chr",
+    "deepcopy",
+    "dumps",
+    "items",
+    "get",
+    "setdefault",
+    "pop",
+    "copy",
+    "hex",
+    "oct",
+    "bin",
 ];
 
 // ─────────────────────────── Block 名单 ───────────────────────────
@@ -199,24 +353,43 @@ const PASS_THROUGH: &[&str] = &[
 // 必须单独评估。本模块只**修**漏报，不**造**漏报。
 const BLOCK: &[&str] = &[
     // escape*（历史正则 `escape\w*`）
-    "escape", "escapehtml", "escape_html", "escapejavascript", "escapeshellarg",
-    "escapeshellcmd", "escapeidentifier", "escapeliteral", "escapestring",
+    "escape",
+    "escapehtml",
+    "escape_html",
+    "escapejavascript",
+    "escapeshellarg",
+    "escapeshellcmd",
+    "escapeidentifier",
+    "escapeliteral",
+    "escapestring",
     // sanitize* / sanitise*
-    "sanitize", "sanitise",
+    "sanitize",
+    "sanitise",
     // encodeURI* / encodeURIComponent
-    "encodeuri", "encodeuricomponent",
+    "encodeuri",
+    "encodeuricomponent",
     // HTML 实体化
-    "htmlspecialchars", "striptags", "strip_tags",
+    "htmlspecialchars",
+    "striptags",
+    "strip_tags",
     // quote*（历史正则 `quote\w*`）
-    "quote", "quoteidentifier", "quote_plus", "urlencode",
+    "quote",
+    "quoteidentifier",
+    "quote_plus",
+    "urlencode",
     // 白名单式收窄
-    "parameterize", "whitelist", "allowlist",
+    "parameterize",
+    "whitelist",
+    "allowlist",
     // 类型收窄：把任意串压成数字 → 结构确实被破坏
-    "parseint", "parsefloat", "number",
+    "parseint",
+    "parsefloat",
+    "number",
     // 路径收窄
     "basename",
     // 专用清洗库
-    "dompurify", "xss",
+    "dompurify",
+    "xss",
 ];
 
 /// 归一化调用名：`JSON.stringify` → `stringify`，`path.normalize` → `normalize`。
@@ -349,7 +522,10 @@ mod tests {
         assert_eq!(semantics_for("JSON.stringify"), Some(FlowKind::PassThrough));
         assert_eq!(semantics_for("escapeHtml"), Some(FlowKind::Block));
         assert_eq!(semantics_for("path.basename"), Some(FlowKind::Block));
-        assert_eq!(semantics_for("String.prototype.trim"), Some(FlowKind::PassThrough));
+        assert_eq!(
+            semantics_for("String.prototype.trim"),
+            Some(FlowKind::PassThrough)
+        );
     }
 
     #[test]
@@ -372,7 +548,11 @@ mod tests {
         assert_eq!(semantics_for("normalize"), Some(FlowKind::PassThrough));
         assert_eq!(semantics_for("normalise"), Some(FlowKind::PassThrough));
         let sem = chain_semantics(["normalize", "readFileSync"]);
-        assert_eq!(sem, ChainSem::PassThrough, "normalize 不该让整条链判成已净化");
+        assert_eq!(
+            sem,
+            ChainSem::PassThrough,
+            "normalize 不该让整条链判成已净化"
+        );
     }
 
     #[test]
@@ -411,10 +591,25 @@ mod tests {
         // 范围纪律：Block 名单必须与历史 SANITIZER_RE 等价（除 normalize/normalise）。
         // 这条测试锁住「只修漏报、不新增误报面」。
         let historical = [
-            "escape", "escapeHtml", "sanitize", "sanitise", "encodeURI",
-            "encodeURIComponent", "htmlspecialchars", "stripTags", "strip_tags",
-            "quote", "parameterize", "whitelist", "allowlist", "parseInt",
-            "parseFloat", "Number", "basename", "DOMPurify", "xss",
+            "escape",
+            "escapeHtml",
+            "sanitize",
+            "sanitise",
+            "encodeURI",
+            "encodeURIComponent",
+            "htmlspecialchars",
+            "stripTags",
+            "strip_tags",
+            "quote",
+            "parameterize",
+            "whitelist",
+            "allowlist",
+            "parseInt",
+            "parseFloat",
+            "Number",
+            "basename",
+            "DOMPurify",
+            "xss",
         ];
         for h in historical {
             assert_eq!(
@@ -436,9 +631,20 @@ mod tests {
         let n = name.trim().to_ascii_lowercase();
         let last = n.rsplit('.').next().unwrap_or(&n).to_string();
         let exact = [
-            "htmlspecialchars", "striptags", "strip_tags", "parameterize",
-            "whitelist", "allowlist", "parseint", "parsefloat", "number",
-            "normalize", "normalise", "basename", "dompurify", "xss",
+            "htmlspecialchars",
+            "striptags",
+            "strip_tags",
+            "parameterize",
+            "whitelist",
+            "allowlist",
+            "parseint",
+            "parsefloat",
+            "number",
+            "normalize",
+            "normalise",
+            "basename",
+            "dompurify",
+            "xss",
         ];
         if exact.contains(&last.as_str()) {
             return true;
@@ -478,7 +684,9 @@ mod tests {
             }
         }
         fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            let Ok(rd) = std::fs::read_dir(dir) else {
+                return;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 let n = e.file_name().to_string_lossy().to_string();
@@ -509,32 +717,56 @@ mod tests {
 
         for f in &files {
             let lang = lang_of(f).unwrap();
-            let Ok(src) = std::fs::read_to_string(f) else { continue };
-            let rel = f.strip_prefix(&root).unwrap_or(f).to_string_lossy().to_string();
-            let Some(flow) = analyze_dataflow(lang, &rel, &src) else { continue };
+            let Ok(src) = std::fs::read_to_string(f) else {
+                continue;
+            };
+            let rel = f
+                .strip_prefix(&root)
+                .unwrap_or(f)
+                .to_string_lossy()
+                .to_string();
+            let Some(flow) = analyze_dataflow(lang, &rel, &src) else {
+                continue;
+            };
             for func in &flow.functions {
                 for c in &func.param_to_call {
                     total += 1;
-                    let chain: Vec<&str> = c.via.iter().map(|s| s.as_str())
+                    let chain: Vec<&str> = c
+                        .via
+                        .iter()
+                        .map(|s| s.as_str())
                         .chain(std::iter::once(c.callee.as_str()))
                         .collect();
                     let old = chain.iter().any(|n| historical_regex_matches(n));
                     let new = matches!(ChainSem::decode(&c.sem), ChainSem::Block(_));
-                    if old { old_san += 1; }
-                    if new { new_san += 1; }
-                    if c.sem.is_empty() { sem_miss += 1; } else { sem_hit += 1; }
+                    if old {
+                        old_san += 1;
+                    }
+                    if new {
+                        new_san += 1;
+                    }
+                    if c.sem.is_empty() {
+                        sem_miss += 1;
+                    } else {
+                        sem_hit += 1;
+                    }
 
                     if old != new {
                         // 归因到决定性名字：新判净化用 sem 里的名字，否则用链上任一命中正则的名字
                         let who = match ChainSem::decode(&c.sem) {
                             ChainSem::Block(n) => n,
-                            _ => chain.iter()
+                            _ => chain
+                                .iter()
                                 .find(|n| historical_regex_matches(n))
                                 .map(|s| s.to_string())
                                 .unwrap_or_else(|| c.callee.clone()),
                         };
                         let e = flips.entry(who).or_insert((0, 0));
-                        if old { e.0 += 1; } else { e.1 += 1; }
+                        if old {
+                            e.0 += 1;
+                        } else {
+                            e.1 += 1;
+                        }
                     }
                     if new {
                         if let ChainSem::Block(n) = ChainSem::decode(&c.sem) {
@@ -549,8 +781,16 @@ mod tests {
         let pct = |n: usize| n as f64 / total.max(1) as f64 * 100.0;
         println!("\n── FlowSemantic 语义表 vs 历史 SANITIZER_RE（回放对比） ──────────");
         println!("流边总数 {}", total);
-        println!("  语义表命中   {:>6} ({:.1}%)  ← 走语义判定", sem_hit, pct(sem_hit));
-        println!("  语义表未命中 {:>6} ({:.1}%)  ← 回退历史正则（零回归区）", sem_miss, pct(sem_miss));
+        println!(
+            "  语义表命中   {:>6} ({:.1}%)  ← 走语义判定",
+            sem_hit,
+            pct(sem_hit)
+        );
+        println!(
+            "  语义表未命中 {:>6} ({:.1}%)  ← 回退历史正则（零回归区）",
+            sem_miss,
+            pct(sem_miss)
+        );
         println!("  历史判净化   {:>6} ({:.1}%)", old_san, pct(old_san));
         println!("  语义表判净化 {:>6} ({:.1}%)", new_san, pct(new_san));
 
@@ -558,7 +798,10 @@ mod tests {
         fl.sort_by_key(|(_, v)| std::cmp::Reverse(v.0 + v.1));
         println!("\n判定翻转 Top 20（→不再净化 = 修漏报；→新增净化 = 需复核）:");
         for (name, (was_san, now_san)) in fl.iter().take(20) {
-            println!("  {:<32} 旧判净化 {:>4} · 新判净化 {:>4}", name, was_san, now_san);
+            println!(
+                "  {:<32} 旧判净化 {:>4} · 新判净化 {:>4}",
+                name, was_san, now_san
+            );
         }
 
         let mut sn: Vec<_> = san_names.into_iter().collect();

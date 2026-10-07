@@ -32,8 +32,7 @@ fn extract_markers(line: &str) -> Vec<(String, String)> {
         while let Some(pos) = upper[start..].find(m) {
             let abs = start + pos;
             // 要求标记前后是非字母数字字符，避免误命中（如 "TODOS"）
-            let before_ok = abs == 0
-                || !upper.as_bytes()[abs - 1].is_ascii_alphanumeric();
+            let before_ok = abs == 0 || !upper.as_bytes()[abs - 1].is_ascii_alphanumeric();
             let after_ok = abs + m.len() >= upper.len()
                 || !upper.as_bytes()[abs + m.len()].is_ascii_alphanumeric();
             if before_ok && after_ok {
@@ -44,8 +43,7 @@ fn extract_markers(line: &str) -> Vec<(String, String)> {
     }
     hits.sort_by_key(|(pos, _)| *pos);
     // 相邻重复（如 XXX TODO 同处一行）保留
-    hits
-        .into_iter()
+    hits.into_iter()
         .map(|(_, m)| (m.clone(), severity_of(&m).to_string()))
         .collect()
 }
@@ -124,9 +122,7 @@ pub fn scan_tech_debt(
     // 纯文本扫描，逐文件互不依赖 → 并行；DB 写留在并行区外串行提交
     let mut items: Vec<TechDebtItem> = process_files
         .par_iter()
-        .filter(|_| {
-            !crate::commands::project_scan::analysis_cancelled(&cancel_state, &analysis_id)
-        })
+        .filter(|_| !crate::commands::project_scan::analysis_cancelled(&cancel_state, &analysis_id))
         .flat_map_iter(|file| {
             let seq = done.fetch_add(1, AtomicOrdering::Relaxed) + 1;
             if seq % 200 == 0 {

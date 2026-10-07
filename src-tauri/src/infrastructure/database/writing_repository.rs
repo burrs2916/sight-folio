@@ -1,7 +1,7 @@
 use crate::domain::writing::{
     CompletedWork, WritingAnnotation, WritingBook, WritingChapter, WritingChapterSnapshot,
-    WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline, WritingSetting, WritingStoryline,
-    WritingTimelineEvent,
+    WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline, WritingSetting,
+    WritingStoryline, WritingTimelineEvent,
 };
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::Database;
@@ -27,15 +27,34 @@ pub trait WritingRepository: Send + Sync {
     fn rename_chapter(&self, id: &str, title: &str, updated_at: i64) -> AppResult<()>;
     /// 正文保存只更新 content/word_count（content-only）：自动保存高频走这里，
     /// 绝不带 title/kind/status 等内存副本整行落库（与 rename_chapter 同一防回滚原则）。
-    fn save_chapter_content(&self, id: &str, content: &str, word_count: i64, updated_at: i64) -> AppResult<()>;
+    fn save_chapter_content(
+        &self,
+        id: &str,
+        content: &str,
+        word_count: i64,
+        updated_at: i64,
+    ) -> AppResult<()>;
     /// 章节挂线只更新 storyline_id（storyline-only，G1）：章↔线归属是低频率元数据更新，
     /// 走独立 UPDATE 不整行覆写，防旧 content 回滚（与 rename/save_content 同一原则）。
     /// storyline_id=None 表示解绑（去线）。updated_at 由调用方传入。
-    fn set_chapter_storyline(&self, id: &str, storyline_id: Option<&str>, updated_at: i64) -> AppResult<()>;
+    fn set_chapter_storyline(
+        &self,
+        id: &str,
+        storyline_id: Option<&str>,
+        updated_at: i64,
+    ) -> AppResult<()>;
     /// 章节版本快照（批次④）：追加一条，并裁剪到每章最近 N 份（事务内）。
-    fn save_chapter_snapshot(&self, snapshot: &WritingChapterSnapshot, keep_per_chapter: i64) -> AppResult<()>;
+    fn save_chapter_snapshot(
+        &self,
+        snapshot: &WritingChapterSnapshot,
+        keep_per_chapter: i64,
+    ) -> AppResult<()>;
     /// 按章列出快照（created_at 倒序）。
-    fn list_chapter_snapshots(&self, chapter_id: &str, limit: i64) -> AppResult<Vec<WritingChapterSnapshot>>;
+    fn list_chapter_snapshots(
+        &self,
+        chapter_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<WritingChapterSnapshot>>;
     /// 删除传播矩阵（P0 一致性）：删章不删关联内容（零强制）——
     /// 时间线事件、伏笔、大纲均保留，仅把指向该章的引用解绑回「未绑定章」。
     fn delete_chapter(&self, id: &str) -> AppResult<()>;
@@ -85,7 +104,8 @@ pub trait WritingRepository: Send + Sync {
     fn find_completed_work_by_path(&self, file_path: &str) -> AppResult<Option<CompletedWork>>;
     /// 更新完结作品记录的 file_path（改名/改目录/重新定位后记录与磁盘对齐），
     /// file_size 由命令层 stat 新路径后传入。
-    fn update_completed_work_path(&self, id: &str, new_path: &str, file_size: i64) -> AppResult<()>;
+    fn update_completed_work_path(&self, id: &str, new_path: &str, file_size: i64)
+        -> AppResult<()>;
     /// 统计某书某格式的完结作品数量（format 为空串 = 该书全部格式）。
     fn count_completed_works(&self, book_id: &str, format: &str) -> AppResult<i64>;
     /// 回写源文件缺失标记（列表加载时顺带检测磁盘后落库，未来可作为定时探测的落点）。
@@ -98,7 +118,9 @@ pub struct SqliteWritingRepository {
 
 impl Clone for SqliteWritingRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -299,7 +321,11 @@ fn row_to_foreshadowing(row: &rusqlite::Row) -> rusqlite::Result<WritingForeshad
 
 impl WritingRepository for SqliteWritingRepository {
     fn list_books(&self) -> AppResult<Vec<WritingBook>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {BOOK_COLS} FROM writing_books ORDER BY updated_at DESC"
         ))?;
@@ -310,7 +336,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn get_book(&self, id: &str) -> AppResult<Option<WritingBook>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {BOOK_COLS} FROM writing_books WHERE id = ?1"
         ))?;
@@ -322,7 +352,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_book(&self, book: &WritingBook) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_books
              (id, title, description, genre, medium, status, cover_color, daily_goal, extra, created_at, updated_at)
@@ -345,7 +379,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_book(&self, id: &str) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         // 删除传播矩阵（P0 一致性）：书 = 全书数据根，删书级联清掉所有子域行。
         // 同一事务内完成，任一步失败整体回滚，绝不半删（半删 = 书没了但子域
         // 孤儿残留，重启后仍会被按 book_id 查出，与「已放弃」不符）。
@@ -368,7 +406,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn list_chapters(&self, book_id: &str) -> AppResult<Vec<WritingChapter>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {CHAPTER_COLS} FROM writing_chapters WHERE book_id = ?1 ORDER BY sort_order ASC, created_at ASC"
         ))?;
@@ -379,7 +421,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn get_chapter(&self, id: &str) -> AppResult<Option<WritingChapter>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {CHAPTER_COLS} FROM writing_chapters WHERE id = ?1"
         ))?;
@@ -391,7 +437,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_chapter(&self, chapter: &WritingChapter) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_chapters
              (id, book_id, title, content, sort_order, word_count, status, volume, parent_id, kind, extra, storyline_id, created_at, updated_at)
@@ -417,7 +467,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn rename_chapter(&self, id: &str, title: &str, updated_at: i64) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "UPDATE writing_chapters SET title = ?2, updated_at = ?3 WHERE id = ?1",
             rusqlite::params![id, title, updated_at],
@@ -425,8 +479,18 @@ impl WritingRepository for SqliteWritingRepository {
         Ok(())
     }
 
-    fn save_chapter_content(&self, id: &str, content: &str, word_count: i64, updated_at: i64) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    fn save_chapter_content(
+        &self,
+        id: &str,
+        content: &str,
+        word_count: i64,
+        updated_at: i64,
+    ) -> AppResult<()> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "UPDATE writing_chapters SET content = ?2, word_count = ?3, updated_at = ?4 WHERE id = ?1",
             rusqlite::params![id, content, word_count, updated_at],
@@ -434,8 +498,17 @@ impl WritingRepository for SqliteWritingRepository {
         Ok(())
     }
 
-    fn set_chapter_storyline(&self, id: &str, storyline_id: Option<&str>, updated_at: i64) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    fn set_chapter_storyline(
+        &self,
+        id: &str,
+        storyline_id: Option<&str>,
+        updated_at: i64,
+    ) -> AppResult<()> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "UPDATE writing_chapters SET storyline_id = ?2, updated_at = ?3 WHERE id = ?1",
             rusqlite::params![id, storyline_id, updated_at],
@@ -443,8 +516,16 @@ impl WritingRepository for SqliteWritingRepository {
         Ok(())
     }
 
-    fn save_chapter_snapshot(&self, snapshot: &WritingChapterSnapshot, keep_per_chapter: i64) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    fn save_chapter_snapshot(
+        &self,
+        snapshot: &WritingChapterSnapshot,
+        keep_per_chapter: i64,
+    ) -> AppResult<()> {
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         // 追加 + 裁剪同一事务：任一步失败整体回滚，绝不出现「快照存了但旧的没裁」的漂移
         let tx = conn.transaction()?;
         tx.execute(
@@ -472,8 +553,16 @@ impl WritingRepository for SqliteWritingRepository {
         Ok(())
     }
 
-    fn list_chapter_snapshots(&self, chapter_id: &str, limit: i64) -> AppResult<Vec<WritingChapterSnapshot>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    fn list_chapter_snapshots(
+        &self,
+        chapter_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<WritingChapterSnapshot>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {SNAPSHOT_COLS} FROM writing_chapter_snapshots WHERE chapter_id = ?1 \
              ORDER BY created_at DESC, id DESC LIMIT ?2"
@@ -485,7 +574,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_chapter(&self, id: &str) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         // 删除传播矩阵（P0 一致性，零强制）：删章只删章节行本身，绝不连带删内容。
         // 时间线事件 / 伏笔 / 大纲条目全部保留，仅把指向该章的引用解绑回「未绑定章」——
         // 与删线（storyline）同语义：创作者删除结构，不没收其创作内容。
@@ -504,7 +597,10 @@ impl WritingRepository for SqliteWritingRepository {
             "UPDATE writing_outlines SET chapter_id = NULL WHERE chapter_id = ?1",
             [id],
         )?;
-        tx.execute("DELETE FROM writing_annotations WHERE chapter_id = ?1", [id])?;
+        tx.execute(
+            "DELETE FROM writing_annotations WHERE chapter_id = ?1",
+            [id],
+        )?;
         tx.execute(
             "UPDATE writing_notes SET chapter_id = '' WHERE chapter_id = ?1",
             [id],
@@ -515,7 +611,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn list_notes(&self, book_id: &str) -> AppResult<Vec<WritingNote>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {NOTE_COLS} FROM writing_notes WHERE book_id = ?1 \
              ORDER BY pin DESC, updated_at DESC, created_at DESC"
@@ -527,7 +627,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_note(&self, item: &WritingNote) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_notes
              (id, book_id, chapter_id, content, tags, pin, created_at, updated_at)
@@ -547,13 +651,21 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_note(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM writing_notes WHERE id = ?1", [id])?;
         Ok(())
     }
 
     fn unbind_notes_from_chapter(&self, chapter_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "UPDATE writing_notes SET chapter_id = '' WHERE chapter_id = ?1",
             [chapter_id],
@@ -562,7 +674,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn list_settings(&self, book_id: &str, kind: &str) -> AppResult<Vec<WritingSetting>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {SETTING_COLS} FROM writing_settings WHERE book_id = ?1 AND kind = ?2 ORDER BY sort_order ASC, created_at ASC"
         ))?;
@@ -573,7 +689,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_setting(&self, setting: &WritingSetting) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_settings
              (id, book_id, kind, name, subtitle, description, extra, sort_order, created_at, updated_at)
@@ -595,7 +715,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_setting(&self, id: &str) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         // 删除传播矩阵（P0 一致性，零强制）：删设定只删设定卡本身，事件保留，
         // 仅把 setting_id 解绑回「书级事件」（时间线事件 = 全书级实体，不因
         // 某张卡的删除而消失——后续可重新挂到别的卡或留在书级轨）。
@@ -610,7 +734,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn record_daily_snapshot(&self, book_id: &str, day: &str) -> AppResult<i64> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let total: i64 = conn.query_row(
             "SELECT COALESCE(SUM(word_count), 0) FROM writing_chapters \
              WHERE book_id = ?1 AND COALESCE(json_extract(extra, '$.deletedAt'), 0) <= 0",
@@ -629,7 +757,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn list_daily_stats(&self, book_id: &str, days: i64) -> AppResult<Vec<WritingDailyStat>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT day, word_count FROM writing_daily_stats \
              WHERE book_id = ?1 AND day >= date('now', ?2) ORDER BY day ASC",
@@ -647,7 +779,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn list_outlines(&self, book_id: &str) -> AppResult<Vec<WritingOutline>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {OUTLINE_COLS} FROM writing_outlines WHERE book_id = ?1 ORDER BY sort_order ASC, created_at ASC"
         ))?;
@@ -658,7 +794,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_outline(&self, outline: &WritingOutline) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_outlines
              (id, book_id, title, summary, chapter_id, extra, sort_order, created_at, updated_at)
@@ -679,13 +819,21 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_outline(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM writing_outlines WHERE id = ?1", [id])?;
         Ok(())
     }
 
     fn list_timeline_events(&self, book_id: &str) -> AppResult<Vec<WritingTimelineEvent>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {TIMELINE_EVENT_COLS} FROM writing_timeline_events WHERE book_id = ?1 ORDER BY sort_order ASC, created_at ASC"
         ))?;
@@ -696,7 +844,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_timeline_event(&self, event: &WritingTimelineEvent) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_timeline_events
              (id, book_id, setting_id, at, event, chapter_id, storyline_id, sort_order, created_at, updated_at)
@@ -718,13 +870,21 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_timeline_event(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM writing_timeline_events WHERE id = ?1", [id])?;
         Ok(())
     }
 
     fn list_storylines(&self, book_id: &str) -> AppResult<Vec<WritingStoryline>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {STORYLINE_COLS} FROM writing_storylines WHERE book_id = ?1 ORDER BY sort_order ASC, created_at ASC"
         ))?;
@@ -735,7 +895,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_storyline(&self, storyline: &WritingStoryline) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_storylines
              (id, book_id, name, color, description, sort_order, created_at, updated_at)
@@ -755,7 +919,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_storyline(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM writing_storylines WHERE id = ?1", [id])?;
         // 删线不删事件：挂线事件回到「未挂线」（零强制）。
         conn.execute(
@@ -776,7 +944,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn list_foreshadowings(&self, book_id: &str) -> AppResult<Vec<WritingForeshadowing>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {FORESHADOWING_COLS} FROM writing_foreshadowings WHERE book_id = ?1 ORDER BY sort_order ASC, created_at ASC"
         ))?;
@@ -787,7 +959,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_foreshadowing(&self, item: &WritingForeshadowing) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_foreshadowings
              (id, book_id, title, description, plant_chapter_id, payoff_chapter_id, status, storyline_id, sort_order, created_at, updated_at)
@@ -810,13 +986,21 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_foreshadowing(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM writing_foreshadowings WHERE id = ?1", [id])?;
         Ok(())
     }
 
     fn list_annotations(&self, chapter_id: &str) -> AppResult<Vec<WritingAnnotation>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {ANNOTATION_COLS} FROM writing_annotations WHERE chapter_id = ?1 \
              ORDER BY created_at DESC, id DESC"
@@ -828,7 +1012,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_annotation(&self, item: &WritingAnnotation) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_annotations
              (id, chapter_id, book_id, text, excerpt, created_at, updated_at)
@@ -847,13 +1035,21 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_annotation(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM writing_annotations WHERE id = ?1", [id])?;
         Ok(())
     }
 
     fn list_completed_works(&self) -> AppResult<Vec<CompletedWork>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {COMPLETED_WORK_COLS} FROM completed_works ORDER BY created_at DESC, id DESC"
         ))?;
@@ -864,7 +1060,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn save_completed_work(&self, work: &CompletedWork) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO completed_works
              (id, book_id, book_title, format, file_path, file_size, is_file_missing, word_count, chapter_count, created_at)
@@ -886,13 +1086,21 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_completed_work(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM completed_works WHERE id = ?1", [id])?;
         Ok(())
     }
 
     fn find_completed_work_by_path(&self, file_path: &str) -> AppResult<Option<CompletedWork>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {COMPLETED_WORK_COLS} FROM completed_works WHERE file_path = ?1 LIMIT 1"
         ))?;
@@ -904,8 +1112,17 @@ impl WritingRepository for SqliteWritingRepository {
         }
     }
 
-    fn update_completed_work_path(&self, id: &str, new_path: &str, file_size: i64) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    fn update_completed_work_path(
+        &self,
+        id: &str,
+        new_path: &str,
+        file_size: i64,
+    ) -> AppResult<()> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "UPDATE completed_works SET file_path = ?2, file_size = ?3 WHERE id = ?1",
             rusqlite::params![id, new_path, file_size],
@@ -914,7 +1131,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn count_completed_works(&self, book_id: &str, format: &str) -> AppResult<i64> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let count = if format.is_empty() {
             conn.query_row(
                 "SELECT COUNT(*) FROM completed_works WHERE book_id = ?1",
@@ -932,7 +1153,11 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn set_completed_work_missing(&self, id: &str, is_missing: bool) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "UPDATE completed_works SET is_file_missing = ?2 WHERE id = ?1",
             rusqlite::params![id, is_missing as i64],
@@ -1030,7 +1255,10 @@ mod tests {
         let mut book = sample_book("book_roundtrip");
         repo.save_book(&book).unwrap();
 
-        let got = repo.get_book("book_roundtrip").unwrap().expect("save 后应当读得回来");
+        let got = repo
+            .get_book("book_roundtrip")
+            .unwrap()
+            .expect("save 后应当读得回来");
         assert_eq!(got.genre, "novel");
         assert_eq!(got.medium, "serial", "medium 在落库/取数链路上丢了");
 
@@ -1100,9 +1328,13 @@ mod tests {
         ch.word_count = 7;
         repo.save_chapter(&ch).unwrap();
 
-        repo.rename_chapter("ch_rename", "第一章 · 改", 1_700_000_999).unwrap();
+        repo.rename_chapter("ch_rename", "第一章 · 改", 1_700_000_999)
+            .unwrap();
 
-        let got = repo.get_chapter("ch_rename").unwrap().expect("改名后应读得回来");
+        let got = repo
+            .get_chapter("ch_rename")
+            .unwrap()
+            .expect("改名后应读得回来");
         assert_eq!(got.title, "第一章 · 改");
         assert_eq!(got.content, "<p>磁盘上的新正文</p>", "改名不得触碰 content");
         assert_eq!(got.updated_at, 1_700_000_999);
@@ -1124,7 +1356,8 @@ mod tests {
         ch.kind = "节".into();
         repo.save_chapter(&ch).unwrap();
 
-        repo.save_chapter_content("ch_content", "<p>新正文</p>", 3, 1_700_000_999).unwrap();
+        repo.save_chapter_content("ch_content", "<p>新正文</p>", 3, 1_700_000_999)
+            .unwrap();
 
         let got = repo.get_chapter("ch_content").unwrap().unwrap();
         assert_eq!(got.content, "<p>新正文</p>");
@@ -1173,18 +1406,19 @@ mod tests {
         ch.extra = r#"{"coverImage":"assets/writing/illustrations/cover01.png"}"#.into();
         repo.save_chapter(&ch).unwrap();
 
-        let got = repo.get_chapter("ch_cover").unwrap().expect("save 后应当读得回");
+        let got = repo
+            .get_chapter("ch_cover")
+            .unwrap()
+            .expect("save 后应当读得回");
         assert_eq!(
-            got.extra,
-            r#"{"coverImage":"assets/writing/illustrations/cover01.png"}"#,
+            got.extra, r#"{"coverImage":"assets/writing/illustrations/cover01.png"}"#,
             "章头图引用在落库/取数链路上丢了"
         );
 
         let listed = repo.list_chapters("book_ch_extra").unwrap();
         assert_eq!(listed.len(), 1, "list_chapters 应当返回刚存进去的那章");
         assert_eq!(
-            listed[0].extra,
-            r#"{"coverImage":"assets/writing/illustrations/cover01.png"}"#,
+            listed[0].extra, r#"{"coverImage":"assets/writing/illustrations/cover01.png"}"#,
             "list_chapters 的列清单漏了 extra"
         );
     }
@@ -1284,9 +1518,7 @@ mod tests {
         assert_eq!(listed[0].file_size, 3_145_728);
         assert_eq!(listed[0].book_id, "book_cw", "未变字段应保持");
         // 旧路径不再命中，新路径命中
-        let old_hit = repo
-            .find_completed_work_by_path("/tmp/长夜.epub")
-            .unwrap();
+        let old_hit = repo.find_completed_work_by_path("/tmp/长夜.epub").unwrap();
         assert!(old_hit.is_none(), "旧路径更新后不应再命中");
         let new_hit = repo
             .find_completed_work_by_path("/Documents/长夜_v2.epub")
@@ -1334,9 +1566,13 @@ mod tests {
         repo.set_completed_work_missing("cw_missing", true).unwrap();
         let listed = repo.list_completed_works().unwrap();
         assert!(listed[0].is_file_missing, "缺失标记应读回 true");
-        assert_eq!(listed[0].file_path, "/tmp/长夜.epub", "标记更新不动其它字段");
+        assert_eq!(
+            listed[0].file_path, "/tmp/长夜.epub",
+            "标记更新不动其它字段"
+        );
 
-        repo.set_completed_work_missing("cw_missing", false).unwrap();
+        repo.set_completed_work_missing("cw_missing", false)
+            .unwrap();
         assert!(!repo.list_completed_works().unwrap()[0].is_file_missing);
     }
 
@@ -1379,8 +1615,14 @@ mod tests {
         assert_eq!(got_bound.event, "主角登基");
         assert_eq!(got_bound.chapter_id.as_deref(), Some("ch1"));
         let got_book = listed.iter().find(|e| e.id == "ev_book").unwrap();
-        assert!(got_book.setting_id.is_none(), "书级事件 setting_id 必须为 NULL");
-        assert!(got_book.storyline_id.is_none(), "未挂线事件 storyline_id 必须为 NULL");
+        assert!(
+            got_book.setting_id.is_none(),
+            "书级事件 setting_id 必须为 NULL"
+        );
+        assert!(
+            got_book.storyline_id.is_none(),
+            "未挂线事件 storyline_id 必须为 NULL"
+        );
     }
 
     /// 剧情线（P0 核心闭环）：CRUD 往返 + 删线不删事件（挂线事件 storyline_id 置 NULL）。
@@ -1403,7 +1645,8 @@ mod tests {
         let book = sample_book("book_sl");
         repo.save_book(&book).unwrap();
 
-        repo.save_storyline(&sample_storyline("book_sl", "sl_main", "主线")).unwrap();
+        repo.save_storyline(&sample_storyline("book_sl", "sl_main", "主线"))
+            .unwrap();
         let listed = repo.list_storylines("book_sl").unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].name, "主线");
@@ -1419,7 +1662,10 @@ mod tests {
         assert!(repo.list_storylines("book_sl").unwrap().is_empty());
         let events = repo.list_timeline_events("book_sl").unwrap();
         assert_eq!(events.len(), 1, "删线不得删事件");
-        assert!(events[0].storyline_id.is_none(), "删线后事件应回到「未挂线」");
+        assert!(
+            events[0].storyline_id.is_none(),
+            "删线后事件应回到「未挂线」"
+        );
     }
 
     /// G1 章→线直连：章节挂线默认空、set_chapter_storyline 挂线/解绑往返（mentionable-only 更新，
@@ -1429,7 +1675,8 @@ mod tests {
         let repo = make_repo();
         let book = sample_book("book_sl_ch");
         repo.save_book(&book).unwrap();
-        repo.save_storyline(&sample_storyline("book_sl_ch", "sl_a", "A线")).unwrap();
+        repo.save_storyline(&sample_storyline("book_sl_ch", "sl_a", "A线"))
+            .unwrap();
 
         // 新章节默认未挂线
         let mut ch = sample_chapter("book_sl_ch", "ch_sl");
@@ -1438,7 +1685,8 @@ mod tests {
         repo.save_chapter(&ch).unwrap();
 
         // 挂线
-        repo.set_chapter_storyline("ch_sl", Some("sl_a"), 1_700_000_001).unwrap();
+        repo.set_chapter_storyline("ch_sl", Some("sl_a"), 1_700_000_001)
+            .unwrap();
         let got = repo.get_chapter("ch_sl").unwrap().expect("应当读得回来");
         assert_eq!(got.storyline_id.as_deref(), Some("sl_a"));
         // storyline-only 更新不能回滚 content/title（防并发回滚原则）
@@ -1446,17 +1694,23 @@ mod tests {
         assert_eq!(got.title, "孤儿章");
 
         // 解绑
-        repo.set_chapter_storyline("ch_sl", None, 1_700_000_002).unwrap();
+        repo.set_chapter_storyline("ch_sl", None, 1_700_000_002)
+            .unwrap();
         let got = repo.get_chapter("ch_sl").unwrap().unwrap();
         assert!(got.storyline_id.is_none(), "显式解绑后应回到「未挂线」");
 
         // 再挂线，删线只解绑不删章
-        repo.set_chapter_storyline("ch_sl", Some("sl_a"), 1_700_000_003).unwrap();
+        repo.set_chapter_storyline("ch_sl", Some("sl_a"), 1_700_000_003)
+            .unwrap();
         repo.delete_storyline("sl_a").unwrap();
         let got = repo.get_chapter("ch_sl").unwrap().unwrap();
         assert!(got.storyline_id.is_none(), "删线后挂线章节应回到「未挂线」");
         assert_eq!(got.content, "<p>必须留在库里</p>", "删线不得动章节内容");
-        assert_eq!(repo.list_chapters("book_sl_ch").unwrap().len(), 1, "删线不得删章节");
+        assert_eq!(
+            repo.list_chapters("book_sl_ch").unwrap().len(),
+            1,
+            "删线不得删章节"
+        );
     }
 
     /// 伏笔（「埋设 → 回收」承诺）：CRUD 往返（章绑定/状态/挂线全字段）+ 删线不删伏笔（置 NULL）。
@@ -1509,7 +1763,10 @@ mod tests {
         repo.delete_storyline("sl_x").unwrap();
         let after = repo.list_foreshadowings("book_fs").unwrap();
         assert_eq!(after.len(), 1, "删线不得删伏笔");
-        assert!(after[0].storyline_id.is_none(), "删线后伏笔应回到「未挂线」");
+        assert!(
+            after[0].storyline_id.is_none(),
+            "删线后伏笔应回到「未挂线」"
+        );
 
         // 删除
         repo.delete_foreshadowing("fs_1").unwrap();
@@ -1546,21 +1803,36 @@ mod tests {
             .filter_map(|r| r.ok())
             .collect();
         assert_eq!(migrated.len(), 1, "空 event 的脏数据应被跳过");
-        assert_eq!(migrated[0].0, "ev_s1_0", "迁移 ID 必须确定性 = ev_{{settingId}}_{{index}}");
+        assert_eq!(
+            migrated[0].0, "ev_s1_0",
+            "迁移 ID 必须确定性 = ev_{{settingId}}_{{index}}"
+        );
         assert_eq!(migrated[0].2.as_deref(), Some("s1"));
         assert_eq!(migrated[0].3, "第1年");
         assert_eq!(migrated[0].4, "出生");
 
         let extra: String = conn
-            .query_row("SELECT extra FROM writing_settings WHERE id='s1'", [], |row| row.get(0))
+            .query_row(
+                "SELECT extra FROM writing_settings WHERE id='s1'",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
-        assert!(!extra.contains("timeline"), "迁移后应从 extra 剥离 timeline");
-        assert!(extra.contains("profile"), "迁移不应破坏其他 extra 字段（profile）");
+        assert!(
+            !extra.contains("timeline"),
+            "迁移后应从 extra 剥离 timeline"
+        );
+        assert!(
+            extra.contains("profile"),
+            "迁移不应破坏其他 extra 字段（profile）"
+        );
 
         // 幂等：再跑一次 migrate，不应重复插入（INSERT OR IGNORE + ID 确定性）
         migrate(&conn).unwrap();
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM writing_timeline_events", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM writing_timeline_events", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count, 1, "重复 migrate 不应重复插入");
     }
@@ -1586,7 +1858,8 @@ mod tests {
             updated_at: 1_700_000_000,
         })
         .unwrap();
-        repo.save_chapter(&sample_chapter(&book.id, "ch_del")).unwrap();
+        repo.save_chapter(&sample_chapter(&book.id, "ch_del"))
+            .unwrap();
         repo.save_outline(&WritingOutline {
             id: "out_del".into(),
             book_id: book.id.clone(),
@@ -1619,13 +1892,36 @@ mod tests {
         repo.delete_book(&book.id).unwrap();
 
         assert!(repo.get_book(&book.id).unwrap().is_none(), "书行必须删除");
-        assert!(repo.list_settings(&book.id, "character").unwrap().is_empty(), "删书后设定不得残留");
-        assert!(repo.list_chapters(&book.id).unwrap().is_empty(), "删书后章节不得残留");
-        assert!(repo.list_outlines(&book.id).unwrap().is_empty(), "删书后大纲不得残留");
-        assert!(repo.list_timeline_events(&book.id).unwrap().is_empty(), "删书后时间线不得残留");
-        assert!(repo.list_storylines(&book.id).unwrap().is_empty(), "删书后剧情线不得残留");
-        assert!(repo.list_foreshadowings(&book.id).unwrap().is_empty(), "删书后伏笔不得残留");
-        assert!(repo.list_daily_stats(&book.id, 30).unwrap().is_empty(), "删书后日快照不得残留");
+        assert!(
+            repo.list_settings(&book.id, "character")
+                .unwrap()
+                .is_empty(),
+            "删书后设定不得残留"
+        );
+        assert!(
+            repo.list_chapters(&book.id).unwrap().is_empty(),
+            "删书后章节不得残留"
+        );
+        assert!(
+            repo.list_outlines(&book.id).unwrap().is_empty(),
+            "删书后大纲不得残留"
+        );
+        assert!(
+            repo.list_timeline_events(&book.id).unwrap().is_empty(),
+            "删书后时间线不得残留"
+        );
+        assert!(
+            repo.list_storylines(&book.id).unwrap().is_empty(),
+            "删书后剧情线不得残留"
+        );
+        assert!(
+            repo.list_foreshadowings(&book.id).unwrap().is_empty(),
+            "删书后伏笔不得残留"
+        );
+        assert!(
+            repo.list_daily_stats(&book.id, 30).unwrap().is_empty(),
+            "删书后日快照不得残留"
+        );
     }
 
     /// 删除传播矩阵（P0 一致性）② 删章：只删章节行，时间线事件/伏笔/大纲
@@ -1635,7 +1931,8 @@ mod tests {
         let repo = make_repo();
         let book = sample_book("book_del_ch");
         repo.save_book(&book).unwrap();
-        repo.save_chapter(&sample_chapter(&book.id, "ch_del")).unwrap();
+        repo.save_chapter(&sample_chapter(&book.id, "ch_del"))
+            .unwrap();
 
         // 时间线事件挂章 a；伏笔 plant/payoff 都指向章 a；大纲条目绑定章 a
         let mut ev = sample_timeline_event(&book.id, "ev_ch_bound", None);
@@ -1660,17 +1957,26 @@ mod tests {
 
         repo.delete_chapter("ch_del").unwrap();
 
-        assert!(repo.list_chapters(&book.id).unwrap().is_empty(), "章节行必须删除");
+        assert!(
+            repo.list_chapters(&book.id).unwrap().is_empty(),
+            "章节行必须删除"
+        );
         let events = repo.list_timeline_events(&book.id).unwrap();
         assert_eq!(events.len(), 1, "删章不得删时间线事件");
-        assert!(events[0].chapter_id.is_none(), "删章后事件应回到「未绑定章」");
+        assert!(
+            events[0].chapter_id.is_none(),
+            "删章后事件应回到「未绑定章」"
+        );
         let fss = repo.list_foreshadowings(&book.id).unwrap();
         assert_eq!(fss.len(), 1, "删章不得删伏笔");
         assert!(fss[0].plant_chapter_id.is_none(), "删章后伏笔埋设章应解绑");
         assert!(fss[0].payoff_chapter_id.is_none(), "删章后伏笔回收章应解绑");
         let outlines = repo.list_outlines(&book.id).unwrap();
         assert_eq!(outlines.len(), 1, "删章不得删大纲");
-        assert!(outlines[0].chapter_id.is_none(), "删章后大纲应回到「未落章」");
+        assert!(
+            outlines[0].chapter_id.is_none(),
+            "删章后大纲应回到「未落章」"
+        );
     }
 
     /// 删除传播矩阵（P0 一致性）③ 删设定：只删设定卡，时间线事件保留，
@@ -1700,7 +2006,12 @@ mod tests {
 
         repo.delete_setting("set_del_s").unwrap();
 
-        assert!(repo.list_settings(&book.id, "character").unwrap().is_empty(), "设定卡必须删除");
+        assert!(
+            repo.list_settings(&book.id, "character")
+                .unwrap()
+                .is_empty(),
+            "设定卡必须删除"
+        );
         let events = repo.list_timeline_events(&book.id).unwrap();
         assert_eq!(events.len(), 2, "删设定不得删时间线事件");
         let got = events.iter().find(|e| e.id == "ev_set_bound").unwrap();

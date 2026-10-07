@@ -297,8 +297,7 @@ mod tests {
 
     #[test]
     fn static_named_import_keeps_original_export_names() {
-        let (imports, _) =
-            extract_ts_imports("import { Alpha as A, Beta } from './mod';").unwrap();
+        let (imports, _) = extract_ts_imports("import { Alpha as A, Beta } from './mod';").unwrap();
         assert_eq!(imports.len(), 1);
         assert_eq!(imports[0].path, "./mod");
         assert_eq!(imports[0].kind, TsImportKind::Static);
@@ -318,13 +317,19 @@ mod tests {
     #[test]
     fn side_effect_import_is_captured() {
         let got = paths("import './styles.css';");
-        assert_eq!(got, vec![("./styles.css".to_string(), TsImportKind::SideEffect)]);
+        assert_eq!(
+            got,
+            vec![("./styles.css".to_string(), TsImportKind::SideEffect)]
+        );
     }
 
     #[test]
     fn dynamic_import_is_captured() {
         let got = paths("const load = async () => await import('./lazy/Page');");
-        assert_eq!(got, vec![("./lazy/Page".to_string(), TsImportKind::Dynamic)]);
+        assert_eq!(
+            got,
+            vec![("./lazy/Page".to_string(), TsImportKind::Dynamic)]
+        );
     }
 
     #[test]
@@ -363,8 +368,7 @@ mod tests {
     // 非默认别名再导出 `export { A as B }` 同样暴露别名 B（对标 joern 的 ReExport 语义）。
     #[test]
     fn aliased_reexport_exposes_alias_name() {
-        let (imports, _) =
-            extract_ts_imports("export { Alpha as Beta } from './mod';").unwrap();
+        let (imports, _) = extract_ts_imports("export { Alpha as Beta } from './mod';").unwrap();
         assert_eq!(imports[0].kind, TsImportKind::ReExport);
         assert_eq!(imports[0].symbols, vec!["Beta".to_string()]);
     }
@@ -372,8 +376,7 @@ mod tests {
     // 普通 import 的别名语义不变：仍取**原名**（consumer import 的是原名，不能取本地别名）。
     #[test]
     fn plain_import_alias_keeps_original_name() {
-        let (imports, _) =
-            extract_ts_imports("import { Alpha as A } from './mod';").unwrap();
+        let (imports, _) = extract_ts_imports("import { Alpha as A } from './mod';").unwrap();
         assert_eq!(imports[0].kind, TsImportKind::Static);
         assert_eq!(imports[0].symbols, vec!["Alpha".to_string()]);
     }
@@ -405,7 +408,8 @@ mod tests {
     fn type_only_import_keeps_names() {
         let (imports, _) = extract_ts_imports("import type { Alpha } from './types';").unwrap();
         assert_eq!(imports[0].symbols, vec!["Alpha"]);
-        let (inline, _) = extract_ts_imports("import { type Alpha, Beta } from './types';").unwrap();
+        let (inline, _) =
+            extract_ts_imports("import { type Alpha, Beta } from './types';").unwrap();
         assert_eq!(inline[0].symbols, vec!["Alpha", "Beta"]);
         // 默认类型导入：`import type Foo from './x'` → [Foo]（type 限定符绝不并入符号名）
         let (def, _) = extract_ts_imports("import type Foo from './x';").unwrap();
@@ -418,7 +422,8 @@ mod tests {
     #[test]
     fn default_and_namespace_bindings_use_local_names() {
         let (imports, _) =
-            extract_ts_imports("import React from 'react';\nimport * as path from 'path';").unwrap();
+            extract_ts_imports("import React from 'react';\nimport * as path from 'path';")
+                .unwrap();
         assert_eq!(imports[0].symbols, vec!["React"]);
         assert_eq!(imports[1].symbols, vec!["path"]);
     }
@@ -471,7 +476,9 @@ mod tests {
             return;
         };
         fn walk_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            let Ok(rd) = std::fs::read_dir(dir) else {
+                return;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 if p.is_dir() {

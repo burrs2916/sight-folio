@@ -247,8 +247,7 @@ impl AnalysisRepository for SqliteAnalysisRepository {
         }
         tx.execute("DELETE FROM analyses WHERE id = ?1", rusqlite::params![id])
             .map_err(|e| AppError::Database(e.to_string()))?;
-        tx.commit()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+        tx.commit().map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }

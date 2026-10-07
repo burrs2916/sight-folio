@@ -34,7 +34,10 @@ impl OpenAiCompatProvider {
     }
 
     fn build_chat_url(&self) -> String {
-        crate::plugins::ai_agent::provider::chat_url_for(&self.config.base_url, &self.config.api_type)
+        crate::plugins::ai_agent::provider::chat_url_for(
+            &self.config.base_url,
+            &self.config.api_type,
+        )
     }
 
     fn build_auth_header(&self) -> (String, String) {
@@ -63,16 +66,19 @@ impl OpenAiCompatProvider {
                     "content": m.content,
                 });
                 if let Some(ref tcs) = m.tool_calls {
-                    msg["tool_calls"] = json!(tcs.iter().map(|tc| {
-                        json!({
-                            "id": tc.id,
-                            "type": tc.call_type,
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments,
-                            }
+                    msg["tool_calls"] = json!(tcs
+                        .iter()
+                        .map(|tc| {
+                            json!({
+                                "id": tc.id,
+                                "type": tc.call_type,
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                }
+                            })
                         })
-                    }).collect::<Vec<_>>());
+                        .collect::<Vec<_>>());
                 }
                 if let Some(ref tcid) = m.tool_call_id {
                     msg["tool_call_id"] = json!(tcid);
@@ -102,7 +108,10 @@ impl OpenAiCompatProvider {
         options: &ChatOptions,
         stream: bool,
     ) -> Value {
-        let system_msg = messages.iter().find(|m| m.role == "system").map(|m| m.content.clone());
+        let system_msg = messages
+            .iter()
+            .find(|m| m.role == "system")
+            .map(|m| m.content.clone());
         let non_system: Vec<Value> = messages
             .iter()
             .filter(|m| m.role != "system")
@@ -126,13 +135,16 @@ impl OpenAiCompatProvider {
         }
 
         if let Some(ref tools) = options.tools {
-            body["tools"] = json!(tools.iter().map(|t| {
-                json!({
-                    "name": t.function.name,
-                    "description": t.function.description,
-                    "input_schema": t.function.parameters,
+            body["tools"] = json!(tools
+                .iter()
+                .map(|t| {
+                    json!({
+                        "name": t.function.name,
+                        "description": t.function.description,
+                        "input_schema": t.function.parameters,
+                    })
                 })
-            }).collect::<Vec<_>>());
+                .collect::<Vec<_>>());
         }
 
         body
@@ -265,9 +277,7 @@ impl OpenAiCompatProvider {
                             id: None,
                             function: Some(FunctionCallDelta {
                                 name: None,
-                                arguments: delta["partial_json"]
-                                    .as_str()
-                                    .map(|s| s.to_string()),
+                                arguments: delta["partial_json"].as_str().map(|s| s.to_string()),
                             }),
                         }]),
                         finish_reason: None,
@@ -276,9 +286,7 @@ impl OpenAiCompatProvider {
                 }
             }
             Some("message_delta") => {
-                let stop_reason = json["delta"]["stop_reason"]
-                    .as_str()
-                    .map(|s| s.to_string());
+                let stop_reason = json["delta"]["stop_reason"].as_str().map(|s| s.to_string());
                 Some(ChatChunk {
                     content: None,
                     tool_calls: None,
@@ -352,26 +360,23 @@ impl LlmProvider for OpenAiCompatProvider {
         let message = &choice["message"];
 
         let content = message["content"].as_str().map(|s| s.to_string());
-        let tool_calls: Option<Vec<ToolCall>> = message["tool_calls"]
-            .as_array()
-            .map(|tc| {
-                tc.iter()
-                    .map(|t| serde_json::from_value(t.clone()).unwrap_or_else(|_| ToolCall {
+        let tool_calls: Option<Vec<ToolCall>> = message["tool_calls"].as_array().map(|tc| {
+            tc.iter()
+                .map(|t| {
+                    serde_json::from_value(t.clone()).unwrap_or_else(|_| ToolCall {
                         id: t["id"].as_str().unwrap_or("").to_string(),
                         call_type: "function".to_string(),
                         function: FunctionCall {
-                            name: t["function"]["name"]
-                                .as_str()
-                                .unwrap_or("")
-                                .to_string(),
+                            name: t["function"]["name"].as_str().unwrap_or("").to_string(),
                             arguments: t["function"]["arguments"]
                                 .as_str()
                                 .unwrap_or("{}")
                                 .to_string(),
                         },
-                    }))
-                    .collect()
-            });
+                    })
+                })
+                .collect()
+        });
 
         let finish_reason = choice["finish_reason"].as_str().map(|s| s.to_string());
 
@@ -525,7 +530,9 @@ impl LlmProvider for OpenAiCompatProvider {
             return Err("Base URL is required".to_string());
         }
         if config.auth_type == "custom" && config.custom_auth_header.is_empty() {
-            return Err("Custom auth header name is required when auth type is 'custom'".to_string());
+            return Err(
+                "Custom auth header name is required when auth type is 'custom'".to_string(),
+            );
         }
         Ok(())
     }

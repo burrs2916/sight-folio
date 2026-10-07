@@ -72,10 +72,7 @@ pub struct ChangeCoupling {
 impl Default for ChangeCoupling {
     fn default() -> Self {
         Self {
-            id: format!(
-                "cc_{}",
-                uuid::Uuid::new_v4().to_string().replace('-', "")
-            ),
+            id: format!("cc_{}", uuid::Uuid::new_v4().to_string().replace('-', "")),
             analysis_id: String::new(),
             file_a_id: String::new(),
             file_a_path: String::new(),
@@ -143,7 +140,12 @@ pub fn top_dir_of(path: &str) -> &str {
 /// 是最需要人工介入的情形。
 ///
 /// 同时要求一定的共变基数：只共变 2~3 次的组合统计意义太弱，不允许进 high。
-pub fn risk_level_of(degree: f64, co_changes: i64, hidden: bool, cross_module: bool) -> &'static str {
+pub fn risk_level_of(
+    degree: f64,
+    co_changes: i64,
+    hidden: bool,
+    cross_module: bool,
+) -> &'static str {
     let mut level = if degree >= 0.8 {
         3
     } else if degree >= 0.6 {

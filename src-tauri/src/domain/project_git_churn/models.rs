@@ -57,7 +57,10 @@ pub fn churn_score_of(commit_count: i64, added: i64, deleted: i64, authors: i64)
 impl Default for GitChurn {
     fn default() -> Self {
         Self {
-            id: format!("churn_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
+            id: format!(
+                "churn_{}",
+                uuid::Uuid::new_v4().to_string().replace("-", "")
+            ),
             analysis_id: String::new(),
             file_id: String::new(),
             file_path: String::new(),

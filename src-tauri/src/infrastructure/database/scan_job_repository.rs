@@ -15,7 +15,9 @@ pub struct SqliteScanJobRepository {
 
 impl Clone for SqliteScanJobRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -43,7 +45,11 @@ fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<ScanJob> {
 
 impl ScanJobRepository for SqliteScanJobRepository {
     fn get(&self, id: &str) -> AppResult<Option<ScanJob>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, analysis_id, status, progress, files_scanned, total_files, started_at, finished_at, error, config, created_at
              FROM scan_jobs WHERE id = ?1",
@@ -56,7 +62,11 @@ impl ScanJobRepository for SqliteScanJobRepository {
     }
 
     fn latest_for_analysis(&self, analysis_id: &str) -> AppResult<Option<ScanJob>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, analysis_id, status, progress, files_scanned, total_files, started_at, finished_at, error, config, created_at
              FROM scan_jobs WHERE analysis_id = ?1 ORDER BY created_at DESC LIMIT 1",
@@ -69,7 +79,11 @@ impl ScanJobRepository for SqliteScanJobRepository {
     }
 
     fn save(&self, job: &ScanJob) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO scan_jobs
              (id, analysis_id, status, progress, files_scanned, total_files, started_at, finished_at, error, config, created_at)

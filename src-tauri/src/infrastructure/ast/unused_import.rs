@@ -38,7 +38,9 @@
 //! 与既有的「Go/C 符号级引用仍空」局限一致）。输出为纯数据，落库与前端呈现由
 //! `commands/dead_code.rs` 负责，保持本模块可被单测直接驱动、无 DB 耦合。
 
-use crate::infrastructure::ast::unused_local::{in_test_context, snippet_of, supported as local_supported};
+use crate::infrastructure::ast::unused_local::{
+    in_test_context, snippet_of, supported as local_supported,
+};
 use crate::infrastructure::ast::{dialect_for, Dialect};
 use tree_sitter::{Node, Parser};
 
@@ -302,7 +304,12 @@ fn extract_bindings_inner<'a>(
                 for kid in node.named_children(&mut c) {
                     match kid.kind() {
                         "identifier" => {
-                            alias = Some(kid.utf8_text(source).ok().map(|s| s.to_string()).unwrap_or_default());
+                            alias = Some(
+                                kid.utf8_text(source)
+                                    .ok()
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_default(),
+                            );
                         }
                         "qualified_identifier" => has_qualified = true,
                         "asterisk" => star = true,
@@ -369,7 +376,10 @@ fn walk_file<'a>(
         }
     }
     // Rust 命名格式插值 `{name}`（仅 Rust）：把命名插值补登记为「使用」，保证零误报
-    if !in_import && d == Dialect::Rust && (node.kind() == "string_literal" || node.kind() == "raw_string_literal") {
+    if !in_import
+        && d == Dialect::Rust
+        && (node.kind() == "string_literal" || node.kind() == "raw_string_literal")
+    {
         if let Ok(t) = node.utf8_text(source) {
             collect_rust_format_names_inline(t, usages);
         }
@@ -393,7 +403,11 @@ fn collect_rust_format_names_inline(text: &str, refs: &mut Vec<String>) {
             }
             let start = i + 1;
             let mut j = start;
-            while j < bytes.len() && bytes[j] != b'}' && bytes[j] != b':' && !bytes[j].is_ascii_whitespace() {
+            while j < bytes.len()
+                && bytes[j] != b'}'
+                && bytes[j] != b':'
+                && !bytes[j].is_ascii_whitespace()
+            {
                 j += 1;
             }
             let name = &text[start..j];
@@ -485,7 +499,11 @@ const y = B();
 "#;
         // A 从未被引用 → 应检出；B 被使用 → 不报
         let r = run("typescript", src);
-        assert!(names(&r).contains(&"A".to_string()), "应检出未使用导入 A，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"A".to_string()),
+            "应检出未使用导入 A，实际: {:?}",
+            names(&r)
+        );
         assert!(!names(&r).contains(&"B".to_string()));
     }
 
@@ -498,7 +516,11 @@ const a = Def();
 const b = ns.foo();
 "#;
         let r = run("typescript", src);
-        assert!(r.is_empty(), "默认导入与命名空间导入都被使用不应报错，实际: {:?}", names(&r));
+        assert!(
+            r.is_empty(),
+            "默认导入与命名空间导入都被使用不应报错，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -508,7 +530,11 @@ const b = ns.foo();
 import { A as B } from './x';
 "#;
         let r = run("typescript", src);
-        assert!(names(&r).contains(&"B".to_string()), "别名本地绑定 B 未用应报，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"B".to_string()),
+            "别名本地绑定 B 未用应报，实际: {:?}",
+            names(&r)
+        );
         assert!(!names(&r).contains(&"A".to_string()));
     }
 
@@ -518,7 +544,11 @@ import { A as B } from './x';
 import './polyfill';
 "#;
         let r = run("typescript", src);
-        assert!(r.is_empty(), "副作用导入无绑定名，恒视为已用，实际: {:?}", names(&r));
+        assert!(
+            r.is_empty(),
+            "副作用导入无绑定名，恒视为已用，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -529,7 +559,11 @@ import { A } from './x';
 export { A };
 "#;
         let r = run("typescript", src);
-        assert!(!names(&r).contains(&"A".to_string()), "被再导出的 A 应视为已用，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"A".to_string()),
+            "被再导出的 A 应视为已用，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -539,7 +573,11 @@ import type { T } from './x';
 const v: T = 1;
 "#;
         let r = run("typescript", src);
-        assert!(!names(&r).contains(&"T".to_string()), "type 位使用的 T 应视为已用，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"T".to_string()),
+            "type 位使用的 T 应视为已用，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -561,7 +599,11 @@ fn f() { let _ = C; }
 "#;
         // C 被使用；D 未用 → 报 D
         let r = run("rust", src);
-        assert!(names(&r).contains(&"D".to_string()), "未使用的 use D 应报，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"D".to_string()),
+            "未使用的 use D 应报，实际: {:?}",
+            names(&r)
+        );
         assert!(!names(&r).contains(&"C".to_string()));
     }
 
@@ -574,7 +616,11 @@ fn f() { let _ = C; let _ = Z; }
 "#;
         // C、Z 被用；D 未用 → 报 D
         let r = run("rust", src);
-        assert!(names(&r).contains(&"D".to_string()), "use_tree 内未用的 D 应报，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"D".to_string()),
+            "use_tree 内未用的 D 应报，实际: {:?}",
+            names(&r)
+        );
         assert!(!names(&r).contains(&"C".to_string()));
         assert!(!names(&r).contains(&"Z".to_string()));
     }
@@ -599,7 +645,11 @@ def f():
 "#;
         // y 被用；z 未用 → 报 z
         let r = run("python", src);
-        assert!(names(&r).contains(&"z".to_string()), "未用的 from 导入 z 应报，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"z".to_string()),
+            "未用的 from 导入 z 应报，实际: {:?}",
+            names(&r)
+        );
         assert!(!names(&r).contains(&"y".to_string()));
     }
 
@@ -612,7 +662,11 @@ def f():
 "#;
         // 绑定 a；a 被 a.foo() 使用 → 不报
         let r = run("python", src);
-        assert!(!names(&r).contains(&"a".to_string()), "import a.b.c 绑定 a 已被使用，实际: {:?}", names(&r));
+        assert!(
+            !names(&r).contains(&"a".to_string()),
+            "import a.b.c 绑定 a 已被使用，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -641,7 +695,11 @@ import alias "github.com/a/b"
 func f() {}
 "#;
         let r = run("go", src2);
-        assert!(names(&r).contains(&"alias".to_string()), "Go 别名导入未用应报，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"alias".to_string()),
+            "Go 别名导入未用应报，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -654,7 +712,11 @@ import "github.com/c/d"
 func f() { _ = b.Call() }
 "#;
         let r = run("go", src);
-        assert!(r.is_empty(), "无别名 Go 导入不应误报，实际: {:?}", names(&r));
+        assert!(
+            r.is_empty(),
+            "无别名 Go 导入不应误报，实际: {:?}",
+            names(&r)
+        );
     }
 
     #[test]
@@ -668,7 +730,11 @@ class A {
 "#;
         // C 被用；D 未用 → 报 D
         let r = run("java", src);
-        assert!(names(&r).contains(&"D".to_string()), "未用的 Java 导入 D 应报，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"D".to_string()),
+            "未用的 Java 导入 D 应报，实际: {:?}",
+            names(&r)
+        );
         assert!(!names(&r).contains(&"C".to_string()));
     }
 
@@ -692,7 +758,11 @@ fun f(): C { return C() }
         // C 被用；E 未用 → 报 E。注意：kotlin 方言经 .kt/.kts 扩展名选语法，
         // 测试 helper `run` 会拼成 test.kotlin 导致 dialect_for 落空，故此处直接给 .kt 路径。
         let r = detect_unused_imports("kotlin", "test.kt", src);
-        assert!(names(&r).contains(&"E".to_string()), "未用的 Kotlin 别名导入 E 应报，实际: {:?}", names(&r));
+        assert!(
+            names(&r).contains(&"E".to_string()),
+            "未用的 Kotlin 别名导入 E 应报，实际: {:?}",
+            names(&r)
+        );
         assert!(!names(&r).contains(&"C".to_string()));
     }
 
@@ -705,7 +775,8 @@ fun f(): C { return C() }
             Err(_) => return,
         };
         let mut total = 0usize;
-        let mut by_lang: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut by_lang: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut parsed_files = 0usize;
         let verbose = std::env::var("REPLAY_UNUSED_IMPORT_VERBOSE").is_ok();
         let mut samples: Vec<String> = Vec::new();
@@ -746,13 +817,22 @@ fun f(): C { return C() }
         };
         if p.is_dir() {
             if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-                if matches!(name, "node_modules" | "target" | ".git" | "dist" | "dist-i18n") {
+                if matches!(
+                    name,
+                    "node_modules" | "target" | ".git" | "dist" | "dist-i18n"
+                ) {
                     return;
                 }
             }
             if let Ok(entries) = std::fs::read_dir(p) {
                 for e in entries.flatten() {
-                    replay_dir(&e.path(), total, by_lang, parsed_files, samples.as_deref_mut());
+                    replay_dir(
+                        &e.path(),
+                        total,
+                        by_lang,
+                        parsed_files,
+                        samples.as_deref_mut(),
+                    );
                 }
             }
         } else if p.is_file() {
@@ -767,7 +847,10 @@ fun f(): C { return C() }
                         *total += found.len();
                         if let Some(s) = samples {
                             for f in &found {
-                                s.push(format!("{}:{}  {}  ({})", rel, f.line_start, f.name, f.snippet));
+                                s.push(format!(
+                                    "{}:{}  {}  ({})",
+                                    rel, f.line_start, f.name, f.snippet
+                                ));
                             }
                         }
                     }

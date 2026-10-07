@@ -83,7 +83,10 @@ const COVERAGE_PROBES: &[(&str, &str, &str)] = &[
 
 /// 统计当前作用域下各维度的行数。
 /// 单表查询失败（表不存在等）按 -1 记，表示"探测不到"而非"为 0"。
-pub fn data_coverage(db: &Arc<Database>, analysis_id: &str) -> Result<Vec<DimensionCoverage>, String> {
+pub fn data_coverage(
+    db: &Arc<Database>,
+    analysis_id: &str,
+) -> Result<Vec<DimensionCoverage>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     let mut out = Vec::with_capacity(COVERAGE_PROBES.len());
     for (table, key, label) in COVERAGE_PROBES {
@@ -91,11 +94,7 @@ pub fn data_coverage(db: &Arc<Database>, analysis_id: &str) -> Result<Vec<Dimens
         let count: i64 = conn
             .query_row(&sql, rusqlite::params![analysis_id], |r| r.get(0))
             .unwrap_or(-1);
-        out.push(DimensionCoverage {
-            key,
-            label,
-            count,
-        });
+        out.push(DimensionCoverage { key, label, count });
     }
     Ok(out)
 }
@@ -274,9 +273,21 @@ mod tests {
     #[test]
     fn render_coverage_warns_about_empty_dimensions() {
         let cov = vec![
-            DimensionCoverage { key: "files", label: "文件", count: 502 },
-            DimensionCoverage { key: "symbolRefs", label: "符号引用", count: 0 },
-            DimensionCoverage { key: "techDebt", label: "技术债", count: -1 },
+            DimensionCoverage {
+                key: "files",
+                label: "文件",
+                count: 502,
+            },
+            DimensionCoverage {
+                key: "symbolRefs",
+                label: "符号引用",
+                count: 0,
+            },
+            DimensionCoverage {
+                key: "techDebt",
+                label: "技术债",
+                count: -1,
+            },
         ];
         let out = render_coverage(&cov);
         assert!(out.contains("files=502"));
@@ -289,7 +300,11 @@ mod tests {
 
     #[test]
     fn render_coverage_without_empty_dimensions_has_no_warning() {
-        let cov = vec![DimensionCoverage { key: "files", label: "文件", count: 10 }];
+        let cov = vec![DimensionCoverage {
+            key: "files",
+            label: "文件",
+            count: 10,
+        }];
         let out = render_coverage(&cov);
         assert!(out.contains("files=10"));
         assert!(!out.contains("NO data"));
@@ -298,8 +313,16 @@ mod tests {
     #[test]
     fn coverage_json_maps_every_dimension() {
         let cov = vec![
-            DimensionCoverage { key: "files", label: "文件", count: 5 },
-            DimensionCoverage { key: "symbols", label: "符号", count: 0 },
+            DimensionCoverage {
+                key: "files",
+                label: "文件",
+                count: 5,
+            },
+            DimensionCoverage {
+                key: "symbols",
+                label: "符号",
+                count: 0,
+            },
         ];
         let v = coverage_json(&cov);
         assert_eq!(v["files"], json!(5));

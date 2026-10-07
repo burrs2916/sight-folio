@@ -392,7 +392,9 @@ fn revert_hint(e: &PatchError) -> String {
         }
         PatchError::EmptyAnchor => "no anchor text recorded.".to_string(),
         PatchError::NoOp => "the change is already undone.".to_string(),
-        PatchError::OccurrenceOutOfRange { .. } => "the snippet count no longer matches.".to_string(),
+        PatchError::OccurrenceOutOfRange { .. } => {
+            "the snippet count no longer matches.".to_string()
+        }
     }
 }
 

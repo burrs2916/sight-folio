@@ -123,7 +123,11 @@ mod tests {
     fn category_and_tag_enums_are_disjoint() {
         // 分类与标签必须互不相交，前端 chip 单选/多选才能正交组合、回填不歧义。
         let cats: std::collections::HashSet<&str> = CORPUS_CATEGORIES.iter().copied().collect();
-        assert_eq!(cats.len(), CORPUS_CATEGORIES.len(), "categories must be unique");
+        assert_eq!(
+            cats.len(),
+            CORPUS_CATEGORIES.len(),
+            "categories must be unique"
+        );
         for tag in CORPUS_TAGS {
             assert!(
                 !cats.contains(tag),
@@ -137,7 +141,10 @@ mod tests {
         assert_eq!(CORPUS_CATEGORIES.len(), 30);
         assert_eq!(CORPUS_TAGS.len(), 28);
         // 按四组 7×7×7×7 定义拍平（组序：风格基调/叙事元素/题材元素/参考维度）。
-        assert_eq!(&CORPUS_TAGS[0..7], &["热血", "爽文", "轻松", "治愈", "沉重", "黑暗", "文艺"]);
+        assert_eq!(
+            &CORPUS_TAGS[0..7],
+            &["热血", "爽文", "轻松", "治愈", "沉重", "黑暗", "文艺"]
+        );
         assert_eq!(CORPUS_TAGS[7], "系统流");
         assert_eq!(CORPUS_TAGS[14], "末世");
         assert_eq!(CORPUS_TAGS[21], "文笔");

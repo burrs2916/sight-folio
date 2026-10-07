@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
 
-use crate::infrastructure::Database;
 use crate::infrastructure::database::ai_repository::*;
+use crate::infrastructure::Database;
 
 // ─── 入参 DTO（与前端 AiContextPack 的 camelCase 字段对齐）───
 
@@ -162,7 +162,8 @@ pub fn save_ai_context_pack(
         section_keys,
     };
 
-    let inputs: Vec<AiContextSectionInput> = pack.sections.into_iter().map(to_section_input).collect();
+    let inputs: Vec<AiContextSectionInput> =
+        pack.sections.into_iter().map(to_section_input).collect();
 
     AiContextPackRepo::save_pack(&db, &row, &inputs)?;
     Ok(id)
@@ -202,7 +203,8 @@ pub fn save_ai_context_sections(
         section_keys,
     };
 
-    let inputs: Vec<AiContextSectionInput> = pack.sections.into_iter().map(to_section_input).collect();
+    let inputs: Vec<AiContextSectionInput> =
+        pack.sections.into_iter().map(to_section_input).collect();
     AiContextPackRepo::save_sections_partial(&db, &row, &inputs)
 }
 
@@ -343,7 +345,10 @@ pub struct AiInsightDto {
 /// 与工具侧 `context_insight action=save` 共用同一道引用核验：守门只设在一条入口上，
 /// 另一条就是绕过它的后门——哪条路进来的幻觉路径，最后都一样会挂在画布和报告上。
 #[tauri::command]
-pub fn save_ai_insight(db: State<'_, Arc<Database>>, insight: AiInsightInputDto) -> Result<(), String> {
+pub fn save_ai_insight(
+    db: State<'_, Arc<Database>>,
+    insight: AiInsightInputDto,
+) -> Result<(), String> {
     let verdict = AiInsightRepo::verify_refs_for(&db, &insight.analysis_id, &insight.refs)?;
     if verdict.all_rejected() {
         return Err(format!(
@@ -391,7 +396,10 @@ pub fn verify_diagnosis_insights(
 
 /// 列出某分析下的全部洞察（按创建时间倒序）。
 #[tauri::command]
-pub fn list_ai_insights(db: State<'_, Arc<Database>>, analysis_id: String) -> Result<Vec<AiInsightDto>, String> {
+pub fn list_ai_insights(
+    db: State<'_, Arc<Database>>,
+    analysis_id: String,
+) -> Result<Vec<AiInsightDto>, String> {
     let rows = AiInsightRepo::list_by_analysis(&db, &analysis_id)?;
     Ok(rows
         .into_iter()
@@ -530,7 +538,10 @@ pub fn save_ai_auto_analysis_rule(
 
 /// 删除规则（连带其运行轨迹）。
 #[tauri::command]
-pub fn delete_ai_auto_analysis_rule(db: State<'_, Arc<Database>>, rule_id: String) -> Result<(), String> {
+pub fn delete_ai_auto_analysis_rule(
+    db: State<'_, Arc<Database>>,
+    rule_id: String,
+) -> Result<(), String> {
     AiAutoAnalysisRuleRepo::delete(&db, &rule_id)
 }
 
@@ -827,7 +838,9 @@ pub fn record_ai_entity_snapshot(
 ) -> Result<(String, bool), String> {
     let digest = digest.trim().to_string();
     if digest.is_empty() {
-        return Err("digest 不能为空：没有指纹就无法判断榜单是否变化，回归序列会被重复点淹没".into());
+        return Err(
+            "digest 不能为空：没有指纹就无法判断榜单是否变化，回归序列会被重复点淹没".into(),
+        );
     }
     let row = AiEntitySnapshotRow {
         id: id.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| {

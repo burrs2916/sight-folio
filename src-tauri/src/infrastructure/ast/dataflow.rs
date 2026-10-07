@@ -173,11 +173,26 @@ const MAX_FIXPOINT_ROUNDS: usize = 4;
 /// 三种方言的方法名合并成一张表（按名字匹配，不区分语言）。
 const MUTATOR_METHODS: &[&str] = &[
     // JS / TS
-    "push", "unshift", "splice", "set", "add", "fill", "setItem", "delete",
+    "push",
+    "unshift",
+    "splice",
+    "set",
+    "add",
+    "fill",
+    "setItem",
+    "delete",
     // Rust
-    "insert", "push_str", "extend", "append", "replace", "remove", "push_back", "push_front",
+    "insert",
+    "push_str",
+    "extend",
+    "append",
+    "replace",
+    "remove",
+    "push_back",
+    "push_front",
     // Python
-    "update", "setdefault",
+    "update",
+    "setdefault",
 ];
 
 /// 解析源码并抽取函数级数据流摘要。语言不支持 / 文件不适合解析时返回 `None`。
@@ -285,14 +300,14 @@ fn param_names(dialect: Dialect, func: Node, src: &[u8]) -> Vec<String> {
                 _ => {}
             },
             Dialect::Go
-        | Dialect::Java
-        | Dialect::CSharp
-        | Dialect::Cpp
-        | Dialect::C
-        | Dialect::Ruby
-        | Dialect::Php
-        | Dialect::Kotlin
-        | Dialect::Swift => {}
+            | Dialect::Java
+            | Dialect::CSharp
+            | Dialect::Cpp
+            | Dialect::C
+            | Dialect::Ruby
+            | Dialect::Php
+            | Dialect::Kotlin
+            | Dialect::Swift => {}
         }
     }
     out.retain(|s| !s.is_empty() && s != "self" && s != "this");
@@ -310,7 +325,10 @@ fn push_pattern_idents(node: Node, src: &[u8], out: &mut Vec<String>) {
             let children: Vec<Node> = node.named_children(&mut cursor).collect();
             if children.is_empty() {
                 let t = text_of(node, src);
-                if !t.is_empty() && t.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$') {
+                if !t.is_empty()
+                    && t.chars()
+                        .all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+                {
                     out.push(t);
                 }
                 return;
@@ -405,7 +423,10 @@ fn collect_local_decls<'a>(
     let mut value_node: Option<Node> = None;
     let declared = match dialect {
         Dialect::TypeScript | Dialect::Tsx if kind == "variable_declarator" => {
-            match (node.child_by_field_name("name"), node.child_by_field_name("value")) {
+            match (
+                node.child_by_field_name("name"),
+                node.child_by_field_name("value"),
+            ) {
                 (Some(name), Some(value)) if name.kind() == "identifier" => {
                     out.push((text_of(name, src), value));
                     value_node = Some(value);
@@ -415,7 +436,10 @@ fn collect_local_decls<'a>(
             }
         }
         Dialect::Rust if kind == "let_declaration" => {
-            match (node.child_by_field_name("pattern"), node.child_by_field_name("value")) {
+            match (
+                node.child_by_field_name("pattern"),
+                node.child_by_field_name("value"),
+            ) {
                 (Some(pat), Some(value)) if pat.kind() == "identifier" => {
                     out.push((text_of(pat, src), value));
                     value_node = Some(value);
@@ -425,7 +449,10 @@ fn collect_local_decls<'a>(
             }
         }
         Dialect::Python if kind == "assignment" => {
-            match (node.child_by_field_name("left"), node.child_by_field_name("right")) {
+            match (
+                node.child_by_field_name("left"),
+                node.child_by_field_name("right"),
+            ) {
                 (Some(left), Some(right)) if left.kind() == "identifier" => {
                     out.push((text_of(left, src), right));
                     value_node = Some(right);
@@ -454,7 +481,10 @@ fn collect_local_decls<'a>(
     // 与 walk 同口径：具名嵌套函数独立成摘要，跳过其子树；箭头/闭包留在外层
     if node.id() != owner.id()
         && is_flow_function(dialect, kind)
-        && !matches!(kind, "arrow_function" | "function_expression" | "closure_expression")
+        && !matches!(
+            kind,
+            "arrow_function" | "function_expression" | "closure_expression"
+        )
     {
         return;
     }
@@ -522,14 +552,17 @@ fn idents_with_call_path(
     }
 
     // 属性名（TS 的 property / Rust 的 field / Python 的 attribute）不构成数据流
-    let prop_id = matches!(node.kind(), "member_expression" | "field_expression" | "attribute")
-        .then(|| {
-            node.child_by_field_name("property")
-                .or_else(|| node.child_by_field_name("field"))
-                .or_else(|| node.child_by_field_name("attribute"))
-                .map(|p| p.id())
-        })
-        .flatten();
+    let prop_id = matches!(
+        node.kind(),
+        "member_expression" | "field_expression" | "attribute"
+    )
+    .then(|| {
+        node.child_by_field_name("property")
+            .or_else(|| node.child_by_field_name("field"))
+            .or_else(|| node.child_by_field_name("attribute"))
+            .map(|p| p.id())
+    })
+    .flatten();
 
     let mut cursor = node.walk();
     for c in node.children(&mut cursor) {
@@ -764,7 +797,10 @@ fn flow_function_name(func: Node, src: &[u8]) -> String {
     for _ in 0..3 {
         let Some(p) = cur else { break };
         match p.kind() {
-            "variable_declarator" | "pair" | "public_field_definition" | "assignment_expression" => {
+            "variable_declarator"
+            | "pair"
+            | "public_field_definition"
+            | "assignment_expression" => {
                 let field = if p.kind() == "pair" { "key" } else { "name" };
                 if let Some(n) = p
                     .child_by_field_name(field)
@@ -839,7 +875,10 @@ impl<'a> FlowCtx<'a> {
         // 具名嵌套函数独立成摘要，跳过其子树；箭头/闭包留在外层
         if node.id() != owner.id()
             && is_flow_function(self.dialect, kind)
-            && !matches!(kind, "arrow_function" | "function_expression" | "closure_expression")
+            && !matches!(
+                kind,
+                "arrow_function" | "function_expression" | "closure_expression"
+            )
         {
             return;
         }
@@ -854,7 +893,10 @@ impl<'a> FlowCtx<'a> {
         if self.param_to_call.len() >= MAX_CALL_FLOWS {
             return;
         }
-        let Some(fnode) = call.child_by_field_name("function").or_else(|| call.child_by_field_name("macro")) else {
+        let Some(fnode) = call
+            .child_by_field_name("function")
+            .or_else(|| call.child_by_field_name("macro"))
+        else {
             return;
         };
         let callee = short_callee(&text_of(fnode, self.src));
@@ -884,7 +926,10 @@ impl<'a> FlowCtx<'a> {
                 // 同时语义表里的 PassThrough 条目会**覆盖**掉历史正则名单的误伤
                 // （最典型的是 `path.normalize` 被当成净化器，导致路径穿越漏报）。
                 let sem = flow_semantics::chain_semantics(
-                    o.via.iter().map(|s| s.as_str()).chain(std::iter::once(callee.as_str())),
+                    o.via
+                        .iter()
+                        .map(|s| s.as_str())
+                        .chain(std::iter::once(callee.as_str())),
                 )
                 .encode();
                 self.param_to_call.push(CallArgFlow {
@@ -920,17 +965,20 @@ impl<'a> FlowCtx<'a> {
             }
             Dialect::Python => {
                 node.kind() == "assignment"
-                    && matches!(left_kind(node).as_deref(), Some("attribute") | Some("subscript"))
+                    && matches!(
+                        left_kind(node).as_deref(),
+                        Some("attribute") | Some("subscript")
+                    )
             }
             Dialect::Go
-        | Dialect::Java
-        | Dialect::CSharp
-        | Dialect::Cpp
-        | Dialect::C
-        | Dialect::Ruby
-        | Dialect::Php
-        | Dialect::Kotlin
-        | Dialect::Swift => false,
+            | Dialect::Java
+            | Dialect::CSharp
+            | Dialect::Cpp
+            | Dialect::C
+            | Dialect::Ruby
+            | Dialect::Php
+            | Dialect::Kotlin
+            | Dialect::Swift => false,
         }
     }
 
@@ -1058,10 +1106,15 @@ mod tests {
     #[test]
     fn ts_sanitizing_call_is_recorded_in_via() {
         // 净化痕迹只存在于 via 里 —— 展开成直达边后若不记录，会让前端误报漏洞
-        let src = "function handler(req: any) {\n  const v = escapeHtml(req.body);\n  render(v);\n}\n";
+        let src =
+            "function handler(req: any) {\n  const v = escapeHtml(req.body);\n  render(v);\n}\n";
         let f = one("typescript", "a.ts", src, "handler");
         assert!(
-            flows(&f).contains(&("render".into(), "req".into(), vec!["escapeHtml".to_string()])),
+            flows(&f).contains(&(
+                "render".into(),
+                "req".into(),
+                vec!["escapeHtml".to_string()]
+            )),
             "净化调用必须留在 via 中供污点求解器判定，实际：{:?}",
             flows(&f)
         );
@@ -1131,7 +1184,8 @@ mod tests {
 
     #[test]
     fn rust_let_binding_carries_param_into_call() {
-        let src = "fn handler(req: &Request) {\n    let id = req.params.id;\n    db.query(id);\n}\n";
+        let src =
+            "fn handler(req: &Request) {\n    let id = req.params.id;\n    db.query(id);\n}\n";
         let f = one("rust", "a.rs", src, "handler");
         assert!(
             flows(&f).contains(&("query".into(), "req".into(), vec![])),
@@ -1217,7 +1271,8 @@ mod tests {
 
     #[test]
     fn ts_member_write_is_a_sink() {
-        let src = "function put(k: string, v: number) {\n  this.cache[k] = v;\n  store.last = v;\n}\n";
+        let src =
+            "function put(k: string, v: number) {\n  this.cache[k] = v;\n  store.last = v;\n}\n";
         let f = one("typescript", "a.ts", src, "put");
         assert!(f.has_sink());
         assert!(f.sinks.iter().any(|s| s.contains("store.last")));
@@ -1271,7 +1326,11 @@ mod tests {
         // 早期实现按 `_statement` 后缀一刀切，导致整类 match 返回被判成阻断。
         let src = "fn name_of(et: &EntityType) -> &'static str {\n    match et {\n        EntityType::Line(_) => \"Line\",\n        _ => \"Other\",\n    }\n}\n";
         let f = one("rust", "a.rs", src, "name_of");
-        assert_eq!(f.param_to_return, vec!["et"], "match 尾表达式里的形参要流向返回值");
+        assert_eq!(
+            f.param_to_return,
+            vec!["et"],
+            "match 尾表达式里的形参要流向返回值"
+        );
         assert!(f.propagates());
     }
 
@@ -1279,7 +1338,11 @@ mod tests {
     fn rust_tail_if_else_is_a_return() {
         let src = "fn median_sorted(sorted: &[f64]) -> f64 {\n    if sorted.is_empty() {\n        return 0.0;\n    }\n    let n = sorted.len();\n    if n % 2 == 0 {\n        (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0\n    } else {\n        sorted[n / 2]\n    }\n}\n";
         let f = one("rust", "a.rs", src, "median_sorted");
-        assert_eq!(f.param_to_return, vec!["sorted"], "if/else 尾表达式里的索引读取要算返回流");
+        assert_eq!(
+            f.param_to_return,
+            vec!["sorted"],
+            "if/else 尾表达式里的索引读取要算返回流"
+        );
         assert!(f.propagates());
     }
 
@@ -1295,7 +1358,10 @@ mod tests {
         // 无返回类型 = 返回 unit，块尾的 `if` 只是控制流，不能算「形参流向返回值」
         let src = "fn maybe_log(flag: bool, msg: &str) {\n    if flag {\n        println!(\"{}\", msg);\n    }\n}\n";
         let f = one("rust", "a.rs", src, "maybe_log");
-        assert!(f.param_to_return.is_empty(), "unit 函数没有返回值可承载形参");
+        assert!(
+            f.param_to_return.is_empty(),
+            "unit 函数没有返回值可承载形参"
+        );
         assert!(!f.propagates(), "只在条件里打日志的函数仍应判为阻断");
     }
 
@@ -1345,7 +1411,8 @@ mod tests {
 
     #[test]
     fn mutation_without_param_arg_is_not_a_sink() {
-        let src = "fn touch(&mut self, flag: bool) {\n    self.log.push(String::from(\"hit\"));\n}\n";
+        let src =
+            "fn touch(&mut self, flag: bool) {\n    self.log.push(String::from(\"hit\"));\n}\n";
         let f = one("rust", "a.rs", src, "touch");
         assert!(!f.has_sink(), "实参与形参无关，只是内部变更");
     }
@@ -1394,7 +1461,10 @@ mod tests {
         let src = "def emit(evt):\n    bus.send(evt)\n";
         let f = one("python", "a.py", src, "emit");
         assert!(!f.propagates());
-        assert!(f.param_to_call.iter().any(|c| c.callee == "send" && c.param == "evt"));
+        assert!(f
+            .param_to_call
+            .iter()
+            .any(|c| c.callee == "send" && c.param == "evt"));
     }
 
     #[test]
@@ -1422,7 +1492,11 @@ mod tests {
         // `escapeHtml` 在语义表里是 Block → 整链判定为「已净化」，携带决定性调用名
         let src = "function render(req) {\n  res.write(escapeHtml(req.body));\n}\n";
         let f = one("typescript", "a.ts", src, "render");
-        let flow = f.param_to_call.iter().find(|c| c.callee == "write").unwrap();
+        let flow = f
+            .param_to_call
+            .iter()
+            .find(|c| c.callee == "write")
+            .unwrap();
         assert_eq!(flow.sem, "block:escapeHtml", "净化调用必须落在 sem 上");
         assert_eq!(flow.via, vec!["escapeHtml"]);
     }
@@ -1433,7 +1507,11 @@ mod tests {
         // 语义表把它钉死，避免将来有人往黑名单里塞 trim 之类的纯变换
         let src = "function render(req) {\n  res.write(req.body.trim());\n}\n";
         let f = one("typescript", "a.ts", src, "render");
-        let flow = f.param_to_call.iter().find(|c| c.callee == "write").unwrap();
+        let flow = f
+            .param_to_call
+            .iter()
+            .find(|c| c.callee == "write")
+            .unwrap();
         assert_eq!(flow.sem, "pass");
     }
 
@@ -1443,7 +1521,11 @@ mod tests {
         // `const p = path.normalize(req.params.p); fs.readFileSync(p)` 整条漏报。
         let src = "function read(req) {\n  const p = path.normalize(req.params.p);\n  fs.readFileSync(p);\n}\n";
         let f = one("typescript", "a.ts", src, "read");
-        let flow = f.param_to_call.iter().find(|c| c.callee == "readFileSync").unwrap();
+        let flow = f
+            .param_to_call
+            .iter()
+            .find(|c| c.callee == "readFileSync")
+            .unwrap();
         assert_eq!(flow.via, vec!["normalize"]);
         assert_eq!(flow.sem, "pass", "path.normalize 必须不再被当成净化器");
     }
@@ -1453,7 +1535,11 @@ mod tests {
         // 语义表查不到 → sem 为空 → 前端回退历史正则，行为与改动前完全一致
         let src = "function save(req) {\n  repo.persist(req.payload);\n}\n";
         let f = one("typescript", "a.ts", src, "save");
-        let flow = f.param_to_call.iter().find(|c| c.callee == "persist").unwrap();
+        let flow = f
+            .param_to_call
+            .iter()
+            .find(|c| c.callee == "persist")
+            .unwrap();
         assert_eq!(flow.sem, "");
     }
 
@@ -1463,7 +1549,11 @@ mod tests {
         // 求值链 = [escapeHtml, trim]，任一环净化即整链净化
         let src = "function render(req) {\n  const v = escapeHtml(req.body);\n  const t = v.trim();\n  res.write(t);\n}\n";
         let f = one("typescript", "a.ts", src, "render");
-        let flow = f.param_to_call.iter().find(|c| c.callee == "write").unwrap();
+        let flow = f
+            .param_to_call
+            .iter()
+            .find(|c| c.callee == "write")
+            .unwrap();
         assert_eq!(flow.sem, "block:escapeHtml");
     }
 
@@ -1473,7 +1563,11 @@ mod tests {
         // （用普通方法调用而非 println! —— 宏的实参在 token_tree 而非 arguments 字段上）
         let src = "fn log(name: &str, logger: &Logger) {\n    let s = name.to_string();\n    logger.write(&s);\n}\n";
         let f = one("rust", "a.rs", src, "log");
-        let flow = f.param_to_call.iter().find(|c| c.callee == "write").unwrap();
+        let flow = f
+            .param_to_call
+            .iter()
+            .find(|c| c.callee == "write")
+            .unwrap();
         assert_eq!(flow.via, vec!["to_string"]);
         assert_eq!(flow.sem, "pass");
     }
@@ -1517,7 +1611,9 @@ mod tests {
             }
         }
         fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            let Ok(rd) = std::fs::read_dir(dir) else {
+                return;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 let n = e.file_name().to_string_lossy().to_string();
@@ -1540,7 +1636,8 @@ mod tests {
             walk(&parent.join("src"), &mut files);
         }
 
-        let (mut parsed, mut fns, mut prop, mut blk, mut sinked) = (0usize, 0usize, 0usize, 0usize, 0usize);
+        let (mut parsed, mut fns, mut prop, mut blk, mut sinked) =
+            (0usize, 0usize, 0usize, 0usize, 0usize);
         let mut gated = 0usize;
         let mut targets: HashMap<String, usize> = HashMap::new();
         let mut by_lang: HashMap<&str, (usize, usize)> = HashMap::new();
@@ -1548,9 +1645,17 @@ mod tests {
 
         for f in &files {
             let lang = lang_of(f).unwrap();
-            let Ok(src) = std::fs::read_to_string(f) else { continue };
-            let rel = f.strip_prefix(&root).unwrap_or(f).to_string_lossy().to_string();
-            let Some(flow) = analyze_dataflow(lang, &rel, &src) else { continue };
+            let Ok(src) = std::fs::read_to_string(f) else {
+                continue;
+            };
+            let rel = f
+                .strip_prefix(&root)
+                .unwrap_or(f)
+                .to_string_lossy()
+                .to_string();
+            let Some(flow) = analyze_dataflow(lang, &rel, &src) else {
+                continue;
+            };
             parsed += 1;
             for func in &flow.functions {
                 fns += 1;
@@ -1566,7 +1671,13 @@ mod tests {
                     if !func.has_sink() {
                         gated += 1;
                         if samples.len() < 10 && !func.params.is_empty() {
-                            samples.push(format!("  {}:{} {}({})", rel, func.line, func.name, func.params.join(", ")));
+                            samples.push(format!(
+                                "  {}:{} {}({})",
+                                rel,
+                                func.line,
+                                func.name,
+                                func.params.join(", ")
+                            ));
                         }
                     }
                 }
@@ -1582,7 +1693,12 @@ mod tests {
         assert!(parsed > 0, "探针至少要解析出一个文件");
         let pct = |n: usize| n as f64 / fns.max(1) as f64 * 100.0;
         println!("\n── 数据流摘要探针 ──────────────────────────");
-        println!("候选文件 {} · 成功解析 {} · 函数 {}", files.len(), parsed, fns);
+        println!(
+            "候选文件 {} · 成功解析 {} · 函数 {}",
+            files.len(),
+            parsed,
+            fns
+        );
         println!("  透传 conduit {:>6} ({:.1}%)", prop, pct(prop));
         println!("  阻断 blocker {:>6} ({:.1}%)", blk, pct(blk));
         println!("  含 sink      {:>6} ({:.1}%)", sinked, pct(sinked));
@@ -1596,7 +1712,13 @@ mod tests {
         langs.sort_by_key(|(_, v)| std::cmp::Reverse(v.0));
         println!("\n分语言阻断占比:");
         for (l, (t, b)) in langs {
-            println!("  {:<12} {:>6} 个函数, 阻断 {:>5} ({:.1}%)", l, t, b, b as f64 / t.max(1) as f64 * 100.0);
+            println!(
+                "  {:<12} {:>6} 个函数, 阻断 {:>5} ({:.1}%)",
+                l,
+                t,
+                b,
+                b as f64 / t.max(1) as f64 * 100.0
+            );
         }
 
         let mut ts: Vec<_> = targets.into_iter().collect();
@@ -1649,7 +1771,9 @@ mod tests {
             }
         }
         fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-            let Ok(rd) = std::fs::read_dir(dir) else { return };
+            let Ok(rd) = std::fs::read_dir(dir) else {
+                return;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 let n = e.file_name().to_string_lossy().to_string();
@@ -1677,9 +1801,17 @@ mod tests {
 
         for f in &files {
             let lang = lang_of(f).unwrap();
-            let Ok(src) = std::fs::read_to_string(f) else { continue };
-            let rel = f.strip_prefix(&root).unwrap_or(f).to_string_lossy().to_string();
-            let Some(flow) = analyze_dataflow(lang, &rel, &src) else { continue };
+            let Ok(src) = std::fs::read_to_string(f) else {
+                continue;
+            };
+            let rel = f
+                .strip_prefix(&root)
+                .unwrap_or(f)
+                .to_string_lossy()
+                .to_string();
+            let Some(flow) = analyze_dataflow(lang, &rel, &src) else {
+                continue;
+            };
             for func in &flow.functions {
                 fns += 1;
                 for c in &func.param_to_call {
@@ -1691,7 +1823,13 @@ mod tests {
                     for v in &c.via {
                         *via_counter.entry(v.clone()).or_insert(0usize) += 1;
                     }
-                    longest.push((c.via.len(), rel.clone(), func.name.clone(), c.line, c.via.clone()));
+                    longest.push((
+                        c.via.len(),
+                        rel.clone(),
+                        func.name.clone(),
+                        c.line,
+                        c.via.clone(),
+                    ));
                 }
             }
         }

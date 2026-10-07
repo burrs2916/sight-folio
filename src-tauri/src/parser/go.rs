@@ -2,8 +2,8 @@
 
 use crate::commands::{code_structure, review};
 use crate::infrastructure::ast::Dialect;
-use crate::parser::{ParsedImport, SymbolCandidate};
 use crate::parser::{DepImport, LanguageParser, ParserCapabilities};
+use crate::parser::{ParsedImport, SymbolCandidate};
 
 pub struct GoParser;
 
@@ -26,7 +26,11 @@ impl LanguageParser for GoParser {
     }
 
     fn detect(&self, ext: &str) -> Option<&'static str> {
-        if ext == "go" { Some("go") } else { None }
+        if ext == "go" {
+            Some("go")
+        } else {
+            None
+        }
     }
 
     fn extract_symbols(&self, content: &str) -> Vec<SymbolCandidate> {
@@ -38,7 +42,11 @@ impl LanguageParser for GoParser {
     fn parse_deps(&self, content: &str) -> Vec<DepImport> {
         let line_based: Vec<DepImport> = review::parse_go_imports(content)
             .into_iter()
-            .map(|(path, line)| DepImport { path, line, kind: None })
+            .map(|(path, line)| DepImport {
+                path,
+                line,
+                kind: None,
+            })
             .collect();
         crate::parser::imports_ast::extract_imports_with_fallback(Dialect::Go, content, line_based)
     }

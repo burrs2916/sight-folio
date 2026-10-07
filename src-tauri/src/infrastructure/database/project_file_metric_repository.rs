@@ -15,7 +15,9 @@ pub struct SqliteProjectFileMetricRepository {
 
 impl Clone for SqliteProjectFileMetricRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -40,7 +42,9 @@ fn row_to_metric(row: &rusqlite::Row) -> rusqlite::Result<FileMetric> {
         metadata: row.get(10)?,
         created_at: row.get::<_, i64>(11)?,
         // 以下为 AST 级字段：旧库 ALTER 出来的列可能为 NULL，统一给缺省值
-        engine: row.get::<_, Option<String>>(12)?.unwrap_or_else(|| "heuristic".into()),
+        engine: row
+            .get::<_, Option<String>>(12)?
+            .unwrap_or_else(|| "heuristic".into()),
         max_nesting: row.get::<_, Option<i64>>(13)?.unwrap_or(0),
         function_count: row.get::<_, Option<i64>>(14)?.unwrap_or(0),
         max_function_cc: row.get::<_, Option<i64>>(15)?.unwrap_or(0),
@@ -57,7 +61,11 @@ const METRIC_COLS: &str = "id, analysis_id, file_id, file_path, total_lines, cod
 
 impl ProjectFileMetricRepository for SqliteProjectFileMetricRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<FileMetric>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_file_metrics WHERE analysis_id = ?1
              ORDER BY cyclomatic_complexity DESC, file_path ASC",
@@ -70,7 +78,11 @@ impl ProjectFileMetricRepository for SqliteProjectFileMetricRepository {
     }
 
     fn save_batch(&self, metrics: &[FileMetric]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -84,11 +96,24 @@ impl ProjectFileMetricRepository for SqliteProjectFileMetricRepository {
             )?;
             for m in metrics {
                 stmt.execute(rusqlite::params![
-                    m.id, m.analysis_id, m.file_id, m.file_path, m.total_lines,
-                    m.code_lines, m.comment_lines, m.blank_lines,
-                    m.cyclomatic_complexity, m.complexity_level, m.metadata, m.created_at,
-                    m.engine, m.max_nesting, m.function_count, m.max_function_cc,
-                    m.hot_function, m.magic_number_count,
+                    m.id,
+                    m.analysis_id,
+                    m.file_id,
+                    m.file_path,
+                    m.total_lines,
+                    m.code_lines,
+                    m.comment_lines,
+                    m.blank_lines,
+                    m.cyclomatic_complexity,
+                    m.complexity_level,
+                    m.metadata,
+                    m.created_at,
+                    m.engine,
+                    m.max_nesting,
+                    m.function_count,
+                    m.max_function_cc,
+                    m.hot_function,
+                    m.magic_number_count,
                 ])?;
             }
         }
@@ -97,8 +122,15 @@ impl ProjectFileMetricRepository for SqliteProjectFileMetricRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_file_metrics WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_file_metrics WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 }

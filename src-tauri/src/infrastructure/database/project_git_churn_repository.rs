@@ -15,7 +15,9 @@ pub struct SqliteProjectGitChurnRepository {
 
 impl Clone for SqliteProjectGitChurnRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -49,7 +51,11 @@ const CHURN_COLS: &str = "id, analysis_id, file_id, file_path, commit_count, add
 
 impl ProjectGitChurnRepository for SqliteProjectGitChurnRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<GitChurn>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_git_churn WHERE analysis_id = ?1
              ORDER BY churn_score DESC, commit_count DESC, file_path ASC",
@@ -62,7 +68,11 @@ impl ProjectGitChurnRepository for SqliteProjectGitChurnRepository {
     }
 
     fn save_batch(&self, items: &[GitChurn]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -95,7 +105,11 @@ impl ProjectGitChurnRepository for SqliteProjectGitChurnRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "DELETE FROM project_git_churn WHERE analysis_id = ?1",
             [analysis_id],

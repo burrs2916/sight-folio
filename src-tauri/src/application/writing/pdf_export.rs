@@ -105,7 +105,8 @@ pub fn export_pdf(
     }
     charset.extend(title.chars());
     // 目录/封面固定文案字符（数字、点、书名号、冒号、空格等）
-    for extra in "0123456789.…·，。、：；！？（）《》——· SightFolio导出之目录".chars() {
+    for extra in "0123456789.…·，。、：；！？（）《》——· SightFolio导出之目录".chars()
+    {
         charset.insert(extra);
     }
     let glyphs = GlyphTable::build(&font_bytes, &charset)?;
@@ -123,68 +124,62 @@ pub fn export_pdf(
     // FontFile2：整字体 FlateDecode 压缩后嵌入（TTF 的 glyf/cmap 表压缩率高）。
     let mut font_file_compressed = Vec::new();
     {
-        let mut enc =
-            flate2::write::ZlibEncoder::new(&mut font_file_compressed, flate2::Compression::default());
+        let mut enc = flate2::write::ZlibEncoder::new(
+            &mut font_file_compressed,
+            flate2::Compression::default(),
+        );
         enc.write_all(&font_bytes)
             .map_err(|e| AppError::Internal(format!("compress font: {e}")))?;
         enc.finish()
             .map_err(|e| AppError::Internal(format!("compress font finish: {e}")))?;
     }
-    let font_file_id: ObjectId = doc.add_object(
-        Stream::new(
-            dictionary! {
-                "Length1" => Object::from(font_bytes.len() as i64),
-                "Filter" => Object::Name(b"FlateDecode".to_vec()),
-            },
-            font_file_compressed,
-        ),
-    );
-    let font_descriptor_id: ObjectId = doc.add_object(
+    let font_file_id: ObjectId = doc.add_object(Stream::new(
         dictionary! {
-            "Type" => "FontDescriptor",
-            "FontName" => "SightFolioCJK",
-            "Flags" => Object::from(4), // Symbolic
-            "FontBBox" => vec![
-                Object::from(-1000i64),
-                Object::from(-1000i64),
-                Object::from(2000i64),
-                Object::from(2000i64),
-            ],
-            "ItalicAngle" => Object::from(0),
-            "Ascent" => (glyphs.ascender * 1000.0) as i64,
-            "Descent" => (glyphs.descender * 1000.0) as i64,
-            "CapHeight" => (glyphs.ascender * 1000.0) as i64,
-            "StemV" => Object::from(80),
-            "FontFile2" => font_file_id,
+            "Length1" => Object::from(font_bytes.len() as i64),
+            "Filter" => Object::Name(b"FlateDecode".to_vec()),
         },
-    );
-    let cid_font_id: ObjectId = doc.add_object(
-        dictionary! {
-            "Type" => "Font",
-            "Subtype" => "CIDFontType2",
-            "BaseFont" => "SightFolioCJK",
-            "CIDSystemInfo" => dictionary! {
-                "Registry" => Object::string_literal("Adobe"),
-                "Ordering" => Object::string_literal("Identity"),
-                "Supplement" => Object::from(0),
-            },
-            "FontDescriptor" => font_descriptor_id,
-            "CIDToGIDMap" => "Identity",
-            "DW" => Object::from(1000),
-            "W" => build_width_array(&glyphs),
+        font_file_compressed,
+    ));
+    let font_descriptor_id: ObjectId = doc.add_object(dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => "SightFolioCJK",
+        "Flags" => Object::from(4), // Symbolic
+        "FontBBox" => vec![
+            Object::from(-1000i64),
+            Object::from(-1000i64),
+            Object::from(2000i64),
+            Object::from(2000i64),
+        ],
+        "ItalicAngle" => Object::from(0),
+        "Ascent" => (glyphs.ascender * 1000.0) as i64,
+        "Descent" => (glyphs.descender * 1000.0) as i64,
+        "CapHeight" => (glyphs.ascender * 1000.0) as i64,
+        "StemV" => Object::from(80),
+        "FontFile2" => font_file_id,
+    });
+    let cid_font_id: ObjectId = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "CIDFontType2",
+        "BaseFont" => "SightFolioCJK",
+        "CIDSystemInfo" => dictionary! {
+            "Registry" => Object::string_literal("Adobe"),
+            "Ordering" => Object::string_literal("Identity"),
+            "Supplement" => Object::from(0),
         },
-    );
+        "FontDescriptor" => font_descriptor_id,
+        "CIDToGIDMap" => "Identity",
+        "DW" => Object::from(1000),
+        "W" => build_width_array(&glyphs),
+    });
     let to_unicode_id = doc.add_object(build_to_unicode_cmap(&glyphs));
-    let type0_font_id = doc.add_object(
-        dictionary! {
-            "Type" => "Font",
-            "Subtype" => "Type0",
-            "BaseFont" => "SightFolioCJK",
-            "Encoding" => Object::string_literal("Identity-H"),
-            "DescendantFonts" => vec![Object::from(cid_font_id)],
-            "ToUnicode" => to_unicode_id,
-        },
-    );
+    let type0_font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type0",
+        "BaseFont" => "SightFolioCJK",
+        "Encoding" => Object::string_literal("Identity-H"),
+        "DescendantFonts" => vec![Object::from(cid_font_id)],
+        "ToUnicode" => to_unicode_id,
+    });
 
     // 5. 图片 XObjects
     let mut img_objs: HashMap<String, Object> = HashMap::new();
@@ -230,13 +225,7 @@ pub fn export_pdf(
                             &mut page_count,
                             BODY_LINE_H(),
                         );
-                        append_text_line(
-                            &mut current,
-                            &line,
-                            BODY_FONT_SIZE,
-                            &glyphs,
-                            baseline,
-                        );
+                        append_text_line(&mut current, &line, BODY_FONT_SIZE, &glyphs, baseline);
                         baseline -= BODY_FONT_SIZE * LINE_HEIGHT_FACTOR;
                     }
                     baseline -= SKIP_GAP;
@@ -333,19 +322,15 @@ pub fn export_pdf(
 
     // 8. Pages / Catalog / trailer
     let page_count_val = page_ids.len() as i64;
-    let pages_id = doc.add_object(
-        dictionary! {
-            "Type" => "Pages",
-            "Kids" => page_ids,
-            "Count" => Object::from(page_count_val),
-        },
-    );
-    let catalog_id = doc.add_object(
-        dictionary! {
-            "Type" => "Catalog",
-            "Pages" => pages_id,
-        },
-    );
+    let pages_id = doc.add_object(dictionary! {
+        "Type" => "Pages",
+        "Kids" => page_ids,
+        "Count" => Object::from(page_count_val),
+    });
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
     doc.trailer.set("Root", Object::from(catalog_id));
 
     doc.save(&path)
@@ -628,11 +613,7 @@ fn extract_data_asset(tag: &str) -> Option<String> {
 
 // ─── 封面/目录页 ───
 
-fn build_cover_stream(
-    title: &str,
-    description: &Option<String>,
-    glyphs: &GlyphTable,
-) -> Vec<u8> {
+fn build_cover_stream(title: &str, description: &Option<String>, glyphs: &GlyphTable) -> Vec<u8> {
     let mut buf = Vec::new();
     // 书名（大字号）
     let mut y = PAGE_H / 2.0 + 60.0;
@@ -797,7 +778,6 @@ fn find_cjk_font() -> AppResult<String> {
         }
     }
     Err(AppError::Internal(
-        "no system CJK TTF font; PDF export requires a TTF font (e.g. DroidSansFallback)."
-            .into(),
+        "no system CJK TTF font; PDF export requires a TTF font (e.g. DroidSansFallback).".into(),
     ))
 }

@@ -16,7 +16,9 @@ pub struct SqliteProjectLayerRepository {
 
 impl Clone for SqliteProjectLayerRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -44,7 +46,11 @@ fn row_to_layer(row: &rusqlite::Row) -> rusqlite::Result<ProjectLayer> {
 
 impl ProjectLayerRepository for SqliteProjectLayerRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<ProjectLayer>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, analysis_id, name, color, sort_order, y_position, description, rule_pattern, metadata, created_at, updated_at
              FROM project_layers WHERE analysis_id = ?1 ORDER BY sort_order ASC, name ASC",
@@ -56,7 +62,11 @@ impl ProjectLayerRepository for SqliteProjectLayerRepository {
     }
 
     fn save(&self, layer: &ProjectLayer) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO project_layers
              (id, analysis_id, name, color, sort_order, y_position, description, rule_pattern, metadata, created_at, updated_at)
@@ -71,14 +81,25 @@ impl ProjectLayerRepository for SqliteProjectLayerRepository {
     }
 
     fn delete(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM project_layers WHERE id = ?1", [id])?;
         Ok(())
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_layers WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_layers WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 }

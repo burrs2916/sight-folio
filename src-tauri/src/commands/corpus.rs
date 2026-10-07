@@ -5,6 +5,10 @@ use crate::domain::corpus::{
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::corpus_repository::CorpusRepository;
 use crate::infrastructure::database::SqliteCorpusRepository;
+use mobi::headers::Encryption;
+use mobi::Mobi;
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use std::path::Path;
@@ -12,10 +16,6 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tauri::{Emitter, State};
 use zip::ZipArchive;
-use quick_xml::events::Event;
-use quick_xml::reader::Reader;
-use mobi::headers::Encryption;
-use mobi::Mobi;
 
 /// 语料库命令（Sight Folio「语料库」）：导入 / 列表 / 检索 / 编辑 / 删除 / 状态探针。
 ///
@@ -128,9 +128,10 @@ impl CorpusState {
     /// `op` 为发起方操作名（import / rebuild / delete / optimize），占用成功后写入持有者记录。
     /// 已有维护操作进行中时返回明确错误，并指明是哪个操作、已运行多久（P1-4 并发互斥）。
     pub fn try_begin_maintenance(&self, op: &'static str) -> AppResult<MaintenanceGuard> {
-        let mut holder = self.maintenance_holder.lock().map_err(|e| {
-            AppError::Internal(format!("maintenance lock poisoned: {e}"))
-        })?;
+        let mut holder = self
+            .maintenance_holder
+            .lock()
+            .map_err(|e| AppError::Internal(format!("maintenance lock poisoned: {e}")))?;
         if holder.is_some() {
             let (holder_op, elapsed) = holder
                 .as_ref()
@@ -214,17 +215,12 @@ pub fn corpus_status(state: State<'_, CorpusState>) -> CorpusStatus {
 const BOOK_MATCH_LIMIT: i64 = 10;
 
 #[tauri::command]
-pub fn list_corpus_books(
-    state: State<'_, CorpusState>,
-) -> AppResult<Vec<CorpusBook>> {
+pub fn list_corpus_books(state: State<'_, CorpusState>) -> AppResult<Vec<CorpusBook>> {
     state.repo()?.list_books()
 }
 
 #[tauri::command]
-pub async fn delete_corpus_book(
-    book_id: i64,
-    state: State<'_, CorpusState>,
-) -> AppResult<()> {
+pub async fn delete_corpus_book(book_id: i64, state: State<'_, CorpusState>) -> AppResult<()> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         // P1-4 并发互斥：删除与导入/重建/压缩互斥
@@ -250,7 +246,9 @@ pub fn update_corpus_book(
     schema::validate_category(&category)?;
     schema::validate_tags(&tags)?;
     let category = schema::merge_category_tags(&category, &tags);
-    state.repo()?.update_book_meta(book_id, &title, &author, &language, &category)
+    state
+        .repo()?
+        .update_book_meta(book_id, &title, &author, &language, &category)
 }
 
 /// 标签体系（P0-3）：以多标签集合幂等替换某书标签（先清后插，trim 去空去重）。
@@ -307,19 +305,14 @@ pub fn merge_corpus_tags(
 
 /// 标签维护（P2-2）：解除所有书的指定标签并同步 category 镜像；标签不存在时幂等返回 0。
 #[tauri::command]
-pub fn delete_corpus_tag(
-    tag: String,
-    state: State<'_, CorpusState>,
-) -> AppResult<i64> {
+pub fn delete_corpus_tag(tag: String, state: State<'_, CorpusState>) -> AppResult<i64> {
     state.repo()?.delete_tag(&tag)
 }
 
 /// 标签维护（P2-2）：全库标签书目计数列表（计数降序、同计数按标签名升序），
 /// 供前端标签筛选栏展示各标签书目数与超限折叠。
 #[tauri::command]
-pub fn list_corpus_tag_counts(
-    state: State<'_, CorpusState>,
-) -> AppResult<Vec<(String, i64)>> {
+pub fn list_corpus_tag_counts(state: State<'_, CorpusState>) -> AppResult<Vec<(String, i64)>> {
     state.repo()?.list_tag_counts()
 }
 
@@ -334,7 +327,10 @@ pub fn search_corpus(
     let repo = state.repo()?;
     let q = query.trim();
     if q.is_empty() {
-        return Ok(CorpusSearchResult { books: Vec::new(), hits: Vec::new() });
+        return Ok(CorpusSearchResult {
+            books: Vec::new(),
+            hits: Vec::new(),
+        });
     }
     // 书命中：repo 内部 ≥3 字符走书 FTS、<3 字符 LIKE 回退（转义/短语包装在实现内完成）
     let books = repo.search_books(q, BOOK_MATCH_LIMIT)?;
@@ -404,7 +400,11 @@ fn import_blocking(
         .and_then(|s| s.to_str())
         .unwrap_or("Untitled")
         .to_string();
-    let title = if title.trim().is_empty() { fallback_title } else { title };
+    let title = if title.trim().is_empty() {
+        fallback_title
+    } else {
+        title
+    };
     let emit_phase = |phase: &str, percent: u32, done: Option<usize>, total: Option<usize>| {
         let mut payload = serde_json::json!({
             "phase": phase,
@@ -607,7 +607,13 @@ fn rebuild_one(
         .get_book_source(book.id)
         .map_err(|e| ("failed".to_string(), e.to_string()))?;
     if let Some(src) = mirrored {
-        return resegment_and_replace(repo, book.id, &book.content_hash, &src.source, &src.raw_text);
+        return resegment_and_replace(
+            repo,
+            book.id,
+            &book.content_hash,
+            &src.source,
+            &src.raw_text,
+        );
     }
     // ② 无镜像（旧数据）：回退读外部源文件
     if book.source_path.trim().is_empty() {
@@ -622,8 +628,8 @@ fn rebuild_one(
             format!("source file unavailable: {e}"),
         )
     })?;
-    let (text, source) =
-        extract_text_by_path(&book.source_path, &bytes).map_err(|e| ("failed".to_string(), e.to_string()))?;
+    let (text, source) = extract_text_by_path(&book.source_path, &bytes)
+        .map_err(|e| ("failed".to_string(), e.to_string()))?;
     resegment_and_replace(repo, book.id, &book.content_hash, source, &text)
 }
 
@@ -731,10 +737,7 @@ fn compute_file_fingerprint(file_path: &str) -> Option<(String, i64)> {
 /// 导入前查重指纹的缓存感知入口（P2-1）：
 /// 以 (path, size, mtime) 为键——同路径同大小同修改时间直接复用缓存，避免换文件/重复选择时
 /// 全量重抽；mtime/size 变化自动失效。缓存单槽：只服务「当前选中文件」的即时查重。
-fn compute_file_fingerprint_cached(
-    state: &CorpusState,
-    file_path: &str,
-) -> Option<(String, i64)> {
+fn compute_file_fingerprint_cached(state: &CorpusState, file_path: &str) -> Option<(String, i64)> {
     // ① 读键信息（len/mtime）与缓存；锁异常时按旧路径直接计算（不阻断功能）。
     let Ok(cache) = state.fingerprint_cache.lock() else {
         return compute_file_fingerprint(file_path);
@@ -779,7 +782,8 @@ fn duplicate_hits(
     let mut hits: Vec<DuplicateHit> = Vec::new();
     for b in books {
         let path_hit = !b.source_path.is_empty() && same_path(&b.source_path, file_path);
-        let content_hit = matches!(&fp, Some((h, _)) if !b.content_hash.is_empty() && *h == b.content_hash);
+        let content_hit =
+            matches!(&fp, Some((h, _)) if !b.content_hash.is_empty() && *h == b.content_hash);
         let sim_dist = match (&fp, b.simhash) {
             (Some((_, s)), sb) if sb != 0 => Some(fingerprint::hamming64(*s, sb)),
             _ => None,
@@ -835,9 +839,7 @@ fn make_group(reason: &str, similarity: i64, books: &[&CorpusBook]) -> Duplicate
 
 /// 全库查重（维护用，只读）：书本级分组 + 重复语句组 Top 50。
 #[tauri::command]
-pub fn scan_corpus_duplicates(
-    state: State<'_, CorpusState>,
-) -> AppResult<DuplicateReport> {
+pub fn scan_corpus_duplicates(state: State<'_, CorpusState>) -> AppResult<DuplicateReport> {
     let repo = state.repo()?;
     let books = repo.list_books()?;
     let (exact_groups, similar_groups) = scan_book_duplicates(&books);
@@ -904,7 +906,12 @@ fn scan_book_duplicates(
             }
         }
     }
-    exact_groups.sort_by_key(|g| (dup_rank(&g.reason), g.books.first().map(|b| b.id).unwrap_or(0)));
+    exact_groups.sort_by_key(|g| {
+        (
+            dup_rank(&g.reason),
+            g.books.first().map(|b| b.id).unwrap_or(0),
+        )
+    });
 
     // ③ SimHash 近邻（贪心聚类；精确组内的书跳过）
     let mut similar_groups: Vec<DuplicateBookGroup> = Vec::new();
@@ -1049,7 +1056,9 @@ fn extract_epub_text(bytes: &[u8]) -> AppResult<String> {
         out.push('\n');
     }
     if out.trim().is_empty() {
-        return Err(AppError::Validation("epub: no extractable text found".into()));
+        return Err(AppError::Validation(
+            "epub: no extractable text found".into(),
+        ));
     }
     Ok(out)
 }
@@ -1071,13 +1080,11 @@ fn extract_docx_text(bytes: &[u8]) -> AppResult<String> {
                     in_t = true;
                 }
             }
-            Ok(Event::End(e)) => {
-                match e.name().as_ref() {
-                    b"w:t" => in_t = false,
-                    b"w:p" => out.push('\n'),
-                    _ => {}
-                }
-            }
+            Ok(Event::End(e)) => match e.name().as_ref() {
+                b"w:t" => in_t = false,
+                b"w:p" => out.push('\n'),
+                _ => {}
+            },
             Ok(Event::Text(e)) => {
                 if in_t {
                     if let Ok(t) = e.unescape() {
@@ -1092,7 +1099,9 @@ fn extract_docx_text(bytes: &[u8]) -> AppResult<String> {
         buf.clear();
     }
     if out.trim().is_empty() {
-        return Err(AppError::Validation("docx: no extractable text found".into()));
+        return Err(AppError::Validation(
+            "docx: no extractable text found".into(),
+        ));
     }
     Ok(out)
 }
@@ -1136,7 +1145,9 @@ fn extract_fb2_text(bytes: &[u8]) -> AppResult<String> {
     }
     let text = out.trim().to_string();
     if text.is_empty() {
-        return Err(AppError::Validation("fb2: no extractable text found".into()));
+        return Err(AppError::Validation(
+            "fb2: no extractable text found".into(),
+        ));
     }
     Ok(text)
 }
@@ -1153,8 +1164,7 @@ fn is_fb2_skip(name: &[u8]) -> bool {
 fn is_fb2_block(name: &[u8]) -> bool {
     matches!(
         name,
-        b"p"
-            | b"title"
+        b"p" | b"title"
             | b"subtitle"
             | b"text-author"
             | b"epigraph"
@@ -1175,7 +1185,9 @@ fn is_fb2_block(name: &[u8]) -> bool {
 fn extract_html_text(bytes: &[u8]) -> AppResult<String> {
     let text = html_to_text(&decode_text(bytes)?);
     if text.trim().is_empty() {
-        return Err(AppError::Validation("html: no extractable text found".into()));
+        return Err(AppError::Validation(
+            "html: no extractable text found".into(),
+        ));
     }
     Ok(text)
 }
@@ -1195,7 +1207,9 @@ fn extract_mobi_text(bytes: &[u8]) -> AppResult<String> {
         .map_err(|e| AppError::Validation(format!("mobi decode failed: {e}")))?;
     let text = html_to_text(&raw);
     if text.trim().is_empty() {
-        return Err(AppError::Validation("mobi: no extractable text found".into()));
+        return Err(AppError::Validation(
+            "mobi: no extractable text found".into(),
+        ));
     }
     Ok(text)
 }
@@ -1206,13 +1220,45 @@ fn is_block_tag(name: &str) -> bool {
         name,
         "p" | "div"
             | "br"
-            | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
-            | "li" | "ul" | "ol" | "dl" | "dt" | "dd"
-            | "tr" | "td" | "th" | "table" | "thead" | "tbody" | "caption"
-            | "section" | "article" | "aside" | "nav" | "main"
-            | "header" | "footer" | "blockquote" | "pre" | "hr"
-            | "figure" | "figcaption" | "details" | "summary" | "form" | "fieldset"
-            | "title" | "address" | "body" | "html"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "li"
+            | "ul"
+            | "ol"
+            | "dl"
+            | "dt"
+            | "dd"
+            | "tr"
+            | "td"
+            | "th"
+            | "table"
+            | "thead"
+            | "tbody"
+            | "caption"
+            | "section"
+            | "article"
+            | "aside"
+            | "nav"
+            | "main"
+            | "header"
+            | "footer"
+            | "blockquote"
+            | "pre"
+            | "hr"
+            | "figure"
+            | "figcaption"
+            | "details"
+            | "summary"
+            | "form"
+            | "fieldset"
+            | "title"
+            | "address"
+            | "body"
+            | "html"
     )
 }
 
@@ -1415,39 +1461,54 @@ fn parse_spine_hrefs(opf: &str) -> Vec<String> {
     let mut buf = Vec::new();
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
-                match e.name().as_ref() {
-                    b"item" => {
-                        let mut id = String::new();
-                        let mut href = String::new();
-                        for a in e.attributes().flatten() {
-                            match a.key.as_ref() {
-                                b"id" => id = a.unescape_value().map(|c| c.to_string()).unwrap_or_default(),
-                                b"href" => href = a.unescape_value().map(|c| c.to_string()).unwrap_or_default(),
-                                _ => {}
+            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => match e.name().as_ref() {
+                b"item" => {
+                    let mut id = String::new();
+                    let mut href = String::new();
+                    for a in e.attributes().flatten() {
+                        match a.key.as_ref() {
+                            b"id" => {
+                                id = a
+                                    .unescape_value()
+                                    .map(|c| c.to_string())
+                                    .unwrap_or_default()
                             }
-                        }
-                        if !href.is_empty() {
-                            manifest.insert(id, href);
+                            b"href" => {
+                                href = a
+                                    .unescape_value()
+                                    .map(|c| c.to_string())
+                                    .unwrap_or_default()
+                            }
+                            _ => {}
                         }
                     }
-                    b"itemref" => {
-                        for a in e.attributes().flatten() {
-                            if a.key.as_ref() == b"idref" {
-                                spine.push(a.unescape_value().map(|c| c.to_string()).unwrap_or_default());
-                            }
-                        }
+                    if !href.is_empty() {
+                        manifest.insert(id, href);
                     }
-                    _ => {}
                 }
-            }
+                b"itemref" => {
+                    for a in e.attributes().flatten() {
+                        if a.key.as_ref() == b"idref" {
+                            spine.push(
+                                a.unescape_value()
+                                    .map(|c| c.to_string())
+                                    .unwrap_or_default(),
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            },
             Ok(Event::Eof) => break,
             Err(_) => break,
             _ => {}
         }
         buf.clear();
     }
-    spine.into_iter().filter_map(|idref| manifest.get(&idref).cloned()).collect()
+    spine
+        .into_iter()
+        .filter_map(|idref| manifest.get(&idref).cloned())
+        .collect()
 }
 
 /// 相对 OPF 目录解析 href（处理绝对路径与百分号编码）。
@@ -1492,7 +1553,7 @@ fn hex_val(b: u8) -> Option<u8> {
 mod tests {
     use super::*;
     use std::io::Write;
-    use zip::{ZipWriter, write::FileOptions};
+    use zip::{write::FileOptions, ZipWriter};
 
     #[test]
     fn decode_utf8_and_gbk() {
@@ -1520,7 +1581,10 @@ mod tests {
         let g1 = state.try_begin_maintenance("rebuild").unwrap();
         // 第二次获取必须失败（互斥生效），且错误信息带持有者操作名
         let err = state.try_begin_maintenance("import").unwrap_err();
-        assert!(err.to_string().contains("rebuild"), "error should name holder: {err}");
+        assert!(
+            err.to_string().contains("rebuild"),
+            "error should name holder: {err}"
+        );
         drop(g1);
         // 释放后可再次获取
         let g2 = state.try_begin_maintenance("delete").unwrap();
@@ -1550,8 +1614,14 @@ mod tests {
         }
         // 查看错误信息明确点出持有者与已运行秒数
         let err = state.try_begin_maintenance("delete").unwrap_err();
-        assert!(err.to_string().contains("import"), "error should name holder: {err}");
-        assert!(err.to_string().contains("s ago"), "error should include elapsed: {err}");
+        assert!(
+            err.to_string().contains("import"),
+            "error should name holder: {err}"
+        );
+        assert!(
+            err.to_string().contains("s ago"),
+            "error should include elapsed: {err}"
+        );
         // 释放后复位为空闲
         drop(guard);
         let holder = state.maintenance_holder.lock().unwrap();
@@ -1565,7 +1635,11 @@ mod tests {
         let dir = std::env::temp_dir().join("sight_folio_corpus_cache_test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("unchanged.txt");
-        std::fs::write(&path, "第一章\n\n山风很大。他回头看了一眼。\n\n孤独是宿命。").unwrap();
+        std::fs::write(
+            &path,
+            "第一章\n\n山风很大。他回头看了一眼。\n\n孤独是宿命。",
+        )
+        .unwrap();
         let repo = Arc::new(SqliteCorpusRepository::new(Arc::new(
             CorpusDatabase::open_in_memory().unwrap(),
         )));
@@ -1611,7 +1685,10 @@ mod tests {
         )
         .unwrap();
         let fp2 = compute_file_fingerprint_cached(&state, p).unwrap();
-        assert_ne!(fp1, fp2, "stale fingerprint must be invalidated after file change");
+        assert_ne!(
+            fp1, fp2,
+            "stale fingerprint must be invalidated after file change"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -1647,8 +1724,13 @@ mod tests {
         // 正常条目按限通过、缺失条目为 Ok(None)
         let bytes2 = build_zip(&[("ok.txt", "山风很大。")]);
         let mut zip2 = ZipArchive::new(Cursor::new(bytes2)).unwrap();
-        assert_eq!(read_zip_str(&mut zip2, "ok.txt", 100).unwrap().as_deref(), Some("山风很大。"));
-        assert!(read_zip_str(&mut zip2, "missing.txt", 100).unwrap().is_none());
+        assert_eq!(
+            read_zip_str(&mut zip2, "ok.txt", 100).unwrap().as_deref(),
+            Some("山风很大。")
+        );
+        assert!(read_zip_str(&mut zip2, "missing.txt", 100)
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -1767,7 +1849,8 @@ mod tests {
         let opf = r#"<?xml version="1.0"?><package><manifest>
             <item id="c1" href="chap1.xhtml" media-type="application/xhtml+xml"/>
         </manifest><spine><itemref idref="c1"/></spine></package>"#;
-        let c1 = r#"<html><body><h1>第一章 出山</h1><p>山风很大。他回头看了一眼。</p></body></html>"#;
+        let c1 =
+            r#"<html><body><h1>第一章 出山</h1><p>山风很大。他回头看了一眼。</p></body></html>"#;
         let bytes = build_zip(&[
             ("META-INF/container.xml", container),
             ("OEBPS/content.opf", opf),
@@ -1801,7 +1884,9 @@ mod tests {
     /// 重建索引：读源文件 → 重抽取 → 重新切分 → 替换索引（无空行章标题应被正确识章）。
     #[test]
     fn rebuild_one_rereads_source_and_resegments() {
-        use crate::infrastructure::database::{corpus_repository::CorpusRepository, CorpusDatabase};
+        use crate::infrastructure::database::{
+            corpus_repository::CorpusRepository, CorpusDatabase,
+        };
         let repo = SqliteCorpusRepository::new(std::sync::Arc::new(
             CorpusDatabase::open_in_memory().unwrap(),
         ));
@@ -1814,7 +1899,16 @@ mod tests {
         // 以空 chunks 导入（模拟"索引已陈旧"），rebuild 后应切出章 + 句
         // 镜像为抽取后的全文：rebuild 走镜像重切分，不依赖源文件此刻是否还在
         let book = repo
-            .import_book("临时书", "", "zh", "", "txt", &path_str, "第一章 出山\n山风很大。\n第二章 入世\n老者说。", &[])
+            .import_book(
+                "临时书",
+                "",
+                "zh",
+                "",
+                "txt",
+                &path_str,
+                "第一章 出山\n山风很大。\n第二章 入世\n老者说。",
+                &[],
+            )
             .unwrap();
         assert_eq!(book.chunk_count, 0);
         let n = expect_rebuilt(rebuild_one(&repo, &book));
@@ -1834,7 +1928,9 @@ mod tests {
     /// ② 无镜像（旧数据）且无路径/文件缺失 → skipped；③ 不 panic、不动既有索引。
     #[test]
     fn rebuild_one_uses_mirror_fallback_to_external_then_skip() {
-        use crate::infrastructure::database::{corpus_repository::CorpusRepository, CorpusDatabase};
+        use crate::infrastructure::database::{
+            corpus_repository::CorpusRepository, CorpusDatabase,
+        };
         let repo = SqliteCorpusRepository::new(std::sync::Arc::new(
             CorpusDatabase::open_in_memory().unwrap(),
         ));
@@ -1868,7 +1964,10 @@ mod tests {
         }
         let legacy_repo = SqliteCorpusRepository::new(legacy_db);
         let legacy_book = legacy_repo.get_book(1).unwrap();
-        assert_eq!(rebuild_one(&legacy_repo, &legacy_book).unwrap_err().0, "skipped");
+        assert_eq!(
+            rebuild_one(&legacy_repo, &legacy_book).unwrap_err().0,
+            "skipped"
+        );
         // ③ 无镜像（旧数据）且路径记录在但文件已不在 → skipped（不误判 failed、不清索引）
         let legacy_db2 = std::sync::Arc::new(CorpusDatabase::open_in_memory().unwrap());
         {
@@ -1882,7 +1981,10 @@ mod tests {
         }
         let legacy_repo2 = SqliteCorpusRepository::new(legacy_db2);
         let legacy_book2 = legacy_repo2.get_book(2).unwrap();
-        assert_eq!(rebuild_one(&legacy_repo2, &legacy_book2).unwrap_err().0, "skipped");
+        assert_eq!(
+            rebuild_one(&legacy_repo2, &legacy_book2).unwrap_err().0,
+            "skipped"
+        );
     }
 
     /// 断言单本重建为「整体替换」，返回新句子数（增量重建后结果为 [`RebuildOutcome`]）。
@@ -1899,14 +2001,22 @@ mod tests {
     #[test]
     fn rebuild_one_skips_when_content_unchanged() {
         use crate::domain::corpus::pipeline::parse_text;
-        use crate::infrastructure::database::{corpus_repository::CorpusRepository, CorpusDatabase};
+        use crate::infrastructure::database::{
+            corpus_repository::CorpusRepository, CorpusDatabase,
+        };
         let repo = SqliteCorpusRepository::new(std::sync::Arc::new(
             CorpusDatabase::open_in_memory().unwrap(),
         ));
         let text = "第一章 出山\n山风很大。他回头看了一眼。\n第二章 入世\n老者说。";
         let parsed: Vec<(String, String, String)> = parse_text(text)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         assert!(!parsed.is_empty());
         let book = repo
@@ -1947,7 +2057,13 @@ mod tests {
         std::fs::write(&path, text_a).unwrap();
         let parsed_a: Vec<(String, String, String)> = parse_text(text_a)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let hash_a = book_fingerprints(&parsed_a).0;
         // 无镜像的旧数据：只有 source_path + 指纹记录，没有 corpus_book_sources 行
@@ -1979,13 +2095,21 @@ mod tests {
     #[test]
     fn rebuild_one_rebuilds_when_content_hash_missing() {
         use crate::domain::corpus::pipeline::parse_text;
-        use crate::infrastructure::database::{corpus_repository::CorpusRepository, CorpusDatabase};
+        use crate::infrastructure::database::{
+            corpus_repository::CorpusRepository, CorpusDatabase,
+        };
         let db = std::sync::Arc::new(CorpusDatabase::open_in_memory().unwrap());
         let repo = SqliteCorpusRepository::new(db.clone());
         let text = "第一章 出山\n山风很大。";
         let parsed: Vec<(String, String, String)> = parse_text(text)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let book = repo
             .import_book("旧号", "", "zh", "", "txt", "", text, &parsed)
@@ -2077,8 +2201,22 @@ mod tests {
     fn scan_book_duplicates_groups_by_reason() {
         let books = vec![
             book(1, "甲", "", "/same.txt", "HASH_X", 0x2a2a_2a2a_2a2a_2a2a),
-            book(2, "甲副本", "", "/other.txt", "HASH_X", 0x2a2a_2a2a_2a2a_2a2a),
-            book(3, "同路径", "", "/same.txt", "HASH_Y", 0x5a5a_5a5a_5a5a_5a5a),
+            book(
+                2,
+                "甲副本",
+                "",
+                "/other.txt",
+                "HASH_X",
+                0x2a2a_2a2a_2a2a_2a2a,
+            ),
+            book(
+                3,
+                "同路径",
+                "",
+                "/same.txt",
+                "HASH_Y",
+                0x5a5a_5a5a_5a5a_5a5a,
+            ),
             book(4, "近邻A", "", "/n1", "HA", 0x0f0f_0f0f_0f0f_0f0f),
             book(5, "近邻B", "", "/n2", "HB", 0x0f0f_0f0f_0f0f_0f0f),
         ];
@@ -2158,23 +2296,34 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let file_a = dir.join("正本.txt");
         let file_b = dir.join("副本.txt");
-        let text = "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……";
+        let text =
+            "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……";
         std::fs::write(&file_a, text).unwrap();
         std::fs::write(&file_b, text).unwrap();
         let path_a = file_a.to_string_lossy().to_string();
         let path_b = file_b.to_string_lossy().to_string();
 
         // ① 导入（读真实文件 → 抽取 → 切分 → 入库 + 镜像归档）
-        let (raw_a, src_a) = extract_text_by_path(&path_a, &std::fs::read(&file_a).unwrap()).unwrap();
+        let (raw_a, src_a) =
+            extract_text_by_path(&path_a, &std::fs::read(&file_a).unwrap()).unwrap();
         let parsed_a: Vec<(String, String, String)> = parse_text(&raw_a)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         assert!(!parsed_a.is_empty());
         let book_a = repo
             .import_book("正本", "作者", "zh", "", src_a, &path_a, &raw_a, &parsed_a)
             .unwrap();
-        assert!(repo.get_book_source(book_a.id).unwrap().is_some(), "镜像已归档");
+        assert!(
+            repo.get_book_source(book_a.id).unwrap().is_some(),
+            "镜像已归档"
+        );
         assert!(!repo.search("山风很大", None, 20, 0).unwrap().is_empty());
 
         // ② 单本重建：先以空 chunks 模拟陈旧索引，rebuild 后恢复章句切分
@@ -2188,10 +2337,17 @@ mod tests {
         // ③ 全库查重：单本无重复；两次导入同内容后出现 content_hash 精确组
         let (exact, _) = scan_book_duplicates(&repo.list_books().unwrap());
         assert!(exact.is_empty(), "单本不应有重复组");
-        let (raw_b, src_b) = extract_text_by_path(&path_b, &std::fs::read(&file_b).unwrap()).unwrap();
+        let (raw_b, src_b) =
+            extract_text_by_path(&path_b, &std::fs::read(&file_b).unwrap()).unwrap();
         let parsed_b: Vec<(String, String, String)> = parse_text(&raw_b)
             .iter()
-            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .map(|c| {
+                (
+                    c.kind.to_string(),
+                    c.content.clone(),
+                    c.chapter_title.clone(),
+                )
+            })
             .collect();
         let book_b = repo
             .import_book("副本", "作者", "zh", "", src_b, &path_b, &raw_b, &parsed_b)
@@ -2207,8 +2363,10 @@ mod tests {
         let remaining = repo.list_books().unwrap();
         assert_eq!(remaining.len(), 1);
         assert_eq!(remaining[0].id, book_a.id);
-        assert!(repo.get_book_source(book_b.id).unwrap().is_none(), "副本镜像已随书删除");
+        assert!(
+            repo.get_book_source(book_b.id).unwrap().is_none(),
+            "副本镜像已随书删除"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
-
 }

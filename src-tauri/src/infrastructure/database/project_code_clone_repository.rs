@@ -15,7 +15,9 @@ pub struct SqliteProjectCodeCloneRepository {
 
 impl Clone for SqliteProjectCodeCloneRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -48,7 +50,11 @@ const CLONE_COLS: &str = "id, analysis_id, group_id, file_id, file_path, start_l
 
 impl ProjectCodeCloneRepository for SqliteProjectCodeCloneRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<CodeClone>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_code_clones WHERE analysis_id = ?1
              ORDER BY line_count DESC, group_size DESC, file_path ASC, start_line ASC",
@@ -61,7 +67,11 @@ impl ProjectCodeCloneRepository for SqliteProjectCodeCloneRepository {
     }
 
     fn save_batch(&self, items: &[CodeClone]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -93,7 +103,11 @@ impl ProjectCodeCloneRepository for SqliteProjectCodeCloneRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "DELETE FROM project_code_clones WHERE analysis_id = ?1",
             [analysis_id],

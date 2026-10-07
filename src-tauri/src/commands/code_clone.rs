@@ -112,31 +112,172 @@ fn is_meaningful(norm: &str) -> bool {
 /// 常见语言关键字（参数化时保留原样，不做占位符替换）
 const KEYWORDS: &[&str] = &[
     // TS/JS
-    "const", "let", "var", "function", "return", "if", "else", "for", "while",
-    "do", "switch", "case", "break", "continue", "class", "extends", "new",
-    "import", "export", "from", "default", "try", "catch", "finally", "throw",
-    "async", "await", "typeof", "instanceof", "in", "of", "this", "super",
-    "interface", "type", "enum", "implements", "public", "private", "protected",
-    "readonly", "static", "abstract", "get", "set", "yield", "delete", "void",
-    "null", "undefined", "true", "false",
+    "const",
+    "let",
+    "var",
+    "function",
+    "return",
+    "if",
+    "else",
+    "for",
+    "while",
+    "do",
+    "switch",
+    "case",
+    "break",
+    "continue",
+    "class",
+    "extends",
+    "new",
+    "import",
+    "export",
+    "from",
+    "default",
+    "try",
+    "catch",
+    "finally",
+    "throw",
+    "async",
+    "await",
+    "typeof",
+    "instanceof",
+    "in",
+    "of",
+    "this",
+    "super",
+    "interface",
+    "type",
+    "enum",
+    "implements",
+    "public",
+    "private",
+    "protected",
+    "readonly",
+    "static",
+    "abstract",
+    "get",
+    "set",
+    "yield",
+    "delete",
+    "void",
+    "null",
+    "undefined",
+    "true",
+    "false",
     // Rust
-    "use", "mod", "pub", "fn", "struct", "enum", "trait", "impl", "let", "mut",
-    "match", "ref", "move", "dyn", "where", "as", "unsafe", "extern", "crate",
-    "self", "Self", "super", "loop", "while", "for", "if", "else", "return",
-    "break", "continue", "const", "static", "type", "macro_rules",
+    "use",
+    "mod",
+    "pub",
+    "fn",
+    "struct",
+    "enum",
+    "trait",
+    "impl",
+    "let",
+    "mut",
+    "match",
+    "ref",
+    "move",
+    "dyn",
+    "where",
+    "as",
+    "unsafe",
+    "extern",
+    "crate",
+    "self",
+    "Self",
+    "super",
+    "loop",
+    "while",
+    "for",
+    "if",
+    "else",
+    "return",
+    "break",
+    "continue",
+    "const",
+    "static",
+    "type",
+    "macro_rules",
     // Python
-    "def", "class", "import", "from", "as", "if", "elif", "else", "for", "while",
-    "return", "break", "continue", "pass", "raise", "try", "except", "finally",
-    "with", "lambda", "yield", "global", "nonlocal", "assert", "del", "is",
-    "not", "and", "or", "in", "None", "True", "False",
+    "def",
+    "class",
+    "import",
+    "from",
+    "as",
+    "if",
+    "elif",
+    "else",
+    "for",
+    "while",
+    "return",
+    "break",
+    "continue",
+    "pass",
+    "raise",
+    "try",
+    "except",
+    "finally",
+    "with",
+    "lambda",
+    "yield",
+    "global",
+    "nonlocal",
+    "assert",
+    "del",
+    "is",
+    "not",
+    "and",
+    "or",
+    "in",
+    "None",
+    "True",
+    "False",
     // Go
-    "package", "func", "var", "const", "struct", "interface", "map", "chan",
-    "go", "defer", "select", "range", "goto", "fallthrough",
+    "package",
+    "func",
+    "var",
+    "const",
+    "struct",
+    "interface",
+    "map",
+    "chan",
+    "go",
+    "defer",
+    "select",
+    "range",
+    "goto",
+    "fallthrough",
     // Java/C/C++ 公共
-    "public", "protected", "private", "abstract", "final", "native", "synchronized",
-    "transient", "volatile", "strictfp", "throw", "throws", "double", "float",
-    "int", "long", "short", "byte", "char", "boolean", "signed", "unsigned",
-    "sizeof", "typedef", "union", "auto", "register", "volatile", "static",
+    "public",
+    "protected",
+    "private",
+    "abstract",
+    "final",
+    "native",
+    "synchronized",
+    "transient",
+    "volatile",
+    "strictfp",
+    "throw",
+    "throws",
+    "double",
+    "float",
+    "int",
+    "long",
+    "short",
+    "byte",
+    "char",
+    "boolean",
+    "signed",
+    "unsigned",
+    "sizeof",
+    "typedef",
+    "union",
+    "auto",
+    "register",
+    "volatile",
+    "static",
 ];
 
 /// 判断字符是否属于标识符字符集
@@ -147,10 +288,7 @@ fn is_ident_char(c: char) -> bool {
 /// 把一行做 Type-2 参数化：非关键字标识符 → $v{n}（按首次出现顺序编号）
 ///
 /// 同一标识符在文件内永远映射到同一个占位符（跨行一致的字典序由调用方维护）。
-fn parameterize_line(
-    line: &str,
-    ident_map: &mut HashMap<String, usize>,
-) -> String {
+fn parameterize_line(line: &str, ident_map: &mut HashMap<String, usize>) -> String {
     let mut out = String::with_capacity(line.len() + 8);
     let mut chars = line.chars().peekable();
     while let Some(&c) = chars.peek() {
@@ -322,10 +460,7 @@ struct Block {
 ///
 /// `marks_by_file` 决定用哪套指纹（type1 → marks / type2 → marks_param），
 /// `min_lines` 决定块的最小有效行数（type2 阈值更高防误报）。
-fn build_blocks(
-    marks_by_file: &[Vec<(u64, usize)>],
-    min_lines: usize,
-) -> Vec<Block> {
+fn build_blocks(marks_by_file: &[Vec<(u64, usize)>], min_lines: usize) -> Vec<Block> {
     // hash → 出现位置 (文件下标, 归一化下标)
     let mut index: HashMap<u64, Vec<(usize, usize)>> = HashMap::new();
     for (fi, mks) in marks_by_file.iter().enumerate() {
@@ -401,8 +536,16 @@ fn push_block_pair(
     let b_start = (a_start as i64 + delta).max(0) as usize;
     let b_end = (a_end as i64 + delta).max(0) as usize;
 
-    blocks.push(Block { file_idx: fa, start: a_start, end: a_end });
-    blocks.push(Block { file_idx: fb, start: b_start, end: b_end });
+    blocks.push(Block {
+        file_idx: fa,
+        start: a_start,
+        end: a_end,
+    });
+    blocks.push(Block {
+        file_idx: fb,
+        start: b_start,
+        end: b_end,
+    });
 }
 
 /// 剔除被更大块完全包含的小块（同文件内）
@@ -417,9 +560,9 @@ fn drop_contained(mut blocks: Vec<Block>) -> Vec<Block> {
 
     let mut kept: Vec<Block> = Vec::new();
     for b in blocks {
-        let contained = kept.iter().any(|k| {
-            k.file_idx == b.file_idx && k.start <= b.start && k.end >= b.end
-        });
+        let contained = kept
+            .iter()
+            .any(|k| k.file_idx == b.file_idx && k.start <= b.start && k.end >= b.end);
         if !contained {
             kept.push(b);
         }
@@ -478,10 +621,8 @@ fn compute_clones_with(
     let mut out: Vec<CodeClone> = Vec::new();
 
     // 组按「重复行数 × 实例数」降序，保证截断时保留最有价值的克隆
-    let mut ordered: Vec<(u64, Vec<&Block>)> = groups
-        .into_iter()
-        .filter(|(_, v)| v.len() >= 2)
-        .collect();
+    let mut ordered: Vec<(u64, Vec<&Block>)> =
+        groups.into_iter().filter(|(_, v)| v.len() >= 2).collect();
     ordered.sort_by(|a, b| {
         let score = |v: &Vec<&Block>| {
             let span = v[0].end - v[0].start + 1;
@@ -494,11 +635,7 @@ fn compute_clones_with(
         if out.len() >= MAX_CLONE_ROWS {
             break;
         }
-        let group_id = format!(
-            "cg_{:016x}{}",
-            ghash,
-            if is_param { "_p" } else { "" }
-        );
+        let group_id = format!("cg_{:016x}{}", ghash, if is_param { "_p" } else { "" });
         let group_size = members.len() as i64;
 
         for b in members {
@@ -518,7 +655,10 @@ fn compute_clones_with(
             let snippet: String = f.lines[b.start].0.chars().take(120).collect();
 
             out.push(CodeClone {
-                id: format!("clone_{}", uuid::Uuid::new_v4().to_string().replace('-', "")),
+                id: format!(
+                    "clone_{}",
+                    uuid::Uuid::new_v4().to_string().replace('-', "")
+                ),
                 analysis_id: analysis_id.to_string(),
                 group_id: group_id.clone(),
                 file_id: f.file_id.clone(),
@@ -539,10 +679,7 @@ fn compute_clones_with(
 
 /// 按 clone_type 过滤掉 Type-2 中与 Type-1 完全重叠的块（避免重复报告）。
 /// 规则：同一文件、行区间被 Type-1 块覆盖的 Type-2 块丢弃。
-fn dedup_type2_against_type1(
-    type1: &[CodeClone],
-    type2: Vec<CodeClone>,
-) -> Vec<CodeClone> {
+fn dedup_type2_against_type1(type1: &[CodeClone], type2: Vec<CodeClone>) -> Vec<CodeClone> {
     if type1.is_empty() {
         return type2;
     }
@@ -675,7 +812,12 @@ mod tests {
     /// 构造一段足够长、内容各异的「业务代码」
     fn payload(prefix: &str, n: usize) -> String {
         (0..n)
-            .map(|i| format!("const {}Value{} = compute{}(input{}, options{});", prefix, i, i, i, i))
+            .map(|i| {
+                format!(
+                    "const {}Value{} = compute{}(input{}, options{});",
+                    prefix, i, i, i, i
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -721,12 +863,21 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         let b: String = (0..20)
-            .map(|i| format!("fn beta{}() -> i64 {{ input{} + options{} + extra{} }}", i, i, i, i))
+            .map(|i| {
+                format!(
+                    "fn beta{}() -> i64 {{ input{} + options{} + extra{} }}",
+                    i, i, i, i
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         let files = vec![mk("f1", "src/a.ts", &a), mk("f2", "src/b.ts", &b)];
         let clones = compute_clones_typed(&files, "an1");
-        assert!(clones.is_empty(), "内容结构完全不同的文件不应报重复，实际: {:?}", clones.len());
+        assert!(
+            clones.is_empty(),
+            "内容结构完全不同的文件不应报重复，实际: {:?}",
+            clones.len()
+        );
     }
 
     #[test]
@@ -781,7 +932,12 @@ mod tests {
     /// 前缀不同 → Type-1 不匹配，但参数化后完全同构 → Type-2 应匹配。
     fn param_payload(prefix: &str, n: usize) -> String {
         (0..n)
-            .map(|i| format!("const {}Value{} = compute{}(input{}, options{});", prefix, i, i, i, i))
+            .map(|i| {
+                format!(
+                    "const {}Value{} = compute{}(input{}, options{});",
+                    prefix, i, i, i, i
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -824,7 +980,10 @@ mod tests {
         if let Some(t1g) = t1.first() {
             assert!(!t1g.group_id.ends_with("_p"));
         }
-        assert!(t2[0].group_id.ends_with("_p"), "type2 group_id 应带 _p 后缀");
+        assert!(
+            t2[0].group_id.ends_with("_p"),
+            "type2 group_id 应带 _p 后缀"
+        );
     }
 
     #[test]
@@ -833,7 +992,10 @@ mod tests {
         // 两个文件各自的第一个标识符都映射到 $v0，从而参数化后完全一致
         let mut map_a = std::collections::HashMap::new();
         let mut map_b = std::collections::HashMap::new();
-        let p1 = parameterize_line("const alphaValue0 = compute0(input0, options0);", &mut map_a);
+        let p1 = parameterize_line(
+            "const alphaValue0 = compute0(input0, options0);",
+            &mut map_a,
+        );
         let p2 = parameterize_line("const betaValue0 = compute0(input0, options0);", &mut map_b);
         assert_eq!(p1, p2, "同构行参数化后应一致: {p1} vs {p2}");
         assert!(p1.contains("$v"), "参数化后应含占位符");
@@ -845,7 +1007,10 @@ mod tests {
         let l2 = parameterize_line("alphaValue0 = compute0(input0);", &mut map_c);
         assert_ne!(l1, l2, "同一文件内标识符复用关系不同 → 参数化后应不同");
         // 复用版：alphaValue0 两次都映射 $v0 → 左右相同
-        assert!(l1.starts_with("$v0 = $v1($v0);") || l1.contains("$v0)"), "l1={l1}");
+        assert!(
+            l1.starts_with("$v0 = $v1($v0);") || l1.contains("$v0)"),
+            "l1={l1}"
+        );
     }
 
     #[test]
@@ -853,13 +1018,22 @@ mod tests {
         // 每行多一个参数 → 参数化后结构不同，不应误报 type2
         let a = param_payload("same", 14);
         let b = (0..14)
-            .map(|i| format!("const sameValue{} = compute{}(input{}, options{}, extra{});", i, i, i, i, i))
+            .map(|i| {
+                format!(
+                    "const sameValue{} = compute{}(input{}, options{}, extra{});",
+                    i, i, i, i, i
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
         let files = vec![mk("f1", "src/a.ts", &a), mk("f2", "src/b.ts", &b)];
         let clones = compute_clones_typed(&files, "an1");
         let t2: Vec<_> = clones.iter().filter(|c| c.clone_type == "type2").collect();
-        assert!(t2.is_empty(), "结构不同不应误报 type2，实际: {:?}", t2.len());
+        assert!(
+            t2.is_empty(),
+            "结构不同不应误报 type2，实际: {:?}",
+            t2.len()
+        );
     }
 
     #[test]
@@ -877,7 +1051,10 @@ mod tests {
         }
         for c in clones.iter().filter(|c| c.clone_type == "type2") {
             let key = (c.file_path.clone(), c.start_line, c.end_line);
-            assert!(!t1_ranges.contains(&key), "Type-2 不应覆盖 Type-1 已报告的区间");
+            assert!(
+                !t1_ranges.contains(&key),
+                "Type-2 不应覆盖 Type-1 已报告的区间"
+            );
         }
     }
 }

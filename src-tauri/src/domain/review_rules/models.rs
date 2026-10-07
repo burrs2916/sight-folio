@@ -31,10 +31,7 @@ impl Default for ReviewRule {
     fn default() -> Self {
         let now = chrono::Utc::now().timestamp();
         Self {
-            id: format!(
-                "rule_{}",
-                uuid::Uuid::new_v4().to_string().replace("-", "")
-            ),
+            id: format!("rule_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
             name: String::new(),
             description: None,
             rule_type: "pattern".to_string(),

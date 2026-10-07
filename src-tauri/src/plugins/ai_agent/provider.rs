@@ -112,7 +112,11 @@ pub struct ProviderConfig {
 /// - `x-api-key`：自定义头 `x-api-key`
 /// - `custom`：用 `custom_auth_header` 作为头名
 /// - 其余（含 `bearer` 与空串/未知值）：`Authorization: Bearer <key>`（OpenAI 兼容默认）
-pub fn auth_header_for(auth_type: &str, custom_auth_header: &str, api_key: &str) -> (String, String) {
+pub fn auth_header_for(
+    auth_type: &str,
+    custom_auth_header: &str,
+    api_key: &str,
+) -> (String, String) {
     match auth_type {
         "x-api-key" => ("x-api-key".to_string(), api_key.to_string()),
         "custom" => (custom_auth_header.to_string(), api_key.to_string()),

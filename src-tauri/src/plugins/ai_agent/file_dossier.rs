@@ -55,7 +55,9 @@ fn clip(s: &str) -> String {
 /// LIKE 通配符转义 —— 与 scan_records 同样的理由：路径里 `_` 极其频繁
 /// （`__tests__`、`snake_case`），不转义会让命中集悄悄偏大。
 fn escape_like(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 /// 档案锁定的那个文件
@@ -291,7 +293,12 @@ impl Bag {
 }
 
 /// 统一的三态判定。所有维度都必须走它，不许某一维自己拍脑袋。
-fn classify(dim: &Dim, total: Option<i64>, file_rows: i64, data: impl FnOnce() -> Value) -> Outcome {
+fn classify(
+    dim: &Dim,
+    total: Option<i64>,
+    file_rows: i64,
+    data: impl FnOnce() -> Value,
+) -> Outcome {
     match total {
         None => Outcome::Blind(format!(
             "维度 `{}` 读取失败（表可能尚未建立），行数未知 —— 不得据此下任何结论",
@@ -876,7 +883,11 @@ fn candidates_payload(input: &str, list: &[DossierFile]) -> Value {
 ///   · 方向归一（谁调我 / 我调谁、跟谁重复、跟谁同改）——存储形状不该由模型来消化；
 ///   · 三态区分（有数据 / 查过没有 / 压根没查）——这是它最容易出致命错误的地方；
 ///   · 带出已有结论——否则每轮都会把同一个问题重新想一遍再重新写一条。
-pub fn build_dossier(db: &Arc<Database>, analysis_id: &str, params: &Value) -> Result<Value, String> {
+pub fn build_dossier(
+    db: &Arc<Database>,
+    analysis_id: &str,
+    params: &Value,
+) -> Result<Value, String> {
     let raw = params["path"]
         .as_str()
         .or_else(|| params["file_path"].as_str())
@@ -1072,7 +1083,10 @@ mod tests {
         let db = base_db();
         let v = dossier(&db, "src/does/not/exist_qqq.ts");
         assert_eq!(v["resolved"], json!(false));
-        assert!(v["hint"].as_str().unwrap().contains("No scanned file matches"));
+        assert!(v["hint"]
+            .as_str()
+            .unwrap()
+            .contains("No scanned file matches"));
     }
 
     #[test]
@@ -1286,12 +1300,7 @@ mod tests {
         // 漏掉一维 = Agent 既看不到数据也看不到「没查」的提示，是最危险的静默失真
         let db = base_db();
         let v = dossier(&db, TARGET);
-        let mut all: Vec<String> = v["findings"]
-            .as_object()
-            .unwrap()
-            .keys()
-            .cloned()
-            .collect();
+        let mut all: Vec<String> = v["findings"].as_object().unwrap().keys().cloned().collect();
         all.extend(dims(&v, "clean"));
         all.extend(dims(&v, "blind"));
         let mut sorted = all.clone();

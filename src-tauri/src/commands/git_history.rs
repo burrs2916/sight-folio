@@ -104,7 +104,10 @@ fn collect_churn(project_root: &str, since_days: Option<i64>) -> HashMap<String,
             let mut parts = rest.split('\u{1f}');
             parts.next(); // 记录头后的空段
             cur_hash = parts.next().unwrap_or("").to_string();
-            cur_at = parts.next().and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+            cur_at = parts
+                .next()
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0);
             cur_author = parts.next().unwrap_or("").to_string();
             continue;
         }

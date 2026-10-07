@@ -22,10 +22,7 @@ pub struct ScanJob {
 impl Default for ScanJob {
     fn default() -> Self {
         Self {
-            id: format!(
-                "job_{}",
-                uuid::Uuid::new_v4().to_string().replace("-", "")
-            ),
+            id: format!("job_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
             analysis_id: String::new(),
             status: "pending".to_string(),
             progress: 0,

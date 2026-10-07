@@ -43,7 +43,10 @@ pub struct CodeClone {
 impl Default for CodeClone {
     fn default() -> Self {
         Self {
-            id: format!("clone_{}", uuid::Uuid::new_v4().to_string().replace('-', "")),
+            id: format!(
+                "clone_{}",
+                uuid::Uuid::new_v4().to_string().replace('-', "")
+            ),
             analysis_id: String::new(),
             group_id: String::new(),
             file_id: String::new(),

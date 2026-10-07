@@ -26,7 +26,11 @@ impl LanguageParser for CSharpParser {
     }
 
     fn detect(&self, ext: &str) -> Option<&'static str> {
-        if ext == "cs" { Some("csharp") } else { None }
+        if ext == "cs" {
+            Some("csharp")
+        } else {
+            None
+        }
     }
 
     fn extract_symbols(&self, content: &str) -> Vec<SymbolCandidate> {
@@ -68,7 +72,11 @@ impl LanguageParser for PhpParser {
     }
 
     fn detect(&self, ext: &str) -> Option<&'static str> {
-        if ext == "php" { Some("php") } else { None }
+        if ext == "php" {
+            Some("php")
+        } else {
+            None
+        }
     }
 
     fn extract_symbols(&self, content: &str) -> Vec<SymbolCandidate> {
@@ -110,7 +118,11 @@ impl LanguageParser for RubyParser {
     }
 
     fn detect(&self, ext: &str) -> Option<&'static str> {
-        if ext == "rb" { Some("rb") } else { None }
+        if ext == "rb" {
+            Some("rb")
+        } else {
+            None
+        }
     }
 
     fn extract_symbols(&self, _content: &str) -> Vec<SymbolCandidate> {
@@ -152,7 +164,11 @@ impl LanguageParser for SwiftParser {
     }
 
     fn detect(&self, ext: &str) -> Option<&'static str> {
-        if ext == "swift" { Some("swift") } else { None }
+        if ext == "swift" {
+            Some("swift")
+        } else {
+            None
+        }
     }
 
     fn extract_symbols(&self, _content: &str) -> Vec<SymbolCandidate> {
@@ -194,7 +210,11 @@ impl LanguageParser for VueParser {
     }
 
     fn detect(&self, ext: &str) -> Option<&'static str> {
-        if ext == "vue" { Some("vue") } else { None }
+        if ext == "vue" {
+            Some("vue")
+        } else {
+            None
+        }
     }
 
     fn extract_symbols(&self, content: &str) -> Vec<SymbolCandidate> {
@@ -232,7 +252,11 @@ impl LanguageParser for SvelteParser {
     }
 
     fn detect(&self, ext: &str) -> Option<&'static str> {
-        if ext == "svelte" { Some("svelte") } else { None }
+        if ext == "svelte" {
+            Some("svelte")
+        } else {
+            None
+        }
     }
 
     fn extract_symbols(&self, _content: &str) -> Vec<SymbolCandidate> {

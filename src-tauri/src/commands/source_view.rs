@@ -12,8 +12,8 @@
 
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::project_file_repository::ProjectFileRepository;
-use crate::infrastructure::database::SqliteProjectFileRepository;
 use crate::infrastructure::database::writing_repository::WritingRepository;
+use crate::infrastructure::database::SqliteProjectFileRepository;
 use crate::infrastructure::database::SqliteWritingRepository;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -75,7 +75,10 @@ pub fn read_source_file(
     // 写作分流：writing:// 路径的「文件」不存在磁盘上，正文在 writing_chapters。
     // 从 path 反解 chapter_id（writing://{book_id}/{chapter_id}.md），把章节正文
     // 压成纯文本按行返回 —— 代码工作台由此可以打开小说章节，前端零改动。
-    if file.path.starts_with(crate::commands::writing::WRITING_PATH_PREFIX) {
+    if file
+        .path
+        .starts_with(crate::commands::writing::WRITING_PATH_PREFIX)
+    {
         let chapter_id = file
             .path
             .rsplit('/')

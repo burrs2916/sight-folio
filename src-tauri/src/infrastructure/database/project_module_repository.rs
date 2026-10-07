@@ -15,7 +15,9 @@ pub struct SqliteProjectModuleRepository {
 
 impl Clone for SqliteProjectModuleRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -48,7 +50,11 @@ fn row_to_module(row: &rusqlite::Row) -> rusqlite::Result<ProjectModule> {
 
 impl ProjectModuleRepository for SqliteProjectModuleRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<ProjectModule>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, analysis_id, name, description, layer_id, file_count, dep_count, be_dep_count,
                     x, y, width, height, color, metadata, created_at, updated_at
@@ -62,7 +68,11 @@ impl ProjectModuleRepository for SqliteProjectModuleRepository {
     }
 
     fn save_batch(&self, modules: &[ProjectModule]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -73,10 +83,22 @@ impl ProjectModuleRepository for SqliteProjectModuleRepository {
             )?;
             for m in modules {
                 stmt.execute(rusqlite::params![
-                    m.id, m.analysis_id, m.name, m.description, m.layer_id,
-                    m.file_count, m.dep_count, m.be_dep_count,
-                    m.x, m.y, m.width, m.height, m.color,
-                    m.metadata, m.created_at, m.updated_at,
+                    m.id,
+                    m.analysis_id,
+                    m.name,
+                    m.description,
+                    m.layer_id,
+                    m.file_count,
+                    m.dep_count,
+                    m.be_dep_count,
+                    m.x,
+                    m.y,
+                    m.width,
+                    m.height,
+                    m.color,
+                    m.metadata,
+                    m.created_at,
+                    m.updated_at,
                 ])?;
             }
         }
@@ -85,8 +107,15 @@ impl ProjectModuleRepository for SqliteProjectModuleRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_modules WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_modules WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 }

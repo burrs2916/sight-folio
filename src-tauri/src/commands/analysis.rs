@@ -28,7 +28,10 @@ pub fn get_all_analyses(state: State<'_, AnalysisState>) -> Result<Vec<Analysis>
 }
 
 #[tauri::command]
-pub fn get_analysis(state: State<'_, AnalysisState>, id: String) -> Result<Option<Analysis>, AppError> {
+pub fn get_analysis(
+    state: State<'_, AnalysisState>,
+    id: String,
+) -> Result<Option<Analysis>, AppError> {
     state.repository.get_analysis_by_id(&id)
 }
 
@@ -52,9 +55,7 @@ pub fn create_analysis(
         "AnalysisCommand",
         &format!(
             "Creating analysis: id={}, name={}, root={}",
-            analysis.id,
-            analysis.name,
-            analysis.project_root
+            analysis.id, analysis.name, analysis.project_root
         ),
     );
     let result = state.repository.save_analysis(&analysis);
@@ -87,9 +88,7 @@ pub fn update_analysis(
         "AnalysisCommand",
         &format!(
             "Updating analysis: id={}, name={}, root={}",
-            analysis.id,
-            analysis.name,
-            analysis.project_root
+            analysis.id, analysis.name, analysis.project_root
         ),
     );
     let result = state.repository.save_analysis(&analysis);
@@ -141,7 +140,9 @@ pub fn delete_analysis(
 }
 
 #[tauri::command]
-pub fn get_all_analysis_categories(state: State<'_, AnalysisState>) -> Result<Vec<AnalysisCategory>, AppError> {
+pub fn get_all_analysis_categories(
+    state: State<'_, AnalysisState>,
+) -> Result<Vec<AnalysisCategory>, AppError> {
     state.repository.get_all_analysis_categories()
 }
 
@@ -162,7 +163,10 @@ pub fn save_analysis_category(
 }
 
 #[tauri::command]
-pub fn delete_analysis_category(state: State<'_, AnalysisState>, id: String) -> Result<(), AppError> {
+pub fn delete_analysis_category(
+    state: State<'_, AnalysisState>,
+    id: String,
+) -> Result<(), AppError> {
     state.repository.delete_analysis_category(&id)
 }
 

@@ -21,20 +21,18 @@
 /// 叙事/动作/心理动词（高频子串）：命中任一 → 叙事信号（High）。
 /// 覆盖动作（走/看/拿）、心理（想/觉得）、言语（说/问/喊）等表达骨架。
 const NARRATIVE_VERBS: &[&str] = &[
-    "说道", "说", "问", "答道", "喊", "叫", "笑", "哭", "看", "望", "盯", "走", "跑", "坐",
-    "站", "躺", "来", "去", "回", "转", "抬", "低头", "点", "摇头", "握", "拉", "推", "拿",
-    "放", "想", "觉得", "感到", "知道", "明白", "记得", "忘", "爱", "恨", "怕", "惊", "怒",
-    "骂", "吼", "听", "闻", "追", "逃", "躲", "藏", "翻", "找", "递", "接", "叹", "皱眉",
-    "眨眼", "咬牙",
+    "说道", "说", "问", "答道", "喊", "叫", "笑", "哭", "看", "望", "盯", "走", "跑", "坐", "站",
+    "躺", "来", "去", "回", "转", "抬", "低头", "点", "摇头", "握", "拉", "推", "拿", "放", "想",
+    "觉得", "感到", "知道", "明白", "记得", "忘", "爱", "恨", "怕", "惊", "怒", "骂", "吼", "听",
+    "闻", "追", "逃", "躲", "藏", "翻", "找", "递", "接", "叹", "皱眉", "眨眼", "咬牙",
 ];
 
 /// 描写意象词：环境/感官/色泽/光影（High 次级信号）。
 /// 「山风很大。」这类纯描写句凭意象词即可标 High 保留。
 const IMAGERY_WORDS: &[&str] = &[
-    "风", "云", "雨", "雪", "月", "星", "日光", "光", "影", "天", "地", "山", "水", "树",
-    "花", "草", "石", "海", "河", "湖", "雾", "霜", "露", "霞", "虹", "香", "味", "声",
-    "音", "静", "冷", "热", "暖", "凉", "黑", "白", "红", "绿", "蓝", "黄", "灰", "暗",
-    "亮", "寂静", "灯火", "夜色",
+    "风", "云", "雨", "雪", "月", "星", "日光", "光", "影", "天", "地", "山", "水", "树", "花",
+    "草", "石", "海", "河", "湖", "雾", "霜", "露", "霞", "虹", "香", "味", "声", "音", "静", "冷",
+    "热", "暖", "凉", "黑", "白", "红", "绿", "蓝", "黄", "灰", "暗", "亮", "寂静", "灯火", "夜色",
 ];
 
 /// 修辞/比喻词（附加信号）：比喻/拟人/出乎意料是创作者重点参考的表达手法。
@@ -62,9 +60,30 @@ const MIN_INDEX_CHARS: usize = 3;
 /// 仅收**整体相等**命中：短语后接正文（如「天哪，这可怎么办？」）剥离后为整串
 /// 「天哪这可怎么办」≠ 短语，不会被误伤。保守收编语料常见独立感叹形式。
 const EXCLAMATION_PHRASES: &[&str] = &[
-    "我的天", "我的天哪", "老天爷", "天哪", "天呐", "天啦", "天啊", "天呀", "妈呀", "我的妈",
-    "哎呀", "哎呀妈呀", "哎哟", "哎哟喂", "哎呦", "哎呦喂", "哦豁", "噢耶", "好家伙",
-    "乖乖", "糟了", "坏了", "啊呀", "喔唷",
+    "我的天",
+    "我的天哪",
+    "老天爷",
+    "天哪",
+    "天呐",
+    "天啦",
+    "天啊",
+    "天呀",
+    "妈呀",
+    "我的妈",
+    "哎呀",
+    "哎呀妈呀",
+    "哎哟",
+    "哎哟喂",
+    "哎呦",
+    "哎呦喂",
+    "哦豁",
+    "噢耶",
+    "好家伙",
+    "乖乖",
+    "糟了",
+    "坏了",
+    "啊呀",
+    "喔唷",
 ];
 
 /// 有效字符数（汉字/字母/数字，剔除空白与标点）——信息量基准。
@@ -78,10 +97,7 @@ fn effective_chars(content: &str) -> usize {
 /// 无叙事语义的孤单元；带正文的句子（「哎哟，这可不得了。」）剥离后是整串，
 /// 不等于短语，不会被误伤。
 pub fn is_pure_exclamation(content: &str) -> bool {
-    let s: String = content
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .collect();
+    let s: String = content.chars().filter(|c| c.is_alphanumeric()).collect();
     !s.is_empty() && EXCLAMATION_PHRASES.contains(&s.as_str())
 }
 
@@ -127,7 +143,10 @@ mod tests {
     /// 叙事动词/动作信号 → High（创作者最常参考的「怎么写动作」）。
     #[test]
     fn narrative_signal_is_high() {
-        assert_eq!(tier_of("他回头看了一眼，脚下是万丈深渊！"), ReferenceTier::High);
+        assert_eq!(
+            tier_of("他回头看了一眼，脚下是万丈深渊！"),
+            ReferenceTier::High
+        );
         assert_eq!(tier_of("老者说。"), ReferenceTier::High);
         assert_eq!(tier_of("他点点头。"), ReferenceTier::High);
         assert_eq!(tier_of("她想了想，终于开口。"), ReferenceTier::High);
@@ -156,7 +175,10 @@ mod tests {
         assert_eq!(tier_of("这是宿命……"), ReferenceTier::Medium);
         assert_eq!(tier_of("崭新的句子出现了。"), ReferenceTier::Medium);
         assert_eq!(tier_of("It was the best of times."), ReferenceTier::Medium);
-        assert_eq!(tier_of(" completely unrelated prose about rivers."), ReferenceTier::Medium);
+        assert_eq!(
+            tier_of(" completely unrelated prose about rivers."),
+            ReferenceTier::Medium
+        );
     }
 
     /// 无信号且信息量不足的碎片 → Low（单独成句无参考价值，不进索引）。
@@ -209,10 +231,7 @@ mod tests {
     /// 感叹词并入正文的完整单元不受纯感叹判定影响：剥离后为整串 ≠ 短语。
     #[test]
     fn exclamation_with_body_is_not_low() {
-        assert_eq!(
-            tier_of("“我的天！”他猛地睁开眼。"),
-            ReferenceTier::High
-        );
+        assert_eq!(tier_of("“我的天！”他猛地睁开眼。"), ReferenceTier::High);
         assert_eq!(tier_of("“哎哟，这可不得了。”"), ReferenceTier::High);
         assert_eq!(tier_of("“嗯。”他点点头，转身离开。"), ReferenceTier::High);
     }

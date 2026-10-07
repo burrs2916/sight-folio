@@ -183,32 +183,41 @@ fn is_decision_node(dialect: Dialect, node: &Node, source: &[u8]) -> bool {
     let kind = node.kind();
     match dialect {
         Dialect::TypeScript | Dialect::Tsx => match kind {
-            "if_statement"
-            | "for_statement"
-            | "for_in_statement"
-            | "while_statement"
-            | "do_statement"
-            | "catch_clause"
-            | "ternary_expression" => true,
+            "if_statement" | "for_statement" | "for_in_statement" | "while_statement"
+            | "do_statement" | "catch_clause" | "ternary_expression" => true,
             // switch 的每个 case 是一条路径，default 不是
             "switch_case" => true,
             // && / || / ?? 短路运算符各自新增一条路径
-            "binary_expression" => matches!(operator_text(node, source).as_deref(), Some("&&") | Some("||") | Some("??")),
+            "binary_expression" => matches!(
+                operator_text(node, source).as_deref(),
+                Some("&&") | Some("||") | Some("??")
+            ),
             _ => false,
         },
         Dialect::Rust => match kind {
-            "if_expression" | "while_expression" | "while_let_expression" | "for_expression"
+            "if_expression"
+            | "while_expression"
+            | "while_let_expression"
+            | "for_expression"
             | "loop_expression" => true,
             // match 的每条非通配臂算一条路径（`_ =>` 是兜底，不新增判定）
             "match_arm" => !is_wildcard_arm(node, source),
             // `?` 提前返回是一条隐式分支
             "try_expression" => true,
-            "binary_expression" => matches!(operator_text(node, source).as_deref(), Some("&&") | Some("||")),
+            "binary_expression" => matches!(
+                operator_text(node, source).as_deref(),
+                Some("&&") | Some("||")
+            ),
             _ => false,
         },
         Dialect::Python => match kind {
-            "if_statement" | "elif_clause" | "for_statement" | "while_statement"
-            | "except_clause" | "conditional_expression" | "assert_statement"
+            "if_statement"
+            | "elif_clause"
+            | "for_statement"
+            | "while_statement"
+            | "except_clause"
+            | "conditional_expression"
+            | "assert_statement"
             | "with_statement" => kind != "with_statement", // with 不分叉，占位保持可读
             // 推导式里的 for / if 同样是路径
             "for_in_clause" | "if_clause" => true,
@@ -220,32 +229,68 @@ fn is_decision_node(dialect: Dialect, node: &Node, source: &[u8]) -> bool {
             // switch 的每个 case / type case 是一条路径，default 不是
             "expression_case" | "type_case" | "communication_case" => true,
             // && / || 短路运算符各自新增一条路径
-            "binary_expression" => matches!(operator_text(node, source).as_deref(), Some("&&") | Some("||")),
+            "binary_expression" => matches!(
+                operator_text(node, source).as_deref(),
+                Some("&&") | Some("||")
+            ),
             _ => false,
         },
         Dialect::Java => match kind {
-            "if_statement" | "for_statement" | "enhanced_for_statement" | "while_statement"
-            | "do_statement" | "catch_clause" | "ternary_expression" | "switch_label" => true,
-            "binary_expression" => matches!(operator_text(node, source).as_deref(), Some("&&") | Some("||")),
+            "if_statement"
+            | "for_statement"
+            | "enhanced_for_statement"
+            | "while_statement"
+            | "do_statement"
+            | "catch_clause"
+            | "ternary_expression"
+            | "switch_label" => true,
+            "binary_expression" => matches!(
+                operator_text(node, source).as_deref(),
+                Some("&&") | Some("||")
+            ),
             _ => false,
         },
         Dialect::CSharp => match kind {
-            "if_statement" | "for_statement" | "foreach_statement" | "while_statement"
-            | "do_statement" | "switch_section" | "conditional_expression" | "catch_clause" => true,
-            "binary_expression" => matches!(operator_text(node, source).as_deref(), Some("&&") | Some("||")),
+            "if_statement"
+            | "for_statement"
+            | "foreach_statement"
+            | "while_statement"
+            | "do_statement"
+            | "switch_section"
+            | "conditional_expression"
+            | "catch_clause" => true,
+            "binary_expression" => matches!(
+                operator_text(node, source).as_deref(),
+                Some("&&") | Some("||")
+            ),
             _ => false,
         },
         Dialect::Cpp => match kind {
-            "if_statement" | "for_statement" | "while_statement" | "do_statement"
-            | "case_statement" | "conditional_expression" | "catch_clause" => true,
-            "binary_expression" => matches!(operator_text(node, source).as_deref(), Some("&&") | Some("||")),
+            "if_statement"
+            | "for_statement"
+            | "while_statement"
+            | "do_statement"
+            | "case_statement"
+            | "conditional_expression"
+            | "catch_clause" => true,
+            "binary_expression" => matches!(
+                operator_text(node, source).as_deref(),
+                Some("&&") | Some("||")
+            ),
             _ => false,
         },
         // C 与 C++ 同语法族，但没有 try/catch（异常是 C++ 的）
         Dialect::C => match kind {
-            "if_statement" | "for_statement" | "while_statement" | "do_statement"
-            | "case_statement" | "conditional_expression" => true,
-            "binary_expression" => matches!(operator_text(node, source).as_deref(), Some("&&") | Some("||")),
+            "if_statement"
+            | "for_statement"
+            | "while_statement"
+            | "do_statement"
+            | "case_statement"
+            | "conditional_expression" => true,
+            "binary_expression" => matches!(
+                operator_text(node, source).as_deref(),
+                Some("&&") | Some("||")
+            ),
             _ => false,
         },
         // Ruby 的修饰符写法（`return 1 if x` / `x unless y`）同样分叉，必须计入，
@@ -257,8 +302,14 @@ fn is_decision_node(dialect: Dialect, node: &Node, source: &[u8]) -> bool {
             _ => false,
         },
         Dialect::Php => match kind {
-            "if_statement" | "for_statement" | "foreach_statement" | "while_statement"
-            | "do_statement" | "case_statement" | "catch_clause" | "conditional_expression" => true,
+            "if_statement"
+            | "for_statement"
+            | "foreach_statement"
+            | "while_statement"
+            | "do_statement"
+            | "case_statement"
+            | "catch_clause"
+            | "conditional_expression" => true,
             // PHP 既有 && || 也有等价的 and or 关键字
             "binary_expression" => is_short_circuit_binary(node, source),
             _ => false,
@@ -272,9 +323,16 @@ fn is_decision_node(dialect: Dialect, node: &Node, source: &[u8]) -> bool {
         },
         // Swift 把 && / || 提升为独立节点（conjunction/disjunction），不用再取 operator 文本
         Dialect::Swift => match kind {
-            "if_statement" | "for_statement" | "while_statement" | "repeat_while_statement"
-            | "switch_entry" | "guard_statement" | "catch_block" | "ternary_expression"
-            | "conjunction_expression" | "disjunction_expression" => true,
+            "if_statement"
+            | "for_statement"
+            | "while_statement"
+            | "repeat_while_statement"
+            | "switch_entry"
+            | "guard_statement"
+            | "catch_block"
+            | "ternary_expression"
+            | "conjunction_expression"
+            | "disjunction_expression" => true,
             _ => false,
         },
     }
@@ -316,65 +374,126 @@ fn is_nesting_node(dialect: Dialect, kind: &str) -> bool {
     match dialect {
         Dialect::TypeScript | Dialect::Tsx => matches!(
             kind,
-            "if_statement" | "for_statement" | "for_in_statement" | "while_statement"
-                | "do_statement" | "switch_statement" | "try_statement" | "catch_clause"
+            "if_statement"
+                | "for_statement"
+                | "for_in_statement"
+                | "while_statement"
+                | "do_statement"
+                | "switch_statement"
+                | "try_statement"
+                | "catch_clause"
         ),
         Dialect::Rust => matches!(
             kind,
-            "if_expression" | "while_expression" | "while_let_expression" | "for_expression"
-                | "loop_expression" | "match_expression"
+            "if_expression"
+                | "while_expression"
+                | "while_let_expression"
+                | "for_expression"
+                | "loop_expression"
+                | "match_expression"
         ),
         Dialect::Python => matches!(
             kind,
-            "if_statement" | "for_statement" | "while_statement" | "try_statement"
-                | "with_statement" | "match_statement"
+            "if_statement"
+                | "for_statement"
+                | "while_statement"
+                | "try_statement"
+                | "with_statement"
+                | "match_statement"
         ),
         Dialect::Go => matches!(
             kind,
-            "if_statement" | "for_statement" | "func_literal"
-                | "expression_switch_statement" | "type_switch_statement" | "select_statement"
+            "if_statement"
+                | "for_statement"
+                | "func_literal"
+                | "expression_switch_statement"
+                | "type_switch_statement"
+                | "select_statement"
         ),
         Dialect::Java => matches!(
             kind,
-            "if_statement" | "for_statement" | "enhanced_for_statement" | "while_statement"
-                | "do_statement" | "switch_statement" | "try_statement" | "catch_clause"
+            "if_statement"
+                | "for_statement"
+                | "enhanced_for_statement"
+                | "while_statement"
+                | "do_statement"
+                | "switch_statement"
+                | "try_statement"
+                | "catch_clause"
         ),
         Dialect::CSharp => matches!(
             kind,
-            "if_statement" | "for_statement" | "foreach_statement" | "while_statement"
-                | "do_statement" | "switch_statement" | "try_statement" | "catch_clause"
+            "if_statement"
+                | "for_statement"
+                | "foreach_statement"
+                | "while_statement"
+                | "do_statement"
+                | "switch_statement"
+                | "try_statement"
+                | "catch_clause"
         ),
         Dialect::Cpp => matches!(
             kind,
-            "if_statement" | "for_statement" | "while_statement" | "do_statement"
-                | "switch_statement" | "try_statement" | "catch_clause"
+            "if_statement"
+                | "for_statement"
+                | "while_statement"
+                | "do_statement"
+                | "switch_statement"
+                | "try_statement"
+                | "catch_clause"
         ),
         Dialect::C => matches!(
             kind,
-            "if_statement" | "for_statement" | "while_statement" | "do_statement"
+            "if_statement"
+                | "for_statement"
+                | "while_statement"
+                | "do_statement"
                 | "switch_statement"
         ),
         // Ruby 的块（do…end / {…}）是真实的一层缩进，计入嵌套
         Dialect::Ruby => matches!(
             kind,
-            "if" | "unless" | "while" | "until" | "for" | "case" | "begin" | "rescue"
-                | "do_block" | "block"
+            "if" | "unless"
+                | "while"
+                | "until"
+                | "for"
+                | "case"
+                | "begin"
+                | "rescue"
+                | "do_block"
+                | "block"
         ),
         Dialect::Php => matches!(
             kind,
-            "if_statement" | "for_statement" | "foreach_statement" | "while_statement"
-                | "do_statement" | "switch_statement" | "try_statement" | "catch_clause"
+            "if_statement"
+                | "for_statement"
+                | "foreach_statement"
+                | "while_statement"
+                | "do_statement"
+                | "switch_statement"
+                | "try_statement"
+                | "catch_clause"
         ),
         Dialect::Kotlin => matches!(
             kind,
-            "if_expression" | "for_statement" | "while_statement" | "do_while_statement"
-                | "when_expression" | "try_expression" | "catch_block"
+            "if_expression"
+                | "for_statement"
+                | "while_statement"
+                | "do_while_statement"
+                | "when_expression"
+                | "try_expression"
+                | "catch_block"
         ),
         // guard 不算嵌套：它是提前返回，反而是「降低」嵌套的写法
         Dialect::Swift => matches!(
             kind,
-            "if_statement" | "for_statement" | "while_statement" | "repeat_while_statement"
-                | "switch_statement" | "do_statement" | "catch_block"
+            "if_statement"
+                | "for_statement"
+                | "while_statement"
+                | "repeat_while_statement"
+                | "switch_statement"
+                | "do_statement"
+                | "catch_block"
         ),
     }
 }
@@ -393,15 +512,22 @@ fn is_function_node(dialect: Dialect, kind: &str) -> bool {
         ),
         Dialect::Rust => kind == "function_item",
         Dialect::Python => kind == "function_definition",
-        Dialect::Go => matches!(kind, "function_declaration" | "method_declaration" | "func_literal"),
+        Dialect::Go => matches!(
+            kind,
+            "function_declaration" | "method_declaration" | "func_literal"
+        ),
         Dialect::Java => matches!(
             kind,
             "method_declaration" | "constructor_declaration" | "lambda_expression"
         ),
         Dialect::CSharp => matches!(
             kind,
-            "method_declaration" | "local_function_statement" | "constructor_declaration"
-                | "lambda_expression" | "anonymous_method_expression" | "destructor_declaration"
+            "method_declaration"
+                | "local_function_statement"
+                | "constructor_declaration"
+                | "lambda_expression"
+                | "anonymous_method_expression"
+                | "destructor_declaration"
         ),
         Dialect::Cpp => matches!(kind, "function_definition" | "lambda_expression"),
         Dialect::C => kind == "function_definition",
@@ -410,12 +536,18 @@ fn is_function_node(dialect: Dialect, kind: &str) -> bool {
         Dialect::Ruby => matches!(kind, "method" | "singleton_method" | "lambda"),
         Dialect::Php => matches!(
             kind,
-            "function_definition" | "method_declaration" | "arrow_function"
-                | "anonymous_function" | "anonymous_function_creation_expression"
+            "function_definition"
+                | "method_declaration"
+                | "arrow_function"
+                | "anonymous_function"
+                | "anonymous_function_creation_expression"
         ),
         Dialect::Kotlin => matches!(
             kind,
-            "function_declaration" | "anonymous_function" | "lambda_literal" | "secondary_constructor"
+            "function_declaration"
+                | "anonymous_function"
+                | "lambda_literal"
+                | "secondary_constructor"
         ),
         Dialect::Swift => matches!(
             kind,
@@ -433,7 +565,9 @@ fn is_number_literal(dialect: Dialect, kind: &str) -> bool {
         // Go：整型 / 浮点 / 虚部字面量
         Dialect::Go => matches!(kind, "int_literal" | "float_literal" | "imaginary_literal"),
         // Java：十进制/十六进制/二进制/八进制整型 + 十进制浮点（grammar 用后缀区分）
-        Dialect::Java => kind.ends_with("integer_literal") || kind.ends_with("floating_point_literal"),
+        Dialect::Java => {
+            kind.ends_with("integer_literal") || kind.ends_with("floating_point_literal")
+        }
         // C#：整型 / 实数
         Dialect::CSharp => matches!(kind, "integer_literal" | "real_literal"),
         // C++：统一 number_literal
@@ -455,7 +589,10 @@ fn is_comparison_op(op: &str) -> bool {
 
 /// 免于「魔法数字」指控的常见值：0/1/2/-1 属于边界与自增，不是业务阈值
 fn is_benign_number(text: &str) -> bool {
-    matches!(text.trim(), "0" | "1" | "2" | "-1" | "0.0" | "1.0" | "100" | "1000")
+    matches!(
+        text.trim(),
+        "0" | "1" | "2" | "-1" | "0.0" | "1.0" | "100" | "1000"
+    )
 }
 
 // ─────────────────────────── 主入口 ───────────────────────────
@@ -503,7 +640,8 @@ pub fn analyze_source(language: &str, rel_path: &str, source: &str) -> Option<As
     };
     acc.walk(root, 0);
 
-    acc.functions.sort_by(|a, b| b.cc.cmp(&a.cc).then(a.line.cmp(&b.line)));
+    acc.functions
+        .sort_by(|a, b| b.cc.cmp(&a.cc).then(a.line.cmp(&b.line)));
     acc.functions.truncate(60); // 单文件保留最复杂的 60 个函数，足够定位热点
     acc.magic.truncate(40);
 
@@ -664,7 +802,10 @@ impl<'a> Acc<'a> {
         ) {
             let mut cursor = node.walk();
             if let Some(id) = node.named_children(&mut cursor).find(|c| {
-                matches!(c.kind(), "identifier" | "simple_identifier" | "name" | "constant")
+                matches!(
+                    c.kind(),
+                    "identifier" | "simple_identifier" | "name" | "constant"
+                )
             }) {
                 if let Ok(t) = id.utf8_text(self.source) {
                     return t.to_string();
@@ -683,7 +824,10 @@ impl<'a> Acc<'a> {
         for _ in 0..3 {
             let Some(p) = cur else { break };
             match p.kind() {
-                "variable_declarator" | "pair" | "public_field_definition" | "assignment_expression" => {
+                "variable_declarator"
+                | "pair"
+                | "public_field_definition"
+                | "assignment_expression" => {
                     let field = if p.kind() == "pair" { "key" } else { "name" };
                     if let Some(n) = p
                         .child_by_field_name(field)
@@ -755,16 +899,16 @@ impl<'a> Acc<'a> {
         if self.magic.len() >= 40 {
             return;
         }
-        let Ok(text) = node.utf8_text(self.source) else { return };
+        let Ok(text) = node.utf8_text(self.source) else {
+            return;
+        };
         if is_benign_number(text) {
             return;
         }
         // 仅当父节点是比较型二元表达式时才算「阈值魔法数字」
         let Some(parent) = node.parent() else { return };
         let is_cmp = match self.dialect {
-            Dialect::Python => {
-                parent.kind() == "comparison_operator"
-            }
+            Dialect::Python => parent.kind() == "comparison_operator",
             _ => {
                 parent.kind() == "binary_expression"
                     && operator_text(&parent, self.source)
@@ -837,7 +981,9 @@ mod tests {
         let mut stack = vec![std::path::PathBuf::from("../src")];
         let t0 = Instant::now();
         while let Some(dir) = stack.pop() {
-            let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+            let Ok(rd) = std::fs::read_dir(&dir) else {
+                continue;
+            };
             for e in rd.flatten() {
                 let p = e.path();
                 if p.is_dir() {
@@ -848,7 +994,9 @@ mod tests {
                 if !matches!(ext, "ts" | "tsx" | "js" | "jsx") {
                     continue;
                 }
-                let Ok(src) = std::fs::read_to_string(&p) else { continue };
+                let Ok(src) = std::fs::read_to_string(&p) else {
+                    continue;
+                };
                 bytes += src.len();
                 if analyze_source("typescript", p.to_str().unwrap_or(""), &src).is_some() {
                     files += 1;
@@ -1018,7 +1166,10 @@ fn f(x: i32) -> i32 {
     #[test]
     fn dialect_selection_by_extension() {
         assert_eq!(dialect_for("typescript", "a/b.tsx"), Some(Dialect::Tsx));
-        assert_eq!(dialect_for("typescript", "a/b.ts"), Some(Dialect::TypeScript));
+        assert_eq!(
+            dialect_for("typescript", "a/b.ts"),
+            Some(Dialect::TypeScript)
+        );
         assert_eq!(dialect_for("javascript", "a/b.js"), Some(Dialect::Tsx));
         assert_eq!(dialect_for("rust", "a/b.rs"), Some(Dialect::Rust));
         assert_eq!(dialect_for("go", "a/b.go"), Some(Dialect::Go));
@@ -1046,7 +1197,10 @@ fn f(x: i32) -> i32 {
             ("rust", "a.rs"),
             ("python", "a.py"),
         ] {
-            assert!(dialect_for(lang, path).unwrap().has_dataflow(), "{lang} 应有数据流");
+            assert!(
+                dialect_for(lang, path).unwrap().has_dataflow(),
+                "{lang} 应有数据流"
+            );
         }
         for (lang, path) in [
             ("go", "a.go"),
@@ -1059,7 +1213,10 @@ fn f(x: i32) -> i32 {
             ("kotlin", "a.kt"),
             ("swift", "a.swift"),
         ] {
-            assert!(!dialect_for(lang, path).unwrap().has_dataflow(), "{lang} 不应有数据流");
+            assert!(
+                !dialect_for(lang, path).unwrap().has_dataflow(),
+                "{lang} 不应有数据流"
+            );
         }
     }
 

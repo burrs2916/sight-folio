@@ -15,7 +15,9 @@ pub struct SqliteProjectChangeCouplingRepository {
 
 impl Clone for SqliteProjectChangeCouplingRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -53,7 +55,11 @@ fn row_to_coupling(row: &rusqlite::Row) -> rusqlite::Result<ChangeCoupling> {
 
 impl ProjectChangeCouplingRepository for SqliteProjectChangeCouplingRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<ChangeCoupling>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_change_coupling WHERE analysis_id = ?1
              ORDER BY degree DESC, co_changes DESC, file_a_path ASC",
@@ -66,7 +72,11 @@ impl ProjectChangeCouplingRepository for SqliteProjectChangeCouplingRepository {
     }
 
     fn save_batch(&self, items: &[ChangeCoupling]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -103,7 +113,11 @@ impl ProjectChangeCouplingRepository for SqliteProjectChangeCouplingRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "DELETE FROM project_change_coupling WHERE analysis_id = ?1",
             [analysis_id],

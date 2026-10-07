@@ -12,14 +12,20 @@ pub mod pdf_export;
 use crate::domain::analysis::Analysis;
 use crate::domain::project_files::ProjectFile;
 use crate::domain::review_findings::ReviewFinding;
-use crate::domain::writing::{
-    WritingBook, WritingChapter, WritingChapterSnapshot,
-};
+use crate::domain::writing::{WritingBook, WritingChapter, WritingChapterSnapshot};
 use crate::error::{AppError, AppResult};
-use crate::infrastructure::database::analysis_repository::{AnalysisRepository, SqliteAnalysisRepository};
-use crate::infrastructure::database::project_file_repository::{ProjectFileRepository, SqliteProjectFileRepository};
-use crate::infrastructure::database::review_finding_repository::{ReviewFindingRepository, SqliteReviewFindingRepository};
-use crate::infrastructure::database::writing_repository::{WritingRepository, SqliteWritingRepository};
+use crate::infrastructure::database::analysis_repository::{
+    AnalysisRepository, SqliteAnalysisRepository,
+};
+use crate::infrastructure::database::project_file_repository::{
+    ProjectFileRepository, SqliteProjectFileRepository,
+};
+use crate::infrastructure::database::review_finding_repository::{
+    ReviewFindingRepository, SqliteReviewFindingRepository,
+};
+use crate::infrastructure::database::writing_repository::{
+    SqliteWritingRepository, WritingRepository,
+};
 
 use std::sync::Arc;
 
@@ -69,7 +75,12 @@ fn xml_escape(s: &str) -> String {
 
 /// 图片扩展名 → EPUB manifest media-type（默认 image/png）。
 fn image_media_type(path: &str) -> &'static str {
-    match path.rsplit('.').next().map(|e| e.to_ascii_lowercase()).as_deref() {
+    match path
+        .rsplit('.')
+        .next()
+        .map(|e| e.to_ascii_lowercase())
+        .as_deref()
+    {
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
         Some("gif") => "image/gif",
@@ -112,7 +123,10 @@ fn extract_data_asset_refs(html: &str) -> Vec<String> {
 
 /// 把 `<img ...>` 的 src 重写到 EPUB 内相对路径，并确保自闭合（XHTML 兼容）。
 /// 仅当标签带 `data-asset` 且能在映射里命中时才改；否则原样保留（兼容外链图）。
-fn rewrite_img_to_epub(html: &str, rel_to_href: &std::collections::HashMap<String, String>) -> String {
+fn rewrite_img_to_epub(
+    html: &str,
+    rel_to_href: &std::collections::HashMap<String, String>,
+) -> String {
     let mut out = String::with_capacity(html.len());
     let mut start = 0;
     while let Some(pos) = html[start..].find("<img") {
@@ -219,8 +233,8 @@ fn collect_asset(
     let abs = crate::commands::asset::resolve_asset_ref(rel.to_string())
         .or_else(|_| Ok::<String, String>(rel.to_string()))
         .map_err(|e| AppError::Internal(format!("resolve asset {rel}: {e}")))?;
-    let bytes = std::fs::read(&abs)
-        .map_err(|e| AppError::Internal(format!("read asset {abs}: {e}")))?;
+    let bytes =
+        std::fs::read(&abs).map_err(|e| AppError::Internal(format!("read asset {abs}: {e}")))?;
     let base = std::path::Path::new(rel)
         .file_name()
         .map(|f| f.to_string_lossy().to_string())
@@ -283,10 +297,9 @@ pub fn export_epub(
     let file = std::fs::File::create(&path)
         .map_err(|e| AppError::Internal(format!("create {path}: {e}")))?;
     let mut zip = ZipWriter::new(file);
-    let stored = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
-    let deflated = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let stored = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let deflated =
+        SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     let esc_title = xml_escape(&title);
     let uuid = uuid::Uuid::new_v4();
@@ -337,10 +350,7 @@ pub fn export_epub(
             "\n    <item id=\"{id}\" href=\"{href}\" media-type=\"{media}\"/>"
         ));
     }
-    let desc = description
-        .as_deref()
-        .map(xml_escape)
-        .unwrap_or_default();
+    let desc = description.as_deref().map(xml_escape).unwrap_or_default();
     let opf = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="book-id">
@@ -399,9 +409,9 @@ pub fn export_epub(
         let rewritten = rewrite_img_to_epub(&ch.content, &rel_to_href);
         let body = html_to_xhtml(&rewritten);
         let cover_img = match &ch.cover {
-            Some(c) if !c.is_empty() => rel_to_href
-                .get(c)
-                .map(|href| format!("<div class=\"chapter-cover\"><img alt=\"cover\" src=\"{href}\"/></div>\n")),
+            Some(c) if !c.is_empty() => rel_to_href.get(c).map(|href| {
+                format!("<div class=\"chapter-cover\"><img alt=\"cover\" src=\"{href}\"/></div>\n")
+            }),
             _ => None,
         };
         let xhtml = format!(
@@ -452,7 +462,8 @@ mod epub_tests {
             "assets/writing/illustrations/a.png".to_string(),
             "images/a.png".to_string(),
         );
-        let html = r#"<img src="asset://x" data-asset="assets/writing/illustrations/a.png" alt="a">"#;
+        let html =
+            r#"<img src="asset://x" data-asset="assets/writing/illustrations/a.png" alt="a">"#;
         let out = rewrite_img_to_epub(html, &map);
         assert!(out.contains("src=\"images/a.png\""), "got: {out}");
         assert!(out.trim_end().ends_with("/>"), "got: {out}");
@@ -559,7 +570,9 @@ pub fn scan_book(
         global_components: existing.as_ref().and_then(|a| a.global_components.clone()),
         views: existing.as_ref().and_then(|a| a.views.clone()),
         active_view_id: existing.as_ref().and_then(|a| a.active_view_id.clone()),
-        viewport_sync_rules: existing.as_ref().and_then(|a| a.viewport_sync_rules.clone()),
+        viewport_sync_rules: existing
+            .as_ref()
+            .and_then(|a| a.viewport_sync_rules.clone()),
         category_id: existing.as_ref().and_then(|a| a.category_id.clone()),
         tags: "[\"writing\"]".to_string(),
         scan_status: "ready".to_string(),
@@ -673,7 +686,8 @@ pub fn scan_book(
                 }
                 .to_string(),
             ),
-            metadata: serde_json::json!({ "bookId": book_id, "settingName": card.name }).to_string(),
+            metadata: serde_json::json!({ "bookId": book_id, "settingName": card.name })
+                .to_string(),
             ..Default::default()
         });
     }
@@ -730,7 +744,10 @@ fn chapter_heading(line: &str) -> Option<String> {
         return None;
     }
     const MARKERS: [&str; 5] = ["序章", "楔子", "尾声", "终章", "番外"];
-    if MARKERS.iter().any(|m| s.starts_with(m) && s.chars().count() <= 20) {
+    if MARKERS
+        .iter()
+        .any(|m| s.starts_with(m) && s.chars().count() <= 20)
+    {
         return Some(s.to_string());
     }
     if s.starts_with('第') {
@@ -782,13 +799,10 @@ pub fn import_book(
     let meta = std::fs::metadata(&file_path)
         .map_err(|e| AppError::Internal(format!("读取文件失败: {e}")))?;
     if meta.len() > IMPORT_MAX_BYTES {
-        return Err(AppError::Validation(
-            "文件超过 10MB 导入上限".into(),
-        ));
+        return Err(AppError::Validation("文件超过 10MB 导入上限".into()));
     }
-    let text = std::fs::read_to_string(&file_path).map_err(|e| {
-        AppError::Internal(format!("无法以 UTF-8 文本读取: {e}"))
-    })?;
+    let text = std::fs::read_to_string(&file_path)
+        .map_err(|e| AppError::Internal(format!("无法以 UTF-8 文本读取: {e}")))?;
     let book_title = title
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
@@ -821,7 +835,10 @@ pub fn import_book(
             }
         }
         for (idx, (start, htitle)) in headings.iter().enumerate() {
-            let end = headings.get(idx + 1).map(|(e, _)| *e).unwrap_or(lines.len());
+            let end = headings
+                .get(idx + 1)
+                .map(|(e, _)| *e)
+                .unwrap_or(lines.len());
             let body: String = lines[*start + 1..end].join("\n");
             chapters.push((htitle.clone(), body));
         }
@@ -888,15 +905,14 @@ mod export_smoke_tests {
             let png_path = dir.join("smoke.png");
             if !png_path.exists() {
                 let img = image::RgbImage::from_fn(64, 40, |x, y| {
-                    image::Rgb([
-                        (x * 3) as u8,
-                        (y * 5) as u8,
-                        ((x + y) * 2) as u8,
-                    ])
+                    image::Rgb([(x * 3) as u8, (y * 5) as u8, ((x + y) * 2) as u8])
                 });
                 img.save(&png_path).unwrap();
             }
-            img = format!(r#"<p><img data-asset="{}" alt="t"></p>"#, png_path.display());
+            img = format!(
+                r#"<p><img data-asset="{}" alt="t"></p>"#,
+                png_path.display()
+            );
         }
         vec![
             EpubChapter {
@@ -917,7 +933,9 @@ mod export_smoke_tests {
 
     #[test]
     fn export_pdf_produces_valid_pdf_with_embedded_cjk_font() {
-        let out = std::env::temp_dir().join("sightfolio_export_test").join("smoke.pdf");
+        let out = std::env::temp_dir()
+            .join("sightfolio_export_test")
+            .join("smoke.pdf");
         let _ = std::fs::remove_file(&out);
         let r = crate::application::writing::pdf_export::export_pdf(
             "测试之书".into(),
@@ -932,11 +950,20 @@ mod export_smoke_tests {
         let bytes = std::fs::read(&out).expect("read pdf");
         let text = String::from_utf8_lossy(&bytes);
         assert!(bytes.starts_with(b"%PDF"), "missing %PDF header");
-        assert!(text.ends_with("%%EOF") || text.contains("%%EOF"), "missing %%EOF trailer");
-        assert!(text.contains("Subtype/Type0") || text.contains("/Type0"), "Type0 font missing");
+        assert!(
+            text.ends_with("%%EOF") || text.contains("%%EOF"),
+            "missing %%EOF trailer"
+        );
+        assert!(
+            text.contains("Subtype/Type0") || text.contains("/Type0"),
+            "Type0 font missing"
+        );
         assert!(text.contains("FontFile2"), "FontFile2 missing");
         assert!(text.contains("FlateDecode"), "compressed stream missing");
-        assert!(text.contains("/Type/Page") || text.contains("/Type /Page"), "Page objects missing");
+        assert!(
+            text.contains("/Type/Page") || text.contains("/Type /Page"),
+            "Page objects missing"
+        );
         // 页对象计数（粗糙统计，>=3 页应有至少 3 个 /Type /Page）：
         let page_count = text.matches("/Type/Page").count() + text.matches("/Type /Page").count();
         assert!(page_count >= 3, "expected >=3 pages, got {page_count}");
@@ -944,12 +971,17 @@ mod export_smoke_tests {
         // 文件大小：字体已嵌入（压缩后应明显大于 500KB，且包含压缩字体流）
         let size = std::fs::metadata(&out).unwrap().len();
         assert!(size > 200_000, "embedding likely missing, size={size}");
-        println!("[smoke] pdf ok: {page_count} pages, {size} bytes -> {}", out.display());
+        println!(
+            "[smoke] pdf ok: {page_count} pages, {size} bytes -> {}",
+            out.display()
+        );
     }
 
     #[test]
     fn export_docx_produces_valid_docx() {
-        let out = std::env::temp_dir().join("sightfolio_export_test").join("smoke.docx");
+        let out = std::env::temp_dir()
+            .join("sightfolio_export_test")
+            .join("smoke.docx");
         let _ = std::fs::remove_file(&out);
         let r = crate::application::writing::docx_export::export_docx(
             "测试之书".into(),
@@ -965,9 +997,19 @@ mod export_smoke_tests {
         let mut zip = zip::ZipArchive::new(f).unwrap();
         let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
         assert!(names.contains(&"[Content_Types].xml".to_string())); // zip 层可能去掉前缀
-        assert!(names.iter().any(|n| n.contains("word/document.xml")), "missing document.xml: {names:?}");
-        assert!(names.iter().any(|n| n.contains("word/media/")), "image not embedded: {names:?}");
-        println!("[smoke] docx ok: {} entries -> {}", names.len(), out.display());
+        assert!(
+            names.iter().any(|n| n.contains("word/document.xml")),
+            "missing document.xml: {names:?}"
+        );
+        assert!(
+            names.iter().any(|n| n.contains("word/media/")),
+            "image not embedded: {names:?}"
+        );
+        println!(
+            "[smoke] docx ok: {} entries -> {}",
+            names.len(),
+            out.display()
+        );
     }
 }
 
@@ -998,12 +1040,19 @@ mod epub_export_smoke_tests {
             });
             img.save(&png_path).unwrap();
         }
-        let img_tag = format!(r#"<p><img data-asset="{}" alt="插图"></p>"#, png_path.display());
+        let img_tag = format!(
+            r#"<p><img data-asset="{}" alt="插图"></p>"#,
+            png_path.display()
+        );
         vec![
             EpubChapter {
                 title: "第一章 风起".into(),
                 content: format!(r#"<h1>第一章 风起</h1><p>长夜漫漫，雨敲窗棂。</p>{img_tag}"#),
-                cover: if with_cover { Some(png_path.to_string_lossy().to_string()) } else { None },
+                cover: if with_cover {
+                    Some(png_path.to_string_lossy().to_string())
+                } else {
+                    None
+                },
             },
             EpubChapter {
                 title: "第二章 灯下".into(),
@@ -1036,23 +1085,54 @@ mod epub_export_smoke_tests {
 
         // 1. mimetype 首条目、内容精确
         let buf = read_entry(&mut zip, "mimetype");
-        assert_eq!(buf.as_bytes(), b"application/epub+zip", "mimetype content must be exact");
+        assert_eq!(
+            buf.as_bytes(),
+            b"application/epub+zip",
+            "mimetype content must be exact"
+        );
         assert_eq!(names[0], "mimetype", "mimetype must be the first zip entry");
 
         // 2. container.xml 指向 content.opf
         let cbuf = read_entry(&mut zip, "META-INF/container.xml");
-        assert!(cbuf.contains("OEBPS/content.opf"), "container must point to content.opf");
+        assert!(
+            cbuf.contains("OEBPS/content.opf"),
+            "container must point to content.opf"
+        );
 
         // 3. content.opf：元数据 + manifest 含 nav/章节/插画 + spine 章节顺序
         let obuf = read_entry(&mut zip, "OEBPS/content.opf");
-        assert!(obuf.contains("<dc:title>测试之书</dc:title>"), "missing dc:title");
-        assert!(obuf.contains("<dc:description>端到端校验用书</dc:description>"), "missing description");
-        assert!(obuf.contains("id=\"nav\" href=\"nav.xhtml\""), "missing nav manifest item");
-        assert!(obuf.contains("href=\"chapter_0.xhtml\""), "missing chapter_0 manifest item");
-        assert!(obuf.contains("href=\"chapter_1.xhtml\""), "missing chapter_1 manifest item");
-        assert!(obuf.contains("media-type=\"image/png\""), "missing image manifest item");
-        assert!(obuf.contains("<itemref idref=\"chap_0\"/>"), "spine must order chapter 0 first");
-        assert!(obuf.contains("<itemref idref=\"chap_1\"/>"), "spine must include chapter 1");
+        assert!(
+            obuf.contains("<dc:title>测试之书</dc:title>"),
+            "missing dc:title"
+        );
+        assert!(
+            obuf.contains("<dc:description>端到端校验用书</dc:description>"),
+            "missing description"
+        );
+        assert!(
+            obuf.contains("id=\"nav\" href=\"nav.xhtml\""),
+            "missing nav manifest item"
+        );
+        assert!(
+            obuf.contains("href=\"chapter_0.xhtml\""),
+            "missing chapter_0 manifest item"
+        );
+        assert!(
+            obuf.contains("href=\"chapter_1.xhtml\""),
+            "missing chapter_1 manifest item"
+        );
+        assert!(
+            obuf.contains("media-type=\"image/png\""),
+            "missing image manifest item"
+        );
+        assert!(
+            obuf.contains("<itemref idref=\"chap_0\"/>"),
+            "spine must order chapter 0 first"
+        );
+        assert!(
+            obuf.contains("<itemref idref=\"chap_1\"/>"),
+            "spine must include chapter 1"
+        );
 
         // 4. nav.xhtml（EPUB3 目录含全部章标题）
         let nbuf = read_entry(&mut zip, "OEBPS/nav.xhtml");
@@ -1062,15 +1142,34 @@ mod epub_export_smoke_tests {
 
         // 5. 章节 xhtml：正文入包，插图 src 改写为包内路径
         let x0 = read_entry(&mut zip, "OEBPS/chapter_0.xhtml");
-        assert!(x0.contains("<h1>第一章 风起</h1>"), "chapter body missing in xhtml");
-        assert!(x0.contains("src=\"images/cover_illus.png\""), "img must be rewritten to packaged href");
-        assert!(x0.contains("chapter-cover"), "cover image must be prepended in chapter");
+        assert!(
+            x0.contains("<h1>第一章 风起</h1>"),
+            "chapter body missing in xhtml"
+        );
+        assert!(
+            x0.contains("src=\"images/cover_illus.png\""),
+            "img must be rewritten to packaged href"
+        );
+        assert!(
+            x0.contains("chapter-cover"),
+            "cover image must be prepended in chapter"
+        );
         assert!(Path::new(&out).exists(), "epub file must exist on disk");
 
         // 6. 插画实际入包（正文引用 + 章头图同图只打包一次）
-        let img_count = names.iter().filter(|n| n.starts_with("OEBPS/images/")).count();
-        assert_eq!(img_count, 1, "same image referenced twice must be packaged once: {names:?}");
-        println!("[smoke] epub ok: {} entries -> {}", names.len(), out.display());
+        let img_count = names
+            .iter()
+            .filter(|n| n.starts_with("OEBPS/images/"))
+            .count();
+        assert_eq!(
+            img_count, 1,
+            "same image referenced twice must be packaged once: {names:?}"
+        );
+        println!(
+            "[smoke] epub ok: {} entries -> {}",
+            names.len(),
+            out.display()
+        );
     }
 
     /// 无插画/无描述的最小书：export 仍产出合法结构（无 description 标签、无 images）。
@@ -1084,8 +1183,16 @@ mod epub_export_smoke_tests {
             "无图之书".into(),
             None,
             vec![
-                EpubChapter { title: "第一章".into(), content: "<p>无图章节一。</p>".into(), cover: None },
-                EpubChapter { title: "第二章".into(), content: "<p>无图章节二。</p>".into(), cover: None },
+                EpubChapter {
+                    title: "第一章".into(),
+                    content: "<p>无图章节一。</p>".into(),
+                    cover: None,
+                },
+                EpubChapter {
+                    title: "第二章".into(),
+                    content: "<p>无图章节二。</p>".into(),
+                    cover: None,
+                },
             ],
             out.to_string_lossy().to_string(),
         );
@@ -1093,9 +1200,15 @@ mod epub_export_smoke_tests {
         let f = std::fs::File::open(&out).unwrap();
         let mut zip = zip::ZipArchive::new(f).unwrap();
         let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
-        assert!(!names.iter().any(|n| n.starts_with("OEBPS/images/")), "no images expected");
+        assert!(
+            !names.iter().any(|n| n.starts_with("OEBPS/images/")),
+            "no images expected"
+        );
         let obuf = read_entry(&mut zip, "OEBPS/content.opf");
-        assert!(!obuf.contains("<dc:description>"), "description must be absent when None");
+        assert!(
+            !obuf.contains("<dc:description>"),
+            "description must be absent when None"
+        );
         assert!(obuf.contains("<dc:title>无图之书</dc:title>"));
     }
 
@@ -1120,8 +1233,14 @@ mod epub_export_smoke_tests {
         let f = std::fs::File::open(&out).unwrap();
         let mut zip = zip::ZipArchive::new(f).unwrap();
         let obuf = read_entry(&mut zip, "OEBPS/content.opf");
-        assert!(obuf.contains("A &amp; B &lt;book&gt;"), "dc:title must be escaped: {obuf}");
+        assert!(
+            obuf.contains("A &amp; B &lt;book&gt;"),
+            "dc:title must be escaped: {obuf}"
+        );
         let nbuf = read_entry(&mut zip, "OEBPS/nav.xhtml");
-        assert!(nbuf.contains("第1章 &lt;序&gt; &amp; 后记"), "nav title must be escaped: {nbuf}");
+        assert!(
+            nbuf.contains("第1章 &lt;序&gt; &amp; 后记"),
+            "nav title must be escaped: {nbuf}"
+        );
     }
 }

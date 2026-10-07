@@ -15,7 +15,9 @@ pub struct SqliteProjectDependencyRepository {
 
 impl Clone for SqliteProjectDependencyRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -44,7 +46,11 @@ fn row_to_dep(row: &rusqlite::Row) -> rusqlite::Result<ProjectDependency> {
 
 impl ProjectDependencyRepository for SqliteProjectDependencyRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<ProjectDependency>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, analysis_id, from_id, from_type, to_id, to_type, kind, line_no, is_circular, weight, metadata, detected_at
              FROM project_dependencies WHERE analysis_id = ?1",
@@ -56,7 +62,11 @@ impl ProjectDependencyRepository for SqliteProjectDependencyRepository {
     }
 
     fn save_batch(&self, deps: &[ProjectDependency]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -66,9 +76,18 @@ impl ProjectDependencyRepository for SqliteProjectDependencyRepository {
             )?;
             for d in deps {
                 stmt.execute(rusqlite::params![
-                    d.id, d.analysis_id, d.from_id, d.from_type,
-                    d.to_id, d.to_type, d.kind, d.line_no,
-                    d.is_circular as i64, d.weight, d.metadata, d.detected_at,
+                    d.id,
+                    d.analysis_id,
+                    d.from_id,
+                    d.from_type,
+                    d.to_id,
+                    d.to_type,
+                    d.kind,
+                    d.line_no,
+                    d.is_circular as i64,
+                    d.weight,
+                    d.metadata,
+                    d.detected_at,
                 ])?;
             }
         }
@@ -77,8 +96,15 @@ impl ProjectDependencyRepository for SqliteProjectDependencyRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_dependencies WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_dependencies WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 }

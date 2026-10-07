@@ -92,7 +92,9 @@ pub async fn write_file(
     let canonical = std::fs::canonicalize(&abs).unwrap_or_else(|_| abs.clone());
     let db_canonical = std::fs::canonicalize(&file.path).unwrap_or_else(|_| abs.clone());
     if canonical != db_canonical {
-        return Err(crate::error::AppError::Internal("路径校验失败（符号链接绕过）".into()));
+        return Err(crate::error::AppError::Internal(
+            "路径校验失败（符号链接绕过）".into(),
+        ));
     }
 
     // 3) 备份原内容（存在才备份）
@@ -104,7 +106,9 @@ pub async fn write_file(
                 before_content = Some(old.clone());
                 let bak = abs.with_extension(format!(
                     "{}.bak",
-                    abs.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default()
+                    abs.extension()
+                        .map(|e| e.to_string_lossy().to_string())
+                        .unwrap_or_default()
                 ));
                 std::fs::write(&bak, &old).map_err(|e| {
                     crate::error::AppError::Internal(format!("备份失败 {}: {}", bak.display(), e))
@@ -129,8 +133,9 @@ pub async fn write_file(
     if let Some(parent) = abs.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    std::fs::write(&abs, &content)
-        .map_err(|e| crate::error::AppError::Internal(format!("写入失败 {}: {}", abs.display(), e)))?;
+    std::fs::write(&abs, &content).map_err(|e| {
+        crate::error::AppError::Internal(format!("写入失败 {}: {}", abs.display(), e))
+    })?;
 
     let new_lines = content.lines().count();
     let delta = new_lines as i64 - old_lines.unwrap_or(0) as i64;
@@ -151,7 +156,9 @@ pub async fn write_file(
             reason: reason.clone().unwrap_or_default(),
             old_text: old_text.clone().unwrap_or_default(),
             new_text: new_text.clone().unwrap_or_default(),
-            before_content: before_content.as_deref().and_then(ChangeLedger::snapshot_or_none),
+            before_content: before_content
+                .as_deref()
+                .and_then(ChangeLedger::snapshot_or_none),
             after_content_hash: content_hash(&content),
             before_lines: old_lines.unwrap_or(0) as i64,
             after_lines: new_lines as i64,
@@ -168,12 +175,15 @@ pub async fn write_file(
     };
 
     // 5) 通知文件监视器（若该 analysis 正在 watch，会 emit file-changes → 前端增量重扫）
-    let _ = app.emit("file-changes", &[serde_json::json!({
-        "analysisId": file.analysis_id,
-        "path": file.path,
-        "kind": "modified",
-        "timestamp": chrono::Utc::now().timestamp_millis(),
-    })]);
+    let _ = app.emit(
+        "file-changes",
+        &[serde_json::json!({
+            "analysisId": file.analysis_id,
+            "path": file.path,
+            "kind": "modified",
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+        })],
+    );
 
     Ok(WriteFileResult {
         path: file.path.clone(),
@@ -242,7 +252,8 @@ pub async fn revert_code_change(
     change_id: String,
     db: State<'_, Arc<Database>>,
 ) -> AppResult<RevertOutcome> {
-    let outcome = ChangeLedger::revert(&db, &change_id).map_err(crate::error::AppError::Internal)?;
+    let outcome =
+        ChangeLedger::revert(&db, &change_id).map_err(crate::error::AppError::Internal)?;
     let _ = app.emit(
         "file-changes",
         &[serde_json::json!({

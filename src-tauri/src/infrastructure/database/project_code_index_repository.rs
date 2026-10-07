@@ -14,7 +14,12 @@ pub trait ProjectCodeIndexRepository: Send + Sync {
     /// 相比 LIKE 全表扫描，FTS5 在大项目下是数量级的差异，且能按相关度排序
     /// （命中词频高、所在行短的结果排前）。FTS5 不可用或无命中时返回空，
     /// 由命令层回退到 LIKE。
-    fn search_fts(&self, analysis_id: &str, query: &str, limit: i64) -> AppResult<Vec<CodeIndexEntry>>;
+    fn search_fts(
+        &self,
+        analysis_id: &str,
+        query: &str,
+        limit: i64,
+    ) -> AppResult<Vec<CodeIndexEntry>>;
 }
 
 pub struct SqliteProjectCodeIndexRepository {
@@ -23,7 +28,9 @@ pub struct SqliteProjectCodeIndexRepository {
 
 impl Clone for SqliteProjectCodeIndexRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -49,7 +56,11 @@ const IDX_COLS: &str = "id, analysis_id, file_id, file_path, line_no, content, c
 
 impl ProjectCodeIndexRepository for SqliteProjectCodeIndexRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<CodeIndexEntry>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_code_index WHERE analysis_id = ?1 LIMIT 5000",
             IDX_COLS
@@ -61,7 +72,11 @@ impl ProjectCodeIndexRepository for SqliteProjectCodeIndexRepository {
     }
 
     fn save_batch(&self, entries: &[CodeIndexEntry]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -71,8 +86,13 @@ impl ProjectCodeIndexRepository for SqliteProjectCodeIndexRepository {
             )?;
             for e in entries {
                 stmt.execute(rusqlite::params![
-                    e.id, e.analysis_id, e.file_id, e.file_path, e.line_no,
-                    e.content, e.created_at,
+                    e.id,
+                    e.analysis_id,
+                    e.file_id,
+                    e.file_path,
+                    e.line_no,
+                    e.content,
+                    e.created_at,
                 ])?;
             }
 
@@ -85,8 +105,13 @@ impl ProjectCodeIndexRepository for SqliteProjectCodeIndexRepository {
             ) {
                 for e in entries {
                     let _ = fts.execute(rusqlite::params![
-                        e.id, e.analysis_id, e.file_id, e.file_path, e.line_no,
-                        e.content, e.created_at,
+                        e.id,
+                        e.analysis_id,
+                        e.file_id,
+                        e.file_path,
+                        e.line_no,
+                        e.content,
+                        e.created_at,
                     ]);
                 }
             }
@@ -96,8 +121,15 @@ impl ProjectCodeIndexRepository for SqliteProjectCodeIndexRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_code_index WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_code_index WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         // FTS 影子表同步清理（表不存在时忽略）
         let _ = conn.execute(
             "DELETE FROM project_code_fts WHERE analysis_id = ?1",
@@ -107,7 +139,11 @@ impl ProjectCodeIndexRepository for SqliteProjectCodeIndexRepository {
     }
 
     fn search(&self, analysis_id: &str, like: &str, limit: i64) -> AppResult<Vec<CodeIndexEntry>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_code_index
              WHERE analysis_id = ?1 AND content LIKE ?2
@@ -127,7 +163,11 @@ impl ProjectCodeIndexRepository for SqliteProjectCodeIndexRepository {
         query: &str,
         limit: i64,
     ) -> AppResult<Vec<CodeIndexEntry>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // FTS5 查询串转义：整体当作短语，内部双引号转义，末词开启前缀匹配
         // （`"foo bar"*` = 短语 foo bar，且 bar 允许前缀扩展）
@@ -145,20 +185,17 @@ impl ProjectCodeIndexRepository for SqliteProjectCodeIndexRepository {
             Err(_) => return Ok(Vec::new()),
         };
 
-        let rows = stmt.query_map(
-            rusqlite::params![match_expr, analysis_id, limit],
-            |row| {
-                Ok(CodeIndexEntry {
-                    id: row.get(0)?,
-                    analysis_id: row.get(1)?,
-                    file_id: row.get(2)?,
-                    file_path: row.get(3)?,
-                    line_no: row.get::<_, i64>(4)?,
-                    content: row.get(5)?,
-                    created_at: row.get::<_, i64>(6)?,
-                })
-            },
-        );
+        let rows = stmt.query_map(rusqlite::params![match_expr, analysis_id, limit], |row| {
+            Ok(CodeIndexEntry {
+                id: row.get(0)?,
+                analysis_id: row.get(1)?,
+                file_id: row.get(2)?,
+                file_path: row.get(3)?,
+                line_no: row.get::<_, i64>(4)?,
+                content: row.get(5)?,
+                created_at: row.get::<_, i64>(6)?,
+            })
+        });
 
         match rows {
             Ok(iter) => Ok(iter.filter_map(|r| r.ok()).collect()),

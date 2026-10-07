@@ -15,7 +15,9 @@ pub struct SqliteProjectDataFlowRepository {
 
 impl Clone for SqliteProjectDataFlowRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -48,7 +50,11 @@ fn row_to_fact(row: &rusqlite::Row) -> rusqlite::Result<DataFlowFact> {
 
 impl ProjectDataFlowRepository for SqliteProjectDataFlowRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<DataFlowFact>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_data_flow WHERE analysis_id = ?1
              ORDER BY file_path ASC, line_no ASC",
@@ -61,7 +67,11 @@ impl ProjectDataFlowRepository for SqliteProjectDataFlowRepository {
     }
 
     fn save_batch(&self, items: &[DataFlowFact]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -93,7 +103,11 @@ impl ProjectDataFlowRepository for SqliteProjectDataFlowRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "DELETE FROM project_data_flow WHERE analysis_id = ?1",
             [analysis_id],

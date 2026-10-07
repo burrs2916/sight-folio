@@ -28,10 +28,7 @@ pub struct CodeIndexEntry {
 impl Default for CodeIndexEntry {
     fn default() -> Self {
         Self {
-            id: format!(
-                "idx_{}",
-                uuid::Uuid::new_v4().to_string().replace("-", "")
-            ),
+            id: format!("idx_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
             analysis_id: String::new(),
             file_id: String::new(),
             file_path: String::new(),

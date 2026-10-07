@@ -22,7 +22,9 @@ pub struct SqliteProjectSymbolRefRepository {
 
 impl Clone for SqliteProjectSymbolRefRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -55,7 +57,11 @@ const REF_COLS: &str = "id, analysis_id, from_file_id, from_file_path, to_symbol
 
 impl ProjectSymbolRefRepository for SqliteProjectSymbolRefRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<SymbolRef>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_symbol_refs WHERE analysis_id = ?1
              ORDER BY from_file_path ASC, ref_line ASC",
@@ -68,7 +74,11 @@ impl ProjectSymbolRefRepository for SqliteProjectSymbolRefRepository {
     }
 
     fn save_batch(&self, refs: &[SymbolRef]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -80,9 +90,18 @@ impl ProjectSymbolRefRepository for SqliteProjectSymbolRefRepository {
             )?;
             for r in refs {
                 stmt.execute(rusqlite::params![
-                    r.id, r.analysis_id, r.from_file_id, r.from_file_path, r.to_symbol_id,
-                    r.to_file_id, r.to_file_path, r.symbol_name, r.ref_line, r.ref_text,
-                    r.kind, r.created_at,
+                    r.id,
+                    r.analysis_id,
+                    r.from_file_id,
+                    r.from_file_path,
+                    r.to_symbol_id,
+                    r.to_file_id,
+                    r.to_file_path,
+                    r.symbol_name,
+                    r.ref_line,
+                    r.ref_text,
+                    r.kind,
+                    r.created_at,
                 ])?;
             }
         }
@@ -91,8 +110,15 @@ impl ProjectSymbolRefRepository for SqliteProjectSymbolRefRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_symbol_refs WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_symbol_refs WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 
@@ -104,7 +130,11 @@ impl ProjectSymbolRefRepository for SqliteProjectSymbolRefRepository {
         if rel_paths.is_empty() {
             return Ok(());
         }
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let placeholders: Vec<&str> = (0..rel_paths.len()).map(|_| "?").collect();
         let sql = format!(
             "DELETE FROM project_symbol_refs WHERE analysis_id = ?1 AND from_file_path IN ({})",

@@ -9,8 +9,13 @@ pub trait ProjectSymbolRepository: Send + Sync {
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()>;
     /// 增量重扫：仅删除指定文件（rel_path，存于 file_path 列）的符号，保留其余。
     /// `rel_paths` 为空时直接返回（避免 `IN ()` 语法错误）——调用方据此省一次无谓写。
-    fn delete_by_analysis_and_files(&self, analysis_id: &str, rel_paths: &[String]) -> AppResult<()>;
-    fn count_by_kind(&self, analysis_id: &str) -> AppResult<std::collections::HashMap<String, i64>>;
+    fn delete_by_analysis_and_files(
+        &self,
+        analysis_id: &str,
+        rel_paths: &[String],
+    ) -> AppResult<()>;
+    fn count_by_kind(&self, analysis_id: &str)
+        -> AppResult<std::collections::HashMap<String, i64>>;
     /// 设计模式重检测：仅更新单个符号的 `patterns` + `metadata` 两列。
     /// 不动 id/引用边/位置等其它列，避免整行重写导致符号稳定 id 与引用关系漂移。
     fn update_patterns(&self, id: &str, patterns: &str, metadata: &str) -> AppResult<()>;
@@ -38,7 +43,9 @@ pub struct SqliteProjectSymbolRepository {
 
 impl Clone for SqliteProjectSymbolRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -72,7 +79,11 @@ const SYMBOL_COLS: &str = "id, analysis_id, file_id, file_path, name, kind, line
 
 impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<ProjectSymbol>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_symbols WHERE analysis_id = ?1 ORDER BY file_path ASC, line_start ASC",
             SYMBOL_COLS
@@ -84,7 +95,11 @@ impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
     }
 
     fn save_batch(&self, symbols: &[ProjectSymbol]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -95,9 +110,20 @@ impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
             )?;
             for s in symbols {
                 stmt.execute(rusqlite::params![
-                    s.id, s.analysis_id, s.file_id, s.file_path, s.name, s.kind,
-                    s.line_start, s.line_end, s.signature, s.doc, s.modifiers,
-                    s.patterns, s.metadata, s.created_at,
+                    s.id,
+                    s.analysis_id,
+                    s.file_id,
+                    s.file_path,
+                    s.name,
+                    s.kind,
+                    s.line_start,
+                    s.line_end,
+                    s.signature,
+                    s.doc,
+                    s.modifiers,
+                    s.patterns,
+                    s.metadata,
+                    s.created_at,
                 ])?;
             }
         }
@@ -106,16 +132,31 @@ impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM project_symbols WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM project_symbols WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 
-    fn delete_by_analysis_and_files(&self, analysis_id: &str, rel_paths: &[String]) -> AppResult<()> {
+    fn delete_by_analysis_and_files(
+        &self,
+        analysis_id: &str,
+        rel_paths: &[String],
+    ) -> AppResult<()> {
         if rel_paths.is_empty() {
             return Ok(());
         }
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let placeholders: Vec<&str> = (0..rel_paths.len()).map(|_| "?").collect();
         let sql = format!(
             "DELETE FROM project_symbols WHERE analysis_id = ?1 AND file_path IN ({})",
@@ -130,19 +171,32 @@ impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
         Ok(())
     }
 
-    fn count_by_kind(&self, analysis_id: &str) -> AppResult<std::collections::HashMap<String, i64>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    fn count_by_kind(
+        &self,
+        analysis_id: &str,
+    ) -> AppResult<std::collections::HashMap<String, i64>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT kind, COUNT(*) FROM project_symbols WHERE analysis_id = ?1 GROUP BY kind",
         )?;
         let rows = stmt
-            .query_map([analysis_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))?
+            .query_map([analysis_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows.into_iter().collect())
     }
 
     fn search(&self, analysis_id: &str, like: &str, limit: i64) -> AppResult<Vec<ProjectSymbol>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_symbols
              WHERE analysis_id = ?1 AND (name LIKE ?2 OR file_path LIKE ?2)
@@ -161,7 +215,11 @@ impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
     }
 
     fn update_patterns(&self, id: &str, patterns: &str, metadata: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "UPDATE project_symbols SET patterns = ?2, metadata = ?3 WHERE id = ?1",
             rusqlite::params![id, patterns, metadata],
@@ -170,7 +228,11 @@ impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
     }
 
     fn list_unreferenced(&self, analysis_id: &str) -> AppResult<Vec<ProjectSymbol>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_symbols s
              WHERE s.analysis_id = ?1
@@ -191,7 +253,11 @@ impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
     }
 
     fn list_unused_exports(&self, analysis_id: &str) -> AppResult<Vec<ProjectSymbol>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {} FROM project_symbols s
              WHERE s.analysis_id = ?1
@@ -221,8 +287,8 @@ impl ProjectSymbolRepository for SqliteProjectSymbolRepository {
 mod tests {
     use super::*;
     use crate::infrastructure::database::Database;
-    use std::sync::{Arc, Mutex};
     use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
 
     fn make_repo() -> SqliteProjectSymbolRepository {
         let conn = Connection::open_in_memory().unwrap();
@@ -335,7 +401,8 @@ mod tests {
         repo.save_batch(&[mk("s2", "src/api.ts", "fetchUser", "function", "export")])
             .unwrap();
         // 3) 非导出 + 本文件自引用 → 不命中（未导出）
-        repo.save_batch(&[mk("s3", "src/helper.ts", "internalOnly", "function", "")]).unwrap();
+        repo.save_batch(&[mk("s3", "src/helper.ts", "internalOnly", "function", "")])
+            .unwrap();
         // 4) 导出 + 既无自引用也无跨文件引用 → 不命中（归 rule_dead_symbol 范畴）
         repo.save_batch(&[mk("s4", "src/orphan.ts", "neverUsed", "function", "export")])
             .unwrap();

@@ -36,10 +36,7 @@ pub struct ProjectSymbol {
 impl Default for ProjectSymbol {
     fn default() -> Self {
         Self {
-            id: format!(
-                "sym_{}",
-                uuid::Uuid::new_v4().to_string().replace("-", "")
-            ),
+            id: format!("sym_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
             analysis_id: String::new(),
             file_id: String::new(),
             file_path: String::new(),

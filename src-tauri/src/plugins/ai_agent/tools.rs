@@ -13,15 +13,15 @@ use super::code_patch::{
     LocateHint,
 };
 use super::engine::{AgentTool, ToolOutput};
-use super::scope::{coverage_json, data_coverage, render_coverage, resolve_scope};
 use super::scan_records::ScanRecordsTool;
+use super::scope::{coverage_json, data_coverage, render_coverage, resolve_scope};
 use crate::commands::call_graph::{compute_call_reachability, CallReachabilityResult};
-use crate::infrastructure::Database;
 use crate::infrastructure::database::ai_repository::*;
 use crate::infrastructure::database::project_call_edge_repository::ProjectCallEdgeRepository;
 use crate::infrastructure::database::writing_repository::WritingRepository;
 use crate::infrastructure::database::SqliteProjectCallEdgeRepository;
 use crate::infrastructure::database::SqliteWritingRepository;
+use crate::infrastructure::Database;
 
 /// 各工具**自我设界**的输出预算。
 ///
@@ -104,9 +104,7 @@ impl AgentTool for CodeSearchTool {
     }
 
     async fn execute(&self, params: Value) -> Result<ToolOutput, String> {
-        let query = params["query"]
-            .as_str()
-            .ok_or("query is required")?;
+        let query = params["query"].as_str().ok_or("query is required")?;
         let file_pattern = params["file_pattern"]
             .as_str()
             .map(|s| s.trim())
@@ -498,10 +496,11 @@ impl AgentTool for SymbolLookupTool {
     }
 
     async fn execute(&self, params: Value) -> Result<ToolOutput, String> {
-        let name = params["name"]
+        let name = params["name"].as_str().ok_or("name is required")?;
+        let kind = params["kind"]
             .as_str()
-            .ok_or("name is required")?;
-        let kind = params["kind"].as_str().map(|s| s.trim()).filter(|s| !s.is_empty());
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty());
         let max_results = params["max_results"].as_i64().unwrap_or(15) as usize;
 
         let scope = resolve_scope(&self.db, &params)?;
@@ -887,8 +886,14 @@ impl AgentTool for ReviewExplainTool {
         let query_type = params["query_type"]
             .as_str()
             .ok_or("query_type is required")?;
-        let severity = params["severity"].as_str().map(|s| s.trim()).filter(|s| !s.is_empty());
-        let rule_id = params["rule_id"].as_str().map(|s| s.trim()).filter(|s| !s.is_empty());
+        let severity = params["severity"]
+            .as_str()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty());
+        let rule_id = params["rule_id"]
+            .as_str()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty());
         let max_results = params["max_results"].as_i64().unwrap_or(20).clamp(1, 100);
 
         let scope = resolve_scope(&self.db, &params)?;
@@ -909,7 +914,11 @@ impl AgentTool for ReviewExplainTool {
                 let warning = count_sev("warning");
                 let info = count_sev("info");
                 let rules: i64 = conn
-                    .query_row("SELECT COUNT(*) FROM review_rules WHERE enabled = 1", [], |r| r.get(0))
+                    .query_row(
+                        "SELECT COUNT(*) FROM review_rules WHERE enabled = 1",
+                        [],
+                        |r| r.get(0),
+                    )
                     .unwrap_or(0);
 
                 // 按规则聚合：Agent 一眼看出"哪条规则在刷屏"，据此决定下一步取哪一类 findings，
@@ -971,7 +980,11 @@ impl AgentTool for ReviewExplainTool {
                     sql.push_str(" AND f.severity = ?2");
                 }
                 if rule_id.is_some() {
-                    sql.push_str(if severity.is_some() { " AND f.rule_id = ?3" } else { " AND f.rule_id = ?2" });
+                    sql.push_str(if severity.is_some() {
+                        " AND f.rule_id = ?3"
+                    } else {
+                        " AND f.rule_id = ?2"
+                    });
                 }
                 sql.push_str(
                     " ORDER BY CASE f.severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, target_path LIMIT ",
@@ -1051,7 +1064,10 @@ impl AgentTool for ReviewExplainTool {
             }
             _ => Ok(ToolOutput {
                 success: false,
-                result: format!("Unknown query_type: '{}'. Use: summary, findings, rules", query_type),
+                result: format!(
+                    "Unknown query_type: '{}'. Use: summary, findings, rules",
+                    query_type
+                ),
                 metadata: Value::Null,
             }),
         }
@@ -1128,7 +1144,12 @@ impl AgentTool for ImpactAssessTool {
         // 影响面判断最怕「查到 0 条 → 结论没人用 → 建议删掉」。
         // 所以先取这两个维度在本次扫描下的真实行数，把「无数据」和「无引用」明确区分开。
         let cov = data_coverage(&self.db, &scope.analysis_id)?;
-        let dim = |k: &str| cov.iter().find(|d| d.key == k).map(|d| d.count).unwrap_or(-1);
+        let dim = |k: &str| {
+            cov.iter()
+                .find(|d| d.key == k)
+                .map(|d| d.count)
+                .unwrap_or(-1)
+        };
         let refs_total = dim("symbolRefs");
         let calls_total = dim("callEdges");
 
@@ -1409,10 +1430,7 @@ impl ProjectContextTool {
         // 而漏掉的代价是拿 Top-N 当全集下全局结论。
         // 这里纯透传——数据集叫什么、由哪个工具提供，全部由供给模块自己声明，
         // 后端不认识任何具体模块，新模块接入这段代码零改动。
-        let drilldown = quality
-            .get("drilldown")
-            .filter(|d| d.is_object())
-            .cloned();
+        let drilldown = quality.get("drilldown").filter(|d| d.is_object()).cloned();
         let mut entry = json!({
             "key": s.section_key,
             "title": s.title,
@@ -1441,13 +1459,19 @@ impl ProjectContextTool {
     /// 解析 since：接受毫秒时间戳；顺带容忍字符串数字（模型常把数字写成字符串）。
     /// 秒级时间戳（10 位）自动放大到毫秒，避免「传了 since 却全部判为已变化」。
     fn parse_since(params: &Value) -> Option<i64> {
-        let raw = params["since"]
-            .as_i64()
-            .or_else(|| params["since"].as_str().and_then(|s| s.trim().parse::<i64>().ok()))?;
+        let raw = params["since"].as_i64().or_else(|| {
+            params["since"]
+                .as_str()
+                .and_then(|s| s.trim().parse::<i64>().ok())
+        })?;
         if raw <= 0 {
             return None;
         }
-        Some(if raw < 100_000_000_000 { raw * 1000 } else { raw })
+        Some(if raw < 100_000_000_000 {
+            raw * 1000
+        } else {
+            raw
+        })
     }
 
     /// 解析 section_keys：支持数组、逗号分隔串，或退化为单个 section_key
@@ -1460,7 +1484,10 @@ impl ProjectContextTool {
                 .filter(|s| !s.is_empty())
                 .collect();
         }
-        if let Some(raw) = params["section_keys"].as_str().or_else(|| params["section_key"].as_str()) {
+        if let Some(raw) = params["section_keys"]
+            .as_str()
+            .or_else(|| params["section_key"].as_str())
+        {
             return raw
                 .split(',')
                 .map(|s| s.trim().to_string())
@@ -1620,7 +1647,8 @@ impl AgentTool for ProjectContextTool {
                 let secs = AiContextSectionRepo::list_by_pack(&self.db, &pack_id)?;
                 let since = Self::parse_since(&params);
 
-                let entries: Vec<Value> = secs.iter().map(|s| Self::outline_entry(s, since)).collect();
+                let entries: Vec<Value> =
+                    secs.iter().map(|s| Self::outline_entry(s, since)).collect();
                 let changed_keys: Vec<String> = match since {
                     Some(ts) => secs
                         .iter()
@@ -1800,10 +1828,11 @@ impl AgentTool for ProjectContextTool {
 
                 if found.is_empty() {
                     // 一个都没命中：把可用键回给 Agent，让它一次纠正而不是反复试错
-                    let available: Vec<String> = AiContextSectionRepo::list_by_pack(&self.db, &pack_id)?
-                        .into_iter()
-                        .map(|s| s.section_key)
-                        .collect();
+                    let available: Vec<String> =
+                        AiContextSectionRepo::list_by_pack(&self.db, &pack_id)?
+                            .into_iter()
+                            .map(|s| s.section_key)
+                            .collect();
                     return Ok(ToolOutput {
                         success: false,
                         result: format!(
@@ -1994,7 +2023,9 @@ impl ContextInsightTool {
                     .collect::<Vec<_>>()
                     .join("; "),
             );
-            out.push_str(" — cite the real paths next time so this conclusion keeps all its evidence.");
+            out.push_str(
+                " — cite the real paths next time so this conclusion keeps all its evidence.",
+            );
         }
         out
     }
@@ -2642,7 +2673,10 @@ impl AgentTool for ApplyChangeTool {
                     if current == content {
                         return Ok(ToolOutput {
                             success: false,
-                            result: format!("content is identical to the current '{}' — nothing to write.", rel_path),
+                            result: format!(
+                                "content is identical to the current '{}' — nothing to write.",
+                                rel_path
+                            ),
                             metadata: json!({ "path": rel_path, "stage": "guard" }),
                         });
                     }
@@ -2736,7 +2770,11 @@ impl AgentTool for ApplyChangeTool {
                 preview_end,
                 old_lines.unwrap_or(0),
                 new_lines,
-                if delta >= 0 { format!("+{}", delta) } else { delta.to_string() },
+                if delta >= 0 {
+                    format!("+{}", delta)
+                } else {
+                    delta.to_string()
+                },
                 if change_id.is_none() {
                     "(warning: this edit could not be recorded in the review list) "
                 } else {
@@ -2780,11 +2818,25 @@ fn denied_command_reason(cmd: &str) -> Option<&'static str> {
 
     // 远程代码执行：把下载内容管道给 shell / sudo（最常见的供应链投毒路径）
     for p in [
-        "| sh", "|sh", "| bash", "|bash", "| zsh", "|zsh", "|sudo", "| sudo", "$(curl",
-        "$(curl ", "$(wget", "$(wget ", "eval $(curl", "eval $(wget",
+        "| sh",
+        "|sh",
+        "| bash",
+        "|bash",
+        "| zsh",
+        "|zsh",
+        "|sudo",
+        "| sudo",
+        "$(curl",
+        "$(curl ",
+        "$(wget",
+        "$(wget ",
+        "eval $(curl",
+        "eval $(wget",
     ] {
         if s.contains(p) {
-            return Some("piping downloaded content to a shell / sudo (remote code execution risk)");
+            return Some(
+                "piping downloaded content to a shell / sudo (remote code execution risk)",
+            );
         }
     }
 
@@ -2836,11 +2888,15 @@ fn contains_with_boundary(lower: &str, needle: &str) -> bool {
 /// 超时后按 pid 强杀子进程（cross-platform：macOS/Linux 用 `kill -9`，Windows 用 `taskkill /F`）。
 #[cfg(unix)]
 fn kill_child_by_pid(pid: u32) {
-    let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).status();
+    let _ = std::process::Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .status();
 }
 #[cfg(windows)]
 fn kill_child_by_pid(pid: u32) {
-    let _ = std::process::Command::new("taskkill").args(["/PID", &pid.to_string(), "/F"]).status();
+    let _ = std::process::Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/F"])
+        .status();
 }
 
 pub struct RunCommandTool {
@@ -2972,7 +3028,9 @@ impl AgentTool for RunCommandTool {
                 kill_child_by_pid(pid);
                 return Ok(ToolOutput {
                     success: false,
-                    result: format!("[run_command] Timed out after {timeout_ms}ms; process (pid {pid}) killed."),
+                    result: format!(
+                        "[run_command] Timed out after {timeout_ms}ms; process (pid {pid}) killed."
+                    ),
                     metadata: json!({ "timed_out": true }),
                 });
             }
@@ -2993,7 +3051,10 @@ impl AgentTool for RunCommandTool {
         }
         let truncated = combined.len() > 20000;
         let capped = if truncated {
-            format!("{}...\n[output truncated at 20000 chars]", &combined[..20000])
+            format!(
+                "{}...\n[output truncated at 20000 chars]",
+                &combined[..20000]
+            )
         } else {
             combined
         };
@@ -3114,8 +3175,16 @@ impl AgentTool for ListChaptersTool {
                     c.id,
                     c.title,
                     c.word_count,
-                    if c.status.is_empty() { "草稿" } else { &c.status },
-                    if c.volume.is_empty() { "未分卷" } else { &c.volume }
+                    if c.status.is_empty() {
+                        "草稿"
+                    } else {
+                        &c.status
+                    },
+                    if c.volume.is_empty() {
+                        "未分卷"
+                    } else {
+                        &c.volume
+                    }
                 )
             })
             .collect();
@@ -3125,7 +3194,11 @@ impl AgentTool for ListChaptersTool {
                 "[list_chapters] 《{}》共 {} 章\n{}",
                 book.title,
                 chapters.len(),
-                if rows.is_empty() { "(还没有章节)".to_string() } else { rows.join("\n") }
+                if rows.is_empty() {
+                    "(还没有章节)".to_string()
+                } else {
+                    rows.join("\n")
+                }
             ),
             metadata: json!({ "bookId": book_id, "chapterCount": chapters.len() }),
         })
@@ -3170,7 +3243,9 @@ impl AgentTool for ReadChapterTool {
     }
 
     async fn execute(&self, params: Value) -> Result<ToolOutput, String> {
-        let chapter_id = params["chapter_id"].as_str().ok_or("chapter_id is required")?;
+        let chapter_id = params["chapter_id"]
+            .as_str()
+            .ok_or("chapter_id is required")?;
         let repo = SqliteWritingRepository::new(self.db.clone());
         let chapter = repo.get_chapter(chapter_id).map_err(|e| e.to_string())?;
         let Some(chapter) = chapter else {
@@ -3198,7 +3273,11 @@ impl AgentTool for ReadChapterTool {
                 "[read_chapter] 《{}》 | {} 字 | {} | 所属书 id={}\n\n{}",
                 chapter.title,
                 chapter.word_count,
-                if chapter.status.is_empty() { "草稿" } else { &chapter.status },
+                if chapter.status.is_empty() {
+                    "草稿"
+                } else {
+                    &chapter.status
+                },
                 chapter.book_id,
                 body
             ),
@@ -3262,7 +3341,9 @@ impl AgentTool for ReadCharacterCardTool {
                 metadata: json!({ "bookId": book_id }),
             });
         };
-        let cards = repo.list_settings(book_id, "character").map_err(|e| e.to_string())?;
+        let cards = repo
+            .list_settings(book_id, "character")
+            .map_err(|e| e.to_string())?;
         if cards.is_empty() {
             return Ok(ToolOutput {
                 success: true,
@@ -3279,7 +3360,11 @@ impl AgentTool for ReadCharacterCardTool {
                 let mut lines = vec![format!(
                     "## {}（{}）",
                     c.name,
-                    if c.subtitle.is_empty() { "人物" } else { &c.subtitle }
+                    if c.subtitle.is_empty() {
+                        "人物"
+                    } else {
+                        &c.subtitle
+                    }
                 )];
                 if !c.description.is_empty() {
                     lines.push(c.description.clone());
@@ -3417,7 +3502,10 @@ mod tests {
     #[test]
     fn parse_section_keys_falls_back_to_legacy_single_key() {
         let p = json!({ "section_key": "architecture" });
-        assert_eq!(ProjectContextTool::parse_section_keys(&p), vec!["architecture"]);
+        assert_eq!(
+            ProjectContextTool::parse_section_keys(&p),
+            vec!["architecture"]
+        );
     }
 
     #[test]
@@ -3438,30 +3526,49 @@ mod tests {
 
     #[test]
     fn parse_since_accepts_millis_and_string_form() {
-        assert_eq!(ProjectContextTool::parse_since(&json!({ "since": 1_700_000_000_000i64 })), Some(1_700_000_000_000));
+        assert_eq!(
+            ProjectContextTool::parse_since(&json!({ "since": 1_700_000_000_000i64 })),
+            Some(1_700_000_000_000)
+        );
         // 模型常把数字参数写成字符串，不兼容就等于这次增量白做
-        assert_eq!(ProjectContextTool::parse_since(&json!({ "since": "1700000000000" })), Some(1_700_000_000_000));
+        assert_eq!(
+            ProjectContextTool::parse_since(&json!({ "since": "1700000000000" })),
+            Some(1_700_000_000_000)
+        );
     }
 
     #[test]
     fn parse_since_upgrades_seconds_to_millis() {
         // 传秒级时间戳时若不放大，since 会远小于所有 updated_at，
         // 结果「全部分节都变了」——增量静默退化为全量，最难发现的那种失效
-        assert_eq!(ProjectContextTool::parse_since(&json!({ "since": 1_700_000_000i64 })), Some(1_700_000_000_000));
+        assert_eq!(
+            ProjectContextTool::parse_since(&json!({ "since": 1_700_000_000i64 })),
+            Some(1_700_000_000_000)
+        );
     }
 
     #[test]
     fn parse_since_ignores_absent_or_invalid() {
         assert_eq!(ProjectContextTool::parse_since(&json!({})), None);
-        assert_eq!(ProjectContextTool::parse_since(&json!({ "since": 0 })), None);
-        assert_eq!(ProjectContextTool::parse_since(&json!({ "since": "not-a-number" })), None);
+        assert_eq!(
+            ProjectContextTool::parse_since(&json!({ "since": 0 })),
+            None
+        );
+        assert_eq!(
+            ProjectContextTool::parse_since(&json!({ "since": "not-a-number" })),
+            None
+        );
     }
 
     fn stamped_section(key: &str, updated_at: i64) -> AiContextSectionRow {
         stamped_section_with_quality(key, updated_at, "{}")
     }
 
-    fn stamped_section_with_quality(key: &str, updated_at: i64, quality: &str) -> AiContextSectionRow {
+    fn stamped_section_with_quality(
+        key: &str,
+        updated_at: i64,
+        quality: &str,
+    ) -> AiContextSectionRow {
         AiContextSectionRow {
             id: format!("pack#{}", key),
             pack_id: "pack".to_string(),
@@ -3480,8 +3587,10 @@ mod tests {
 
     #[test]
     fn outline_entry_marks_changed_sections_only() {
-        let fresh = ProjectContextTool::outline_entry(&stamped_section("techDebt", 2_000), Some(1_500));
-        let stale = ProjectContextTool::outline_entry(&stamped_section("architecture", 1_000), Some(1_500));
+        let fresh =
+            ProjectContextTool::outline_entry(&stamped_section("techDebt", 2_000), Some(1_500));
+        let stale =
+            ProjectContextTool::outline_entry(&stamped_section("architecture", 1_000), Some(1_500));
         assert_eq!(fresh["changedSince"], json!(true));
         assert_eq!(stale["changedSince"], json!(false));
         // 指纹要一并回传：Agent 可用它自行判重，不必依赖时间戳
@@ -3493,14 +3602,18 @@ mod tests {
     fn outline_entry_treats_unstamped_history_as_changed() {
         // updated_at = 0 表示这行是加戳之前写入的历史数据，无法证明「没变」。
         // 宁可让 Agent 多读一次，也不能让它漏掉真正更新过的分节。
-        let legacy = ProjectContextTool::outline_entry(&stamped_section("overview", 0), Some(9_999));
+        let legacy =
+            ProjectContextTool::outline_entry(&stamped_section("overview", 0), Some(9_999));
         assert_eq!(legacy["changedSince"], json!(true));
     }
 
     #[test]
     fn outline_entry_omits_change_flag_without_since() {
         let e = ProjectContextTool::outline_entry(&stamped_section("overview", 1_000), None);
-        assert!(e.get("changedSince").is_none(), "no since = no change verdict");
+        assert!(
+            e.get("changedSince").is_none(),
+            "no since = no change verdict"
+        );
     }
 
     // ── 数据可信度：区分「查过了没问题」与「压根没数据」──
@@ -3512,7 +3625,10 @@ mod tests {
         assert_eq!(ProjectContextTool::quality_status(""), "ok");
         assert_eq!(ProjectContextTool::quality_status("{}"), "ok");
         assert_eq!(ProjectContextTool::quality_status("not-json"), "ok");
-        assert_eq!(ProjectContextTool::quality_status(r#"{"observed":0}"#), "ok");
+        assert_eq!(
+            ProjectContextTool::quality_status(r#"{"observed":0}"#),
+            "ok"
+        );
     }
 
     #[test]
@@ -3527,7 +3643,11 @@ mod tests {
     #[test]
     fn outline_entry_carries_quality_so_agent_can_skip_blind_spots() {
         let blind = ProjectContextTool::outline_entry(
-            &stamped_section_with_quality("dataFlow", 1_000, r#"{"status":"unavailable","observed":0}"#),
+            &stamped_section_with_quality(
+                "dataFlow",
+                1_000,
+                r#"{"status":"unavailable","observed":0}"#,
+            ),
             None,
         );
         // 目录里就带可信度 = 几十 token 决策要不要花钱取正文
@@ -3570,7 +3690,11 @@ mod tests {
     fn outline_entry_ignores_malformed_drilldown() {
         // 模块写坏了（写成字符串而不是对象）不能污染目录结构
         let e = ProjectContextTool::outline_entry(
-            &stamped_section_with_quality("clones", 1_000, r#"{"status":"ok","drilldown":"scan_records"}"#),
+            &stamped_section_with_quality(
+                "clones",
+                1_000,
+                r#"{"status":"ok","drilldown":"scan_records"}"#,
+            ),
             None,
         );
         assert!(e.get("drilldown").is_none());
@@ -3580,9 +3704,18 @@ mod tests {
 
     #[test]
     fn normalize_severity_maps_aliases() {
-        assert_eq!(ContextInsightTool::normalize_severity(Some("BLOCKER")), "critical");
-        assert_eq!(ContextInsightTool::normalize_severity(Some("Major")), "high");
-        assert_eq!(ContextInsightTool::normalize_severity(Some("warning")), "medium");
+        assert_eq!(
+            ContextInsightTool::normalize_severity(Some("BLOCKER")),
+            "critical"
+        );
+        assert_eq!(
+            ContextInsightTool::normalize_severity(Some("Major")),
+            "high"
+        );
+        assert_eq!(
+            ContextInsightTool::normalize_severity(Some("warning")),
+            "medium"
+        );
         assert_eq!(ContextInsightTool::normalize_severity(Some("minor")), "low");
     }
 
@@ -3594,9 +3727,15 @@ mod tests {
 
     #[test]
     fn normalize_kind_maps_aliases_and_defaults() {
-        assert_eq!(ContextInsightTool::normalize_kind(Some("suggestion")), "recommendation");
+        assert_eq!(
+            ContextInsightTool::normalize_kind(Some("suggestion")),
+            "recommendation"
+        );
         assert_eq!(ContextInsightTool::normalize_kind(Some("plan")), "roadmap");
-        assert_eq!(ContextInsightTool::normalize_kind(Some("overview")), "summary");
+        assert_eq!(
+            ContextInsightTool::normalize_kind(Some("overview")),
+            "summary"
+        );
         assert_eq!(ContextInsightTool::normalize_kind(None), "finding");
     }
 
@@ -3632,7 +3771,9 @@ mod tests {
         AiInsightRepo::save_dedup(&db, &base).unwrap();
 
         let tool = ContextInsightTool::new(db);
-        let payload = tool.build_list_output("a1", false, 50, None, false).unwrap();
+        let payload = tool
+            .build_list_output("a1", false, 50, None, false)
+            .unwrap();
         assert_eq!(payload["total"].as_i64(), Some(2));
         assert_eq!(payload["reconfirmed"].as_i64(), Some(1));
         assert_eq!(payload["newCount"].as_i64(), Some(1));
@@ -3683,16 +3824,24 @@ mod tests {
             refs,
             ..Default::default()
         };
-        AiInsightRepo::save_dedup(&db, &mk("ins_ok", "Stable one", vec!["src/stable.ts:1".into()]))
-            .unwrap();
-        AiInsightRepo::save_dedup(&db, &mk("ins_hot", "Moving one", vec!["src/moving.ts:9".into()]))
-            .unwrap();
+        AiInsightRepo::save_dedup(
+            &db,
+            &mk("ins_ok", "Stable one", vec!["src/stable.ts:1".into()]),
+        )
+        .unwrap();
+        AiInsightRepo::save_dedup(
+            &db,
+            &mk("ins_hot", "Moving one", vec!["src/moving.ts:9".into()]),
+        )
+        .unwrap();
 
         // 下一次扫描：moving.ts 内容变了 → 该结论必须被拎出来复核
         put("src/moving.ts", "h_v2");
 
         let tool = ContextInsightTool::new(db);
-        let all = tool.build_list_output("a1", false, 50, None, false).unwrap();
+        let all = tool
+            .build_list_output("a1", false, 50, None, false)
+            .unwrap();
         assert_eq!(all["freshnessSummary"]["current"].as_i64(), Some(1));
         assert_eq!(all["freshnessSummary"]["stale"].as_i64(), Some(1));
         assert_eq!(all["freshnessSummary"]["needsReview"].as_i64(), Some(1));
@@ -3728,7 +3877,9 @@ mod tests {
             "agent_x",
         )
         .unwrap();
-        let after = tool.build_list_output("a1", false, 50, None, false).unwrap();
+        let after = tool
+            .build_list_output("a1", false, 50, None, false)
+            .unwrap();
         assert_eq!(after["total"].as_i64(), Some(1), "已关闭的结论不再占用视野");
         assert_eq!(after["resolvedCount"].as_i64(), Some(1));
         assert_eq!(after["freshnessSummary"]["needsReview"].as_i64(), Some(0));
@@ -3767,7 +3918,9 @@ mod tests {
         .await
         .unwrap();
         let id = {
-            let listed = tool.build_list_output("a1", false, 10, None, false).unwrap();
+            let listed = tool
+                .build_list_output("a1", false, 10, None, false)
+                .unwrap();
             listed["insights"][0]["id"].as_str().unwrap().to_string()
         };
 
@@ -3870,10 +4023,15 @@ mod tests {
         let accepted = out.metadata["refs"]["accepted"].as_array().unwrap();
         assert_eq!(accepted.len(), 1);
         assert_eq!(accepted[0].as_str(), Some("src/a.ts:10"));
-        assert_eq!(out.metadata["refs"]["rejected"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            out.metadata["refs"]["rejected"].as_array().unwrap().len(),
+            1
+        );
 
         // 落库的只有核验通过的那条
-        let listed = tool.build_list_output("a1", false, 10, None, false).unwrap();
+        let listed = tool
+            .build_list_output("a1", false, 10, None, false)
+            .unwrap();
         let refs = listed["insights"][0]["refs"].as_array().unwrap();
         assert_eq!(refs.len(), 1);
         assert_eq!(refs[0].as_str(), Some("src/a.ts:10"));

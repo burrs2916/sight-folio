@@ -108,7 +108,10 @@ fn collect_commits(project_root: &str, since_days: Option<i64>) -> Vec<CommitEnt
             let mut parts = rest.split('\u{1f}');
             parts.next(); // 记录头后的空段
             let _hash = parts.next().unwrap_or("");
-            let at = parts.next().and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+            let at = parts
+                .next()
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0);
             cur = Some(CommitEntry {
                 at,
                 files: Vec::new(),
@@ -174,9 +177,7 @@ fn accumulate_pairs(
         for i in 0..files.len() {
             for j in (i + 1)..files.len() {
                 let (a, b) = ordered_pair(files[i], files[j]);
-                let e = pairs
-                    .entry((a.to_string(), b.to_string()))
-                    .or_default();
+                let e = pairs.entry((a.to_string(), b.to_string())).or_default();
                 e.co += 1;
                 if c.at > e.last_at {
                     e.last_at = c.at;

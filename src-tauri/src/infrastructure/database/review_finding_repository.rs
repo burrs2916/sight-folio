@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 pub trait ReviewFindingRepository: Send + Sync {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<ReviewFinding>>;
-    fn count_by_severity(&self, analysis_id: &str) -> AppResult<std::collections::HashMap<String, i64>>;
+    fn count_by_severity(
+        &self,
+        analysis_id: &str,
+    ) -> AppResult<std::collections::HashMap<String, i64>>;
     fn save_batch(&self, findings: &[ReviewFinding]) -> AppResult<()>;
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()>;
     /// 按规则清理某次分析下该规则产生的旧 finding（重跑检测前调用，避免重复堆积）
@@ -31,7 +34,9 @@ pub struct SqliteReviewFindingRepository {
 
 impl Clone for SqliteReviewFindingRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -60,7 +65,11 @@ fn row_to_finding(row: &rusqlite::Row) -> rusqlite::Result<ReviewFinding> {
 
 impl ReviewFindingRepository for SqliteReviewFindingRepository {
     fn list_by_analysis(&self, analysis_id: &str) -> AppResult<Vec<ReviewFinding>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, analysis_id, rule_id, target_id, target_type, severity, message, suggestion, status, found_at, fixed_at, metadata
              FROM review_findings WHERE analysis_id = ?1 ORDER BY found_at DESC",
@@ -71,8 +80,15 @@ impl ReviewFindingRepository for SqliteReviewFindingRepository {
         Ok(findings)
     }
 
-    fn count_by_severity(&self, analysis_id: &str) -> AppResult<std::collections::HashMap<String, i64>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    fn count_by_severity(
+        &self,
+        analysis_id: &str,
+    ) -> AppResult<std::collections::HashMap<String, i64>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT severity, COUNT(*) FROM review_findings WHERE analysis_id = ?1 AND status = 'open' GROUP BY severity",
         )?;
@@ -88,7 +104,11 @@ impl ReviewFindingRepository for SqliteReviewFindingRepository {
     }
 
     fn save_batch(&self, findings: &[ReviewFinding]) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare(
@@ -98,10 +118,18 @@ impl ReviewFindingRepository for SqliteReviewFindingRepository {
             )?;
             for f in findings {
                 stmt.execute(rusqlite::params![
-                    f.id, f.analysis_id, f.rule_id,
-                    f.target_id, f.target_type, f.severity,
-                    f.message, f.suggestion, f.status,
-                    f.found_at, f.fixed_at, f.metadata,
+                    f.id,
+                    f.analysis_id,
+                    f.rule_id,
+                    f.target_id,
+                    f.target_type,
+                    f.severity,
+                    f.message,
+                    f.suggestion,
+                    f.status,
+                    f.found_at,
+                    f.fixed_at,
+                    f.metadata,
                 ])?;
             }
         }
@@ -110,13 +138,24 @@ impl ReviewFindingRepository for SqliteReviewFindingRepository {
     }
 
     fn delete_by_analysis(&self, analysis_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM review_findings WHERE analysis_id = ?1", [analysis_id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM review_findings WHERE analysis_id = ?1",
+            [analysis_id],
+        )?;
         Ok(())
     }
 
     fn delete_by_rule(&self, analysis_id: &str, rule_id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "DELETE FROM review_findings WHERE analysis_id = ?1 AND rule_id = ?2",
             rusqlite::params![analysis_id, rule_id],
@@ -135,7 +174,11 @@ impl ReviewFindingRepository for SqliteReviewFindingRepository {
         severity: &str,
         scope: &str,
     ) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let now = chrono::Utc::now().timestamp();
         conn.execute(
             "INSERT OR IGNORE INTO review_rules

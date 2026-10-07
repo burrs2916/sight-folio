@@ -193,8 +193,14 @@ fn stop_job(job: WatchJob) {
 /// 判断文件路径是否应该被排除监视
 fn is_watch_excluded(path: &PathBuf) -> bool {
     let excludes = [
-        "node_modules", ".git", ".svn", "target", "dist", "build",
-        "__pycache__", ".DS_Store",
+        "node_modules",
+        ".git",
+        ".svn",
+        "target",
+        "dist",
+        "build",
+        "__pycache__",
+        ".DS_Store",
     ];
     for comp in path.components() {
         if let std::path::Component::Normal(name) = comp {

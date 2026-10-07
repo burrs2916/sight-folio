@@ -308,9 +308,12 @@ const DEFAULT_LIMIT: usize = 20;
 
 pub fn find_dataset(key: &str) -> Option<&'static DatasetSpec> {
     let k = key.trim();
-    DATASETS
-        .iter()
-        .find(|d| d.key.eq_ignore_ascii_case(k) || d.key.replace('_', "").eq_ignore_ascii_case(&k.replace('_', "")))
+    DATASETS.iter().find(|d| {
+        d.key.eq_ignore_ascii_case(k)
+            || d.key
+                .replace('_', "")
+                .eq_ignore_ascii_case(&k.replace('_', ""))
+    })
 }
 
 /// LIKE 通配符转义。
@@ -320,7 +323,9 @@ pub fn find_dataset(key: &str) -> Option<&'static DatasetSpec> {
 /// `src/ainternal`，命中集只会偏大不会报错——Agent 拿到的「共 N 处」就此失真，
 /// 而这种失真没有任何一层会替我们发现。
 fn escape_like(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 /// 解析后的查询条件。SQL 片段全部由静态白名单拼出，值一律走参数绑定。
@@ -356,7 +361,10 @@ fn build_plan(spec: &DatasetSpec, analysis_id: &str, params: &Value) -> Result<Q
             .map(|c| format!("{} LIKE ? ESCAPE '\\'", c))
             .collect();
         if ors.is_empty() {
-            return Err(format!("dataset '{}' does not support path filtering", spec.key));
+            return Err(format!(
+                "dataset '{}' does not support path filtering",
+                spec.key
+            ));
         }
         clauses.push(format!("({})", ors.join(" OR ")));
         let pattern = format!("%{}%", escape_like(path));
@@ -383,8 +391,19 @@ fn build_plan(spec: &DatasetSpec, analysis_id: &str, params: &Value) -> Result<Q
             let v = match val {
                 Value::String(s) => s.clone(),
                 Value::Number(n) => n.to_string(),
-                Value::Bool(b) => if *b { "1".into() } else { "0".into() },
-                _ => return Err(format!("filter value for '{}' must be a string, number or boolean", col)),
+                Value::Bool(b) => {
+                    if *b {
+                        "1".into()
+                    } else {
+                        "0".into()
+                    }
+                }
+                _ => {
+                    return Err(format!(
+                        "filter value for '{}' must be a string, number or boolean",
+                        col
+                    ))
+                }
             };
             clauses.push(format!("{} = ?", hit));
             binds.push(v.clone());
@@ -405,7 +424,11 @@ fn build_plan(spec: &DatasetSpec, analysis_id: &str, params: &Value) -> Result<Q
     }
 
     // 排序：列名白名单 + 方向只认 asc/desc
-    let order_sql = match params["order_by"].as_str().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    let order_sql = match params["order_by"]
+        .as_str()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
         Some(col) => {
             let Some(hit) = spec
                 .order_columns
@@ -417,7 +440,10 @@ fn build_plan(spec: &DatasetSpec, analysis_id: &str, params: &Value) -> Result<Q
                     spec.key, col, spec.order_columns
                 ));
             };
-            let dir = if params["order"].as_str().is_some_and(|d| d.eq_ignore_ascii_case("asc")) {
+            let dir = if params["order"]
+                .as_str()
+                .is_some_and(|d| d.eq_ignore_ascii_case("asc"))
+            {
                 "ASC"
             } else {
                 "DESC"
@@ -471,7 +497,10 @@ impl ScanRecordsTool {
         let mut items = Vec::with_capacity(DATASETS.len());
         for spec in DATASETS {
             let sql = match spec.base_filter {
-                Some(b) => format!("SELECT COUNT(*) FROM {} WHERE analysis_id = ?1 AND {}", spec.table, b),
+                Some(b) => format!(
+                    "SELECT COUNT(*) FROM {} WHERE analysis_id = ?1 AND {}",
+                    spec.table, b
+                ),
                 None => format!("SELECT COUNT(*) FROM {} WHERE analysis_id = ?1", spec.table),
             };
             // 查询失败（表缺失/库损坏）与「确实 0 行」必须分开表达：
@@ -535,13 +564,19 @@ impl ScanRecordsTool {
             .as_i64()
             .map(|n| n.clamp(1, MAX_LIMIT as i64) as usize)
             .unwrap_or(DEFAULT_LIMIT);
-        let offset = params["offset"].as_i64().map(|n| n.max(0) as usize).unwrap_or(0);
+        let offset = params["offset"]
+            .as_i64()
+            .map(|n| n.max(0) as usize)
+            .unwrap_or(0);
 
         let plan = build_plan(spec, analysis_id, params)?;
         let conn = self.db.0.lock().map_err(|e| e.to_string())?;
 
         // 过滤后的总数：Agent 据此知道「还有多少没看」，完整性才是可感知的
-        let count_sql = format!("SELECT COUNT(*) FROM {} WHERE {}", spec.table, plan.where_sql);
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM {} WHERE {}",
+            spec.table, plan.where_sql
+        );
         let total: i64 = conn
             .query_row(
                 &count_sql,
@@ -552,7 +587,10 @@ impl ScanRecordsTool {
 
         // 未过滤的维度总量：用来区分「筛没了」和「这维度本来就没数据」
         let base_sql = match spec.base_filter {
-            Some(b) => format!("SELECT COUNT(*) FROM {} WHERE analysis_id = ?1 AND {}", spec.table, b),
+            Some(b) => format!(
+                "SELECT COUNT(*) FROM {} WHERE analysis_id = ?1 AND {}",
+                spec.table, b
+            ),
             None => format!("SELECT COUNT(*) FROM {} WHERE analysis_id = ?1", spec.table),
         };
         let dataset_total: i64 = conn
@@ -619,7 +657,9 @@ impl ScanRecordsTool {
                 offset + returned
             ));
         } else if total > 0 {
-            hint.push_str(" This is the complete result set for these filters — no rows are hidden from you.");
+            hint.push_str(
+                " This is the complete result set for these filters — no rows are hidden from you.",
+            );
         }
         hint.push_str(
             " Cite findings as `path:line`. Do NOT open source files with file_read just to re-derive numbers that are already in these records.",
@@ -850,7 +890,10 @@ mod tests {
             .find(|d| d["dataset"] == "files")
             .unwrap();
         assert_eq!(files["rows"], 25, "目录行不应计入文件数据集");
-        assert!(files.get("emptyMeaning").is_none(), "有数据时不应提示空含义");
+        assert!(
+            files.get("emptyMeaning").is_none(),
+            "有数据时不应提示空含义"
+        );
     }
 
     #[test]
@@ -879,7 +922,10 @@ mod tests {
         let tool = ScanRecordsTool::new(db);
 
         let first = tool
-            .build_query("scan_1", &json!({ "dataset": "files", "limit": 20, "offset": 0 }))
+            .build_query(
+                "scan_1",
+                &json!({ "dataset": "files", "limit": 20, "offset": 0 }),
+            )
             .unwrap();
         assert_eq!(first["total"], 25);
         assert_eq!(first["returned"], 20);
@@ -888,7 +934,10 @@ mod tests {
         assert_eq!(first["datasetTotal"], 25);
 
         let second = tool
-            .build_query("scan_1", &json!({ "dataset": "files", "limit": 20, "offset": 20 }))
+            .build_query(
+                "scan_1",
+                &json!({ "dataset": "files", "limit": 20, "offset": 20 }),
+            )
             .unwrap();
         assert_eq!(second["returned"], 5);
         assert_eq!(second["hasMore"], false);
@@ -905,13 +954,19 @@ mod tests {
         let tool = ScanRecordsTool::new(db);
 
         let crit = tool
-            .build_query("scan_1", &json!({ "dataset": "techDebt", "where": { "severity": "critical" } }))
+            .build_query(
+                "scan_1",
+                &json!({ "dataset": "techDebt", "where": { "severity": "critical" } }),
+            )
             .unwrap();
         assert_eq!(crit["total"], 7, "critical 共 3+4=7 条");
         assert_eq!(crit["datasetTotal"], 9);
 
         let core = tool
-            .build_query("scan_1", &json!({ "dataset": "techDebt", "path": "src/core" }))
+            .build_query(
+                "scan_1",
+                &json!({ "dataset": "techDebt", "path": "src/core" }),
+            )
             .unwrap();
         assert_eq!(core["total"], 5, "src/core 下 critical3 + warning2");
 
@@ -945,7 +1000,10 @@ mod tests {
             seed_file(&db, "scan_1", i, "ts", i as i64, false);
         }
         let filtered_out = ScanRecordsTool::new(db.clone())
-            .build_query("scan_1", &json!({ "dataset": "files", "where": { "language": "python" } }))
+            .build_query(
+                "scan_1",
+                &json!({ "dataset": "files", "where": { "language": "python" } }),
+            )
             .unwrap();
         assert_eq!(filtered_out["total"], 0);
         assert_eq!(filtered_out["datasetTotal"], 10);
@@ -977,9 +1035,15 @@ mod tests {
 
         let tool = ScanRecordsTool::new(db);
         let hit = tool
-            .build_query("scan_1", &json!({ "dataset": "techDebt", "path": "src/__tests__" }))
+            .build_query(
+                "scan_1",
+                &json!({ "dataset": "techDebt", "path": "src/__tests__" }),
+            )
             .unwrap();
-        assert_eq!(hit["total"], 2, "下划线必须按字面量匹配，不能顺带命中相邻目录");
+        assert_eq!(
+            hit["total"], 2,
+            "下划线必须按字面量匹配，不能顺带命中相邻目录"
+        );
         assert_eq!(hit["datasetTotal"], 5);
     }
 
@@ -992,7 +1056,10 @@ mod tests {
         let res = tool
             .build_query("scan_1", &json!({ "dataset": "techDebt", "path": "%" }))
             .unwrap();
-        assert_eq!(res["total"], 0, "`%` 必须按字面量处理，不能退化成 match-all");
+        assert_eq!(
+            res["total"], 0,
+            "`%` 必须按字面量处理，不能退化成 match-all"
+        );
     }
 
     #[test]
@@ -1005,7 +1072,10 @@ mod tests {
             .map(|v| v.as_str().unwrap().to_string())
             .collect();
         let keys: Vec<String> = DATASETS.iter().map(|d| d.key.to_string()).collect();
-        assert_eq!(enums, keys, "tool 的 JSON 枚举必须和 DATASETS 静态表完全一致");
+        assert_eq!(
+            enums, keys,
+            "tool 的 JSON 枚举必须和 DATASETS 静态表完全一致"
+        );
     }
 
     #[test]

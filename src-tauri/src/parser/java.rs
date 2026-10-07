@@ -2,8 +2,8 @@
 
 use crate::commands::{code_structure, review};
 use crate::infrastructure::ast::Dialect;
-use crate::parser::{ParsedImport, SymbolCandidate};
 use crate::parser::{DepImport, LanguageParser, ParserCapabilities};
+use crate::parser::{ParsedImport, SymbolCandidate};
 
 pub struct JavaParser;
 
@@ -11,7 +11,11 @@ pub struct JavaParser;
 fn line_based(content: &str) -> Vec<DepImport> {
     review::parse_java_imports(content)
         .into_iter()
-        .map(|(path, line)| DepImport { path, line, kind: None })
+        .map(|(path, line)| DepImport {
+            path,
+            line,
+            kind: None,
+        })
         .collect()
 }
 
@@ -71,7 +75,11 @@ impl LanguageParser for JavaParser {
         } else {
             Dialect::Java
         };
-        crate::parser::imports_ast::extract_imports_with_fallback(dialect, content, line_based(content))
+        crate::parser::imports_ast::extract_imports_with_fallback(
+            dialect,
+            content,
+            line_based(content),
+        )
     }
 
     /// 符号级 import —— 无语言上下文的兜底路径（保持旧逐行行为，同 `parse_deps` 的理由）。

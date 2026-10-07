@@ -170,7 +170,10 @@ impl CorpusDatabase {
         )?;
         if !books_fts_exists {
             // 首次建表：把既有书行一次性灌入书 FTS（external content 的 'rebuild' 会重读 content 表）。
-            conn.execute("INSERT INTO corpus_books_fts(corpus_books_fts) VALUES ('rebuild')", [])?;
+            conn.execute(
+                "INSERT INTO corpus_books_fts(corpus_books_fts) VALUES ('rebuild')",
+                [],
+            )?;
         }
         Ok(())
     }
@@ -250,11 +253,17 @@ mod tests {
             ("corpus_books", "content_hash"),
             ("corpus_books", "simhash"),
         ] {
-            assert!(has_column(&conn, t, c), "{t}.{c} should exist after upgrade");
+            assert!(
+                has_column(&conn, t, c),
+                "{t}.{c} should exist after upgrade"
+            );
         }
         // 新列可写（触发器/FTS 链路未被破坏；rusqlite bundled 默认 foreign_keys=ON，先插书行）
-        conn.execute("INSERT INTO corpus_books (id, title) VALUES (1, 'legacy')", [])
-            .unwrap();
+        conn.execute(
+            "INSERT INTO corpus_books (id, title) VALUES (1, 'legacy')",
+            [],
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO corpus_chunks (book_id, seq, kind, content, chapter_title, norm_hash)
              VALUES (1, 0, 'sentence', 'x', '', 42)",

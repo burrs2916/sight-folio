@@ -112,7 +112,9 @@ impl AiProviderRepo {
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
     pub fn save(db: &Arc<Database>, p: &AiProviderRow) -> Result<(), String> {
@@ -129,8 +131,11 @@ impl AiProviderRepo {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM ai_models WHERE endpoint_id IN (SELECT id FROM ai_endpoints WHERE provider_id = ?1)", params![id])
             .map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_endpoints WHERE provider_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM ai_endpoints WHERE provider_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM ai_providers WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -151,17 +156,28 @@ impl AiEndpointRepo {
             .query_map([], |row| {
                 let enabled: i32 = row.get(7)?;
                 Ok(AiEndpointRow {
-                    id: row.get(0)?, provider_id: row.get(1)?, name: row.get(2)?,
-                    api_type: row.get(3)?, base_url: row.get(4)?, auth_type: row.get(5)?,
-                    custom_auth_header: row.get(6)?, enabled: enabled != 0,
-                    created_at: row.get(8)?, updated_at: row.get(9)?,
+                    id: row.get(0)?,
+                    provider_id: row.get(1)?,
+                    name: row.get(2)?,
+                    api_type: row.get(3)?,
+                    base_url: row.get(4)?,
+                    auth_type: row.get(5)?,
+                    custom_auth_header: row.get(6)?,
+                    enabled: enabled != 0,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
-    pub fn list_by_provider(db: &Arc<Database>, provider_id: &str) -> Result<Vec<AiEndpointRow>, String> {
+    pub fn list_by_provider(
+        db: &Arc<Database>,
+        provider_id: &str,
+    ) -> Result<Vec<AiEndpointRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare("SELECT id, provider_id, name, api_type, base_url, auth_type, custom_auth_header, enabled, created_at, updated_at FROM ai_endpoints WHERE provider_id = ?1 ORDER BY name")
@@ -170,14 +186,22 @@ impl AiEndpointRepo {
             .query_map(params![provider_id], |row| {
                 let enabled: i32 = row.get(7)?;
                 Ok(AiEndpointRow {
-                    id: row.get(0)?, provider_id: row.get(1)?, name: row.get(2)?,
-                    api_type: row.get(3)?, base_url: row.get(4)?, auth_type: row.get(5)?,
-                    custom_auth_header: row.get(6)?, enabled: enabled != 0,
-                    created_at: row.get(8)?, updated_at: row.get(9)?,
+                    id: row.get(0)?,
+                    provider_id: row.get(1)?,
+                    name: row.get(2)?,
+                    api_type: row.get(3)?,
+                    base_url: row.get(4)?,
+                    auth_type: row.get(5)?,
+                    custom_auth_header: row.get(6)?,
+                    enabled: enabled != 0,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
     pub fn save(db: &Arc<Database>, e: &AiEndpointRow) -> Result<(), String> {
@@ -215,19 +239,32 @@ impl AiModelRepo {
                 let reasoning: i32 = row.get(4)?;
                 let enabled: i32 = row.get(8)?;
                 let input_types_str: String = row.get(5)?;
-                let input_types: Vec<String> = serde_json::from_str(&input_types_str).unwrap_or_else(|_| vec!["text".to_string()]);
+                let input_types: Vec<String> = serde_json::from_str(&input_types_str)
+                    .unwrap_or_else(|_| vec!["text".to_string()]);
                 Ok(AiModelRow {
-                    id: row.get(0)?, name: row.get(1)?, ref_key: row.get(2)?,
-                    endpoint_id: row.get(3)?, reasoning: reasoning != 0,
-                    input_types, context_window: row.get(6)?, max_tokens: row.get(7)?,
-                    enabled: enabled != 0, created_at: row.get(9)?, updated_at: row.get(10)?,
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    ref_key: row.get(2)?,
+                    endpoint_id: row.get(3)?,
+                    reasoning: reasoning != 0,
+                    input_types,
+                    context_window: row.get(6)?,
+                    max_tokens: row.get(7)?,
+                    enabled: enabled != 0,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
-    pub fn list_by_endpoint(db: &Arc<Database>, endpoint_id: &str) -> Result<Vec<AiModelRow>, String> {
+    pub fn list_by_endpoint(
+        db: &Arc<Database>,
+        endpoint_id: &str,
+    ) -> Result<Vec<AiModelRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare("SELECT id, name, ref_key, endpoint_id, reasoning, input_types, context_window, max_tokens, enabled, created_at, updated_at FROM ai_models WHERE endpoint_id = ?1 ORDER BY name")
@@ -237,23 +274,34 @@ impl AiModelRepo {
                 let reasoning: i32 = row.get(4)?;
                 let enabled: i32 = row.get(8)?;
                 let input_types_str: String = row.get(5)?;
-                let input_types: Vec<String> = serde_json::from_str(&input_types_str).unwrap_or_else(|_| vec!["text".to_string()]);
+                let input_types: Vec<String> = serde_json::from_str(&input_types_str)
+                    .unwrap_or_else(|_| vec!["text".to_string()]);
                 Ok(AiModelRow {
-                    id: row.get(0)?, name: row.get(1)?, ref_key: row.get(2)?,
-                    endpoint_id: row.get(3)?, reasoning: reasoning != 0,
-                    input_types, context_window: row.get(6)?, max_tokens: row.get(7)?,
-                    enabled: enabled != 0, created_at: row.get(9)?, updated_at: row.get(10)?,
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    ref_key: row.get(2)?,
+                    endpoint_id: row.get(3)?,
+                    reasoning: reasoning != 0,
+                    input_types,
+                    context_window: row.get(6)?,
+                    max_tokens: row.get(7)?,
+                    enabled: enabled != 0,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
     pub fn save(db: &Arc<Database>, m: &AiModelRow) -> Result<(), String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let enabled = if m.enabled { 1 } else { 0 };
         let reasoning = if m.reasoning { 1 } else { 0 };
-        let input_types_json = serde_json::to_string(&m.input_types).unwrap_or_else(|_| "[\"text\"]".to_string());
+        let input_types_json =
+            serde_json::to_string(&m.input_types).unwrap_or_else(|_| "[\"text\"]".to_string());
         conn.execute(
             "INSERT OR REPLACE INTO ai_models (id, name, ref_key, endpoint_id, reasoning, input_types, context_window, max_tokens, enabled, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![m.id, m.name, m.ref_key, m.endpoint_id, reasoning, input_types_json, m.context_window, m.max_tokens, enabled, m.created_at, m.updated_at],
@@ -284,14 +332,22 @@ impl AiAgentRepo {
                 let tool_ids_str: String = row.get(7)?;
                 let tool_ids: Vec<String> = serde_json::from_str(&tool_ids_str).unwrap_or_default();
                 Ok(AiAgentRow {
-                    id: row.get(0)?, name: row.get(1)?, description: row.get(2)?,
-                    model_id: row.get(3)?, system_prompt: row.get(4)?,
-                    temperature: row.get(5)?, max_iterations: row.get(6)?,
-                    tool_ids, created_at: row.get(8)?, updated_at: row.get(9)?,
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    model_id: row.get(3)?,
+                    system_prompt: row.get(4)?,
+                    temperature: row.get(5)?,
+                    max_iterations: row.get(6)?,
+                    tool_ids,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
     pub fn save(db: &Arc<Database>, a: &AiAgentRow) -> Result<(), String> {
@@ -306,8 +362,11 @@ impl AiAgentRepo {
 
     pub fn delete(db: &Arc<Database>, id: &str) -> Result<(), String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_conversations WHERE agent_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM ai_conversations WHERE agent_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM ai_agents WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -319,7 +378,10 @@ impl AiAgentRepo {
 pub struct AiConversationRepo;
 
 impl AiConversationRepo {
-    pub fn list_by_agent(db: &Arc<Database>, agent_id: &str) -> Result<Vec<AiConversationRow>, String> {
+    pub fn list_by_agent(
+        db: &Arc<Database>,
+        agent_id: &str,
+    ) -> Result<Vec<AiConversationRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare("SELECT id, agent_id, title, created_at, updated_at FROM ai_conversations WHERE agent_id = ?1 ORDER BY updated_at DESC")
@@ -327,12 +389,17 @@ impl AiConversationRepo {
         let rows = stmt
             .query_map(params![agent_id], |row| {
                 Ok(AiConversationRow {
-                    id: row.get(0)?, agent_id: row.get(1)?, title: row.get(2)?,
-                    created_at: row.get(3)?, updated_at: row.get(4)?,
+                    id: row.get(0)?,
+                    agent_id: row.get(1)?,
+                    title: row.get(2)?,
+                    created_at: row.get(3)?,
+                    updated_at: row.get(4)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
     pub fn save(db: &Arc<Database>, c: &AiConversationRow) -> Result<(), String> {
@@ -346,8 +413,11 @@ impl AiConversationRepo {
 
     pub fn delete(db: &Arc<Database>, id: &str) -> Result<(), String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_messages WHERE conversation_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM ai_messages WHERE conversation_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM ai_conversations WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())
@@ -359,7 +429,10 @@ impl AiConversationRepo {
 pub struct AiMessageRepo;
 
 impl AiMessageRepo {
-    pub fn list_by_conversation(db: &Arc<Database>, conversation_id: &str) -> Result<Vec<AiMessageRow>, String> {
+    pub fn list_by_conversation(
+        db: &Arc<Database>,
+        conversation_id: &str,
+    ) -> Result<Vec<AiMessageRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare("SELECT id, conversation_id, role, content, tool_calls, created_at FROM ai_messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
@@ -367,12 +440,18 @@ impl AiMessageRepo {
         let rows = stmt
             .query_map(params![conversation_id], |row| {
                 Ok(AiMessageRow {
-                    id: row.get(0)?, conversation_id: row.get(1)?, role: row.get(2)?,
-                    content: row.get(3)?, tool_calls: row.get(4)?, created_at: row.get(5)?,
+                    id: row.get(0)?,
+                    conversation_id: row.get(1)?,
+                    role: row.get(2)?,
+                    content: row.get(3)?,
+                    tool_calls: row.get(4)?,
+                    created_at: row.get(5)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
     pub fn save(db: &Arc<Database>, m: &AiMessageRow) -> Result<(), String> {
@@ -488,7 +567,11 @@ pub struct AiContextPackRepo;
 
 impl AiContextPackRepo {
     /// 保存整个包（pack 级 + 所有分节），在一个事务内完成：先删旧分节再插入，pack_id 唯一即覆盖。
-    pub fn save_pack(db: &Arc<Database>, pack: &AiContextPackRow, sections: &[AiContextSectionInput]) -> Result<(), String> {
+    pub fn save_pack(
+        db: &Arc<Database>,
+        pack: &AiContextPackRow,
+        sections: &[AiContextSectionInput],
+    ) -> Result<(), String> {
         let mut conn = db.0.lock().map_err(|e| e.to_string())?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
         tx.execute(
@@ -502,8 +585,11 @@ impl AiContextPackRepo {
                 serde_json::to_string(&pack.section_keys).unwrap_or_else(|_| "[]".to_string()),
             ],
         ).map_err(|e| e.to_string())?;
-        tx.execute("DELETE FROM ai_context_sections WHERE pack_id = ?1", params![pack.id])
-            .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM ai_context_sections WHERE pack_id = ?1",
+            params![pack.id],
+        )
+        .map_err(|e| e.to_string())?;
         for sec in sections {
             let sid = format!("{}#{}", pack.id, sec.section_key);
             tx.execute(
@@ -614,7 +700,10 @@ impl AiContextPackRepo {
         }
     }
 
-    pub fn list_packs(db: &Arc<Database>, scope_id: Option<&str>) -> Result<Vec<AiContextPackRow>, String> {
+    pub fn list_packs(
+        db: &Arc<Database>,
+        scope_id: Option<&str>,
+    ) -> Result<Vec<AiContextPackRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let rows = if let Some(sid) = scope_id {
             let mut stmt = conn
@@ -687,7 +776,10 @@ impl AiContextPackRepo {
 pub struct AiContextSectionRepo;
 
 impl AiContextSectionRepo {
-    pub fn list_by_pack(db: &Arc<Database>, pack_id: &str) -> Result<Vec<AiContextSectionRow>, String> {
+    pub fn list_by_pack(
+        db: &Arc<Database>,
+        pack_id: &str,
+    ) -> Result<Vec<AiContextSectionRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare(
@@ -713,12 +805,17 @@ impl AiContextSectionRepo {
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
     /// 只取分节戳（指纹 + 更新时间 + token 估算），**不读正文**。
     /// 增量判定与新鲜度展示都只需要这些，读正文会让「省 IO」的初衷落空。
-    pub fn list_stamps(db: &Arc<Database>, pack_id: &str) -> Result<Vec<AiContextSectionStamp>, String> {
+    pub fn list_stamps(
+        db: &Arc<Database>,
+        pack_id: &str,
+    ) -> Result<Vec<AiContextSectionStamp>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare(
@@ -736,10 +833,16 @@ impl AiContextSectionRepo {
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 
-    pub fn get_section(db: &Arc<Database>, pack_id: &str, section_key: &str) -> Result<Option<AiContextSectionRow>, String> {
+    pub fn get_section(
+        db: &Arc<Database>,
+        pack_id: &str,
+        section_key: &str,
+    ) -> Result<Option<AiContextSectionRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let mut stmt = conn
             .prepare(
@@ -931,7 +1034,8 @@ impl AnalysisFileSnapshot {
 
         let tail = format!("/{}", path.trim_start_matches('/'));
         if out.len() < max {
-            let mut hits: Vec<&String> = self.hashes.keys().filter(|p| p.ends_with(&tail)).collect();
+            let mut hits: Vec<&String> =
+                self.hashes.keys().filter(|p| p.ends_with(&tail)).collect();
             hits.sort();
             for p in hits {
                 push(p, &mut out);
@@ -1015,7 +1119,8 @@ pub fn normalize_ref_path(raw: &str) -> String {
     // 尾部 `:数字` 视为行号（`:12:5` 这种连剥两次）
     for _ in 0..2 {
         if let Some(idx) = s.rfind(':') {
-            if idx > 0 && s[idx + 1..].trim().chars().all(|c| c.is_ascii_digit())
+            if idx > 0
+                && s[idx + 1..].trim().chars().all(|c| c.is_ascii_digit())
                 && idx + 1 < s.len()
             {
                 s = s[..idx].to_string();
@@ -1157,10 +1262,7 @@ impl AiInsightRepo {
     /// · 快照为空（项目没扫过）→ 全部放行，绝不因为「我们没数据」去否定模型；
     /// · 只在文件名项目内唯一时才做对齐，重名一律判 unknown 并列候选；
     /// · 行号越界只丢行号不丢文件——文件本身是对的，没必要连结论一起废掉。
-    pub fn verify_refs(
-        snap: &AnalysisFileSnapshot,
-        refs: &[String],
-    ) -> RefVerdict {
+    pub fn verify_refs(snap: &AnalysisFileSnapshot, refs: &[String]) -> RefVerdict {
         let mut verdict = RefVerdict::default();
         for raw in refs {
             let (path, line) = split_ref_line(raw);
@@ -1242,8 +1344,10 @@ impl AiInsightRepo {
 
     /// 当前 Unix 秒（与表内 strftime('%s','now') 语义一致，便于 UPDATE 复用）
     fn now_ts(conn: &rusqlite::Connection) -> i64 {
-        conn.query_row("SELECT CAST(strftime('%s','now') AS INTEGER)", [], |r| r.get(0))
-            .unwrap_or(0)
+        conn.query_row("SELECT CAST(strftime('%s','now') AS INTEGER)", [], |r| {
+            r.get(0)
+        })
+        .unwrap_or(0)
     }
 
     /// 同一结论的指纹：分析 + 类型 + 规范化标题。
@@ -1262,12 +1366,7 @@ impl AiInsightRepo {
         } else {
             norm
         };
-        format!(
-            "{}|{}|{}",
-            analysis_id,
-            kind.trim().to_lowercase(),
-            norm
-        )
+        format!("{}|{}|{}", analysis_id, kind.trim().to_lowercase(), norm)
     }
 
     /// 标题强归一：小写，仅保留字母 / 数字 / 汉字与空白，多空白坍缩为单空格，其余（标点、符号、emoji）丢弃。
@@ -1488,13 +1587,11 @@ impl AiInsightRepo {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let now = Self::now_ts(&conn);
         let fp = Self::compute_fingerprint(&r.analysis_id, &r.kind, &r.title);
-        let refs_json =
-            serde_json::to_string(&r.refs).unwrap_or_else(|_| "[]".to_string());
+        let refs_json = serde_json::to_string(&r.refs).unwrap_or_else(|_| "[]".to_string());
         // 证据快照必须在保存这一刻冻结：过后代码一改，就再也无从知道结论当初依据的是哪一版
         let snap = Self::load_file_snapshot(&conn, &r.analysis_id);
         let evidence = Self::build_evidence(&snap, &r.refs);
-        let evidence_json =
-            serde_json::to_string(&evidence).unwrap_or_else(|_| "[]".to_string());
+        let evidence_json = serde_json::to_string(&evidence).unwrap_or_else(|_| "[]".to_string());
 
         // 指纹命中即同结论（索引 idx_ai_insights_fingerprint 加速）
         let existing: Option<(String, i64)> = {
@@ -1712,7 +1809,10 @@ impl AiInsightRepo {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(&meta) else {
             return false;
         };
-        let Some(arr) = v.get("errorLines").and_then(|x: &serde_json::Value| x.as_array()) else {
+        let Some(arr) = v
+            .get("errorLines")
+            .and_then(|x: &serde_json::Value| x.as_array())
+        else {
             return false;
         };
         arr.iter().any(|e| e.as_i64() == Some(line))
@@ -1754,7 +1854,10 @@ impl AiInsightRepo {
         Ok(())
     }
 
-    pub fn list_by_analysis(db: &Arc<Database>, analysis_id: &str) -> Result<Vec<AiInsightRow>, String> {
+    pub fn list_by_analysis(
+        db: &Arc<Database>,
+        analysis_id: &str,
+    ) -> Result<Vec<AiInsightRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         // 一次装载全分析的文件快照，供所有洞察共用（洞察可能上百条，逐条回表会变成 N+1）
         let snap = Self::load_file_snapshot(&conn, analysis_id);
@@ -1819,7 +1922,9 @@ impl AiInsightRepo {
                 })
             })
             .map_err(|e| e.to_string())?;
-        Ok(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?)
+        Ok(rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?)
     }
 }
 
@@ -1954,10 +2059,16 @@ impl AiAutoAnalysisRuleRepo {
 
     pub fn delete(db: &Arc<Database>, id: &str) -> Result<(), String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_auto_analysis_rules WHERE id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_auto_analysis_runs WHERE rule_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM ai_auto_analysis_rules WHERE id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM ai_auto_analysis_runs WHERE rule_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         Ok(())
     }
 }
@@ -2079,7 +2190,10 @@ impl AiAutoAnalysisRunRepo {
     }
 
     /// 最近的运行记录（UI 展示自动化是否在正常工作）
-    pub fn list_recent(db: &Arc<Database>, limit: i64) -> Result<Vec<AiAutoAnalysisRunRow>, String> {
+    pub fn list_recent(
+        db: &Arc<Database>,
+        limit: i64,
+    ) -> Result<Vec<AiAutoAnalysisRunRow>, String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let sql = format!(
             "SELECT {} FROM ai_auto_analysis_runs ORDER BY created_at DESC, rowid DESC LIMIT ?1",
@@ -2221,7 +2335,8 @@ impl AiAutoAnalysisRunRepo {
                     |row| row.get::<_, String>(0),
                 )
                 .map_err(|e| e.to_string())?;
-            q.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+            q.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?
         };
         if ids.is_empty() {
             return Ok(0);
@@ -2764,30 +2879,60 @@ mod tests {
     #[test]
     fn save_dedup_inserts_then_reconfirms_without_duplicate() {
         let db = mem_db();
-        let a = sample_row("analysisX", "recommendation", "high", "Extract duplicated config loader");
+        let a = sample_row(
+            "analysisX",
+            "recommendation",
+            "high",
+            "Extract duplicated config loader",
+        );
         // 标题大小写/空格差异应视为同一结论（指纹规范化）
-        let b = sample_row("analysisX", "recommendation", "high", "  Extract Duplicated Config Loader  ");
+        let b = sample_row(
+            "analysisX",
+            "recommendation",
+            "high",
+            "  Extract Duplicated Config Loader  ",
+        );
         let (id1, is_new1) = AiInsightRepo::save_dedup(&db, &a).unwrap();
         assert!(is_new1, "first save should be new");
         let (id2, is_new2) = AiInsightRepo::save_dedup(&db, &b).unwrap();
-        assert!(!is_new2, "same-title (case/space-insensitive) save must re-confirm, not duplicate");
+        assert!(
+            !is_new2,
+            "same-title (case/space-insensitive) save must re-confirm, not duplicate"
+        );
         assert_eq!(id1, id2, "re-confirmation keeps the same row id");
 
         let rows = AiInsightRepo::list_by_analysis(&db, "analysisX").unwrap();
         assert_eq!(rows.len(), 1, "must not create a duplicate row");
-        assert_eq!(rows[0].seen_count, 2, "seen_count should be incremented to 2");
+        assert_eq!(
+            rows[0].seen_count, 2,
+            "seen_count should be incremented to 2"
+        );
     }
 
     #[test]
     fn save_dedup_distinguishes_different_conclusions() {
         let db = mem_db();
-        let a = sample_row("analysisX", "recommendation", "high", "Extract config loader");
-        let c = sample_row("analysisX", "risk", "critical", "Unbounded recursion in parser");
+        let a = sample_row(
+            "analysisX",
+            "recommendation",
+            "high",
+            "Extract config loader",
+        );
+        let c = sample_row(
+            "analysisX",
+            "risk",
+            "critical",
+            "Unbounded recursion in parser",
+        );
         let (_id1, n1) = AiInsightRepo::save_dedup(&db, &a).unwrap();
         let (_id2, n2) = AiInsightRepo::save_dedup(&db, &c).unwrap();
         assert!(n1 && n2);
         let rows = AiInsightRepo::list_by_analysis(&db, "analysisX").unwrap();
-        assert_eq!(rows.len(), 2, "different title/severity/kind = distinct insights");
+        assert_eq!(
+            rows.len(),
+            2,
+            "different title/severity/kind = distinct insights"
+        );
         assert!(rows.iter().all(|r| r.seen_count == 1));
     }
 
@@ -2809,9 +2954,19 @@ mod tests {
     #[test]
     fn save_dedup_merges_reworded_title_with_punctuation() {
         let db = mem_db();
-        let a = sample_row("analysisX", "finding", "high", "Extract Duplicated Config Loader!");
+        let a = sample_row(
+            "analysisX",
+            "finding",
+            "high",
+            "Extract Duplicated Config Loader!",
+        );
         // 换模型措辞 / 加标点 / 改大小写 —— 应判为同一结论，归并而非新建
-        let b = sample_row("analysisX", "finding", "high", "  extract duplicated config loader  ");
+        let b = sample_row(
+            "analysisX",
+            "finding",
+            "high",
+            "  extract duplicated config loader  ",
+        );
         let (_id1, n1) = AiInsightRepo::save_dedup(&db, &a).unwrap();
         let (_id2, n2) = AiInsightRepo::save_dedup(&db, &b).unwrap();
         assert!(n1 && !n2, "reworded title must re-confirm, not duplicate");
@@ -2824,10 +2979,18 @@ mod tests {
     fn save_dedup_merges_regraded_severity_into_same_row() {
         let db = mem_db();
         let a = sample_row("analysisX", "risk", "high", "Unbounded recursion in parser");
-        let b = sample_row("analysisX", "risk", "critical", "Unbounded recursion in parser");
+        let b = sample_row(
+            "analysisX",
+            "risk",
+            "critical",
+            "Unbounded recursion in parser",
+        );
         let (id1, n1) = AiInsightRepo::save_dedup(&db, &a).unwrap();
         let (id2, n2) = AiInsightRepo::save_dedup(&db, &b).unwrap();
-        assert!(n1 && !n2, "same title with different severity must merge, not duplicate");
+        assert!(
+            n1 && !n2,
+            "same title with different severity must merge, not duplicate"
+        );
         assert_eq!(id1, id2, "re-grade keeps the same row id");
         let rows = AiInsightRepo::list_by_analysis(&db, "analysisX").unwrap();
         assert_eq!(rows.len(), 1, "severity is not part of the dedup key");
@@ -2853,7 +3016,12 @@ mod tests {
         }
     }
 
-    fn sample_section(key: &str, content: &str, digest: &str, updated_at: i64) -> AiContextSectionInput {
+    fn sample_section(
+        key: &str,
+        content: &str,
+        digest: &str,
+        updated_at: i64,
+    ) -> AiContextSectionInput {
         AiContextSectionInput {
             section_key: key.to_string(),
             title: key.to_string(),
@@ -2871,7 +3039,11 @@ mod tests {
     #[test]
     fn partial_save_rewrites_only_given_sections() {
         let db = mem_db();
-        let pack = sample_pack("analysisX:project-scan", &["overview", "techDebt", "clones"], "d0");
+        let pack = sample_pack(
+            "analysisX:project-scan",
+            &["overview", "techDebt", "clones"],
+            "d0",
+        );
         AiContextPackRepo::save_pack(
             &db,
             &pack,
@@ -2884,14 +3056,21 @@ mod tests {
         .unwrap();
 
         // 第二轮只有 techDebt 变了
-        let pack2 = sample_pack("analysisX:project-scan", &["overview", "techDebt", "clones"], "d1");
+        let pack2 = sample_pack(
+            "analysisX:project-scan",
+            &["overview", "techDebt", "clones"],
+            "d1",
+        );
         let written = AiContextPackRepo::save_sections_partial(
             &db,
             &pack2,
             &[sample_section("techDebt", "body-debt-v2", "h-td-2", 2_000)],
         )
         .unwrap();
-        assert_eq!(written, 1, "partial save must write exactly the changed sections");
+        assert_eq!(
+            written, 1,
+            "partial save must write exactly the changed sections"
+        );
 
         let secs = AiContextSectionRepo::list_by_pack(&db, "analysisX:project-scan").unwrap();
         assert_eq!(secs.len(), 3, "untouched sections must not be deleted");
@@ -2904,14 +3083,28 @@ mod tests {
         // 否则 Agent 用 since 过滤时会把全部分节都当成「变了」，增量退化为全量。
         for key in ["overview", "clones"] {
             let s = secs.iter().find(|s| s.section_key == key).unwrap();
-            assert_eq!(s.updated_at, 1_000, "unchanged section {} must keep its timestamp", key);
-            assert!(s.content.starts_with("body-"), "unchanged section {} body must survive", key);
+            assert_eq!(
+                s.updated_at, 1_000,
+                "unchanged section {} must keep its timestamp",
+                key
+            );
+            assert!(
+                s.content.starts_with("body-"),
+                "unchanged section {} body must survive",
+                key
+            );
         }
 
         // 包元信息仍应被更新（digest / generatedAt 反映最新一次构建）
-        let p = AiContextPackRepo::get_pack(&db, "analysisX:project-scan").unwrap().unwrap();
+        let p = AiContextPackRepo::get_pack(&db, "analysisX:project-scan")
+            .unwrap()
+            .unwrap();
         assert_eq!(p.digest, "d1");
-        assert_eq!(p.section_keys.len(), 3, "pack must keep the full key set, not just the changed one");
+        assert_eq!(
+            p.section_keys.len(),
+            3,
+            "pack must keep the full key set, not just the changed one"
+        );
     }
 
     #[test]
@@ -2952,10 +3145,19 @@ mod tests {
         .unwrap();
 
         let pack2 = sample_pack("analysisX:project-scan", &["overview"], "d1");
-        AiContextPackRepo::save_pack(&db, &pack2, &[sample_section("overview", "a2", "h3", 2_000)]).unwrap();
+        AiContextPackRepo::save_pack(
+            &db,
+            &pack2,
+            &[sample_section("overview", "a2", "h3", 2_000)],
+        )
+        .unwrap();
 
         let secs = AiContextSectionRepo::list_by_pack(&db, "analysisX:project-scan").unwrap();
-        assert_eq!(secs.len(), 1, "retired sections must be removed on a full rewrite");
+        assert_eq!(
+            secs.len(),
+            1,
+            "retired sections must be removed on a full rewrite"
+        );
         assert_eq!(secs[0].section_key, "overview");
     }
 
@@ -2992,10 +3194,17 @@ mod tests {
         assert_eq!(all.len(), 2, "upsert must not duplicate rows");
 
         let scan_only = AiAutoAnalysisRuleRepo::list(&db, Some("project-scan")).unwrap();
-        assert_eq!(scan_only.len(), 1, "module filter should isolate other modules");
+        assert_eq!(
+            scan_only.len(),
+            1,
+            "module filter should isolate other modules"
+        );
         assert_eq!(scan_only[0].cooldown_minutes, 90);
         assert!(!scan_only[0].enabled);
-        assert!(scan_only[0].scope_id.is_none(), "NULL scope = applies to all scopes");
+        assert!(
+            scan_only[0].scope_id.is_none(),
+            "NULL scope = applies to all scopes"
+        );
     }
 
     #[test]
@@ -3011,10 +3220,19 @@ mod tests {
         AiAutoAnalysisRuleRepo::save(&db, &edited).unwrap();
 
         let rows = AiAutoAnalysisRuleRepo::list(&db, Some("project-scan")).unwrap();
-        assert_eq!(rows[0].preset_key, "architecture-health", "config change applied");
-        assert_eq!(rows[0].last_digest, "digest-abc", "run digest must survive a config save");
+        assert_eq!(
+            rows[0].preset_key, "architecture-health",
+            "config change applied"
+        );
+        assert_eq!(
+            rows[0].last_digest, "digest-abc",
+            "run digest must survive a config save"
+        );
         assert_eq!(rows[0].last_conversation_id.as_deref(), Some("conv_1"));
-        assert!(rows[0].last_run_at > 0, "cooldown anchor must survive a config save");
+        assert!(
+            rows[0].last_run_at > 0,
+            "cooldown anchor must survive a config save"
+        );
     }
 
     #[test]
@@ -3054,7 +3272,9 @@ mod tests {
         AiAutoAnalysisRuleRepo::delete(&db, "r1").unwrap();
         assert!(AiAutoAnalysisRuleRepo::list(&db, None).unwrap().is_empty());
         assert!(
-            AiAutoAnalysisRunRepo::list_recent(&db, 10).unwrap().is_empty(),
+            AiAutoAnalysisRunRepo::list_recent(&db, 10)
+                .unwrap()
+                .is_empty(),
             "deleting a rule must not leave orphan run records"
         );
     }
@@ -3108,9 +3328,15 @@ mod tests {
 
     #[test]
     fn split_ref_line_extracts_line_and_keeps_path_in_sync() {
-        assert_eq!(split_ref_line("src/a.ts:120"), ("src/a.ts".into(), Some(120)));
+        assert_eq!(
+            split_ref_line("src/a.ts:120"),
+            ("src/a.ts".into(), Some(120))
+        );
         // `:行:列` 取行不取列，且路径与 normalize_ref_path 剥出的结果一致
-        assert_eq!(split_ref_line("src/a.ts:120:8"), ("src/a.ts".into(), Some(120)));
+        assert_eq!(
+            split_ref_line("src/a.ts:120:8"),
+            ("src/a.ts".into(), Some(120))
+        );
         assert_eq!(split_ref_line("src/a.ts"), ("src/a.ts".into(), None));
         assert_eq!(split_ref_line("src/a.ts:0"), ("src/a.ts".into(), None));
     }
@@ -3134,7 +3360,10 @@ mod tests {
         let v = AiInsightRepo::verify_refs(&snap, &["only.ts:12".to_string()]);
         assert_eq!(v.checks[0].status, ref_check_status::ALIGNED);
         // 落库的是真实路径，行号保留 —— 否则画布/报告仍旧点不开
-        assert_eq!(v.accepted_refs(), vec!["src/deep/nested/only.ts:12".to_string()]);
+        assert_eq!(
+            v.accepted_refs(),
+            vec!["src/deep/nested/only.ts:12".to_string()]
+        );
         assert!(v.checks[0].note.contains("src/deep/nested/only.ts"));
     }
 
@@ -3161,7 +3390,10 @@ mod tests {
         assert!(v.all_rejected());
         assert_eq!(
             v.checks[0].candidates,
-            vec!["src/ai/tools.rs".to_string(), "src/other/tools.rs".to_string()]
+            vec![
+                "src/ai/tools.rs".to_string(),
+                "src/other/tools.rs".to_string()
+            ]
         );
     }
 
@@ -3293,7 +3525,12 @@ mod tests {
     fn legacy_insight_without_evidence_snapshot_is_unknown_not_current() {
         let db = mem_db();
         put_file(&db, "a1", "src/a.ts", "h1");
-        let row = sample_row("a1", "finding", "low", "Old conclusion from before snapshots");
+        let row = sample_row(
+            "a1",
+            "finding",
+            "low",
+            "Old conclusion from before snapshots",
+        );
         AiInsightRepo::save_dedup(&db, &row).unwrap();
         // 模拟历史数据：把证据快照抹掉（旧版本写库时还没有这一列）
         {
@@ -3425,7 +3662,10 @@ mod tests {
 
         let rows = AiAutoAnalysisRunRepo::latest_per_preset(&db, "project-scan", "a1").unwrap();
         assert_eq!(rows.len(), 2, "每个维度只应出现一次");
-        let arch = rows.iter().find(|r| r.preset_key == "architecture-health").unwrap();
+        let arch = rows
+            .iter()
+            .find(|r| r.preset_key == "architecture-health")
+            .unwrap();
         assert_eq!(arch.context_digest, "d2", "必须取最近那一次的指纹");
         assert_eq!(rows[0].preset_key, "architecture-health", "按时间倒序");
     }
@@ -3605,7 +3845,8 @@ mod tests {
         // 那条指向空气的结论会永远挂在账上。
         let before = AiInsightRepo::evidence_state_digest(&mk(&["src/a.ts"]), &snap);
         drop_file(&db, "ed2", "src/a.ts");
-        let after = AiInsightRepo::evidence_state_digest(&mk(&["src/a.ts"]), &snapshot_of(&db, "ed2"));
+        let after =
+            AiInsightRepo::evidence_state_digest(&mk(&["src/a.ts"]), &snapshot_of(&db, "ed2"));
         assert_ne!(before, after, "证据文件消失必须改变现状指纹");
     }
 
@@ -3657,8 +3898,14 @@ mod tests {
 
         let rows = AiFocusAssignmentRepo::list_by_scope(&db, "project-scan", "a1").unwrap();
         assert_eq!(rows.len(), 1, "同一文件只保留一行");
-        assert_eq!(rows[0].assign_count, 2, "次数累加，用于发现「点名多次仍无结论」");
-        assert_eq!(rows[0].context_digest, "d2", "指纹更新为最近一次，否则永远判成数据已变");
+        assert_eq!(
+            rows[0].assign_count, 2,
+            "次数累加，用于发现「点名多次仍无结论」"
+        );
+        assert_eq!(
+            rows[0].context_digest, "d2",
+            "指纹更新为最近一次，否则永远判成数据已变"
+        );
         assert_eq!(rows[0].assigned_at, 200);
     }
 
@@ -3728,7 +3975,11 @@ mod tests {
         other.scope_id = "a2".into();
         AiFocusAssignmentRepo::record_many(
             &db,
-            &[assign_row("src/a.ts", "d1", 100), other, assign_row("   ", "d1", 100)],
+            &[
+                assign_row("src/a.ts", "d1", 100),
+                other,
+                assign_row("   ", "d1", 100),
+            ],
         )
         .unwrap();
 
@@ -3754,7 +4005,10 @@ mod tests {
         AiFocusAssignmentRepo::record_many(&db, &[assign_row("src/a.ts", "d1", 200)]).unwrap();
         let rows = AiFocusAssignmentRepo::list_by_scope(&db, "project-scan", "a1").unwrap();
         assert_eq!(rows[0].outcome, "", "重新派单必须重置核销状态");
-        assert_eq!(rows[0].assign_count, 2, "重派累加次数——多次未落实才是人工介入的信号");
+        assert_eq!(
+            rows[0].assign_count, 2,
+            "重派累加次数——多次未落实才是人工介入的信号"
+        );
     }
 
     #[test]
@@ -3771,7 +4025,10 @@ mod tests {
         let n = AiFocusAssignmentRepo::settle_by_run(&db, "arun_x", "error").unwrap();
         assert_eq!(n, 0, "迟到回执自动作废");
         let rows = AiFocusAssignmentRepo::list_by_scope(&db, "project-scan", "a1").unwrap();
-        assert_eq!(rows[0].outcome, "", "新一轮仍处于待回执状态，未被误判为失败");
+        assert_eq!(
+            rows[0].outcome, "",
+            "新一轮仍处于待回执状态，未被误判为失败"
+        );
     }
 
     // ─── 中断轮次清算：回执写在进程里，进程没了就永远写不成 ───
@@ -3805,12 +4062,18 @@ mod tests {
         let r = runs.iter().find(|r| r.id == run_id).unwrap();
         assert_eq!(r.outcome, "interrupted");
         assert!(r.finished_at > 0, "清算也要留下落点时间");
-        assert!(r.detail.contains("建议读 3/11"), "原有 detail 是追加不是覆盖");
+        assert!(
+            r.detail.contains("建议读 3/11"),
+            "原有 detail 是追加不是覆盖"
+        );
         assert!(r.detail.contains("中断"));
 
         // 两张表必须同一事务落定：只标轨迹不退派单，等于把同一个 bug 换个更隐蔽的姿势
         let rows = AiFocusAssignmentRepo::list_by_scope(&db, "project-scan", "a1").unwrap();
-        assert_eq!(rows[0].outcome, "interrupted", "那一轮点名的文件必须退回队列");
+        assert_eq!(
+            rows[0].outcome, "interrupted",
+            "那一轮点名的文件必须退回队列"
+        );
 
         // 中断与 error 同列：这一轮一条结论都没有，算作覆盖就是为一次「关窗口」点永久绿灯
         let cov = AiAutoAnalysisRunRepo::latest_per_preset(&db, "project-scan", "a1").unwrap();
@@ -3827,7 +4090,10 @@ mod tests {
                 .unwrap();
         assert_eq!(n, 0);
         let runs = AiAutoAnalysisRunRepo::list_recent(&db, 10).unwrap();
-        assert_eq!(runs.iter().find(|r| r.id == run_id).unwrap().outcome, "pending");
+        assert_eq!(
+            runs.iter().find(|r| r.id == run_id).unwrap().outcome,
+            "pending"
+        );
         let rows = AiFocusAssignmentRepo::list_by_scope(&db, "project-scan", "a1").unwrap();
         assert_eq!(rows[0].outcome, "", "派单同样保持待回执");
     }
@@ -3848,7 +4114,10 @@ mod tests {
                 .unwrap();
         assert_eq!(n, 1, "轨迹本身仍要落定");
         let runs = AiAutoAnalysisRunRepo::list_recent(&db, 10).unwrap();
-        assert_eq!(runs.iter().find(|r| r.id == run_id).unwrap().outcome, "interrupted");
+        assert_eq!(
+            runs.iter().find(|r| r.id == run_id).unwrap().outcome,
+            "interrupted"
+        );
         let rows = AiFocusAssignmentRepo::list_by_scope(&db, "project-scan", "a1").unwrap();
         assert_eq!(rows[0].outcome, "", "新一轮的派单不受迟到清算影响");
     }
@@ -3875,8 +4144,10 @@ mod tests {
         // 文件监视触发的增量重扫一天能有几十次。每次插一行，几小时就把
         // 有意义的历史挤出保留窗口，时间轴变成一片噪声。
         let db = mem_db();
-        let (_, new1) = AiMetricSnapshotRepo::record(&db, &snap_row("s1", "d1", "{}"), 100).unwrap();
-        let (id2, new2) = AiMetricSnapshotRepo::record(&db, &snap_row("s2", "d1", "{}"), 200).unwrap();
+        let (_, new1) =
+            AiMetricSnapshotRepo::record(&db, &snap_row("s1", "d1", "{}"), 100).unwrap();
+        let (id2, new2) =
+            AiMetricSnapshotRepo::record(&db, &snap_row("s2", "d1", "{}"), 200).unwrap();
         assert!(new1 && !new2);
         assert_eq!(id2, "s1", "沿用原来那一行，不新建");
 
@@ -3895,7 +4166,8 @@ mod tests {
         let db = mem_db();
         AiMetricSnapshotRepo::record(&db, &snap_row("s1", "dA", "{}"), 100).unwrap();
         AiMetricSnapshotRepo::record(&db, &snap_row("s2", "dB", "{}"), 200).unwrap();
-        let (_, new3) = AiMetricSnapshotRepo::record(&db, &snap_row("s3", "dA", "{}"), 300).unwrap();
+        let (_, new3) =
+            AiMetricSnapshotRepo::record(&db, &snap_row("s3", "dA", "{}"), 300).unwrap();
 
         assert!(new3, "回到旧形态也是一次真实变化");
         let rows = AiMetricSnapshotRepo::list(&db, "project-scan", "a1", 10).unwrap();
@@ -3912,8 +4184,18 @@ mod tests {
         // 同指纹但不同作用域：绝不能被当成「没变化」而合并掉
         let (_, new2) = AiMetricSnapshotRepo::record(&db, &other, 110).unwrap();
         assert!(new2);
-        assert_eq!(AiMetricSnapshotRepo::list(&db, "project-scan", "a1", 10).unwrap().len(), 1);
-        assert_eq!(AiMetricSnapshotRepo::list(&db, "project-scan", "a2", 10).unwrap().len(), 1);
+        assert_eq!(
+            AiMetricSnapshotRepo::list(&db, "project-scan", "a1", 10)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            AiMetricSnapshotRepo::list(&db, "project-scan", "a2", 10)
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -3988,7 +4270,8 @@ mod tests {
     fn unchanged_board_extends_the_same_point() {
         let db = mem_db();
         let (_, new1) = AiEntitySnapshotRepo::record(&db, &ent_row("e1", "d1", "[]"), 100).unwrap();
-        let (id2, new2) = AiEntitySnapshotRepo::record(&db, &ent_row("e2", "d1", "[]"), 200).unwrap();
+        let (id2, new2) =
+            AiEntitySnapshotRepo::record(&db, &ent_row("e2", "d1", "[]"), 200).unwrap();
         assert!(new1 && !new2);
         assert_eq!(id2, "e1");
         let rows = AiEntitySnapshotRepo::list(&db, "project-scan", "a1", 10).unwrap();
@@ -4027,7 +4310,12 @@ mod tests {
         AiEntitySnapshotRepo::record(&db, &ent_row("e2", "dB", "[]"), 200).unwrap();
         let (_, new3) = AiEntitySnapshotRepo::record(&db, &ent_row("e3", "dA", "[]"), 300).unwrap();
         assert!(new3, "改坏了又改回来是两次真实变化，不是没变化");
-        assert_eq!(AiEntitySnapshotRepo::list(&db, "project-scan", "a1", 10).unwrap().len(), 3);
+        assert_eq!(
+            AiEntitySnapshotRepo::list(&db, "project-scan", "a1", 10)
+                .unwrap()
+                .len(),
+            3
+        );
     }
 
     #[test]

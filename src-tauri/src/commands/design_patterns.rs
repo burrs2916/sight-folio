@@ -99,7 +99,10 @@ struct Scorer {
 
 impl Scorer {
     fn new() -> Self {
-        Scorer { score: 0.0, signals: Vec::new() }
+        Scorer {
+            score: 0.0,
+            signals: Vec::new(),
+        }
     }
     /// 命中一条信号则加权并记录说明
     fn hit(&mut self, cond: bool, weight: f64, desc: &str) -> &mut Self {
@@ -266,7 +269,9 @@ pub fn declares_method(body: &str, name: &str) -> bool {
         if let Some(rest) = stripped.strip_prefix(&needle) {
             // 排除 `name();` 这种纯调用语句：方法声明的这一行通常以 `{` 结尾，
             // 或是接口里的签名（以 `;` 结尾但带返回类型冒号）。
-            let looks_like_call = rest.trim_start().starts_with(')') && rest.trim_end().ends_with(';') && !rest.contains(':');
+            let looks_like_call = rest.trim_start().starts_with(')')
+                && rest.trim_end().ends_with(';')
+                && !rest.contains(':');
             if !looks_like_call {
                 return true;
             }
@@ -281,8 +286,20 @@ fn strip_member_modifiers(line: &str) -> String {
     loop {
         let before = s;
         for kw in [
-            "public ", "private ", "protected ", "static ", "async ", "override ", "abstract ",
-            "readonly ", "final ", "pub ", "get ", "set ", "virtual ", "internal ",
+            "public ",
+            "private ",
+            "protected ",
+            "static ",
+            "async ",
+            "override ",
+            "abstract ",
+            "readonly ",
+            "final ",
+            "pub ",
+            "get ",
+            "set ",
+            "virtual ",
+            "internal ",
         ] {
             if let Some(rest) = s.strip_prefix(kw) {
                 s = rest.trim_start();
@@ -360,7 +377,14 @@ fn distinct_constructed_types(body: &str) -> usize {
                 .into_iter()
                 .rev()
                 .collect();
-            if name.len() > 1 && name != "Box" && name != "Arc" && name != "Rc" && name != "Vec" && name != "String" && name != "Self" {
+            if name.len() > 1
+                && name != "Box"
+                && name != "Arc"
+                && name != "Rc"
+                && name != "Vec"
+                && name != "String"
+                && name != "Self"
+            {
                 set.insert(name);
             }
         }
@@ -417,12 +441,18 @@ pub fn detect(lang: &str, name: &str, kind: &str, body: &str) -> Vec<DetectedPat
     let lower = name.to_lowercase();
 
     // 结构型符号（类/结构体/接口/特征/枚举/模块）：跑经典 GoF + 架构角色检测器。
-    let structural_kind = matches!(kind, "class" | "struct" | "interface" | "trait" | "enum" | "module");
+    let structural_kind = matches!(
+        kind,
+        "class" | "struct" | "interface" | "trait" | "enum" | "module"
+    );
     // 函数式符号（function/const/let/variable 等）：TS/React 等现代代码库里设计模式
     // 大量以「函数 / 箭头常量」形态表达 —— Zustand `create<>()` store、`useXxx` Hook、
     // `withXxx` HOC、`createContext` Provider、`createXxx`/`makeXxx` 工厂。旧引擎只认 class，
     // 对这些项目近乎全漏，正是「设计模式画像点开什么都没有」被误判为功能失效的真根因。
-    let functional_kind = matches!(kind, "function" | "const" | "constant" | "variable" | "let" | "arrow" | "closure");
+    let functional_kind = matches!(
+        kind,
+        "function" | "const" | "constant" | "variable" | "let" | "arrow" | "closure"
+    );
     if !structural_kind && !functional_kind {
         return out;
     }
@@ -524,7 +554,11 @@ pub fn detect(lang: &str, name: &str, kind: &str, body: &str) -> Vec<DetectedPat
     }
 
     // 置信度高的排前面，方便前端只取 top-N 展示
-    out.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| {
+        b.confidence
+            .partial_cmp(&a.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     out
 }
 
@@ -548,9 +582,17 @@ fn detect_singleton(_lang: &str, lower: &str, body: &str) -> Option<DetectedPatt
         || body.contains("protected constructor");
 
     s.hit(static_holder, SIG_STRUCT_STRONG, "持有静态单实例字段")
-        .hit(accessor, SIG_STRUCT_MED, "暴露静态实例访问器（getInstance/shared）")
+        .hit(
+            accessor,
+            SIG_STRUCT_MED,
+            "暴露静态实例访问器（getInstance/shared）",
+        )
         .hit(hidden_ctor, SIG_STRUCT_MED, "构造函数私有化")
-        .hit(lower.ends_with("singleton"), SIG_NAME_STRONG, "类名以 Singleton 结尾");
+        .hit(
+            lower.ends_with("singleton"),
+            SIG_NAME_STRONG,
+            "类名以 Singleton 结尾",
+        );
     s.finish("singleton", PatternCategory::Creational)
 }
 
@@ -563,8 +605,9 @@ fn detect_factory(lang: &str, lower: &str, body: &str) -> Option<DetectedPattern
         || declares_method(body, "from")
         || count_declared_prefixed(body, "create") > 0;
     let multi_type = distinct_constructed_types(body) >= 2;
-    let branching = (body.contains("switch (") || body.contains("switch(") || body.contains("match "))
-        && multi_type;
+    let branching =
+        (body.contains("switch (") || body.contains("switch(") || body.contains("match "))
+            && multi_type;
 
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Factory 结尾")
         .hit(creator, SIG_STRUCT_MED, "声明了 create/make 工厂方法")
@@ -573,7 +616,11 @@ fn detect_factory(lang: &str, lower: &str, body: &str) -> Option<DetectedPattern
 
     // 反证：Rust 里只有一个 `fn new()` 是惯用构造函数，不是工厂模式
     if lang == "rust" && !name_hit && !multi_type {
-        s.penalty(declares_method(body, "new"), SIG_STRUCT_MED, "仅有惯用构造函数 new()");
+        s.penalty(
+            declares_method(body, "new"),
+            SIG_STRUCT_MED,
+            "仅有惯用构造函数 new()",
+        );
     }
     s.finish("factory", PatternCategory::Creational)
 }
@@ -587,7 +634,11 @@ fn detect_builder(lang: &str, lower: &str, body: &str) -> Option<DetectedPattern
         || declares_method(body, "done");
 
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Builder 结尾")
-        .hit(fluent >= 2, SIG_STRUCT_STRONG, "存在两个以上链式返回自身的方法")
+        .hit(
+            fluent >= 2,
+            SIG_STRUCT_STRONG,
+            "存在两个以上链式返回自身的方法",
+        )
         .hit(fluent == 1, SIG_AUX, "存在链式返回自身的方法")
         .hit(has_build, SIG_STRUCT_MED, "声明了 build/finish 终结方法");
     s.finish("builder", PatternCategory::Creational)
@@ -615,10 +666,18 @@ fn detect_observer(lower: &str, body: &str) -> Option<DetectedPattern> {
         || contains_token(body, "subscribers")
         || contains_token(body, "handlers");
 
-    s.hit(sub && unsub, SIG_STRUCT_STRONG, "成对声明 订阅/取消订阅 方法")
-        .hit(notify, SIG_STRUCT_MED, "声明了 notify/emit 广播方法")
-        .hit(holder, SIG_AUX, "持有监听者集合字段")
-        .hit(lower.ends_with("observer") || lower.ends_with("emitter") || lower.ends_with("eventbus"), SIG_NAME_STRONG, "类名体现事件总线语义");
+    s.hit(
+        sub && unsub,
+        SIG_STRUCT_STRONG,
+        "成对声明 订阅/取消订阅 方法",
+    )
+    .hit(notify, SIG_STRUCT_MED, "声明了 notify/emit 广播方法")
+    .hit(holder, SIG_AUX, "持有监听者集合字段")
+    .hit(
+        lower.ends_with("observer") || lower.ends_with("emitter") || lower.ends_with("eventbus"),
+        SIG_NAME_STRONG,
+        "类名体现事件总线语义",
+    );
     s.finish("observer", PatternCategory::Behavioral)
 }
 
@@ -640,7 +699,11 @@ fn detect_strategy(lower: &str, kind: &str, body: &str) -> Option<DetectedPatter
 
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Strategy/Policy 结尾")
         .hit(setter, SIG_STRUCT_STRONG, "支持运行时替换策略实现")
-        .hit(contract, SIG_STRUCT_MED, "接口仅声明单一执行方法（策略契约）")
+        .hit(
+            contract,
+            SIG_STRUCT_MED,
+            "接口仅声明单一执行方法（策略契约）",
+        )
         .hit(holds && !name_hit, SIG_AUX, "持有策略字段");
     s.finish("strategy", PatternCategory::Behavioral)
 }
@@ -652,7 +715,9 @@ fn detect_adapter(lower: &str, body: &str) -> Option<DetectedPattern> {
         || contains_token(body, "inner")
         || contains_token(body, "wrapped")
         || contains_token(body, "delegate");
-    let converts = declares_method(body, "adapt") || declares_method(body, "convert") || declares_method(body, "toDomain");
+    let converts = declares_method(body, "adapt")
+        || declares_method(body, "convert")
+        || declares_method(body, "toDomain");
 
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Adapter/Wrapper 结尾")
         .hit(wraps, SIG_STRUCT_MED, "持有被适配对象字段")
@@ -663,8 +728,12 @@ fn detect_adapter(lower: &str, body: &str) -> Option<DetectedPattern> {
 fn detect_decorator(lower: &str, body: &str) -> Option<DetectedPattern> {
     let mut s = Scorer::new();
     let name_hit = lower.ends_with("decorator");
-    let wraps = contains_token(body, "component") || contains_token(body, "inner") || contains_token(body, "wrapped");
-    let delegates = contains_token(body, "super.") || contains_token(body, "this.inner.") || contains_token(body, "self.inner");
+    let wraps = contains_token(body, "component")
+        || contains_token(body, "inner")
+        || contains_token(body, "wrapped");
+    let delegates = contains_token(body, "super.")
+        || contains_token(body, "this.inner.")
+        || contains_token(body, "self.inner");
 
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Decorator 结尾")
         .hit(wraps, SIG_STRUCT_MED, "包裹同类型组件字段")
@@ -684,19 +753,31 @@ fn detect_facade(lower: &str, body: &str) -> Option<DetectedPattern> {
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Facade 结尾")
         .hit(subsystems >= 3, SIG_STRUCT_STRONG, "聚合三个以上子系统依赖")
         .hit(subsystems == 2, SIG_AUX, "聚合两个子系统依赖")
-        .hit(lower.ends_with("manager") && subsystems >= 2, SIG_NAME_WEAK, "类名以 Manager 结尾且承担聚合职责");
+        .hit(
+            lower.ends_with("manager") && subsystems >= 2,
+            SIG_NAME_WEAK,
+            "类名以 Manager 结尾且承担聚合职责",
+        );
     s.finish("facade", PatternCategory::Structural)
 }
 
 fn detect_command(lower: &str, body: &str) -> Option<DetectedPattern> {
     let mut s = Scorer::new();
     let name_hit = lower.ends_with("command") || lower.ends_with("action");
-    let exec = declares_method(body, "execute") || declares_method(body, "run") || declares_method(body, "invoke");
-    let undo = declares_method(body, "undo") || declares_method(body, "revert") || declares_method(body, "rollback");
+    let exec = declares_method(body, "execute")
+        || declares_method(body, "run")
+        || declares_method(body, "invoke");
+    let undo = declares_method(body, "undo")
+        || declares_method(body, "revert")
+        || declares_method(body, "rollback");
 
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Command/Action 结尾")
         .hit(exec, SIG_STRUCT_MED, "声明了 execute 执行入口")
-        .hit(undo, SIG_STRUCT_STRONG, "声明了 undo 撤销能力（命令模式强特征）");
+        .hit(
+            undo,
+            SIG_STRUCT_STRONG,
+            "声明了 undo 撤销能力（命令模式强特征）",
+        );
     s.finish("command", PatternCategory::Behavioral)
 }
 
@@ -714,23 +795,32 @@ fn detect_visitor(lower: &str, body: &str) -> Option<DetectedPattern> {
 
 fn detect_template_method(lower: &str, body: &str) -> Option<DetectedPattern> {
     let mut s = Scorer::new();
-    let is_abstract = body.contains("abstract class") || body.contains("abstract ") || body.contains("raise NotImplementedError");
+    let is_abstract = body.contains("abstract class")
+        || body.contains("abstract ")
+        || body.contains("raise NotImplementedError");
     let hooks = count_declared_prefixed(body, "on") + count_declared_prefixed(body, "do");
     let name_hit = lower.starts_with("abstract") || lower.starts_with("base");
 
-    s.hit(is_abstract && hooks >= 2, SIG_STRUCT_STRONG, "抽象基类声明多个可覆写钩子")
-        .hit(is_abstract, SIG_STRUCT_MED, "存在抽象/未实现方法")
-        .hit(name_hit, SIG_NAME_WEAK, "类名以 Abstract/Base 开头");
+    s.hit(
+        is_abstract && hooks >= 2,
+        SIG_STRUCT_STRONG,
+        "抽象基类声明多个可覆写钩子",
+    )
+    .hit(is_abstract, SIG_STRUCT_MED, "存在抽象/未实现方法")
+    .hit(name_hit, SIG_NAME_WEAK, "类名以 Abstract/Base 开头");
     s.finish("template_method", PatternCategory::Behavioral)
 }
 
 fn detect_repository(lower: &str, body: &str) -> Option<DetectedPattern> {
     let mut s = Scorer::new();
-    let name_hit = lower.ends_with("repository") || lower.ends_with("repo") || lower.ends_with("dao");
-    let crud = ["find", "save", "delete", "update", "insert", "list", "get_by", "list_by"]
-        .iter()
-        .filter(|m| declares_method(body, m) || count_declared_prefixed(body, m) > 0)
-        .count();
+    let name_hit =
+        lower.ends_with("repository") || lower.ends_with("repo") || lower.ends_with("dao");
+    let crud = [
+        "find", "save", "delete", "update", "insert", "list", "get_by", "list_by",
+    ]
+    .iter()
+    .filter(|m| declares_method(body, m) || count_declared_prefixed(body, m) > 0)
+    .count();
 
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Repository/DAO 结尾")
         .hit(crud >= 3, SIG_STRUCT_STRONG, "声明三种以上持久化操作")
@@ -742,8 +832,11 @@ fn detect_service(lower: &str, body: &str) -> Option<DetectedPattern> {
     let mut s = Scorer::new();
     let name_hit = lower.ends_with("service") || lower.ends_with("usecase");
     // 服务层特征：注入依赖（构造参数持有 repository/client）+ 编排方法
-    let injects = contains_token(body, "repository") || contains_token(body, "repo") || contains_token(body, "client");
-    let has_methods = count_declared_prefixed(body, "handle") + count_declared_prefixed(body, "process") > 0;
+    let injects = contains_token(body, "repository")
+        || contains_token(body, "repo")
+        || contains_token(body, "client");
+    let has_methods =
+        count_declared_prefixed(body, "handle") + count_declared_prefixed(body, "process") > 0;
 
     s.hit(name_hit, SIG_NAME_STRONG, "类名以 Service/UseCase 结尾")
         .hit(injects, SIG_STRUCT_MED, "注入仓储/客户端依赖")
@@ -787,8 +880,12 @@ fn detect_controller(lower: &str, body: &str) -> Option<DetectedPattern> {
         + count_declared_prefixed(body, "post")
         + count_declared_prefixed(body, "put")
         + count_declared_prefixed(body, "delete");
-    s.hit(name_hit, SIG_NAME_STRONG, "类名以 Controller 结尾（控制器）")
-        .hit(routes >= 2, SIG_STRUCT_MED, "声明多个路由/处理动作");
+    s.hit(
+        name_hit,
+        SIG_NAME_STRONG,
+        "类名以 Controller 结尾（控制器）",
+    )
+    .hit(routes >= 2, SIG_STRUCT_MED, "声明多个路由/处理动作");
     s.finish("controller", PatternCategory::Architectural)
 }
 
@@ -800,20 +897,29 @@ fn detect_middleware(lower: &str, body: &str) -> Option<DetectedPattern> {
         || declares_method(body, "handle")
         || contains_token(body, "request")
         || contains_token(body, "response");
-    s.hit(name_hit, SIG_NAME_STRONG, "类名以 Middleware 结尾（中间件）")
-        .hit(chain, SIG_AUX, "持有 next/handle 链式处理入口");
+    s.hit(
+        name_hit,
+        SIG_NAME_STRONG,
+        "类名以 Middleware 结尾（中间件）",
+    )
+    .hit(chain, SIG_AUX, "持有 next/handle 链式处理入口");
     s.finish("middleware", PatternCategory::Architectural)
 }
 
 /// 插件 / 扩展（可插拔架构）
 fn detect_plugin(lower: &str, body: &str) -> Option<DetectedPattern> {
     let mut s = Scorer::new();
-    let name_hit = lower.ends_with("plugin") || lower.ends_with("extension") || lower.ends_with("addon");
+    let name_hit =
+        lower.ends_with("plugin") || lower.ends_with("extension") || lower.ends_with("addon");
     let extensible = contains_token(body, "register")
         || contains_token(body, "hook")
         || contains_token(body, "extension_point");
-    s.hit(name_hit, SIG_NAME_STRONG, "类名以 Plugin/Extension/Addon 结尾（插件）")
-        .hit(extensible, SIG_AUX, "暴露注册/钩子/扩展点");
+    s.hit(
+        name_hit,
+        SIG_NAME_STRONG,
+        "类名以 Plugin/Extension/Addon 结尾（插件）",
+    )
+    .hit(extensible, SIG_AUX, "暴露注册/钩子/扩展点");
     s.finish("plugin", PatternCategory::Architectural)
 }
 
@@ -861,14 +967,23 @@ fn detect_hook(_lang: &str, name: &str, lower: &str, body: &str) -> Option<Detec
         return None;
     }
     // 前缀后的字符必须大写（useXxx），用原始 name 判断，避免小写化后误判
-    let name_hit = lower.starts_with("use") && name.chars().nth(3).map_or(false, |c| c.is_uppercase());
+    let name_hit =
+        lower.starts_with("use") && name.chars().nth(3).map_or(false, |c| c.is_uppercase());
     if !name_hit {
         return None;
     }
     let calls = calls_any_hook(body);
     let mut s = Scorer::new();
-    s.hit(name_hit, SIG_NAME_STRONG, "命名符合 useXxx 自定义 Hook 约定")
-        .hit(calls, SIG_STRUCT_MED, "内部调用了其它 Hook（useState/useEffect 等）");
+    s.hit(
+        name_hit,
+        SIG_NAME_STRONG,
+        "命名符合 useXxx 自定义 Hook 约定",
+    )
+    .hit(
+        calls,
+        SIG_STRUCT_MED,
+        "内部调用了其它 Hook（useState/useEffect 等）",
+    );
     s.finish("hook", PatternCategory::Behavioral)
 }
 
@@ -877,7 +992,8 @@ fn detect_hoc(_lang: &str, name: &str, lower: &str, body: &str) -> Option<Detect
     if is_architectural_name(lower) {
         return None;
     }
-    let name_hit = lower.starts_with("with") && name.chars().nth(4).map_or(false, |c| c.is_uppercase());
+    let name_hit =
+        lower.starts_with("with") && name.chars().nth(4).map_or(false, |c| c.is_uppercase());
     if !name_hit {
         return None;
     }
@@ -887,7 +1003,11 @@ fn detect_hoc(_lang: &str, name: &str, lower: &str, body: &str) -> Option<Detect
         || contains_token(body, "props)");
     let mut s = Scorer::new();
     s.hit(name_hit, SIG_NAME_STRONG, "命名符合 withXxx 高阶组件约定")
-        .hit(returns_component, SIG_STRUCT_MED, "返回一个增强后的组件（装饰器形态）");
+        .hit(
+            returns_component,
+            SIG_STRUCT_MED,
+            "返回一个增强后的组件（装饰器形态）",
+        );
     s.finish("hoc", PatternCategory::Structural)
 }
 
@@ -899,7 +1019,8 @@ fn detect_factory_fn(_lang: &str, name: &str, lower: &str, body: &str) -> Option
     if is_architectural_name(lower) {
         return None;
     }
-    let name_hit = (lower.starts_with("create") && name.chars().nth(6).map_or(false, |c| c.is_uppercase()))
+    let name_hit = (lower.starts_with("create")
+        && name.chars().nth(6).map_or(false, |c| c.is_uppercase()))
         || (lower.starts_with("make") && name.chars().nth(4).map_or(false, |c| c.is_uppercase()));
     if !name_hit {
         return None;
@@ -909,8 +1030,12 @@ fn detect_factory_fn(_lang: &str, name: &str, lower: &str, body: &str) -> Option
         || body.contains("return {")
         || contains_token(body, "object");
     let mut s = Scorer::new();
-    s.hit(name_hit, SIG_NAME_STRONG, "命名符合 createXxx/makeXxx 工厂约定")
-        .hit(constructs, SIG_STRUCT_MED, "创建并返回新实例/对象");
+    s.hit(
+        name_hit,
+        SIG_NAME_STRONG,
+        "命名符合 createXxx/makeXxx 工厂约定",
+    )
+    .hit(constructs, SIG_STRUCT_MED, "创建并返回新实例/对象");
     s.finish("factory_fn", PatternCategory::Creational)
 }
 
@@ -970,7 +1095,11 @@ class UserPanel {
   }
 }"#;
         let got = detect("typescript", "UserPanel", "class", body);
-        assert!(!ids(&got).contains(&"builder".to_string()), "属性读取不应判为建造者: {:?}", ids(&got));
+        assert!(
+            !ids(&got).contains(&"builder".to_string()),
+            "属性读取不应判为建造者: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -985,7 +1114,11 @@ impl Config {
     }
 }"#;
         let got = detect("rust", "Config", "struct", body);
-        assert!(!ids(&got).contains(&"factory".to_string()), "惯用 new() 不应判为工厂: {:?}", ids(&got));
+        assert!(
+            !ids(&got).contains(&"factory".to_string()),
+            "惯用 new() 不应判为工厂: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -998,14 +1131,27 @@ class Toolbar {
   }
 }"#;
         let got = detect("typescript", "Toolbar", "class", body);
-        assert!(!ids(&got).contains(&"observer".to_string()), "调用点不应判为观察者: {:?}", ids(&got));
+        assert!(
+            !ids(&got).contains(&"observer".to_string()),
+            "调用点不应判为观察者: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
     fn unambiguous_name_fires_alone() {
         // 高精度命名（Factory）本身就是模式：空体也应判定，无需结构佐证
-        let got = detect("typescript", "ThingFactory", "class", "class ThingFactory {}");
-        assert!(ids(&got).contains(&"factory".to_string()), "命名即模式应单独命中: {:?}", ids(&got));
+        let got = detect(
+            "typescript",
+            "ThingFactory",
+            "class",
+            "class ThingFactory {}",
+        );
+        assert!(
+            ids(&got).contains(&"factory".to_string()),
+            "命名即模式应单独命中: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1034,9 +1180,17 @@ class QueryBuilder {
   }
 }"#;
         let got = detect("typescript", "QueryBuilder", "class", body);
-        assert!(ids(&got).contains(&"builder".to_string()), "真实链式建造者应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"builder".to_string()),
+            "真实链式建造者应检出: {:?}",
+            ids(&got)
+        );
         let b = got.iter().find(|p| p.id == "builder").unwrap();
-        assert!(b.confidence >= 0.9, "三条信号齐全应高置信: {}", b.confidence);
+        assert!(
+            b.confidence >= 0.9,
+            "三条信号齐全应高置信: {}",
+            b.confidence
+        );
     }
 
     #[test]
@@ -1050,7 +1204,11 @@ class Logger {
   }
 }"#;
         let got = detect("typescript", "Logger", "class", body);
-        assert!(ids(&got).contains(&"singleton".to_string()), "标准单例应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"singleton".to_string()),
+            "标准单例应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1063,7 +1221,11 @@ class EventBus {
   emit(evt) { for (const l of this.listeners.keys()) l(evt); }
 }"#;
         let got = detect("typescript", "EventBus", "class", body);
-        assert!(ids(&got).contains(&"observer".to_string()), "标准事件总线应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"observer".to_string()),
+            "标准事件总线应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1075,7 +1237,11 @@ class Sorter {
   setStrategy(s: SortStrategy) { this.strategy = s; }
 }"#;
         let got = detect("typescript", "Sorter", "class", body);
-        assert!(ids(&got).contains(&"strategy".to_string()), "可替换策略应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"strategy".to_string()),
+            "可替换策略应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1090,7 +1256,11 @@ class ShapeFactory {
   }
 }"#;
         let got = detect("typescript", "ShapeFactory", "class", body);
-        assert!(ids(&got).contains(&"factory".to_string()), "多类型工厂应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"factory".to_string()),
+            "多类型工厂应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1110,15 +1280,50 @@ class UserRepository {
     #[test]
     fn architectural_name_detectors_fire() {
         let store = detect("typescript", "AuthStore", "class", "class AuthStore {}");
-        assert!(ids(&store).contains(&"store".to_string()), "XxxStore 应检出: {:?}", ids(&store));
-        let provider = detect("typescript", "ThemeProvider", "class", "class ThemeProvider {}");
-        assert!(ids(&provider).contains(&"provider".to_string()), "XxxProvider 应检出: {:?}", ids(&provider));
-        let ctrl = detect("typescript", "UserController", "class", "class UserController {}");
-        assert!(ids(&ctrl).contains(&"controller".to_string()), "XxxController 应检出: {:?}", ids(&ctrl));
-        let mw = detect("typescript", "AuthMiddleware", "class", "class AuthMiddleware {}");
-        assert!(ids(&mw).contains(&"middleware".to_string()), "XxxMiddleware 应检出: {:?}", ids(&mw));
+        assert!(
+            ids(&store).contains(&"store".to_string()),
+            "XxxStore 应检出: {:?}",
+            ids(&store)
+        );
+        let provider = detect(
+            "typescript",
+            "ThemeProvider",
+            "class",
+            "class ThemeProvider {}",
+        );
+        assert!(
+            ids(&provider).contains(&"provider".to_string()),
+            "XxxProvider 应检出: {:?}",
+            ids(&provider)
+        );
+        let ctrl = detect(
+            "typescript",
+            "UserController",
+            "class",
+            "class UserController {}",
+        );
+        assert!(
+            ids(&ctrl).contains(&"controller".to_string()),
+            "XxxController 应检出: {:?}",
+            ids(&ctrl)
+        );
+        let mw = detect(
+            "typescript",
+            "AuthMiddleware",
+            "class",
+            "class AuthMiddleware {}",
+        );
+        assert!(
+            ids(&mw).contains(&"middleware".to_string()),
+            "XxxMiddleware 应检出: {:?}",
+            ids(&mw)
+        );
         let pl = detect("typescript", "PdfPlugin", "class", "class PdfPlugin {}");
-        assert!(ids(&pl).contains(&"plugin".to_string()), "XxxPlugin 应检出: {:?}", ids(&pl));
+        assert!(
+            ids(&pl).contains(&"plugin".to_string()),
+            "XxxPlugin 应检出: {:?}",
+            ids(&pl)
+        );
     }
 
     // ── 基础设施 ──
@@ -1135,14 +1340,22 @@ class UserRepository {
         ];
         let body = extract_body("typescript", &src, 0, 400);
         assert!(body.contains("foo()"));
-        assert!(!body.contains("_instance"), "类体不应越界读到下一个类: {}", body);
+        assert!(
+            !body.contains("_instance"),
+            "类体不应越界读到下一个类: {}",
+            body
+        );
     }
 
     #[test]
     fn brace_counting_ignores_braces_in_strings() {
         let src = vec!["class A {", "  s = \"}\";", "  foo() {}", "}"];
         let body = extract_body("typescript", &src, 0, 400);
-        assert!(body.contains("foo()"), "字符串里的 }} 不应提前结束类体: {}", body);
+        assert!(
+            body.contains("foo()"),
+            "字符串里的 }} 不应提前结束类体: {}",
+            body
+        );
     }
 
     #[test]
@@ -1204,9 +1417,21 @@ class ThingFactory {
         // 但同时不应被误判为类级 GoF 模式（建造者/单例等）。
         let got = detect("typescript", "createThing", "function", "return this;");
         let got_ids = ids(&got);
-        assert!(!got_ids.contains(&"builder".to_string()), "函数不应被误判为类级建造者: {:?}", got_ids);
-        assert!(!got_ids.contains(&"singleton".to_string()), "函数不应被误判为类级单例: {:?}", got_ids);
-        assert!(got_ids.contains(&"factory_fn".to_string()), "createXxx 应命中函数式工厂: {:?}", got_ids);
+        assert!(
+            !got_ids.contains(&"builder".to_string()),
+            "函数不应被误判为类级建造者: {:?}",
+            got_ids
+        );
+        assert!(
+            !got_ids.contains(&"singleton".to_string()),
+            "函数不应被误判为类级单例: {:?}",
+            got_ids
+        );
+        assert!(
+            got_ids.contains(&"factory_fn".to_string()),
+            "createXxx 应命中函数式工厂: {:?}",
+            got_ids
+        );
     }
 
     // ── 函数式 / React 模式（旧引擎全漏，本轮补齐）──
@@ -1220,7 +1445,11 @@ const useAuthStore = create<AuthState>()((set, get) => ({
   logout: () => set({ token: null }),
 }));"#;
         let got = detect("typescript", "useAuthStore", "function", body);
-        assert!(ids(&got).contains(&"store".to_string()), "Zustand store 应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"store".to_string()),
+            "Zustand store 应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1232,7 +1461,11 @@ function useEditorSync() {
   return synced;
 }"#;
         let got = detect("typescript", "useEditorSync", "function", body);
-        assert!(ids(&got).contains(&"hook".to_string()), "自定义 useXxx Hook 应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"hook".to_string()),
+            "自定义 useXxx Hook 应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1242,7 +1475,11 @@ function ThemeProvider({ children }) {
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
 }"#;
         let got = detect("typescript", "ThemeProvider", "function", body);
-        assert!(ids(&got).contains(&"provider".to_string()), "XxxProvider 应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"provider".to_string()),
+            "XxxProvider 应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1250,7 +1487,11 @@ function ThemeProvider({ children }) {
         let body = r#"
 const withRouter = (Component) => (props) => <Component {...props} route={useRoute()} />;"#;
         let got = detect("typescript", "withRouter", "function", body);
-        assert!(ids(&got).contains(&"hoc".to_string()), "withXxx 高阶组件应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"hoc".to_string()),
+            "withXxx 高阶组件应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1261,7 +1502,11 @@ function createApp(config) {
   return server;
 }"#;
         let got = detect("typescript", "createApp", "function", body);
-        assert!(ids(&got).contains(&"factory_fn".to_string()), "createXxx 工厂应检出: {:?}", ids(&got));
+        assert!(
+            ids(&got).contains(&"factory_fn".to_string()),
+            "createXxx 工厂应检出: {:?}",
+            ids(&got)
+        );
     }
 
     #[test]
@@ -1270,13 +1515,26 @@ function createApp(config) {
         let body = r#"const useProjectStore = create<State>()((set) => ({ value: 0, set }));"#;
         let got = detect("typescript", "useProjectStore", "function", body);
         let got_ids = ids(&got);
-        assert!(got_ids.contains(&"store".to_string()), "应标为 store: {:?}", got_ids);
-        assert!(!got_ids.contains(&"hook".to_string()), "架构角色不应被误标为 hook: {:?}", got_ids);
+        assert!(
+            got_ids.contains(&"store".to_string()),
+            "应标为 store: {:?}",
+            got_ids
+        );
+        assert!(
+            !got_ids.contains(&"hook".to_string()),
+            "架构角色不应被误标为 hook: {:?}",
+            got_ids
+        );
     }
 
     #[test]
     fn plain_function_is_not_a_pattern() {
-        let got = detect("typescript", "doWork", "function", "function doWork() { return 1; }");
+        let got = detect(
+            "typescript",
+            "doWork",
+            "function",
+            "function doWork() { return 1; }",
+        );
         assert!(got.is_empty(), "普通函数不应命中任何模式: {:?}", ids(&got));
     }
 

@@ -2,8 +2,8 @@
 
 use crate::commands::{code_structure, review};
 use crate::infrastructure::ast::Dialect;
-use crate::parser::{ParsedImport, SymbolCandidate};
 use crate::parser::{DepImport, LanguageParser, ParserCapabilities};
+use crate::parser::{ParsedImport, SymbolCandidate};
 
 pub struct PythonParser;
 
@@ -26,7 +26,11 @@ impl LanguageParser for PythonParser {
     }
 
     fn detect(&self, ext: &str) -> Option<&'static str> {
-        if matches!(ext, "py" | "pyi") { Some("python") } else { None }
+        if matches!(ext, "py" | "pyi") {
+            Some("python")
+        } else {
+            None
+        }
     }
 
     fn extract_symbols(&self, content: &str) -> Vec<SymbolCandidate> {
@@ -38,9 +42,17 @@ impl LanguageParser for PythonParser {
     fn parse_deps(&self, content: &str) -> Vec<DepImport> {
         let line_based: Vec<DepImport> = review::parse_python_imports(content)
             .into_iter()
-            .map(|(path, line)| DepImport { path, line, kind: None })
+            .map(|(path, line)| DepImport {
+                path,
+                line,
+                kind: None,
+            })
             .collect();
-        crate::parser::imports_ast::extract_imports_with_fallback(Dialect::Python, content, line_based)
+        crate::parser::imports_ast::extract_imports_with_fallback(
+            Dialect::Python,
+            content,
+            line_based,
+        )
     }
 
     /// 符号级 import：优先 AST（`symbol_imports_ast`，对标 joern `pysrc2cpg` ImportsPass）。

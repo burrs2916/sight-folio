@@ -1,12 +1,12 @@
-pub mod provider;
-pub mod openai_provider;
+pub mod change_ledger;
+pub mod code_patch;
 pub mod engine;
+pub mod file_dossier;
+pub mod openai_provider;
+pub mod provider;
+pub mod scan_records;
 pub mod scope;
 pub mod tools;
-pub mod scan_records;
-pub mod file_dossier;
-pub mod code_patch;
-pub mod change_ledger;
 
 // ─── 运行时取消令牌表 ───
 //
