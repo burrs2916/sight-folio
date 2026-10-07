@@ -237,7 +237,14 @@ pub fn apply_patch(
     let hits = find_all(content, old_text);
     if !hits.is_empty() {
         let at = pick_hit(&hits, occurrence)?;
-        return Ok(build_result(content, at, old_text, new_text, hits.len(), false));
+        return Ok(build_result(
+            content,
+            at,
+            old_text,
+            new_text,
+            hits.len(),
+            false,
+        ));
     }
 
     // 二档：行尾空白 + CRLF 归一化后匹配。
@@ -331,7 +338,11 @@ fn build_result(
 /// 用于「文件在改动之后又被别人改过」时的片段级回滚：此时整文快照回写会吞掉后来的改动，
 /// 只能把这一处换回去。同样要求唯一命中——找不到或有歧义时宁可拒绝回滚，
 /// 让用户拿 `.bak` 手动处理，也不要改错地方。
-pub fn revert_patch(content: &str, old_text: &str, new_text: &str) -> Result<PatchResult, PatchError> {
+pub fn revert_patch(
+    content: &str,
+    old_text: &str,
+    new_text: &str,
+) -> Result<PatchResult, PatchError> {
     apply_patch(content, new_text, old_text, None)
 }
 
@@ -401,7 +412,11 @@ pub fn patch_preview(new_content: &str, start_line: usize, new_end_line: usize) 
     let mut out = String::new();
     for (i, line) in lines.iter().enumerate().take(to).skip(from) {
         let no = i + 1;
-        let marker = if no >= start_line && no <= new_end_line { ">" } else { " " };
+        let marker = if no >= start_line && no <= new_end_line {
+            ">"
+        } else {
+            " "
+        };
         out.push_str(&format!("{}{:>5} | {}\n", marker, no, line));
     }
     out
@@ -532,11 +547,7 @@ fn sites_at(content: &str, hits: &[usize]) -> Vec<OccurrenceSite> {
         .take(MAX_LISTED_OCCURRENCES)
         .map(|&at| {
             let line_no = line_of(content, at);
-            let preview = content[at..]
-                .split('\n')
-                .next()
-                .unwrap_or("")
-                .trim_end();
+            let preview = content[at..].split('\n').next().unwrap_or("").trim_end();
             OccurrenceSite {
                 line_no,
                 preview: truncate_chars(preview, CANDIDATE_PREVIEW_CHARS),
@@ -656,8 +667,16 @@ mod tests {
         assert_eq!(err, PatchError::Ambiguous(2));
         // 错误信必须告诉模型两条出路（扩大上下文 / 指定序号）
         let msg = err.message("src/a.rs");
-        assert!(msg.contains("occurrence"), "must suggest occurrence: {}", msg);
-        assert!(msg.contains("unique"), "must suggest extending anchor: {}", msg);
+        assert!(
+            msg.contains("occurrence"),
+            "must suggest occurrence: {}",
+            msg
+        );
+        assert!(
+            msg.contains("unique"),
+            "must suggest extending anchor: {}",
+            msg
+        );
     }
 
     #[test]
@@ -675,13 +694,22 @@ mod tests {
         let err = apply_patch(SRC, "    return x;", "y", Some(5)).unwrap_err();
         assert_eq!(
             err,
-            PatchError::OccurrenceOutOfRange { found: 2, requested: 5 }
+            PatchError::OccurrenceOutOfRange {
+                found: 2,
+                requested: 5
+            }
         );
     }
 
     #[test]
     fn unique_anchor_reports_exact_line_span() {
-        let r = apply_patch(SRC, "fn b() {\n    let x = 2;", "fn b() {\n    let x = 20;", None).unwrap();
+        let r = apply_patch(
+            SRC,
+            "fn b() {\n    let x = 2;",
+            "fn b() {\n    let x = 20;",
+            None,
+        )
+        .unwrap();
         assert_eq!((r.start_line, r.end_line), (6, 7));
         assert!(!r.approx);
         assert!(r.content.contains("let x = 20;"));
@@ -690,7 +718,13 @@ mod tests {
     #[test]
     fn multi_line_replacement_tracks_new_end_line() {
         // 1 行换 3 行：new_end_line 必须随之变长，前端才能把光标放对
-        let r = apply_patch(SRC, "    let x = 1;", "    let x = 1;\n    let y = 2;\n    let z = 3;", None).unwrap();
+        let r = apply_patch(
+            SRC,
+            "    let x = 1;",
+            "    let x = 1;\n    let y = 2;\n    let z = 3;",
+            None,
+        )
+        .unwrap();
         assert_eq!(r.start_line, 2);
         assert_eq!(r.end_line, 2);
         assert_eq!(r.new_end_line, 4);
@@ -701,7 +735,7 @@ mod tests {
     #[test]
     fn trailing_whitespace_and_crlf_are_tolerated_but_marked_approx() {
         let src = "fn a() {\r\n    let x = 1;   \r\n}\r\n";
-        let r = apply_patch(src, "    let x = 1;", "    let x = 42;", None).unwrap();
+        let r = apply_patch(src, "    let x = 1;\r\n", "    let x = 42;", None).unwrap();
         assert!(r.approx, "degraded match must be flagged");
         assert!(r.content.contains("let x = 42;"));
         assert_eq!(r.start_line, 2);
@@ -766,25 +800,50 @@ mod tests {
 
     #[test]
     fn guard_blocks_suspicious_shrink_on_large_file() {
-        let old = (0..200).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
-        let new = (0..80).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
+        let old = (0..200)
+            .map(|i| format!("line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let new = (0..80)
+            .map(|i| format!("line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         let why = full_write_guard(&old, &new).expect("must refuse");
-        assert!(why.contains("old_text"), "must point to the anchored form: {}", why);
+        assert!(
+            why.contains("old_text"),
+            "must point to the anchored form: {}",
+            why
+        );
     }
 
     #[test]
     fn guard_allows_small_file_rewrite_and_modest_shrink() {
-        let small_old = (0..40).map(|i| format!("l{}", i)).collect::<Vec<_>>().join("\n");
+        let small_old = (0..40)
+            .map(|i| format!("l{}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(full_write_guard(&small_old, "one line").is_none());
-        let old = (0..200).map(|i| format!("l{}", i)).collect::<Vec<_>>().join("\n");
-        let new = (0..150).map(|i| format!("l{}", i)).collect::<Vec<_>>().join("\n");
+        let old = (0..200)
+            .map(|i| format!("l{}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let new = (0..150)
+            .map(|i| format!("l{}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(full_write_guard(&old, &new).is_none());
     }
 
     #[test]
     fn guard_catches_placeholder_tail() {
-        let old = (0..200).map(|i| format!("l{}", i)).collect::<Vec<_>>().join("\n");
-        let mut new = (0..190).map(|i| format!("l{}", i)).collect::<Vec<_>>().join("\n");
+        let old = (0..200)
+            .map(|i| format!("l{}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut new = (0..190)
+            .map(|i| format!("l{}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         new.push_str("\n// ... 其余保持不变\n");
         let why = full_write_guard(&old, &new).expect("must refuse placeholder tail");
         assert!(why.contains("placeholder"));
@@ -796,8 +855,16 @@ mod tests {
     fn preview_marks_changed_lines_with_context() {
         let r = apply_patch(SRC, "    let x = 2;", "    let x = 22;", None).unwrap();
         let preview = patch_preview(&r.content, r.start_line, r.new_end_line);
-        assert!(preview.contains(">    7 |     let x = 22;"), "preview: {}", preview);
-        assert!(preview.contains("     6 | fn b() {"), "needs context: {}", preview);
+        assert!(
+            preview.contains(">    7 |     let x = 22;"),
+            "preview: {}",
+            preview
+        );
+        assert!(
+            preview.contains("     6 | fn b() {"),
+            "needs context: {}",
+            preview
+        );
     }
 
     #[test]
@@ -809,13 +876,16 @@ mod tests {
 
     // ── 定位证据：让模型在一条回执里就能改对 ──
 
-    const HINT_SRC: &str = "fn alpha() {\n    let v = 1;\n    return v;\n}\n\nfn beta() {\n    let v = 2;\n    return w;\n}\n";
+    const HINT_SRC: &str = "fn alpha() {\n    let v = 1;\n    return v;\n}\n\nfn beta() {\n    let v = 2;\n    return v;\n}\n";
 
     #[test]
     fn locate_hint_lists_every_occurrence_line() {
         // 歧义时模型真正缺的是「这 N 处分别在第几行」，不是一个数字
         let hint = locate_hint(HINT_SRC, "    return v;");
-        assert!(hint.candidates.is_empty(), "found exactly — no candidates needed");
+        assert!(
+            hint.candidates.is_empty(),
+            "found exactly — no candidates needed"
+        );
         assert_eq!(hint.occurrences.len(), 2);
         assert_eq!(hint.occurrences[0].line_no, 3);
         assert_eq!(hint.occurrences[1].line_no, 8);
@@ -831,7 +901,11 @@ mod tests {
         assert!(msg.contains("line 1"), "must list line 1: {}", msg);
         assert!(msg.contains("line 3"), "must list line 3: {}", msg);
         assert!(msg.contains("line 5"), "must list line 5: {}", msg);
-        assert!(msg.contains("1..3"), "must state the valid occurrence range: {}", msg);
+        assert!(
+            msg.contains("1..3"),
+            "must state the valid occurrence range: {}",
+            msg
+        );
     }
 
     #[test]
@@ -843,11 +917,21 @@ mod tests {
         assert_eq!(best.line_no, 3, "closest window starts at line 3");
         assert_eq!(best.span, 4);
         assert_eq!(best.exact_lines, 3, "3 of 4 lines are identical");
-        assert_eq!(best.diff_line, 1, "first difference is on the 1st snippet line");
-        assert_eq!(best.diff_col, 12, "'return v' vs 'return z' differ at col 12");
+        assert_eq!(
+            best.diff_line, 1,
+            "first difference is on the 1st snippet line"
+        );
+        assert_eq!(
+            best.diff_col, 12,
+            "'return v' vs 'return z' differ at col 12"
+        );
 
         let msg = PatchError::NotFound.message_with_hint("src/a.rs", &hint);
-        assert!(msg.contains("Nearest matches"), "must list candidates: {}", msg);
+        assert!(
+            msg.contains("Nearest matches"),
+            "must list candidates: {}",
+            msg
+        );
         assert!(
             msg.contains("file_read(file_path=\"src/a.rs\", start_line=1, end_line=8)"),
             "must give a copy-pasteable next call: {}",
@@ -861,15 +945,19 @@ mod tests {
         let hint = locate_hint("fn a() {}\n", "completely unrelated snippet");
         assert!(hint.is_empty());
         let msg = PatchError::NotFound.message_with_hint("a.rs", &hint);
-        assert!(!msg.contains("Nearest matches"), "no invented candidates: {}", msg);
+        assert!(
+            !msg.contains("Nearest matches"),
+            "no invented candidates: {}",
+            msg
+        );
     }
 
     #[test]
     fn locate_hint_matches_apply_patch_on_degraded_match() {
         // 口径必须与 apply_patch 二档一致：二档能中的锚点，证据也要报「命中」而不是「候选」
         let src = "fn a() {\r\n    let x = 1;   \r\n}\r\n";
-        let r = apply_patch(src, "    let x = 1;", "    let x = 42;", None).unwrap();
-        let hint = locate_hint(src, "    let x = 1;");
+        let r = apply_patch(src, "    let x = 1;\r\n", "    let x = 42;", None).unwrap();
+        let hint = locate_hint(src, "    let x = 1;\r\n");
         assert!(r.approx, "this anchor goes through the degraded tier");
         assert_eq!(hint.occurrences.len(), 1, "hint must agree it was found");
         assert_eq!(hint.occurrences[0].line_no, r.start_line);
@@ -881,7 +969,11 @@ mod tests {
         let hint = locate_hint(&src, "x");
         assert_eq!(hint.occurrences.len(), MAX_LISTED_OCCURRENCES);
         let msg = PatchError::Ambiguous(50).message_with_hint("a.rs", &hint);
-        assert!(msg.contains("42 more"), "must say how many were omitted: {}", msg);
+        assert!(
+            msg.contains("42 more"),
+            "must say how many were omitted: {}",
+            msg
+        );
     }
 
     #[test]
@@ -889,7 +981,12 @@ mod tests {
         let src = "AAA\nBBB\nCCC\nAAA\nXXX\nYYY\n";
         let hint = locate_hint(src, "AAA\nBBB\nQQQ");
         let lines: Vec<usize> = hint.candidates.iter().map(|c| c.line_no).collect();
-        assert_eq!(lines, vec![1, 4], "higher-similarity window must come first: {:?}", hint.candidates);
+        assert_eq!(
+            lines,
+            vec![1, 4],
+            "higher-similarity window must come first: {:?}",
+            hint.candidates
+        );
         assert!(hint.candidates[0].score > hint.candidates[1].score);
     }
 
@@ -897,9 +994,15 @@ mod tests {
     fn message_without_hint_keeps_the_original_wording() {
         // 兜底路径必须完全等价于旧的 message()，否则没有证据的场景会退化
         let err = PatchError::NotFound;
-        assert_eq!(err.message("a.rs"), err.message_with_hint("a.rs", &LocateHint::default()));
+        assert_eq!(
+            err.message("a.rs"),
+            err.message_with_hint("a.rs", &LocateHint::default())
+        );
         let amb = PatchError::Ambiguous(2);
-        assert_eq!(amb.message("a.rs"), amb.message_with_hint("a.rs", &LocateHint::default()));
+        assert_eq!(
+            amb.message("a.rs"),
+            amb.message_with_hint("a.rs", &LocateHint::default())
+        );
     }
 
     #[test]
@@ -916,17 +1019,28 @@ mod tests {
     fn indentation_difference_is_reported_at_column_one() {
         // 只差缩进的行必须被算作「接近」而不是丢弃——这是最高频的定位失败原因。
         // 用 0 缩进的文件配 4 缩进的锚点：原文里不存在该子串，走候选分支。
-        let src = "fn a() {\nlet x = 1;\nlet y = 2;\n}\n";
+        // 两个函数体里各有一个 0 缩进的 `let x = 1;`，两者都是只差缩进的近邻。
+        let src = "fn a() {\nlet x = 1;\n}\nfn b() {\nlet x = 1;\n}\n";
         let hint = locate_hint(src, "    let x = 1;");
-        let best = hint.candidates.first().expect("indent-only near miss must be kept");
+        let best = hint
+            .candidates
+            .first()
+            .expect("indent-only near miss must be kept");
         assert_eq!(best.line_no, 2);
         assert_eq!(best.exact_lines, 0);
         assert_eq!(best.indent_only_lines, 1);
         assert_eq!(best.diff_col, 1, "indent differs at the very first column");
-        assert!(hint.candidates.len() >= 2, "both let-bindings are near misses");
+        assert!(
+            hint.candidates.len() >= 2,
+            "both let-bindings are near misses"
+        );
 
         let msg = PatchError::NotFound.message_with_hint("a.rs", &hint);
-        assert!(msg.contains("differ only in indentation"), "must name the cause: {}", msg);
+        assert!(
+            msg.contains("differ only in indentation"),
+            "must name the cause: {}",
+            msg
+        );
     }
 
     #[test]
@@ -934,7 +1048,10 @@ mod tests {
         // 20000 行以上只扫前 20000 行：定位证据是给模型的提示，不值得为它全文件扫描
         let huge = "let x = 1;\n".repeat(50_000);
         let hint = locate_hint(&huge, "let x = 2;\nlet x = 1;");
-        assert!(hint.candidates.iter().all(|c| c.line_no <= LOCATE_SCAN_MAX_LINES));
+        assert!(hint
+            .candidates
+            .iter()
+            .all(|c| c.line_no <= LOCATE_SCAN_MAX_LINES));
         assert!(!hint.candidates.is_empty());
     }
 }

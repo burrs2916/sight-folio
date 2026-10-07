@@ -3,19 +3,19 @@ use crate::domain::project_files::ProjectFile;
 use crate::domain::scan_jobs::ScanJob;
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::analysis_repository::AnalysisRepository;
-use serde::{Deserialize, Serialize};
-use crate::infrastructure::database::project_file_repository::ProjectFileRepository;
-use crate::infrastructure::database::project_module_repository::ProjectModuleRepository;
 use crate::infrastructure::database::project_dependency_repository::ProjectDependencyRepository;
+use crate::infrastructure::database::project_file_repository::ProjectFileRepository;
 use crate::infrastructure::database::project_layer_repository::ProjectLayerRepository;
-use crate::infrastructure::database::review_rule_repository::ReviewRuleRepository;
+use crate::infrastructure::database::project_module_repository::ProjectModuleRepository;
 use crate::infrastructure::database::review_finding_repository::ReviewFindingRepository;
+use crate::infrastructure::database::review_rule_repository::ReviewRuleRepository;
 use crate::infrastructure::database::scan_job_repository::ScanJobRepository;
 use crate::infrastructure::database::{
-    SqliteAnalysisRepository, SqliteProjectFileRepository, SqliteScanJobRepository,
-    SqliteProjectModuleRepository, SqliteProjectDependencyRepository, SqliteProjectLayerRepository,
-    SqliteReviewRuleRepository, SqliteReviewFindingRepository,
+    SqliteAnalysisRepository, SqliteProjectDependencyRepository, SqliteProjectFileRepository,
+    SqliteProjectLayerRepository, SqliteProjectModuleRepository, SqliteReviewFindingRepository,
+    SqliteReviewRuleRepository, SqliteScanJobRepository,
 };
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
@@ -137,15 +137,11 @@ const DEFAULT_EXCLUDES: &[&str] = &[
 /// （不进入结构/依赖/调用分析，仅枚举 + 计数 + 体积统计）。
 const IGNORED_FILE_EXTS: &[&str] = &[
     // 字体
-    "woff", "woff2", "ttf", "otf", "eot",
-    // 媒体
-    "mp4", "mp3", "wav", "webm", "avi", "mov", "mkv", "flac", "ogg",
-    // 压缩包
-    "zip", "gz", "tar", "7z", "rar", "xz", "bz2", "zst",
-    // 二进制 / 编译产物
-    "exe", "dll", "so", "dylib", "o", "a", "lib", "rlib", "rmeta", "bin", "wasm",
-    "class", "jar", "dmg", "pkg", "msi", "apk", "ipa", "war", "deb", "rpm",
-    // 文档 / 数据
+    "woff", "woff2", "ttf", "otf", "eot", // 媒体
+    "mp4", "mp3", "wav", "webm", "avi", "mov", "mkv", "flac", "ogg", // 压缩包
+    "zip", "gz", "tar", "7z", "rar", "xz", "bz2", "zst", // 二进制 / 编译产物
+    "exe", "dll", "so", "dylib", "o", "a", "lib", "rlib", "rmeta", "bin", "wasm", "class", "jar",
+    "dmg", "pkg", "msi", "apk", "ipa", "war", "deb", "rpm", // 文档 / 数据
     "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "csv", "db", "sqlite", "sqlite3",
 ];
 
@@ -177,14 +173,20 @@ fn is_ignored_file(path: &Path, exclude_resources: bool) -> bool {
         return false;
     }
     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-        if IGNORED_FILE_NAMES.iter().any(|e| e.eq_ignore_ascii_case(name)) {
+        if IGNORED_FILE_NAMES
+            .iter()
+            .any(|e| e.eq_ignore_ascii_case(name))
+        {
             return true;
         }
         if has_ignored_suffix(name) {
             return true;
         }
         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-            if IGNORED_FILE_EXTS.iter().any(|e| e.eq_ignore_ascii_case(ext)) {
+            if IGNORED_FILE_EXTS
+                .iter()
+                .any(|e| e.eq_ignore_ascii_case(ext))
+            {
                 return true;
             }
         }
@@ -202,33 +204,37 @@ pub fn detect_language(path: &Path) -> Option<String> {
         return Some(lang.to_string());
     }
     // 2) 非代码语言兜底表（不参与结构/依赖/调用分析，仅枚举与行数统计）
-    Some(match ext.as_str() {
-        "html" | "htm" => "html",
-        "css" | "scss" | "sass" | "less" => "css",
-        "json" | "jsonc" => "json",
-        "md" | "mdx" => "markdown",
-        "yml" | "yaml" => "yaml",
-        "toml" => "toml",
-        "xml" => "xml",
-        "sh" | "bash" | "zsh" => "shell",
-        "sql" => "sql",
-        "lua" => "lua",
-        "dart" => "dart",
-        // 图片资源：纳入枚举，落库为 image 实体（不进结构/依赖分析）
-        // 与前端 fileKind.ts 的 IMAGE_EXTENSIONS 保持一致（icon 一类用户明确点名）
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "ico" | "bmp" | "tiff" | "tif"
-        | "avif" | "heic" | "heif" | "jxl" | "apng" | "jfif" | "jpe" | "icns" | "cur" => "image",
-        // 资源文件（字体/媒体/压缩包/其它二进制）：纳入枚举，落库为 asset 实体
-        // （不进结构/依赖/调用分析，仅枚举与体积统计；与 image 同级的一等资源实体）
-        "ttf" | "otf" | "woff" | "woff2" | "eot" => "asset", // 字体
-        "mp4" | "webm" | "mov" | "avi" | "mkv" | "mp3" | "wav" | "flac" | "ogg" | "aac" | "m4a"
-        | "mid" | "midi" => "asset", // 音视频
-        "zip" | "tar" | "gz" | "tgz" | "bz2" | "xz" | "7z" | "rar" => "asset", // 压缩包
-        "pdf" | "wasm" | "bin" | "dat" | "dll" | "so" | "dylib" | "exe" | "o" | "a" | "class"
-        | "jar" | "pak" => "asset", // 其它二进制
-        _ => return None,
-    }
-    .to_string())
+    Some(
+        match ext.as_str() {
+            "html" | "htm" => "html",
+            "css" | "scss" | "sass" | "less" => "css",
+            "json" | "jsonc" => "json",
+            "md" | "mdx" => "markdown",
+            "yml" | "yaml" => "yaml",
+            "toml" => "toml",
+            "xml" => "xml",
+            "sh" | "bash" | "zsh" => "shell",
+            "sql" => "sql",
+            "lua" => "lua",
+            "dart" => "dart",
+            // 图片资源：纳入枚举，落库为 image 实体（不进结构/依赖分析）
+            // 与前端 fileKind.ts 的 IMAGE_EXTENSIONS 保持一致（icon 一类用户明确点名）
+            "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "ico" | "bmp" | "tiff" | "tif"
+            | "avif" | "heic" | "heif" | "jxl" | "apng" | "jfif" | "jpe" | "icns" | "cur" => {
+                "image"
+            }
+            // 资源文件（字体/媒体/压缩包/其它二进制）：纳入枚举，落库为 asset 实体
+            // （不进结构/依赖/调用分析，仅枚举与体积统计；与 image 同级的一等资源实体）
+            "ttf" | "otf" | "woff" | "woff2" | "eot" => "asset", // 字体
+            "mp4" | "webm" | "mov" | "avi" | "mkv" | "mp3" | "wav" | "flac" | "ogg" | "aac"
+            | "m4a" | "mid" | "midi" => "asset", // 音视频
+            "zip" | "tar" | "gz" | "tgz" | "bz2" | "xz" | "7z" | "rar" => "asset", // 压缩包
+            "pdf" | "wasm" | "bin" | "dat" | "dll" | "so" | "dylib" | "exe" | "o" | "a"
+            | "class" | "jar" | "pak" => "asset", // 其它二进制
+            _ => return None,
+        }
+        .to_string(),
+    )
 }
 
 /// 快速统计文件行数（按 '\n' 切分；大文件不读全文，限前 1MB）
@@ -620,10 +626,7 @@ pub fn check_scan_freshness(
     }
 
     // 4) 移除：库里有、磁盘没有
-    let removed_all: Vec<String> = stored_rel
-        .difference(&current)
-        .cloned()
-        .collect();
+    let removed_all: Vec<String> = stored_rel.difference(&current).cloned().collect();
 
     let stale = !(added_all.is_empty() && removed_all.is_empty() && modified_all.is_empty());
 
@@ -681,7 +684,11 @@ pub fn scan_project(
 ) -> AppResult<ScanJob> {
     // 扫描开始清缓存：内存控制在本次扫描工作集内（重扫内容未变时仍会重新命中）
     cache.clear();
-    log_op(&logger_state, "info", &format!("开始扫描: analysis={}, root={}", analysis_id, project_root));
+    log_op(
+        &logger_state,
+        "info",
+        &format!("开始扫描: analysis={}, root={}", analysis_id, project_root),
+    );
 
     let root = PathBuf::from(&project_root);
     if !root.exists() {
@@ -829,7 +836,8 @@ pub fn scan_project(
     let mut batch = vec![root_node];
 
     // 4b. 路径 → id 映射（用于父级查找）
-    let mut path_to_id: std::collections::HashMap<PathBuf, String> = std::collections::HashMap::new();
+    let mut path_to_id: std::collections::HashMap<PathBuf, String> =
+        std::collections::HashMap::new();
     path_to_id.insert(root.clone(), root_id.clone());
 
     // 5. 遍历所有 entry，建立父子关系
@@ -881,7 +889,11 @@ pub fn scan_project(
             let metadata = std::fs::metadata(entry).ok();
             let size = metadata.as_ref().map(|m| m.len() as i64).unwrap_or(0);
             // 图片/资源是二进制，count_lines 按 '\n' 统计出的"行数"无意义，直接置 0
-            let lc = if matches!(language.as_deref(), Some("image" | "asset")) { 0 } else { count_lines(entry) };
+            let lc = if matches!(language.as_deref(), Some("image" | "asset")) {
+                0
+            } else {
+                count_lines(entry)
+            };
             (size, lc)
         } else {
             (0, 0)
@@ -925,7 +937,10 @@ pub fn scan_project(
                     layer_ids
                         .entry(top.to_string())
                         .or_insert_with(|| {
-                            format!("layer_{}", uuid::Uuid::new_v4().to_string().replace("-", ""))
+                            format!(
+                                "layer_{}",
+                                uuid::Uuid::new_v4().to_string().replace("-", "")
+                            )
                         })
                         .clone(),
                 )
@@ -1025,7 +1040,10 @@ pub fn scan_project(
         log_op(
             &logger_state,
             "warn",
-            &format!("扫描被取消：已处理 {} / {} 个 entry", scanned, job.total_files),
+            &format!(
+                "扫描被取消：已处理 {} / {} 个 entry",
+                scanned, job.total_files
+            ),
         );
         return Ok(job);
     }
@@ -1047,8 +1065,7 @@ pub fn scan_project(
     // 7b. 自动生成架构分层（依据扫描到的顶层目录，按名称排序后赋予顺序与配色）
     {
         let layer_palette = [
-            "#6366F1", "#10B981", "#F59E0B", "#EC4899", "#06B6D4", "#8B5CF6", "#EF4444",
-            "#14B8A6",
+            "#6366F1", "#10B981", "#F59E0B", "#EC4899", "#06B6D4", "#8B5CF6", "#EF4444", "#14B8A6",
         ];
         let mut sorted: Vec<(&String, &String)> = layer_ids.iter().collect();
         sorted.sort_by(|a, b| a.0.cmp(b.0));
@@ -1134,13 +1151,17 @@ pub fn sync_files_to_canvas(
     let files = file_repo.list_by_analysis(&analysis_id)?;
 
     // 按顶层目录分组（排除目录本身）
-    let mut groups: std::collections::HashMap<String, Vec<ProjectFile>> = std::collections::HashMap::new();
+    let mut groups: std::collections::HashMap<String, Vec<ProjectFile>> =
+        std::collections::HashMap::new();
     for f in &files {
         if f.is_directory {
             continue;
         }
         let top_dir = f.rel_path.split('/').next().unwrap_or("root");
-        groups.entry(top_dir.to_string()).or_default().push(f.clone());
+        groups
+            .entry(top_dir.to_string())
+            .or_default()
+            .push(f.clone());
     }
 
     // 网格布局参数
@@ -1172,8 +1193,13 @@ pub fn sync_files_to_canvas(
 
     for (dir_name, dir_files) in dirs_sorted {
         // 目录标题节点
-        let dir_id = format!("canvas_dir_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
-        let group_y = 40.0 + group_index as f64 * (header_h + row_h * ((dir_files.len() as f64 / cols as f64).ceil()) + 60.0);
+        let dir_id = format!(
+            "canvas_dir_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        );
+        let group_y = 40.0
+            + group_index as f64
+                * (header_h + row_h * ((dir_files.len() as f64 / cols as f64).ceil()) + 60.0);
 
         canvas_components.push(CanvasComponent {
             id: dir_id.clone(),
@@ -1201,7 +1227,10 @@ pub fn sync_files_to_canvas(
                 .replace('\\', "/");
 
             canvas_components.push(CanvasComponent {
-                id: format!("canvas_file_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
+                id: format!(
+                    "canvas_file_{}",
+                    uuid::Uuid::new_v4().to_string().replace("-", "")
+                ),
                 name: file.name.clone(),
                 // 图片/资源落库为独立 image/asset 实体（图鉴/画布一等公民），其余仍是 file
                 comp_type: match file.language.as_deref() {
@@ -1237,7 +1266,6 @@ pub fn sync_files_to_canvas(
     }
 
     Ok(())
-
 }
 
 /// 读取目录内容（供前端 ProjectDirAdapter 使用）
@@ -1259,8 +1287,8 @@ pub fn read_directory(path: String) -> AppResult<Vec<DirEntry>> {
     }
 
     let mut entries = Vec::new();
-    let read_dir = std::fs::read_dir(dir)
-        .map_err(|e| AppError::Internal(format!("读取目录失败: {}", e)))?;
+    let read_dir =
+        std::fs::read_dir(dir).map_err(|e| AppError::Internal(format!("读取目录失败: {}", e)))?;
 
     for entry in read_dir {
         let entry = entry.map_err(|e| AppError::Internal(format!("读取目录项失败: {}", e)))?;
@@ -1269,7 +1297,9 @@ pub fn read_directory(path: String) -> AppResult<Vec<DirEntry>> {
         let name = entry.file_name().to_string_lossy().to_string();
         let full_path = entry.path().to_string_lossy().to_string();
         let size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
-        let extension = entry.path().extension()
+        let extension = entry
+            .path()
+            .extension()
             .and_then(|e| e.to_str())
             .map(|s| s.to_lowercase());
 
@@ -1284,7 +1314,8 @@ pub fn read_directory(path: String) -> AppResult<Vec<DirEntry>> {
 
     // 排序：目录在前，然后按名称排序
     entries.sort_by(|a, b| {
-        b.is_directory.cmp(&a.is_directory)
+        b.is_directory
+            .cmp(&a.is_directory)
             .then_with(|| a.name.cmp(&b.name))
     });
 
@@ -1385,7 +1416,7 @@ pub fn cancel_scan_job(
 /// 前端取消按钮同时调两者，覆盖整条流水线。
 #[derive(Default, Clone)]
 pub struct AnalysisCancelState(
-    pub std::sync::Arc<
+    pub  std::sync::Arc<
         std::sync::Mutex<std::collections::HashMap<String, std::sync::atomic::AtomicBool>>,
     >,
 );
@@ -1509,11 +1540,11 @@ pub fn get_scan_delta(
 
 // ─── 查询命令（前端 list_* 调用） ───
 
-use crate::domain::project_modules::ProjectModule;
 use crate::domain::project_dependencies::ProjectDependency;
 use crate::domain::project_layers::ProjectLayer;
-use crate::domain::review_rules::ReviewRule;
+use crate::domain::project_modules::ProjectModule;
 use crate::domain::review_findings::ReviewFinding;
+use crate::domain::review_rules::ReviewRule;
 
 #[tauri::command(async)]
 pub fn list_project_files(
@@ -1630,7 +1661,10 @@ mod tests {
         fs::write(dir.path().join("debug.log"), "noise\n").unwrap();
 
         let files = collect_files(dir.path(), &[], true);
-        assert!(files.contains(&"src/main.rs".to_string()), "业务文件应保留: {files:?}");
+        assert!(
+            files.contains(&"src/main.rs".to_string()),
+            "业务文件应保留: {files:?}"
+        );
         assert!(
             !files.iter().any(|f| f.starts_with("generated")),
             "gitignore 的 generated/ 应被过滤: {files:?}"
@@ -1654,16 +1688,25 @@ mod tests {
 
         let files = collect_files(dir.path(), &[], true);
         assert!(files.contains(&"src/main.rs".to_string()));
+        // 图片是画布/image 实体的一等公民：即使开启资源排除也始终纳入枚举
+        // （detect_language 判为 image，落库为 image 实体，见 canvas 落库逻辑）；
+        // 而字体/媒体/压缩包等仍在 IGNORED_FILE_EXTS，默认不进画像。
         assert!(
-            !files.iter().any(|f| f.ends_with(".png") || f.ends_with(".svg")),
-            "图片/字体资源默认不进画像: {files:?}"
+            files.iter().any(|f| f.ends_with(".png")),
+            "图片不应被资源排除过滤: {files:?}"
         );
         assert!(
-            !files.iter().any(|f| f.ends_with("package-lock.json") || f.ends_with(".min.js")),
+            files.iter().any(|f| f.ends_with(".svg")),
+            "svg 图标不应被资源排除过滤: {files:?}"
+        );
+        assert!(
+            !files
+                .iter()
+                .any(|f| f.ends_with("package-lock.json") || f.ends_with(".min.js")),
             "锁文件与压缩产物默认不进画像: {files:?}"
         );
 
-        // 关闭资源排除后恢复
+        // 关闭资源排除后，锁文件也恢复纳入
         let all = collect_files(dir.path(), &[], false);
         assert!(all.iter().any(|f| f.ends_with(".png")));
         assert!(all.iter().any(|f| f.ends_with("package-lock.json")));
@@ -1709,7 +1752,11 @@ mod tests {
 
     // ─── 增量重扫：差异计算 ───
 
-    fn mk_file(rel: &str, hash: Option<&str>, is_dir: bool) -> crate::domain::project_files::ProjectFile {
+    fn mk_file(
+        rel: &str,
+        hash: Option<&str>,
+        is_dir: bool,
+    ) -> crate::domain::project_files::ProjectFile {
         crate::domain::project_files::ProjectFile {
             id: format!("f_{rel}"),
             analysis_id: "a1".into(),
@@ -1752,7 +1799,10 @@ mod tests {
 
         let mut changed = compute_changed_paths(&prev, &files);
         changed.sort();
-        assert_eq!(changed, vec!["src/b.rs".to_string(), "src/c.rs".to_string()]);
+        assert_eq!(
+            changed,
+            vec!["src/b.rs".to_string(), "src/c.rs".to_string()]
+        );
         // 已删除的 src/gone.rs 不出现在结果里：它不在当前文件表，
         // 携带旧行时按 rel_path 重映射会直接丢弃，不会留下悬挂引用
         assert!(!changed.iter().any(|p| p == "src/gone.rs"));
@@ -1761,7 +1811,9 @@ mod tests {
     #[test]
     fn scan_delta_is_empty_when_nothing_changed() {
         let prev: std::collections::HashMap<String, String> =
-            [("src/a.rs".to_string(), "h1".to_string())].into_iter().collect();
+            [("src/a.rs".to_string(), "h1".to_string())]
+                .into_iter()
+                .collect();
         let files = vec![mk_file("src/a.rs", Some("h1"), false)];
         // 零变更 → 空向量。调用方必须把它当作「有基线的增量」而非「无基线的全量」，
         // 这是重复扫描同一份代码时收益最大的场景。
@@ -1771,10 +1823,15 @@ mod tests {
     #[test]
     fn scan_delta_treats_missing_hash_as_changed() {
         let prev: std::collections::HashMap<String, String> =
-            [("big.bin".to_string(), "h1".to_string())].into_iter().collect();
+            [("big.bin".to_string(), "h1".to_string())]
+                .into_iter()
+                .collect();
         // 超大文件跳过哈希计算 → content_hash 为 None → 保守判定为变更，宁可重算不可漏算
         let files = vec![mk_file("big.bin", None, false)];
-        assert_eq!(compute_changed_paths(&prev, &files), vec!["big.bin".to_string()]);
+        assert_eq!(
+            compute_changed_paths(&prev, &files),
+            vec!["big.bin".to_string()]
+        );
     }
 
     #[test]
