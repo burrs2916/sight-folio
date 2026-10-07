@@ -1,6 +1,11 @@
-// sight-folio: 全书总览仪表盘（右栏「要素」tab 默认 · 书场景无选中态）
+// sight-folio: 全书总览仪表盘（L2「overview」题材编辑面 · 唯一一份）
 //
-// 设计立场（与右栏其它 Overview 卡一致）：只读、可行动、零第二份事实。
+// 2026-09-28 收口：此前这份面板同时铺在右栏「要素」tab 的无选中态（WritingInspectorPanel
+// D 分支）与 L2「overview」页签两处 —— 同一份仪表盘双开。现在只保留 L2「overview」
+// 页签编辑面这一处（WritingStudioPane），右栏无选中态改为轻量引导（点选提示 + 到
+// 本编辑面的出口）。全书总览是**编辑面的职责**，右栏只是读选中项要素的检查器。
+//
+// 设计立场：只读、可行动、零第二份事实。
 // 数据 100% 来自 utils/writingOverview.buildBookOverview（与 AI 全书语料同一口径），
 // 不在这里重算任何 KPI / 冲突 / 预警。
 //
@@ -9,31 +14,31 @@
 //   ② 九大题材维度「导航 chip」——点击直接 openTypedCarrierView 跳到对应 L2 编辑面；
 //   ③ 风险预警行（时间线冲突 / 跨章伏笔 / 孤立设定 / 未落章节拍 / 校对问题）可点直达。
 // 内容编辑在编辑区（L2 题材编辑面），这里只做协调总览 + 出口，不做第二个编辑器。
-import { useMemo, useState, useEffect } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { useWritingStore } from "../../store/writingStore";
-import { buildBookOverview } from "../../utils/writingOverview";
-import { openTypedCarrierView, type WritingViewKind } from "../../utils/studioBook";
-import { writingStatsApi, type WritingDailyStat } from "../../services/tauri";
-import { diffDailyStats, WINDOW_DAYS } from "../../utils/writingStats";
-import { t } from "../../i18n";
+import { useMemo, useState, useEffect } from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
+import Divider from '@mui/material/Divider';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { useWritingStore } from '../../store/writingStore';
+import { buildBookOverview } from '../../utils/writingOverview';
+import { openTypedCarrierView, type WritingViewKind } from '../../utils/studioBook';
+import { writingStatsApi, type WritingDailyStat } from '../../services/tauri';
+import { diffDailyStats, WINDOW_DAYS } from '../../utils/writingStats';
+import { t } from '../../i18n';
 
 /** 九大题材维度导航 chip（点击跳对应 L2 编辑面）。value = 该维度头条计数。 */
 const DIMENSIONS: { kind: WritingViewKind; valueKey: keyof ReturnType<typeof pickValue> }[] = [
-  { kind: "catalog", valueKey: "chapters" },
-  { kind: "characters", valueKey: "characters" },
-  { kind: "worldview", valueKey: "worldviews" },
-  { kind: "timeline", valueKey: "timelineEvents" },
-  { kind: "storylines", valueKey: "storylines" },
-  { kind: "foreshadowing", valueKey: "foreshadowPending" },
-  { kind: "inspiration", valueKey: "looseBeats" },
-  { kind: "proofread", valueKey: "proofreadIssues" },
-  { kind: "stats", valueKey: "totalWords" },
-  { kind: "writing", valueKey: "chapters" },
+  { kind: 'catalog', valueKey: 'chapters' },
+  { kind: 'characters', valueKey: 'characters' },
+  { kind: 'worldview', valueKey: 'worldviews' },
+  { kind: 'timeline', valueKey: 'timelineEvents' },
+  { kind: 'storylines', valueKey: 'storylines' },
+  { kind: 'foreshadowing', valueKey: 'foreshadowPending' },
+  { kind: 'inspiration', valueKey: 'looseBeats' },
+  { kind: 'proofread', valueKey: 'proofreadIssues' },
+  { kind: 'stats', valueKey: 'totalWords' },
+  { kind: 'writing', valueKey: 'chapters' },
 ];
 
 function pickValue(o: ReturnType<typeof buildBookOverview>) {
@@ -74,7 +79,7 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
     [bookTitle, chapters, settings, outlines, timelineEvents, storylines, foreshadows, bookId],
   );
 
-  const genre = useMemo(() => books.find((b) => b.id === bookId)?.genre ?? "novel", [books, bookId]);
+  const genre = useMemo(() => books.find((b) => b.id === bookId)?.genre ?? 'novel', [books, bookId]);
   const jump = (kind: WritingViewKind) => openTypedCarrierView(genre, kind);
   const values = pickValue(overview);
 
@@ -86,11 +91,20 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
     setTrendStats(null);
     writingStatsApi
       .listDailyStats(bookId, WINDOW_DAYS + 1)
-      .then((rows) => { if (!cancelled) setTrendStats(rows); })
-      .catch(() => { if (!cancelled) setTrendStats([]); });
-    return () => { cancelled = true; };
+      .then((rows) => {
+        if (!cancelled) setTrendStats(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setTrendStats([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [bookId]);
-  const trendDeltas = useMemo(() => (trendStats ? diffDailyStats(trendStats, new Date()).slice(-14) : []), [trendStats]);
+  const trendDeltas = useMemo(
+    () => (trendStats ? diffDailyStats(trendStats, new Date()).slice(-14) : []),
+    [trendStats],
+  );
   const trendMax = Math.max(1, ...trendDeltas.map((d) => d.delta));
   const trendTotal = trendDeltas.reduce((sum, d) => sum + d.delta, 0);
   const trendToday = trendDeltas.length ? trendDeltas[trendDeltas.length - 1].delta : 0;
@@ -99,48 +113,54 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
   const TREND_H = 34;
   const TREND_PAD = 1.5;
 
-  const warnings = ([
-    { kind: "timeline", label: t("writing.overviewWarn.timelineConflict"), count: overview.timeline.conflicts },
-    { kind: "foreshadowing", label: t("writing.overviewWarn.foreshadowOverdue"), count: overview.foreshadowings.overdue },
-    { kind: "characters", label: t("writing.overviewWarn.orphanSetting"), count: overview.settingOrphan },
-    { kind: "inspiration", label: t("writing.overviewWarn.looseBeat"), count: overview.looseBeats },
-    { kind: "proofread", label: t("writing.overviewWarn.proofread"), count: overview.proofread.issues },
-  ] as { kind: WritingViewKind; label: string; count: number }[]).filter((w) => w.count > 0);
+  const warnings = (
+    [
+      { kind: 'timeline', label: t('writing.overviewWarn.timelineConflict'), count: overview.timeline.conflicts },
+      {
+        kind: 'foreshadowing',
+        label: t('writing.overviewWarn.foreshadowOverdue'),
+        count: overview.foreshadowings.overdue,
+      },
+      { kind: 'characters', label: t('writing.overviewWarn.orphanSetting'), count: overview.settingOrphan },
+      { kind: 'inspiration', label: t('writing.overviewWarn.looseBeat'), count: overview.looseBeats },
+      { kind: 'proofread', label: t('writing.overviewWarn.proofread'), count: overview.proofread.issues },
+    ] as { kind: WritingViewKind; label: string; count: number }[]
+  ).filter((w) => w.count > 0);
 
   const kpiCells: { label: string; value: string }[] = [
-    { label: t("writing.totalWords"), value: overview.kpis.totalWords.toLocaleString() },
-    { label: t("writing.chapterCount"), value: String(overview.kpis.chapterCount) },
-    { label: t("editor.writing.stats.kpiVolumes"), value: String(overview.kpis.volumeCount) },
-    { label: t("editor.writing.stats.kpiSettings"), value: String(overview.kpis.settingCount) },
-    { label: t("editor.writing.stats.kpiAvg"), value: String(overview.kpis.avgWords) },
+    { label: t('writing.totalWords'), value: overview.kpis.totalWords.toLocaleString() },
+    { label: t('writing.chapterCount'), value: String(overview.kpis.chapterCount) },
+    { label: t('editor.writing.stats.kpiVolumes'), value: String(overview.kpis.volumeCount) },
+    { label: t('editor.writing.stats.kpiSettings'), value: String(overview.kpis.settingCount) },
+    { label: t('editor.writing.stats.kpiAvg'), value: String(overview.kpis.avgWords) },
   ];
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-      <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
-        {bookTitle ?? t("editor.writing.inspector.book")}
-      </Typography>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{bookTitle ?? t('editor.writing.inspector.book')}</Typography>
 
-      {/* KPI 网格 */}
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+      {/* KPI 网格：自适应列数（右栏窄→2 列，画布全宽→更多列），
+          避免写死两列导致全宽下每卡拉得极宽、视觉留白。 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 0.5 }}>
         {kpiCells.map((c) => (
-          <Box key={c.label} sx={{ flex: "1 1 40%", border: 1, borderColor: "divider", borderRadius: 1, px: 1, py: 0.5 }}>
-            <Typography sx={{ fontSize: 9.5, color: "text.secondary" }}>{c.label}</Typography>
-            <Typography sx={{ fontSize: 14, fontWeight: 700, color: "text.primary" }}>{c.value}</Typography>
+          <Box key={c.label} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, px: 1, py: 0.5 }}>
+            <Typography sx={{ fontSize: 9.5, color: 'text.secondary' }}>{c.label}</Typography>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary' }}>{c.value}</Typography>
           </Box>
         ))}
       </Box>
 
       {/* 日更趋势迷你图（近 14 天日增，复用统计页签口径） */}
       <Box>
-        <Typography sx={{ fontSize: 10, fontWeight: 700, color: "text.secondary", mb: 0.4 }}>
-          {t("writing.overviewTrend")} · {trendTotal.toLocaleString()} · {t("writing.todayProgress", { n: trendToday.toLocaleString() })}
+        <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', mb: 0.4 }}>
+          {t('writing.overviewTrend')} · {trendTotal.toLocaleString()} ·{' '}
+          {t('writing.todayProgress', { n: trendToday.toLocaleString() })}
         </Typography>
         {trendDeltas.length > 0 ? (
           <Box
             component="svg"
             viewBox={`0 0 ${TREND_W} ${TREND_H}`}
-            sx={{ width: "100%", height: TREND_H, color: "primary.main", display: "block" }}
+            sx={{ width: '100%', height: TREND_H, color: 'primary.main', display: 'block' }}
             preserveAspectRatio="none"
           >
             {trendDeltas.map((d, i) => {
@@ -163,16 +183,18 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
             })}
           </Box>
         ) : (
-          <Typography sx={{ fontSize: 9.5, color: "text.disabled", lineHeight: 1.6 }}>{t("writing.noStats")}</Typography>
+          <Typography sx={{ fontSize: 9.5, color: 'text.disabled', lineHeight: 1.6 }}>
+            {t('writing.noStats')}
+          </Typography>
         )}
       </Box>
 
       {/* 九大题材维度导航 */}
       <Box>
-        <Typography sx={{ fontSize: 10, fontWeight: 700, color: "text.secondary", mb: 0.4 }}>
-          {t("writing.overviewDimensions")}
+        <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'text.secondary', mb: 0.4 }}>
+          {t('writing.overviewDimensions')}
         </Typography>
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
           {DIMENSIONS.map((d) => (
             <Chip
               key={d.kind}
@@ -189,11 +211,21 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
       {/* 风险预警（可点直达） */}
       {warnings.length > 0 && (
         <Box>
-          <Typography sx={{ fontSize: 10, fontWeight: 700, color: "warning.main", mb: 0.4, display: "flex", alignItems: "center", gap: 0.25 }}>
+          <Typography
+            sx={{
+              fontSize: 10,
+              fontWeight: 700,
+              color: 'warning.main',
+              mb: 0.4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.25,
+            }}
+          >
             <WarningAmberIcon sx={{ fontSize: 13 }} />
-            {t("writing.overviewWarnings")} · {warnings.length}
+            {t('writing.overviewWarnings')} · {warnings.length}
           </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
             {warnings.map((w) => (
               <Chip
                 key={w.kind + w.label}
@@ -203,7 +235,7 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
                 variant="outlined"
                 onClick={() => jump(w.kind)}
                 label={`${w.label} · ${w.count}`}
-                sx={{ fontSize: 10, height: 22, justifyContent: "flex-start", alignSelf: "flex-start" }}
+                sx={{ fontSize: 10, height: 22, justifyContent: 'flex-start', alignSelf: 'flex-start' }}
               />
             ))}
           </Box>
@@ -212,8 +244,8 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
 
       <Divider />
 
-      <Typography sx={{ fontSize: 10.5, color: "text.disabled", lineHeight: 1.7 }}>
-        {t("editor.writing.inspector.readOnlyNote")}
+      <Typography sx={{ fontSize: 10.5, color: 'text.disabled', lineHeight: 1.7 }}>
+        {t('editor.writing.inspector.readOnlyNote')}
       </Typography>
     </Box>
   );

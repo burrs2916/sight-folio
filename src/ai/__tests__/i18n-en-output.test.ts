@@ -6,7 +6,7 @@ import { buildCoverageSection } from "../providers/scanCoverage";
 import { buildTrendSection } from "../providers/scanTrend";
 import { buildRegressionSection } from "../providers/scanEntities";
 import { buildEntityRegressionReport } from "../entityRegression";
-import { summarizeChain, summarizeTestImpact, buildCIPipelineScript, buildSingleTestCommand } from "../../editor/utils/impactChain";
+import { summarizeChain, buildCIPipelineScript, buildSingleTestCommand } from "../../editor/utils/impactChain";
 import { summarizeFlowPortrait } from "../../editor/utils/dataFlowPortrait";
 import { patternLabel, QUADRANT_META, QUADRANT_HINT, DUPLICATION_LABELS } from "../../editor/utils/fileInsights";
 import type { ScanSnapshot } from "../providers/scanSections";

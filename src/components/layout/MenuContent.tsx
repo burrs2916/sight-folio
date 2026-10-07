@@ -8,7 +8,7 @@ import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded';
-import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
+import BookIcon from '@mui/icons-material/Book';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import LocalLibraryRoundedIcon from '@mui/icons-material/LocalLibraryRounded';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -39,7 +39,7 @@ function getNavGroups(): NavGroupDef[] {
       items: [
         { text: t('nav.dashboard'), icon: <DashboardRoundedIcon sx={{ fontSize: 19 }} />, path: '/' },
         { text: t('nav.analyzer'), icon: <LayersRoundedIcon sx={{ fontSize: 19 }} />, path: '/analyzer' },
-        { text: t('nav.published'), icon: <PublicRoundedIcon sx={{ fontSize: 19 }} />, path: '/published' },
+        { text: t('nav.published'), icon: <BookIcon sx={{ fontSize: 19 }} />, path: '/published' },
         { text: t('nav.library'), icon: <LocalLibraryRoundedIcon sx={{ fontSize: 19 }} />, path: '/library' },
         { text: t('nav.ai'), icon: <SmartToyIcon sx={{ fontSize: 19 }} />, path: '/ai' },
       ],

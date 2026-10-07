@@ -64,7 +64,7 @@ describe("画布实体渲染成本基准", { timeout: 60_000 }, () => {
     const ms = performance.now() - t0;
     await act(async () => root.unmount());
     container.remove();
-    // eslint-disable-next-line no-console
+     
     console.log(`[bench] 对照组裸 div × ${N}: ${ms.toFixed(1)}ms`);
     expect(ms).toBeGreaterThan(0);
   });
@@ -78,7 +78,7 @@ describe("画布实体渲染成本基准", { timeout: 60_000 }, () => {
     const styleTags = document.querySelectorAll("style").length;
     await act(async () => root.unmount());
     container.remove();
-    // eslint-disable-next-line no-console
+     
     console.log(`[bench] 单实体 DOM 节点数: ${nodes}，文档内 <style> 标签数: ${styleTags}`);
     expect(nodes).toBeGreaterThan(0);
   });
@@ -104,7 +104,7 @@ describe("画布实体渲染成本基准", { timeout: 60_000 }, () => {
     const unmountMs = performance.now() - t1;
     container.remove();
 
-    // eslint-disable-next-line no-console
+     
     console.log(
       `[bench] FileRenderer × ${N}: mount ${mountMs.toFixed(1)}ms (${(mountMs / N).toFixed(3)}ms/个), unmount ${unmountMs.toFixed(1)}ms`
     );
@@ -132,7 +132,7 @@ describe("画布实体渲染成本基准", { timeout: 60_000 }, () => {
     await act(async () => root.unmount());
     container.remove();
 
-    // eslint-disable-next-line no-console
+     
     console.log(`[bench] 平移 5 轮重挂载（${N} 实体）: ${ms.toFixed(1)}ms → 单轮 ${(ms / 5).toFixed(1)}ms`);
     expect(ms).toBeGreaterThan(0);
   });
@@ -159,7 +159,7 @@ describe("LOD 分级渲染收益", { timeout: 60_000 }, () => {
       await act(async () => root.unmount());
       container.remove();
     }
-    // eslint-disable-next-line no-console
+     
     console.log(
       `[bench] 单实体 DOM 节点数 —— full ${counts.full} / compact ${counts.compact} / block ${counts.block}`
     );
@@ -191,7 +191,7 @@ describe("LOD 分级渲染收益", { timeout: 60_000 }, () => {
       await act(async () => root.unmount());
       container.remove();
     }
-    // eslint-disable-next-line no-console
+     
     console.log(
       `[bench] ${N} 实体挂载耗时 —— full ${timings.full.toFixed(1)}ms / compact ${timings.compact.toFixed(
         1

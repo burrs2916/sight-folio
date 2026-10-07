@@ -1,12 +1,12 @@
-import { createTheme, alpha, PaletteMode, Shadows } from "@mui/material/styles";
+import { createTheme, alpha, PaletteMode, Shadows } from '@mui/material/styles';
 
-declare module "@mui/material/Paper" {
+declare module '@mui/material/Paper' {
   interface PaperPropsVariantOverrides {
     highlighted: true;
   }
 }
 
-declare module "@mui/material/styles" {
+declare module '@mui/material/styles' {
   interface ColorRange {
     50: string;
     100: string;
@@ -32,89 +32,103 @@ const defaultTheme = createTheme();
 const customShadows: Shadows = [...defaultTheme.shadows];
 
 export const brand = {
-  50: "#f4f0fb",
-  100: "#e8def7",
-  200: "#d4c2ee",
-  300: "#b99fdf",
-  400: "#9d7bd0",
-  500: "#8158be",
-  600: "#68409f",
-  700: "#4a338f",
-  800: "#3a286f",
-  900: "#2a1e52",
+  50: '#f4f0fb',
+  100: '#e8def7',
+  200: '#d4c2ee',
+  300: '#b99fdf',
+  400: '#9d7bd0',
+  500: '#8158be',
+  600: '#68409f',
+  700: '#4a338f',
+  800: '#3a286f',
+  900: '#2a1e52',
 };
 
 export const gray = {
-  50: "#f9fafb",
-  100: "#f3f4f6",
-  200: "#e5e7eb",
-  300: "#d1d5db",
-  400: "#9ca3af",
-  500: "#6b7280",
-  600: "#4b5563",
-  700: "#374151",
-  800: "#1f2937",
-  900: "#111827",
+  50: '#f9fafb',
+  100: '#f3f4f6',
+  200: '#e5e7eb',
+  300: '#d1d5db',
+  400: '#9ca3af',
+  500: '#6b7280',
+  600: '#4b5563',
+  700: '#374151',
+  800: '#1f2937',
+  900: '#111827',
 };
 
 export const green = {
-  50: "#ecfdf5",
-  100: "#d1fae5",
-  200: "#a7f3d0",
-  300: "#6ee7b7",
-  400: "#34d399",
-  500: "#10b981",
-  600: "#059669",
-  700: "#047857",
-  800: "#065f46",
-  900: "#064e3b",
+  50: '#ecfdf5',
+  100: '#d1fae5',
+  200: '#a7f3d0',
+  300: '#6ee7b7',
+  400: '#34d399',
+  500: '#10b981',
+  600: '#059669',
+  700: '#047857',
+  800: '#065f46',
+  900: '#064e3b',
 };
 
 // 金 accent ramp — 作为 Sight Folio 的暖色点缀（warning 语义沿用，视觉上即品牌金）
 export const orange = {
-  50: "#fcf5e4",
-  100: "#f8e8c4",
-  200: "#f1d18e",
-  300: "#eabe5e",
-  400: "#e4ac47",
-  500: "#e0a93b",
-  600: "#c98f2a",
-  700: "#a87221",
-  800: "#875b1c",
-  900: "#6e4918",
+  50: '#fcf5e4',
+  100: '#f8e8c4',
+  200: '#f1d18e',
+  300: '#eabe5e',
+  400: '#e4ac47',
+  500: '#e0a93b',
+  600: '#c98f2a',
+  700: '#a87221',
+  800: '#875b1c',
+  900: '#6e4918',
 };
 
 export const red = {
-  50: "#fef2f2",
-  100: "#fee2e2",
-  200: "#fecaca",
-  300: "#fca5a5",
-  400: "#f87171",
-  500: "#ef4444",
-  600: "#dc2626",
-  700: "#b91c1c",
-  800: "#991b1b",
-  900: "#7f1d1d",
+  50: '#fef2f2',
+  100: '#fee2e2',
+  200: '#fecaca',
+  300: '#fca5a5',
+  400: '#f87171',
+  500: '#ef4444',
+  600: '#dc2626',
+  700: '#b91c1c',
+  800: '#991b1b',
+  900: '#7f1d1d',
 };
 
 export const blue = {
-  50: "#eff6ff",
-  100: "#dbeafe",
-  200: "#bfdbfe",
-  300: "#93c5fd",
-  400: "#60a5fa",
-  500: "#3b82f6",
-  600: "#2563eb",
-  700: "#1d4ed8",
-  800: "#1e40af",
-  900: "#1e3a8a",
+  50: '#eff6ff',
+  100: '#dbeafe',
+  200: '#bfdbfe',
+  300: '#93c5fd',
+  400: '#60a5fa',
+  500: '#3b82f6',
+  600: '#2563eb',
+  700: '#1d4ed8',
+  800: '#1e40af',
+  900: '#1e3a8a',
+};
+
+// 靛蓝 ramp — 现代工作台靛蓝主题的主色体系（LibraryPage 靛蓝 preset）
+export const indigo = {
+  50: '#eef2ff',
+  100: '#e0e7ff',
+  200: '#c7d2fe',
+  300: '#a5b4fc',
+  400: '#818cf8',
+  500: '#6366f1',
+  600: '#4f46e5',
+  700: '#4338ca',
+  800: '#3730a3',
+  900: '#312e81',
 };
 
 export const getDesignTokens = (mode: PaletteMode) => {
   customShadows[1] =
-    mode === "dark"
-      ? "0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3)"
-      : "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)";
+    mode === 'dark'
+      ? '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3)'
+      : '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)';
 
   return {
     palette: {
@@ -123,9 +137,9 @@ export const getDesignTokens = (mode: PaletteMode) => {
         light: brand[300],
         main: brand[700],
         dark: brand[800],
-        contrastText: "#ffffff",
-        ...(mode === "dark" && {
-          contrastText: "#ffffff",
+        contrastText: '#ffffff',
+        ...(mode === 'dark' && {
+          contrastText: '#ffffff',
           light: brand[400],
           main: brand[600],
           dark: brand[700],
@@ -135,56 +149,57 @@ export const getDesignTokens = (mode: PaletteMode) => {
         light: gray[300],
         main: gray[500],
         dark: gray[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       info: {
         light: blue[300],
         main: blue[500],
         dark: blue[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       warning: {
         light: orange[300],
         main: orange[500],
         dark: orange[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       error: {
         light: red[300],
         main: red[500],
         dark: red[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       success: {
         light: green[300],
         main: green[500],
         dark: green[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       grey: {
         ...gray,
       },
-      divider: mode === "dark" ? alpha(gray[700], 0.6) : alpha(gray[300], 0.4),
+      divider: mode === 'dark' ? alpha(gray[700], 0.6) : alpha(gray[300], 0.4),
       background: {
-        default: mode === "dark" ? gray[900] : "#FBF7EF",
-        paper: mode === "dark" ? gray[800] : "#ffffff",
+        default: mode === 'dark' ? gray[900] : '#FBF7EF',
+        paper: mode === 'dark' ? gray[800] : '#ffffff',
       },
       text: {
         primary: gray[800],
         secondary: gray[600],
-        ...(mode === "dark" && { primary: "#f9fafb", secondary: gray[400] }),
+        ...(mode === 'dark' && { primary: '#f9fafb', secondary: gray[400] }),
       },
       action: {
         hover: alpha(gray[200], 0.2),
         selected: `${alpha(gray[200], 0.3)}`,
-        ...(mode === "dark" && {
+        ...(mode === 'dark' && {
           hover: alpha(gray[600], 0.2),
           selected: alpha(gray[600], 0.3),
         }),
       },
     },
     typography: {
-      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      fontFamily:
+        '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       h1: {
         fontSize: defaultTheme.typography.pxToRem(48),
         fontWeight: 600,
@@ -240,7 +255,7 @@ export const getDesignTokens = (mode: PaletteMode) => {
         lineHeight: 1.5,
       },
       button: {
-        textTransform: "none",
+        textTransform: 'none',
         fontWeight: 500,
       },
     },
@@ -258,45 +273,45 @@ export const colorSchemes = {
         light: brand[300],
         main: brand[700],
         dark: brand[800],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       secondary: {
         light: gray[300],
         main: gray[500],
         dark: gray[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       info: {
         light: blue[300],
         main: blue[500],
         dark: blue[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       warning: {
         light: orange[300],
         main: orange[500],
         dark: orange[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       error: {
         light: red[300],
         main: red[500],
         dark: red[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       success: {
         light: green[300],
         main: green[500],
         dark: green[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       grey: {
         ...gray,
       },
       divider: alpha(gray[300], 0.4),
       background: {
-        default: "#FBF7EF",
-        paper: "#ffffff",
+        default: '#FBF7EF',
+        paper: '#ffffff',
       },
       text: {
         primary: gray[800],
@@ -306,7 +321,7 @@ export const colorSchemes = {
         hover: alpha(gray[200], 0.2),
         selected: `${alpha(gray[200], 0.3)}`,
       },
-      baseShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)",
+      baseShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
     },
   },
   dark: {
@@ -315,37 +330,37 @@ export const colorSchemes = {
         light: brand[400],
         main: brand[600],
         dark: brand[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       secondary: {
         light: gray[300],
         main: gray[500],
         dark: gray[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       info: {
         light: blue[300],
         main: blue[500],
         dark: blue[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       warning: {
         light: orange[300],
         main: orange[500],
         dark: orange[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       error: {
         light: red[300],
         main: red[500],
         dark: red[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       success: {
         light: green[300],
         main: green[500],
         dark: green[700],
-        contrastText: "#ffffff",
+        contrastText: '#ffffff',
       },
       grey: {
         ...gray,
@@ -356,20 +371,21 @@ export const colorSchemes = {
         paper: gray[800],
       },
       text: {
-        primary: "#f9fafb",
+        primary: '#f9fafb',
         secondary: gray[400],
       },
       action: {
         hover: alpha(gray[600], 0.2),
         selected: alpha(gray[600], 0.3),
       },
-      baseShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3)",
+      baseShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3)',
     },
   },
 };
 
 export const typography = {
-  fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   h1: {
     fontSize: defaultTheme.typography.pxToRem(48),
     fontWeight: 600,
@@ -425,7 +441,7 @@ export const typography = {
     lineHeight: 1.5,
   },
   button: {
-    textTransform: "none",
+    textTransform: 'none',
     fontWeight: 500,
   },
 };
@@ -435,8 +451,8 @@ export const shape = {
 };
 
 const defaultShadows: Shadows = [
-  "none",
-  "var(--template-palette-baseShadow)",
+  'none',
+  'var(--template-palette-baseShadow)',
   ...defaultTheme.shadows.slice(2),
 ] as Shadows;
 

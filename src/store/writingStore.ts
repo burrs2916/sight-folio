@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { emit } from '@tauri-apps/api/event';
 import {
   writingApi,
   writingOutlinesApi,
@@ -18,10 +19,27 @@ import {
   type WritingStoryline,
   type WritingTimelineEvent,
 } from '../services/tauri';
+import { isChapterDeleted, chapterDeletedAt, withChapterDeletedAt } from '../services/tauri';
+import { parseSettingExtra, serializeBookGoal, type WritingBookGoal } from '../services/writing';
+import { parseBeatExtra } from '../utils/writingOutline';
 import { useEditorStore } from './editorStore';
 import { logger } from '../utils/logger';
 import { buildTree, defaultLevels, findNodeInForest } from '../utils/writingTree';
 import { WINDOW_DAYS } from '../utils/writingStats';
+
+/**
+ * 跨窗口正文同步事件：写作台（独立 webview/store）落库成功后广播，
+ * 主窗口正文页借此把该章 content/wordCount 就地并入自己的 store 实例，
+ * 不需要（也不应该）整表 reload 就能读到写作台刚写入的正文。
+ */
+export const WRITING_CONTENT_SAVED_EVENT = 'writing-content-saved';
+
+export interface WritingContentSavedPayload {
+  bookId: string;
+  chapterId: string;
+  content: string;
+  wordCount: number;
+}
 
 /**
  * 写作域 store（Sight Folio）
@@ -57,6 +75,11 @@ interface WritingState {
    * 共用这一份（单一来源），由 setActiveBook 加载，避免各自重复 fetch。
    */
   dailyStats: WritingDailyStat[];
+  /**
+   * 回收站（软删）：当前激活书的已删章节（随时间倒序；extra.deletedAt = 删除时间）。
+   * 章树/章列表/大纲关联/排序等消费方一律只看 chapters，这里只服务回收站面板。
+   */
+  deletedChapters: WritingChapter[];
 
   loadBooks: () => Promise<void>;
   createBook: (title: string, genre?: string, medium?: string) => Promise<WritingBook>;
@@ -74,8 +97,15 @@ interface WritingState {
   renameNodeKind: (nodeId: string, kind: string) => Promise<void>;
   /** 结构树：循环节点状态（待写→草稿→已完→待写），给概览进度账。 */
   setChapterStatus: (nodeId: string, status: string) => Promise<void>;
+  /** G1 章→线直连：章节挂线/解绑（storyline-only 落库，不整行覆写；null = 去线）。 */
+  setChapterStoryline: (chapterId: string, storylineId: string | null) => Promise<void>;
   renameChapter: (chapterId: string, title: string) => Promise<void>;
+  /** 软删（2026-09-29）：写 extra.deletedAt 落库，章移入回收站（deletedChapters）；只有回收站的「永久删除」才真删。 */
   deleteChapter: (chapterId: string) => Promise<void>;
+  /** 回收站：把软删章恢复到活跃列表——父级存活则回原挂载点与 sortOrder 位置，否则提为根（防「恢复却不可见」）。 */
+  restoreChapter: (chapterId: string) => Promise<void>;
+  /** 回收站：永久删除（后端 delete_writing_chapter，级联解绑），同时从回收站清单移除。不可恢复。 */
+  permanentlyDeleteChapter: (chapterId: string) => Promise<void>;
   setActiveChapter: (chapterId: string | null) => void;
   /**
    * 拖拽排序：把 chapterId 移动到 toIndex（0 起）。重排后统一重编 sort_order，
@@ -88,6 +118,14 @@ interface WritingState {
    * 就地更新 chapters 里的 content/wordCount/updatedAt，不切换选中。
    */
   saveChapterContent: (chapterId: string, content: string, wordCount: number) => Promise<void>;
+
+  /**
+   * 跨窗口正文同步（读侧接收端）：写作台落库后广播 content-saved 事件，
+   * 主窗口/其它窗口就地合并该章的 content/wordCount/updatedAt，避免整表 reload。
+   * 幂等：仅当该章已在「当前激活书」的 chapters 缓存中才更新；未加载则忽略，
+   * 等下次 loadChapters 自然拿到全量最新值。
+   */
+  applyExternalChapterContent: (payload: WritingContentSavedPayload) => void;
 
   loadSettings: () => Promise<void>;
   createSetting: (kind: WritingSettingKind, name: string) => Promise<WritingSetting | null>;
@@ -105,15 +143,26 @@ interface WritingState {
     patch: Partial<Pick<WritingOutline, 'title' | 'summary' | 'chapterId' | 'extra'>>,
   ) => Promise<void>;
   deleteOutline: (outlineId: string) => Promise<void>;
+  /**
+   * 节拍封面（extra.coverImage，零迁移）：assetRef 传 null 即清除。
+   * 宽容解析坏 extra（绝不会因脏数据抛错），与 setChapterCover 同一处理范式。
+   */
+  setOutlineCover: (outlineId: string, assetRef: string | null) => Promise<void>;
+  /**
+   * 大纲排序：把 outlineId 移动到 toIndex（0 起）。重排后统一重编 sort_order（1..n），
+   * 只把**实际发生变化的大纲**写回落库（与 reorderChapter 同一模式）。
+   */
+  reorderOutline: (outlineId: string, toIndex: number) => Promise<void>;
 
   /** 时间线事件（D）：全书级实体，独立于设定卡 extra.timeline */
   loadTimelineEvents: () => Promise<void>;
   createTimelineEvent: (opts: {
+    chapterId?: string | null;
     settingId?: string | null;
+    storylineId?: string | null;
+    outlineId?: string | null;
     at?: string;
     event?: string;
-    chapterId?: string | null;
-    storylineId?: string | null;
   }) => Promise<WritingTimelineEvent | null>;
   updateTimelineEvent: (
     eventId: string,
@@ -158,10 +207,30 @@ interface WritingState {
       放 store 而非组件态，是为了载体卡与 L2 题材编辑面共用同一份折叠状态。 */
   collapsedNodeIds: string[];
   toggleNodeCollapse: (nodeId: string) => void;
+  /**
+   * 倒排索引（T9）：人物 → 出场章节（characterId → chapterId[]）。
+   * 由 load/loadSettings/loadOutlines 批量重建，由 updateOutline/updateSetting 增量维护。
+   * 前端按需取用，不持久化（内存派生态）。
+   */
+  characterChapterIndex: Map<string, Set<string>>;
+  /**
+   * 倒排索引（T9）：章节 → 出场人物（chapterId → characterId[]）。
+   * 与 characterChapterIndex 互为逆映射，同维护策略。
+   */
+  chapterCharacterIndex: Map<string, Set<string>>;
+  /**
+   * 倒排索引（T9）：设定 → 被哪些设定引用（settingId → settingId[]）。
+   * 由 extra.relations.targetId 反向推导，随 loadSettings/updateSetting 重建/维护。
+   */
+  settingInboundIndex: Map<string, Set<string>>;
+  /** 重建所有倒排索引（批量刷新后调用） */
+  _rebuildIndices: () => void;
   /** 体裁/载体编辑（P1 创作体系）：先落库再改态。 */
   setBookMeta: (bookId: string, patch: { genre?: string; medium?: string }) => Promise<void>;
   /** 日更目标（P6）：字数/天，0 = 未设。 */
   setDailyGoal: (bookId: string, dailyGoal: number) => Promise<void>;
+  /** 全书写作目标（T2）：合并进 book.extra JSON 透传（保留未知字段）。 */
+  setBookGoal: (bookId: string, goal: WritingBookGoal) => Promise<void>;
   /** 日更快照（P6）：Rust 落库的「当日全书总字数」，差分出每日新增。总览/AI 语料共用。 */
   loadDailyStats: (bookId: string) => Promise<void>;
 }
@@ -174,6 +243,7 @@ export const useWritingStore = create<WritingState>()(
     activeChapterId: null,
     chapters: [],
     chaptersLoading: false,
+    deletedChapters: [],
     settings: [],
     settingsLoading: false,
     activeSettingId: null,
@@ -183,6 +253,49 @@ export const useWritingStore = create<WritingState>()(
     foreshadowings: [],
     dailyStats: [],
     collapsedNodeIds: [],
+    characterChapterIndex: new Map(),
+    chapterCharacterIndex: new Map(),
+    settingInboundIndex: new Map(),
+
+    _rebuildIndices: () =>
+      set((s) => {
+        s.characterChapterIndex = new Map();
+        s.chapterCharacterIndex = new Map();
+        s.settingInboundIndex = new Map();
+        const idsOf = (v: unknown): string[] =>
+          Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : [];
+        for (const o of s.outlines) {
+          if (!o.chapterId) continue;
+          const extra = parseBeatExtra(o.extra);
+          // cast → character → characterChapterIndex + chapterCharacterIndex
+          for (const cid of idsOf(extra.cast)) {
+            const cs = s.characterChapterIndex.get(cid);
+            if (cs) cs.add(o.chapterId);
+            else s.characterChapterIndex.set(cid, new Set([o.chapterId]));
+            const cc = s.chapterCharacterIndex.get(o.chapterId);
+            if (cc) cc.add(cid);
+            else s.chapterCharacterIndex.set(o.chapterId, new Set([cid]));
+          }
+          // scenes → worldbuilding → chapterCharacterIndex (同结构，key 区分在 settingId)
+          for (const sid of idsOf(extra.scenes)) {
+            const cs = s.characterChapterIndex.get(sid);
+            if (cs) cs.add(o.chapterId);
+            else s.characterChapterIndex.set(sid, new Set([o.chapterId]));
+            const cc = s.chapterCharacterIndex.get(o.chapterId);
+            if (cc) cc.add(sid);
+            else s.chapterCharacterIndex.set(o.chapterId, new Set([sid]));
+          }
+        }
+        for (const st of s.settings) {
+          const extra = parseSettingExtra(st.extra);
+          for (const r of extra.relations ?? []) {
+            if (!r.targetId) continue;
+            const ins = s.settingInboundIndex.get(r.targetId);
+            if (ins) ins.add(st.id);
+            else s.settingInboundIndex.set(r.targetId, new Set([st.id]));
+          }
+        }
+      }),
 
     toggleNodeCollapse: (nodeId) =>
       set((s) => {
@@ -221,6 +334,7 @@ export const useWritingStore = create<WritingState>()(
         status: 'draft',
         coverColor: '#4A338F',
         dailyGoal: 0,
+        extra: '{}',
         createdAt: now,
         updatedAt: now,
       };
@@ -275,6 +389,7 @@ export const useWritingStore = create<WritingState>()(
           s.activeBookId = null;
           s.activeChapterId = null;
           s.chapters = [];
+          s.deletedChapters = [];
           s.settings = [];
           s.activeSettingId = null;
           s.outlines = [];
@@ -290,6 +405,7 @@ export const useWritingStore = create<WritingState>()(
         s.activeBookId = bookId;
         s.activeChapterId = null;
         s.chapters = [];
+        s.deletedChapters = [];
         s.settings = [];
         s.activeSettingId = null;
         s.outlines = [];
@@ -316,11 +432,25 @@ export const useWritingStore = create<WritingState>()(
         s.chaptersLoading = true;
       });
       try {
-        const chapters = await writingApi.listChapters(bookId);
+        const all = await writingApi.listChapters(bookId);
         set((s) => {
           // 只在仍是当前激活书时写入，防止快速切书竞态覆盖
-          if (s.activeBookId === bookId) s.chapters = chapters;
+          if (s.activeBookId !== bookId) return;
+          // 软删拆分（2026-09-29）：chapters 只含活跃章，deletedChapters 收软删章——
+          // 消费方（树/列表/大纲关联/排序）零改动即自动过滤回收站条目。
+          s.chapters = [];
+          s.deletedChapters = [];
+          for (const c of all) {
+            // 统一 parentId：旧模型可能残留 ''，和 buildTree 的 normParent('')='' 混用会导致
+            // reparentNode 的 siblings 过滤口径不一致，进而 sortOrder 冲突、同级排序错乱。
+            const cleaned: WritingChapter = c.parentId === '' ? { ...c, parentId: null } : c;
+            if (isChapterDeleted(cleaned)) s.deletedChapters.push({ ...cleaned, deletedAt: chapterDeletedAt(cleaned) });
+            else s.chapters.push(cleaned);
+          }
+          // 与 deleteChapter 的 unshift 语义一致：新删的排前面
+          s.deletedChapters.sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
         });
+        get()._rebuildIndices();
       } catch (e) {
         logger.warn('writingStore', 'loadChapters failed', { error: e });
         throw e;
@@ -394,7 +524,8 @@ export const useWritingStore = create<WritingState>()(
       const { chapters } = get();
       const node = chapters.find((c) => c.id === nodeId);
       if (!node) return;
-      const target = newParentId ?? null;
+      // 统一 parentId 口径：空字符串视为 null，与 buildTree 的 normParent 一致
+      const target = newParentId && newParentId.length > 0 ? newParentId : null;
       if ((node.parentId ?? null) === target) return; // 无变化
       // 防环：目标不能是自己或自己的后代
       if (target) {
@@ -411,7 +542,13 @@ export const useWritingStore = create<WritingState>()(
         if (desc.has(target)) return; // 会成环，拒绝
       }
       const now = Math.floor(Date.now() / 1000);
-      const nextOrder = chapters.reduce((max, c) => Math.max(max, c.sortOrder), 0) + 1;
+      // 取同父节点下子节点的最大 sortOrder，+1 后挂在末尾——避免跨父级 sortOrder 冲突导致顺序错乱
+      // 兼容旧数据 parentId='' 与 null 混用：和 buildTree 的 normParent 口径一致
+      const siblings = chapters.filter((c) => {
+        const cp = c.parentId ?? null;
+        return cp === target || (cp === '' && target === null) || (cp === null && target === '');
+      });
+      const nextOrder = siblings.reduce((max, c) => Math.max(max, c.sortOrder), 0) + 1;
       const updated: WritingChapter = { ...node, parentId: target, sortOrder: nextOrder, updatedAt: now };
       await writingApi.saveChapter(updated);
       set((s) => {
@@ -448,6 +585,22 @@ export const useWritingStore = create<WritingState>()(
         if (row) {
           row.status = status;
           row.updatedAt = updated.updatedAt;
+        }
+      });
+    },
+
+    setChapterStoryline: async (chapterId: string, storylineId: string | null) => {
+      const chapter = get().chapters.find((c) => c.id === chapterId);
+      if (!chapter) return;
+      if ((chapter.storylineId ?? null) === storylineId) return;
+      // storyline-only 落库：绝不整行覆写（与 renameChapter 同防回滚原则）。
+      await writingApi.setChapterStoryline(chapterId, storylineId);
+      const now = Math.floor(Date.now() / 1000);
+      set((s) => {
+        const row = s.chapters.find((c) => c.id === chapterId);
+        if (row) {
+          row.storylineId = storylineId;
+          row.updatedAt = now;
         }
       });
     },
@@ -490,7 +643,9 @@ export const useWritingStore = create<WritingState>()(
       // 双向联动的另一面：解绑挂在该章上的大纲条目（先落库再改态）
       const bound = outlines.filter((o) => o.chapterId === chapterId);
       await Promise.all(bound.map((o) => writingOutlinesApi.save({ ...o, chapterId: null, updatedAt: now })));
-      await writingApi.deleteChapter(chapterId);
+      // 软删（2026-09-29）：不真删——把 deletedAt 写进 extra JSON 落库（零迁移，
+      // 内容/子级上提等全部保留），章从活跃列表移入回收站；真删只发生在回收站「永久删除」。
+      await writingApi.saveChapter(withChapterDeletedAt({ ...node, updatedAt: now }, now));
       set((s) => {
         for (const ch of lifted) {
           const r = s.chapters.find((x) => x.id === ch.id);
@@ -499,7 +654,9 @@ export const useWritingStore = create<WritingState>()(
             r.updatedAt = ch.updatedAt;
           }
         }
+        const removed = s.chapters.find((c) => c.id === chapterId);
         s.chapters = s.chapters.filter((c) => c.id !== chapterId);
+        if (removed) s.deletedChapters.unshift({ ...removed, deletedAt: now, updatedAt: now });
         if (s.activeChapterId === chapterId) s.activeChapterId = null;
         for (const o of s.outlines) {
           if (o.chapterId === chapterId) o.chapterId = null;
@@ -513,6 +670,54 @@ export const useWritingStore = create<WritingState>()(
           if (f.plantChapterId === chapterId) f.plantChapterId = null;
           if (f.payoffChapterId === chapterId) f.payoffChapterId = null;
         }
+      });
+    },
+
+    restoreChapter: async (chapterId: string) => {
+      const { chapters, deletedChapters } = get();
+      const node = deletedChapters.find((c) => c.id === chapterId);
+      if (!node) return;
+      const now = Math.floor(Date.now() / 1000);
+      // 父级仍在活跃树里则保持原挂载；父级已不存在（也被软删/真删）就提为根——
+      // buildTree 对孤儿节点会直接丢弃，不提根会出现「恢复却看不见」的陷阱。
+      const parentAlive = node.parentId != null && chapters.some((c) => c.id === node.parentId);
+      const restored = withChapterDeletedAt(
+        { ...node, parentId: parentAlive ? node.parentId : null, updatedAt: now },
+        0,
+      );
+      // 按原 sortOrder 归位：与活跃章混排后取「第一个 sortOrder 更大」的位置插入
+      // （同序按 createdAt 稳定兜底），再从 1 起统一重编整书 sort_order——
+      // 只落库次序真的变了的行（与 reorderChapter 同一模式）。
+      const arr = [...chapters, restored].sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1),
+      );
+      const renumbered = arr.map((c, i) => ({ ...c, sortOrder: i + 1 }));
+      const changed = renumbered.filter(
+        (c, i) => c.id === chapterId || arr[i].id !== c.id || arr[i].sortOrder !== c.sortOrder,
+      );
+      try {
+        await Promise.all(changed.map((c) => writingApi.saveChapter(c)));
+      } catch (e) {
+        logger.warn('writingStore', 'restoreChapter persist failed', { error: e });
+        throw e;
+      }
+      set((s) => {
+        s.deletedChapters = s.deletedChapters.filter((c) => c.id !== chapterId);
+        const changedIds = new Set(changed.map((c) => c.id));
+        s.chapters = renumbered.map((c) => {
+          if (c.id === chapterId) return { ...c, deletedAt: 0 };
+          return changedIds.has(c.id) ? { ...c, updatedAt: now } : c;
+        });
+      });
+    },
+
+    permanentlyDeleteChapter: async (chapterId: string) => {
+      const node = get().deletedChapters.find((c) => c.id === chapterId);
+      if (!node) return;
+      // 真删：后端 delete_writing_chapter（事务内删行 + 级联解绑引用）
+      await writingApi.deleteChapter(chapterId);
+      set((s) => {
+        s.deletedChapters = s.deletedChapters.filter((c) => c.id !== chapterId);
       });
     },
 
@@ -567,6 +772,31 @@ export const useWritingStore = create<WritingState>()(
       useEditorStore.getState().syncWritingEntityCards('chapterId', chapterId, {
         configPatch: { wordCount },
       });
+      // 跨窗口正文同步：写作台是独立 webview/store 实例，落库成功后广播事件，
+      // 主窗口正文页借此把 content 就地并入自己的 store（见 applyExternalChapterContent）。
+      void emit(WRITING_CONTENT_SAVED_EVENT, {
+        bookId: chapter.bookId,
+        chapterId,
+        content,
+        wordCount,
+      } satisfies WritingContentSavedPayload).catch((e) => {
+        logger.warn('writingStore', 'emit content-saved failed', { error: e });
+      });
+    },
+
+    applyExternalChapterContent: (payload) => {
+      const { bookId, chapterId, content, wordCount } = payload;
+      // 只更新「当前激活书」的章节行：未加载该书的窗口跳过（下次 loadChapters 全量兜底）
+      if (get().activeBookId !== bookId) return;
+      const now = Math.floor(Date.now() / 1000);
+      set((s) => {
+        const row = s.chapters.find((c) => c.id === chapterId);
+        if (row) {
+          row.content = content;
+          row.wordCount = wordCount;
+          row.updatedAt = now;
+        }
+      });
     },
 
     loadSettings: async () => {
@@ -586,6 +816,7 @@ export const useWritingStore = create<WritingState>()(
             s.settings = [...characters, ...worldbuilding];
           }
         });
+        get()._rebuildIndices();
       } catch (e) {
         logger.warn('writingStore', 'loadSettings failed', { error: e });
         throw e;
@@ -626,6 +857,7 @@ export const useWritingStore = create<WritingState>()(
     ) => {
       const setting = get().settings.find((x) => x.id === settingId);
       if (!setting) return;
+      const oldExtra = setting.extra;
       const updated: WritingSetting = {
         ...setting,
         ...patch,
@@ -640,6 +872,25 @@ export const useWritingStore = create<WritingState>()(
           row.description = updated.description;
           row.extra = updated.extra;
           row.updatedAt = updated.updatedAt;
+        }
+        // T9：增量维护 settingInboundIndex（old → new 的 relations 差异）
+        const oldR = parseSettingExtra(oldExtra).relations ?? [];
+        const newR = parseSettingExtra(updated.extra).relations ?? [];
+        const oldTargets = new Set(oldR.map((r) => r.targetId).filter(Boolean) as string[]);
+        const newTargets = new Set(newR.map((r) => r.targetId).filter(Boolean) as string[]);
+        for (const tid of oldTargets) {
+          if (newTargets.has(tid)) continue;
+          const ins = s.settingInboundIndex.get(tid);
+          if (ins) {
+            ins.delete(settingId);
+            if (ins.size === 0) s.settingInboundIndex.delete(tid);
+          }
+        }
+        for (const tid of newTargets) {
+          if (oldTargets.has(tid)) continue;
+          const ins = s.settingInboundIndex.get(tid);
+          if (ins) ins.add(settingId);
+          else s.settingInboundIndex.set(tid, new Set([settingId]));
         }
       });
       // P3 业务→画布回流：设定改名刷到画布卡（comp.name + config.name）
@@ -660,6 +911,7 @@ export const useWritingStore = create<WritingState>()(
           if (ev.settingId === settingId) ev.settingId = null;
         }
       });
+      get()._rebuildIndices();
     },
 
     setActiveSetting: (settingId: string | null) => {
@@ -678,6 +930,7 @@ export const useWritingStore = create<WritingState>()(
         set((s) => {
           if (s.activeBookId === bookId) s.outlines = outlines;
         });
+        get()._rebuildIndices();
       } catch (e) {
         logger.warn('writingStore', 'loadOutlines failed', { error: e });
         throw e;
@@ -728,12 +981,75 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      // 骨架关联同步（写作台→时间线）：outline.summary 变更时，自动同步到关联的 timelineEvent.event
+      if (patch.summary !== undefined && patch.summary !== outline.summary) {
+        const linkedEvent = get().timelineEvents.find((ev) => ev.outlineId === outlineId);
+        if (linkedEvent) {
+          void get().updateTimelineEvent(linkedEvent.id, { event: patch.summary });
+        }
+      }
+      get()._rebuildIndices();
     },
 
     deleteOutline: async (outlineId: string) => {
       await writingOutlinesApi.delete(outlineId);
       set((s) => {
         s.outlines = s.outlines.filter((o) => o.id !== outlineId);
+      });
+      get()._rebuildIndices();
+    },
+
+    setOutlineCover: async (outlineId: string, assetRef: string | null) => {
+      const outline = get().outlines.find((o) => o.id === outlineId);
+      if (!outline) return;
+      // 安全解析 extra：坏数据/空串一律当空对象，绝不因脏数据抛错（与 setChapterCover 同口径）
+      let extraObj: Record<string, unknown> = {};
+      try {
+        const parsed = JSON.parse(outline.extra || '{}');
+        if (parsed && typeof parsed === 'object') extraObj = parsed as Record<string, unknown>;
+      } catch {
+        extraObj = {};
+      }
+      if (assetRef) extraObj.coverImage = assetRef;
+      else delete extraObj.coverImage;
+      const nextExtra = JSON.stringify(extraObj);
+      const updated: WritingOutline = {
+        ...outline,
+        extra: nextExtra,
+        updatedAt: Math.floor(Date.now() / 1000),
+      };
+      await writingOutlinesApi.save(updated);
+      set((s) => {
+        const row = s.outlines.find((o) => o.id === outlineId);
+        if (row) {
+          row.extra = nextExtra;
+          row.updatedAt = updated.updatedAt;
+        }
+      });
+    },
+
+    reorderOutline: async (outlineId: string, toIndex: number) => {
+      const { outlines } = get();
+      const from = outlines.findIndex((o) => o.id === outlineId);
+      if (from < 0) return;
+      const target = Math.max(0, Math.min(toIndex, outlines.length - 1));
+      if (target === from) return;
+      // 本地重排 + 统一重编 sort_order（1..n）
+      const arr = [...outlines];
+      const [moved] = arr.splice(from, 1);
+      arr.splice(target, 0, moved);
+      const now = Math.floor(Date.now() / 1000);
+      const reordered = arr.map((o, i) => ({ ...o, sortOrder: i + 1 }));
+      // 只落库顺序真的变了的那几行（按位置比对 id；位置变了 sort_order 必变）
+      const changed = reordered.filter((o, i) => o.id !== outlines[i].id);
+      try {
+        await Promise.all(changed.map((o) => writingOutlinesApi.save({ ...o, updatedAt: now })));
+      } catch (e) {
+        logger.warn('writingStore', 'reorderOutline persist failed', { error: e });
+        throw e;
+      }
+      set((s) => {
+        s.outlines = reordered.map((o) => (changed.some((x) => x.id === o.id) ? { ...o, updatedAt: now } : o));
       });
     },
 
@@ -765,6 +1081,7 @@ export const useWritingStore = create<WritingState>()(
         event: opts.event ?? '',
         chapterId: opts.chapterId ?? null,
         storylineId: opts.storylineId ?? null,
+        outlineId: opts.outlineId ?? null,
         sortOrder: timelineEvents.reduce((max, ev) => Math.max(max, ev.sortOrder), 0) + 1,
         createdAt: now,
         updatedAt: now,
@@ -793,6 +1110,7 @@ export const useWritingStore = create<WritingState>()(
           row.chapterId = updated.chapterId;
           row.settingId = updated.settingId;
           row.storylineId = updated.storylineId;
+          row.outlineId = updated.outlineId;
           row.sortOrder = updated.sortOrder;
           row.updatedAt = updated.updatedAt;
         }
@@ -1006,6 +1324,24 @@ export const useWritingStore = create<WritingState>()(
         const row = s.books.find((b) => b.id === bookId);
         if (row) {
           row.dailyGoal = dailyGoal;
+          row.updatedAt = updated.updatedAt;
+        }
+      });
+    },
+
+    setBookGoal: async (bookId: string, goal: WritingBookGoal) => {
+      const book = get().books.find((b) => b.id === bookId);
+      if (!book) return;
+      const updated: WritingBook = {
+        ...book,
+        extra: serializeBookGoal(book.extra, goal),
+        updatedAt: Math.floor(Date.now() / 1000),
+      };
+      await writingApi.saveBook(updated);
+      set((s) => {
+        const row = s.books.find((b) => b.id === bookId);
+        if (row) {
+          row.extra = updated.extra;
           row.updatedAt = updated.updatedAt;
         }
       });

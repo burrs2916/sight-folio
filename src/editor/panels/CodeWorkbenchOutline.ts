@@ -2,7 +2,7 @@
 
 import { t } from "../../i18n";
 
-import { parseFileMetricMeta, projectScanApi, type FileChangeEvent, type ProjectFile, type ProjectSymbol } from "../../services/tauri";
+import { type ProjectSymbol } from "../../services/tauri";
 
 import { fuzzyScore } from "./CodeWorkbenchTree";
 

@@ -7,46 +7,154 @@
 // 算法全部复用 utils/writingTimeline（与主视图同一份，禁止再写第二份）。
 // 冲突计数取两种视图（全书/按章）检测的并集：advisory 软提示只报数，
 // 逐事件标记仍归主视图按其当前视图口径。
-import { useEffect, useMemo } from "react";
-import { openWritingDesk } from "../../utils/writingDeskWindow";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import { useWritingStore } from "../../store/writingStore";
-import { useEditorStore } from "../../store/editorStore";
-import type { WritingChapter, WritingStoryline, WritingTimelineEvent } from "../../services/tauri";
-import { openChapterCarrierView, openTypedCarrierView } from "../../utils/studioBook";
-import { LANE_COLORS, hashStr, buildStorylineChapterMatrix } from "../../utils/writingTimeline";
-import { foreshadowingsOfLine, sortForeshadowings, isOverdue, foreshadowStatusColor } from "../../utils/writingForeshadowing";
-import { isComplete, computeCoverage, computeTimelineConflicts } from "../../utils/writingTimeline";
-import { t } from "../../i18n";
-import { DraftInput } from "../components/DraftInput";
+import { useEffect, useMemo, useState } from 'react';
+import { openWritingDesk } from '../../utils/writingDeskWindow';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import { useWritingStore } from '../../store/writingStore';
+import { useEditorStore } from '../../store/editorStore';
+import type { WritingChapter, WritingStoryline, WritingTimelineEvent } from '../../services/tauri';
+import { openChapterCarrierView, openTypedCarrierView } from '../../utils/studioBook';
+import { LANE_COLORS, hashStr, buildStorylineChapterMatrix } from '../../utils/writingTimeline';
+import {
+  foreshadowingsOfLine,
+  sortForeshadowings,
+  isOverdue,
+  foreshadowStatusColor,
+} from '../../utils/writingForeshadowing';
+import { isComplete, computeCoverage, computeTimelineConflicts, compareByAt } from '../../utils/writingTimeline';
+import { t } from '../../i18n';
+import { DraftInput } from '../components/DraftInput';
+import ChapterPicker from '../renderers/ChapterPicker';
+import EntityPicker from '../renderers/EntityPicker';
 
-const WARN = "#b45309"; // 琥珀（与主视图 CV.warning 同族；本文件不依赖 canvasTheme）
+const WARN = '#b45309'; // 琥珀（与主视图 CV.warning 同族；本文件不依赖 canvasTheme）
 
 function unionConflictIds(events: WritingTimelineEvent[], chapters: WritingChapter[]): Set<string> {
   return new Set([
-    ...computeTimelineConflicts(events, { view: "book" }),
-    ...computeTimelineConflicts(events, { view: "chapter", chapters }),
+    ...computeTimelineConflicts(events, { view: 'book' }),
+    ...computeTimelineConflicts(events, { view: 'chapter', chapters }),
   ]);
 }
 
 const fieldStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  border: "1px solid rgba(128,128,128,0.35)",
+  width: '100%',
+  boxSizing: 'border-box',
+  border: '1px solid rgba(128,128,128,0.35)',
   borderRadius: 6,
-  background: "transparent",
-  color: "inherit",
-  padding: "4px 6px",
+  background: 'transparent',
+  color: 'inherit',
+  padding: '4px 6px',
   fontSize: 12,
-  outline: "none",
+  outline: 'none',
 };
 
 function StatRow({ label, value, warn }: { label: string; value: string | number; warn?: boolean }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1 }}>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
-      <Typography variant="caption" sx={{ fontWeight: 700, color: warn ? WARN : "text.primary" }}>{value}</Typography>
+    <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1 }}>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="caption" sx={{ fontWeight: 700, color: warn ? WARN : 'text.primary' }}>
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
+// ─── 右栏未挂线事件列表（含搜索过滤 + 快捷挂线选择器）───
+function StorylineUnlinedList({
+  timelineEvents,
+  storylines,
+  selectTimelineEvent,
+  updateTimelineEvent,
+}: {
+  timelineEvents: WritingTimelineEvent[];
+  storylines: WritingStoryline[];
+  selectTimelineEvent: (id: string) => void;
+  updateTimelineEvent: (id: string, patch: Partial<WritingTimelineEvent>) => Promise<void>;
+}) {
+  const [unlinedQuery, setUnlinedQuery] = useState('');
+  const unlined = useMemo(() => timelineEvents.filter((e) => !e.storylineId), [timelineEvents]);
+  const filteredUnlined = useMemo(() => {
+    if (!unlinedQuery.trim()) return unlined;
+    const q = unlinedQuery.toLowerCase();
+    return unlined.filter(
+      (ev) => (ev.event ?? '').toLowerCase().includes(q) || (ev.at ?? '').toLowerCase().includes(q),
+    );
+  }, [unlined, unlinedQuery]);
+
+  if (unlined.length === 0) {
+    return (
+      <Typography variant="caption" color="text.disabled">
+        {t('writing.storylineUnlined')} · 0
+      </Typography>
+    );
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        <Typography variant="caption" color="text.disabled">
+          {t('writing.storylineUnlined')} · {unlined.length}
+        </Typography>
+        <input
+          type="text"
+          value={unlinedQuery}
+          onChange={(e) => setUnlinedQuery(e.target.value)}
+          placeholder={t('writing.timelineSearchPlaceholder')}
+          style={{
+            fontSize: 10,
+            padding: '2px 6px',
+            border: '1px solid rgba(128,128,128,0.35)',
+            borderRadius: 5,
+            background: 'transparent',
+            color: 'inherit',
+            outline: 'none',
+            width: 90,
+            flexShrink: 0,
+          }}
+        />
+      </Box>
+      {filteredUnlined.length === 0 && unlinedQuery.trim() ? (
+        <Typography variant="caption" color="text.disabled">
+          {t('writing.timelineSearchNoHits')}
+        </Typography>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, maxHeight: 168, overflowY: 'auto' }}>
+          {filteredUnlined.map((ev) => (
+            <Box key={ev.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+              <Typography
+                variant="caption"
+                onClick={() => selectTimelineEvent(ev.id)}
+                title={t('writing.timelineDetailEmpty')}
+                sx={{
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  flex: 1,
+                  minWidth: 0,
+                  '&:hover': { color: 'text.primary' },
+                }}
+              >
+                {ev.at ? `${ev.at} · ` : ''}
+                {ev.event || t('writing.timelineIncomplete')}
+              </Typography>
+              <EntityPicker
+                uniqueKey={ev.id + '-sl'}
+                items={storylines.map((sl) => ({ id: sl.id, name: sl.name }))}
+                placeholder={t('writing.storylineUnlined')}
+                onSelect={(v: string) => void updateTimelineEvent(ev.id, { storylineId: v })}
+                compact
+                width={96}
+                value={ev.storylineId}
+                onClear={() => void updateTimelineEvent(ev.id, { storylineId: null })}
+              />
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -64,40 +172,49 @@ function StorylineOverviewCard() {
     const ws = useWritingStore.getState();
     if (ws.activeBookId && ws.storylines.length === 0) void ws.loadStorylines().catch(() => {});
   }, [loadStorylines]);
-  const linedCount = useMemo(
-    () => timelineEvents.filter((e) => e.storylineId).length,
-    [timelineEvents]
-  );
+  const linedCount = useMemo(() => timelineEvents.filter((e) => e.storylineId).length, [timelineEvents]);
   return (
-    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, p: 1.25, display: "flex", flexDirection: "column", gap: 0.5 }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+    <Box
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 1.5,
+        p: 1.25,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.5,
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
         <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.secondary">
-          {t("writing.timelineViewStoryline")} · {storylines.length}
+          {t('writing.timelineViewStoryline')} · {storylines.length}
         </Typography>
         <Typography
           variant="caption"
-          onClick={() => void createStoryline(t("writing.storylineDefaultName", { n: storylines.length + 1 }))}
-          title={t("writing.storylineCreate")}
-          sx={{ cursor: "pointer", color: "primary.main", fontWeight: 700, "&:hover": { textDecoration: "underline" } }}
+          onClick={() => void createStoryline(t('writing.storylineDefaultName', { n: storylines.length + 1 }))}
+          title={t('writing.storylineCreate')}
+          sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 700, '&:hover': { textDecoration: 'underline' } }}
         >
-          ＋ {t("writing.storylineCreate")}
+          ＋ {t('writing.storylineCreate')}
         </Typography>
       </Box>
       {storylines.length === 0 ? (
-        <Typography variant="caption" color="text.disabled">{t("writing.storylineEmptyHint")}</Typography>
+        <Typography variant="caption" color="text.disabled">
+          {t('writing.storylineEmptyHint')}
+        </Typography>
       ) : (
         <>
           <StatRow
-            label={t("writing.storylineCoverage", { a: linedCount, t: timelineEvents.length })}
+            label={t('writing.storylineCoverage', { a: linedCount, t: timelineEvents.length })}
             value={`${timelineEvents.length ? Math.round((linedCount / timelineEvents.length) * 100) : 0}%`}
           />
-          <Box sx={{ height: 4, borderRadius: 2, bgcolor: "action.hover", overflow: "hidden" }}>
+          <Box sx={{ height: 4, borderRadius: 2, bgcolor: 'action.hover', overflow: 'hidden' }}>
             <Box
               sx={{
-                height: "100%",
+                height: '100%',
                 width: `${timelineEvents.length ? Math.round((linedCount / timelineEvents.length) * 100) : 0}%`,
-                bgcolor: "secondary.main",
-                transition: "width 120ms",
+                bgcolor: 'secondary.main',
+                transition: 'width 120ms',
               }}
             />
           </Box>
@@ -109,68 +226,38 @@ function StorylineOverviewCard() {
                 key={sl.id}
                 onClick={() => selectStoryline(sl.id)}
                 sx={{
-                  cursor: "pointer", fontSize: 11.5, p: "3px 6px", borderRadius: 1,
-                  border: 1, borderColor: "divider", display: "flex", alignItems: "center", gap: 1,
-                  minWidth: 0, "&:hover": { bgcolor: "action.hover" },
+                  cursor: 'pointer',
+                  fontSize: 11.5,
+                  p: '3px 6px',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: 'divider',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  minWidth: 0,
+                  '&:hover': { bgcolor: 'action.hover' },
                 }}
               >
-                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: color, flexShrink: 0 }} />
-                <Box component="span" sx={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                <Box
+                  component="span"
+                  sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
+                >
                   {sl.name}
                 </Box>
-                <Box component="span" sx={{ color: "text.disabled", flexShrink: 0 }}>
-                  {t("editor.writing.timelineEventCount", { n })}
+                <Box component="span" sx={{ color: 'text.disabled', flexShrink: 0 }}>
+                  {t('editor.writing.timelineEventCount', { n })}
                 </Box>
               </Box>
             );
           })}
-          {/* 未挂线事件快捷分配：不再只是计数——行尾 select 一秒挂线，免去逐个进事件详情 */}
-          {(() => {
-            const unlined = timelineEvents.filter((e) => !e.storylineId);
-            if (unlined.length === 0) {
-              return (
-                <Typography variant="caption" color="text.disabled">
-                  {t("writing.storylineUnlined")} · 0
-                </Typography>
-              );
-            }
-            return (
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
-                <Typography variant="caption" color="text.disabled">
-                  {t("writing.storylineUnlined")} · {unlined.length}
-                </Typography>
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, maxHeight: 168, overflowY: "auto" }}>
-                  {unlined.map((ev) => (
-                    <Box key={ev.id} sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
-                      <Typography
-                        variant="caption"
-                        onClick={() => selectTimelineEvent(ev.id)}
-                        title={t("writing.timelineDetailEmpty")}
-                        sx={{ cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0, "&:hover": { color: "text.primary" } }}
-                      >
-                        {ev.at ? `${ev.at} · ` : ""}{ev.event || t("writing.timelineIncomplete")}
-                      </Typography>
-                      <Box
-                        component="select"
-                        value=""
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          void updateTimelineEvent(ev.id, { storylineId: v || null });
-                        }}
-                        title={t("writing.timelineStoryline")}
-                        sx={{ flexShrink: 0, fontSize: 10.5, maxWidth: 96, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "transparent", color: "text.secondary", py: 0.1 }}
-                      >
-                        <option value="" disabled>{t("writing.storylineUnlined")}</option>
-                        {storylines.map((sl) => (
-                          <option key={sl.id} value={sl.id}>{sl.name}</option>
-                        ))}
-                      </Box>
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-            );
-          })()}
+          <StorylineUnlinedList
+            timelineEvents={timelineEvents}
+            storylines={storylines}
+            selectTimelineEvent={selectTimelineEvent}
+            updateTimelineEvent={updateTimelineEvent}
+          />
         </>
       )}
     </Box>
@@ -198,95 +285,140 @@ export function TimelineOverviewPanel({ bookId }: { bookId: string | null }) {
 
   const bookChapters = useMemo(
     () => (bookId ? chapters.filter((c) => c.bookId === bookId).sort((a, b) => a.sortOrder - b.sortOrder) : []),
-    [chapters, bookId]
+    [chapters, bookId],
   );
   const completeEvents = useMemo(() => timelineEvents.filter(isComplete), [timelineEvents]);
   const incompleteEvents = useMemo(() => timelineEvents.filter((e) => !isComplete(e)), [timelineEvents]);
   const coverage = useMemo(() => computeCoverage(bookChapters, completeEvents), [bookChapters, completeEvents]);
   // 冲突按两视图分别计算：总数取并集（advisory 软提示只报数）；
   // 行点选时按「哪个视图口径能呈现该冲突」自动切换主 pane 的轴模式（P1-A）。
-  const bookConflictIds = useMemo(() => computeTimelineConflicts(timelineEvents, { view: "book" }), [timelineEvents]);
+  const bookConflictIds = useMemo(() => computeTimelineConflicts(timelineEvents, { view: 'book' }), [timelineEvents]);
   const chapterConflictIds = useMemo(
-    () => computeTimelineConflicts(timelineEvents, { view: "chapter", chapters: bookChapters }),
-    [timelineEvents, bookChapters]
+    () => computeTimelineConflicts(timelineEvents, { view: 'chapter', chapters: bookChapters }),
+    [timelineEvents, bookChapters],
   );
   const conflictIds = useMemo(
     () => new Set([...bookConflictIds, ...chapterConflictIds]),
-    [bookConflictIds, chapterConflictIds]
+    [bookConflictIds, chapterConflictIds],
   );
 
   const selectEvent = (id: string) => useEditorStore.getState().selectTimelineEvent(id);
+
   // 冲突行点选：若当前主 pane 口径看不见该冲突（如跨章倒挂只在按章轴），先切口径再选中。
   const selectConflict = (id: string) => {
     const cur = useEditorStore.getState().timelineViewMode;
-    const target = cur === "book" ? (bookConflictIds.has(id) ? "book" : "chapter") : chapterConflictIds.has(id) ? "chapter" : "book";
+    const target =
+      cur === 'book' ? (bookConflictIds.has(id) ? 'book' : 'chapter') : chapterConflictIds.has(id) ? 'chapter' : 'book';
     if (target !== cur) useEditorStore.getState().setTimelineViewMode(target);
     selectEvent(id);
   };
 
   return (
-    <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1.25, overflowY: "auto" }}>
-      <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }} color="text.secondary">
-        {t("writing.timelineOverview")}
+    <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25, overflowY: 'auto' }}>
+      <Typography
+        variant="caption"
+        sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}
+        color="text.secondary"
+      >
+        {t('writing.timelineOverview')}
       </Typography>
-      <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, p: 1.25, display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <StatRow label={t("editor.writing.timelineEventCount", { n: timelineEvents.length })} value="" />
-        <StatRow label={t("writing.timelineStatComplete")} value={completeEvents.length} />
-        <StatRow label={t("writing.timelineIncomplete")} value={incompleteEvents.length} warn={incompleteEvents.length > 0} />
+      <Box
+        sx={{
+          border: 1,
+          borderColor: 'divider',
+          borderRadius: 1.5,
+          p: 1.25,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.5,
+        }}
+      >
+        <StatRow label={t('editor.writing.timelineEventCount', { n: timelineEvents.length })} value="" />
+        <StatRow label={t('writing.timelineStatComplete')} value={completeEvents.length} />
         <StatRow
-          label={t("writing.timelineCoverage", { a: coverage.anchoredChapterCount, t: coverage.totalChapters })}
+          label={t('writing.timelineIncomplete')}
+          value={incompleteEvents.length}
+          warn={incompleteEvents.length > 0}
+        />
+        <StatRow
+          label={t('writing.timelineCoverage', { a: coverage.anchoredChapterCount, t: coverage.totalChapters })}
           value={`${coverage.totalChapters ? Math.round((coverage.anchoredChapterCount / coverage.totalChapters) * 100) : 0}%`}
         />
-        <Box sx={{ height: 4, borderRadius: 2, bgcolor: "action.hover", overflow: "hidden" }}>
+        <Box sx={{ height: 4, borderRadius: 2, bgcolor: 'action.hover', overflow: 'hidden' }}>
           <Box
             sx={{
-              height: "100%",
+              height: '100%',
               width: `${coverage.totalChapters ? Math.round((coverage.anchoredChapterCount / coverage.totalChapters) * 100) : 0}%`,
-              bgcolor: "primary.main",
-              transition: "width 120ms",
+              bgcolor: 'primary.main',
+              transition: 'width 120ms',
             }}
           />
         </Box>
-        <StatRow label={t("writing.timelineStatConflict")} value={conflictIds.size} warn={conflictIds.size > 0} />
+        <StatRow label={t('writing.timelineStatConflict')} value={conflictIds.size} warn={conflictIds.size > 0} />
         {conflictIds.size > 0 && (
-          <Typography variant="caption" sx={{ color: WARN }}>⚠ {t("writing.timelineConflictHint")}</Typography>
+          <Typography variant="caption" sx={{ color: WARN }}>
+            ⚠ {t('writing.timelineConflictHint')}
+          </Typography>
         )}
       </Box>
-      <Typography variant="caption" color="text.secondary">{t("writing.timelineOverviewHint")}</Typography>
+      <Typography variant="caption" color="text.secondary">
+        {t('writing.timelineOverviewHint')}
+      </Typography>
       {/* 剧情线卡（P1 右栏）：线数/挂线率/未挂线 + 每线一行点选进详情 */}
       <StorylineOverviewCard />
       {conflictIds.size > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Typography variant="caption" sx={{ fontWeight: 700, color: WARN }}>⚠ {t("writing.timelineConflict")}</Typography>
-          {timelineEvents.filter((e) => conflictIds.has(e.id)).map((ev) => (
-            <Box
-              key={ev.id}
-              onClick={() => selectConflict(ev.id)}
-              sx={{
-                cursor: "pointer", fontSize: 11.5, p: "3px 6px", borderRadius: 1,
-                border: 1, borderColor: "divider", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
-                "&:hover": { bgcolor: "action.hover" },
-              }}
-            >
-              {ev.at ? `${ev.at} · ` : ""}{ev.event || t("writingWorkbench.untitled")}
-            </Box>
-          ))}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: WARN }}>
+            ⚠ {t('writing.timelineConflict')}
+          </Typography>
+          {timelineEvents
+            .filter((e) => conflictIds.has(e.id))
+            .map((ev) => (
+              <Box
+                key={ev.id}
+                onClick={() => selectConflict(ev.id)}
+                sx={{
+                  cursor: 'pointer',
+                  fontSize: 11.5,
+                  p: '3px 6px',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: 'divider',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+              >
+                {ev.at ? `${ev.at} · ` : ''}
+                {ev.event || t('writingWorkbench.untitled')}
+              </Box>
+            ))}
         </Box>
       )}
       {incompleteEvents.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Typography variant="caption" sx={{ fontWeight: 700, color: WARN }}>{t("writing.timelineIncomplete")}</Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: WARN }}>
+            {t('writing.timelineIncomplete')}
+          </Typography>
           {incompleteEvents.map((ev) => (
             <Box
               key={ev.id}
               onClick={() => selectEvent(ev.id)}
               sx={{
-                cursor: "pointer", fontSize: 11.5, p: "3px 6px", borderRadius: 1,
-                border: 1, borderColor: "divider", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
-                "&:hover": { bgcolor: "action.hover" },
+                cursor: 'pointer',
+                fontSize: 11.5,
+                p: '3px 6px',
+                borderRadius: 1,
+                border: 1,
+                borderColor: 'divider',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                textOverflow: 'ellipsis',
+                '&:hover': { bgcolor: 'action.hover' },
               }}
             >
-              {ev.event || ev.at || t("writingWorkbench.untitled")}
+              {ev.event || ev.at || t('writingWorkbench.untitled')}
             </Box>
           ))}
         </Box>
@@ -302,26 +434,27 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
   const chapters = useWritingStore((s) => s.chapters);
   const settings = useWritingStore((s) => s.settings);
   const updateTimelineEvent = useWritingStore((s) => s.updateTimelineEvent);
+  const updateOutline = useWritingStore((s) => s.updateOutline);
   const deleteTimelineEvent = useWritingStore((s) => s.deleteTimelineEvent);
 
   const bookChapters = useMemo(
     () => (bookId ? chapters.filter((c) => c.bookId === bookId).sort((a, b) => a.sortOrder - b.sortOrder) : []),
-    [chapters, bookId]
+    [chapters, bookId],
   );
   const bookSettings = useMemo(
     () => (bookId ? settings.filter((s) => s.bookId === bookId) : settings),
-    [settings, bookId]
+    [settings, bookId],
   );
   const isConflict = useMemo(
     () => unionConflictIds(timelineEvents, bookChapters).has(event.id),
-    [timelineEvents, bookChapters, event.id]
+    [timelineEvents, bookChapters, event.id],
   );
 
   const jump = () => {
     if (!bookId) return;
     if (event.chapterId) {
       const b = useWritingStore.getState().books.find((x) => x.id === bookId);
-      openChapterCarrierView(event.chapterId, event.event || t("writingWorkbench.untitled"), b?.genre ?? "", bookId);
+      openChapterCarrierView(event.chapterId, event.event || t('writingWorkbench.untitled'), b?.genre ?? '', bookId);
     } else if (event.settingId) {
       void openWritingDesk({ bookId, settingId: event.settingId });
     }
@@ -330,97 +463,125 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
   const canJump = !!(event.chapterId || event.settingId);
 
   return (
-    <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1.25, overflowY: "auto" }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }} color="text.secondary">
-          {t("writing.timelineDetailTitle")}
+    <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25, overflowY: 'auto' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        <Typography
+          variant="caption"
+          sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}
+          color="text.secondary"
+        >
+          {t('writing.timelineDetailTitle')}
         </Typography>
         {isConflict && (
-          <Typography variant="caption" title={t("writing.timelineConflictHint")} sx={{ color: WARN, fontWeight: 700 }}>
-            ⚠ {t("writing.timelineConflict")}
+          <Typography variant="caption" title={t('writing.timelineConflictHint')} sx={{ color: WARN, fontWeight: 700 }}>
+            ⚠ {t('writing.timelineConflict')}
           </Typography>
         )}
       </Box>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Typography variant="caption" color="text.secondary">{t("writing.timelineAt")}</Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          {t('writing.timelineAt')}
+        </Typography>
         <DraftInput
           entityKey={event.id}
-          value={event.at ?? ""}
+          value={event.at ?? ''}
           onCommit={(v) => updateTimelineEvent(event.id, { at: v })}
-          placeholder={t("writing.timelineAtPh")}
+          placeholder={t('writing.timelineAtPh')}
           style={fieldStyle}
         />
       </Box>
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Typography variant="caption" color="text.secondary">{t("writing.timelineEvent")}</Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          {t('writing.timelineEvent')}
+        </Typography>
         <DraftInput
           as="textarea"
           rows={4}
           entityKey={event.id}
-          value={event.event ?? ""}
-          onCommit={(v) => updateTimelineEvent(event.id, { event: v })}
-          placeholder={t("writing.timelineEventPh")}
-          style={{ ...fieldStyle, resize: "vertical", lineHeight: 1.4 }}
+          value={event.event ?? ''}
+          onCommit={(v) => {
+            updateTimelineEvent(event.id, { event: v });
+            // 骨架关联同步（时间线→写作台）：如果该事件由 Beat 同步而来，反向同步 summary
+            if (event.outlineId) {
+              void updateOutline(event.outlineId, { summary: v });
+            }
+          }}
+          placeholder={t('writing.timelineEventPh')}
+          style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.4 }}
         />
       </Box>
       {bookChapters.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">{t("writing.timelineChapter")}</Typography>
-          <select
-            value={event.chapterId ?? ""}
-            onChange={(e) => void updateTimelineEvent(event.id, { chapterId: e.target.value || null })}
-            style={fieldStyle}
-          >
-            <option value="">{t("writing.timelineUnbound")}</option>
-            {bookChapters.map((c) => (
-              <option key={c.id} value={c.id}>{c.title}</option>
-            ))}
-          </select>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            {t('writing.timelineChapter')}
+          </Typography>
+          <ChapterPicker
+            uniqueKey={event.id}
+            chapters={bookChapters}
+            accent="#1976d2"
+            onSelect={(chId: string) => void updateTimelineEvent(event.id, { chapterId: chId })}
+            width="100%"
+            value={event.chapterId}
+            onClear={() => void updateTimelineEvent(event.id, { chapterId: null })}
+          />
         </Box>
       )}
       {bookSettings.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">{t("writing.timelineSource")}</Typography>
-          <select
-            value={event.settingId ?? ""}
-            onChange={(e) => void updateTimelineEvent(event.id, { settingId: e.target.value || null })}
-            style={fieldStyle}
-          >
-            <option value="">{t("writing.timelineBookLevel")}</option>
-            {bookSettings.map((s) => (
-              <option key={s.id} value={s.id}>{s.name || t("writingWorkbench.untitled")}</option>
-            ))}
-          </select>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            {t('writing.timelineSource')}
+          </Typography>
+          <EntityPicker
+            uniqueKey={event.id + '-setting'}
+            items={bookSettings.map((s) => ({ id: s.id, name: s.name || t('writingWorkbench.untitled') }))}
+            placeholder={t('writing.timelineBookLevel')}
+            onSelect={(sid: string) => void updateTimelineEvent(event.id, { settingId: sid })}
+            width="100%"
+            value={event.settingId}
+            onClear={() => void updateTimelineEvent(event.id, { settingId: null })}
+          />
         </Box>
       )}
       {storylines.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">{t("writing.timelineStoryline")}</Typography>
-          <select
-            value={event.storylineId ?? ""}
-            onChange={(e) => void updateTimelineEvent(event.id, { storylineId: e.target.value || null })}
-            style={fieldStyle}
-          >
-            <option value="">{t("writing.storylineUnlined")}</option>
-            {storylines.map((sl) => (
-              <option key={sl.id} value={sl.id}>{sl.name}</option>
-            ))}
-          </select>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            {t('writing.timelineStoryline')}
+          </Typography>
+          <EntityPicker
+            uniqueKey={event.id + '-storyline'}
+            items={storylines.map((sl) => ({ id: sl.id, name: sl.name }))}
+            placeholder={t('writing.storylineUnlined')}
+            onSelect={(slId: string) => void updateTimelineEvent(event.id, { storylineId: slId })}
+            width="100%"
+            value={event.storylineId}
+            onClear={() => void updateTimelineEvent(event.id, { storylineId: null })}
+          />
         </Box>
       )}
-      <Box sx={{ display: "flex", gap: 1 }}>
+      <Box sx={{ display: 'flex', gap: 1 }}>
         <Box
           component="button"
           type="button"
           disabled={!canJump}
           onClick={jump}
           sx={{
-            flex: 1, cursor: canJump ? "pointer" : "default", fontSize: 11.5, py: 0.5,
-            border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "transparent", color: canJump ? "text.primary" : "text.disabled",
-            "&:hover": canJump ? { bgcolor: "action.hover" } : {},
+            flex: 1,
+            cursor: canJump ? 'pointer' : 'default',
+            fontSize: 11.5,
+            py: 0.5,
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+            bgcolor: 'transparent',
+            color: canJump ? 'text.primary' : 'text.disabled',
+            '&:hover': canJump ? { bgcolor: 'action.hover' } : {},
           }}
         >
-          {event.chapterId ? t("writing.timelineJumpChapter") : event.settingId ? t("writingDesign.editProfile") : t("writing.timelineJump")}
+          {event.chapterId
+            ? t('writing.timelineJumpChapter')
+            : event.settingId
+              ? t('writingDesign.editProfile')
+              : t('writing.timelineJump')}
         </Box>
         <Box
           component="button"
@@ -429,11 +590,18 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
             useEditorStore.getState().selectTimelineEvent(null);
             void deleteTimelineEvent(event.id);
           }}
-          title={t("writing.timelineDeleteEvent")}
+          title={t('writing.timelineDeleteEvent')}
           sx={{
-            cursor: "pointer", fontSize: 11.5, px: 1.25, py: 0.5,
-            border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "transparent", color: "error.main",
-            "&:hover": { bgcolor: "action.hover" },
+            cursor: 'pointer',
+            fontSize: 11.5,
+            px: 1.25,
+            py: 0.5,
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+            bgcolor: 'transparent',
+            color: 'error.main',
+            '&:hover': { bgcolor: 'action.hover' },
           }}
         >
           ✕
@@ -444,7 +612,16 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
 }
 
 // ─── 详情 tab · 剧情线编辑器（P1 右栏）：选中线实体的名/色板/描述/线内事件 ───
-export function StorylineDetail({ storyline, bookId }: { storyline: WritingStoryline; bookId: string | null }) {
+export function StorylineDetail({
+  storyline,
+  bookId,
+  onEventPick,
+}: {
+  storyline: WritingStoryline;
+  bookId: string | null;
+  /** 页签编辑面语境（StorylinesPane）内点事件行：就地接管，不触发全局互斥清线选中；右栏语境缺省＝切事件详情 */
+  onEventPick?: (eventId: string) => void;
+}) {
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
   const chapters = useWritingStore((s) => s.chapters);
   const settings = useWritingStore((s) => s.settings);
@@ -454,40 +631,41 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
   const selectTimelineEvent = useEditorStore((s) => s.selectTimelineEvent);
   const selectSetting = useEditorStore((s) => s.selectSetting);
   const selectStoryline = useEditorStore((s) => s.selectStoryline);
-  const setTimelineViewMode = useEditorStore((s) => s.setTimelineViewMode);
 
   const events = useMemo(
-    () =>
-      timelineEvents
-        .filter((e) => e.storylineId === storyline.id)
-        .sort((a, b) => (a.at?.trim() || "").localeCompare(b.at?.trim() || "", "zh", { numeric: true })),
-    [timelineEvents, storyline.id]
+    () => timelineEvents.filter((e) => e.storylineId === storyline.id).sort((a, b) => compareByAt(a.at, b.at)),
+    [timelineEvents, storyline.id],
   );
 
   // 剧情 P2-A · 本线伏笔（骨架互联补缺）：挂线伏笔按状态序（待回收前），点行跳伏笔页签
   const foreshadowings = useWritingStore((s) => s.foreshadowings);
   const lineForeshadowings = useMemo(
     () => sortForeshadowings(foreshadowingsOfLine(storyline.id, foreshadowings), chapters),
-    [storyline.id, foreshadowings, chapters]
+    [storyline.id, foreshadowings, chapters],
   );
 
-  // 联动派生（派生三刀·刀三）：线内事件的绑章/来源设定去重——点行跳章/跳设定，数据全在事件上零新模型
+  // 联动派生（派生三刀·刀三）+ G1 章级直连：涉及章节 = 主线归属章（chapter.storylineId 直连，置顶）
+  // ∪ 线内事件绑章（派生，去重）。主线章是「规划归属」，事件绑章是「实际出场」，两者互补一张清单。
   const lineChapters = useMemo(() => {
-    const ids = [...new Set(events.map((e) => e.chapterId).filter((v): v is string => !!v))];
-    return ids.map((id) => chapters.find((c) => c.id === id)).filter((c): c is NonNullable<typeof c> => !!c);
-  }, [events, chapters]);
+    const direct = chapters.filter((c) => c.storylineId === storyline.id).sort((a, b) => a.sortOrder - b.sortOrder);
+    const directIds = new Set(direct.map((c) => c.id));
+    const viaEvents = [...new Set(events.map((e) => e.chapterId).filter((v): v is string => !!v))]
+      .map((id) => chapters.find((c) => c.id === id))
+      .filter((c): c is NonNullable<typeof c> => !!c && !directIds.has(c.id));
+    return [...direct, ...viaEvents];
+  }, [events, chapters, storyline.id]);
   const lineSettings = useMemo(() => {
     const ids = [...new Set(events.map((e) => e.settingId).filter((v): v is string => !!v))];
     return ids.map((id) => settings.find((x) => x.id === id)).filter((x): x is NonNullable<typeof x> => !!x);
   }, [events, settings]);
-  const genre = books.find((b) => b.id === bookId)?.genre ?? "";
+  const genre = books.find((b) => b.id === bookId)?.genre ?? '';
   const openLineChapter = (chapterId: string) => {
     try {
       if (!bookId) return; // openChapterCarrierView 需要有效 bookId（ensureCarrierContainer 已加固早退 :323，此处守卫保留为双保险）
       const ch = chapters.find((c) => c.id === chapterId);
-      openChapterCarrierView(chapterId, ch?.title ?? "", genre, bookId);
+      openChapterCarrierView(chapterId, ch?.title ?? '', genre, bookId);
     } catch (e) {
-      console.warn("StorylineDetail.openLineChapter failed", String(e));
+      console.warn('StorylineDetail.openLineChapter failed', String(e));
     }
   };
 
@@ -501,13 +679,13 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
 
   const openLineOnTimeline = () => {
     const es = useEditorStore.getState();
-    if (es.timelineViewMode !== "storyline") es.setTimelineViewMode("storyline");
+    if (es.timelineViewMode !== 'storyline') es.setTimelineViewMode('storyline');
     // 页签编辑卡语境（本组件也被 StorylinesPane 复用）：确保真正跳到时间线视图
     try {
-      const genre = books.find((b) => b.id === bookId)?.genre ?? "";
-      openTypedCarrierView(genre, "timeline");
+      const genre = books.find((b) => b.id === bookId)?.genre ?? '';
+      openTypedCarrierView(genre, 'timeline');
     } catch (e) {
-      console.warn("StorylineDetail.openLineOnTimeline failed", String(e));
+      console.warn('StorylineDetail.openLineOnTimeline failed', String(e));
     }
   };
 
@@ -515,23 +693,51 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
   const openForeshadowing = (foreshadowingId: string) => {
     try {
       useEditorStore.getState().selectForeshadowing(foreshadowingId);
-      openTypedCarrierView(genre, "foreshadowing");
+      openTypedCarrierView(genre, 'foreshadowing');
     } catch (e) {
-      console.warn("StorylineDetail.openForeshadowing failed", String(e));
+      console.warn('StorylineDetail.openForeshadowing failed', String(e));
     }
   };
 
   return (
-    <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1.25, overflowY: "auto" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: color, flexShrink: 0 }} />
-        <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }} color="text.secondary">
-          {t("writing.storylineDetailTitle")}
+    <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25, overflowY: 'auto' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+        <Typography
+          variant="caption"
+          sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}
+          color="text.secondary"
+        >
+          {t('writing.storylineDetailTitle')}
         </Typography>
+        {/* 返回入口：清除剧情线选中，右栏回落该视图默认内容（大纲等其他视图的残留态退出详情） */}
+        <Box
+          component="button"
+          type="button"
+          onClick={() => selectStoryline(null)}
+          title={t('writing.storylineDetailBack')}
+          sx={{
+            marginLeft: 'auto',
+            cursor: 'pointer',
+            fontSize: 11,
+            py: 0.25,
+            px: 0.75,
+            borderRadius: 1,
+            border: 1,
+            borderColor: 'divider',
+            bgcolor: 'transparent',
+            color: 'text.secondary',
+            '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+          }}
+        >
+          ← {t('writing.storylineDetailBack')}
+        </Box>
       </Box>
       {/* 线名（autoFocus：配合 key 重挂，新建/切线后直入改名，不打断创作者） */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Typography variant="caption" color="text.secondary">{t("writing.storylineName")}</Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          {t('writing.storylineName')}
+        </Typography>
         <DraftInput
           autoFocus
           entityKey={storyline.id}
@@ -541,17 +747,23 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
         />
       </Box>
       {/* 颜色：预设十色板（与时间线轨道配色兜底同一份 LANE_COLORS） */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Typography variant="caption" color="text.secondary">{t("writing.storylineColor")}</Typography>
-        <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          {t('writing.storylineColor')}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
           {LANE_COLORS.map((c) => (
             <Box
               key={c}
               onClick={() => void updateStoryline(storyline.id, { color: c })}
               title={c}
               sx={{
-                width: 20, height: 20, borderRadius: "50%", bgcolor: c, cursor: "pointer",
-                outline: storyline.color === c ? `2px solid ${c}` : "none",
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                bgcolor: c,
+                cursor: 'pointer',
+                outline: storyline.color === c ? `2px solid ${c}` : 'none',
                 outlineOffset: 2,
               }}
             />
@@ -559,100 +771,151 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
         </Box>
       </Box>
       {/* 描述 */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Typography variant="caption" color="text.secondary">{t("writing.storylineDesc")}</Typography>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Typography variant="caption" color="text.secondary">
+          {t('writing.storylineDesc')}
+        </Typography>
         <DraftInput
           as="textarea"
           rows={3}
           entityKey={storyline.id}
-          value={storyline.description ?? ""}
+          value={storyline.description ?? ''}
           onCommit={(v) => updateStoryline(storyline.id, { description: v })}
-          placeholder={t("writing.storylineDescPh")}
-          style={{ ...fieldStyle, resize: "vertical", lineHeight: 1.4 }}
+          placeholder={t('writing.storylineDescPh')}
+          style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.4 }}
         />
       </Box>
       {/* 该线事件（点选进事件编辑器——互斥语义下右栏切到事件详情） */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.secondary">
-            {t("editor.writing.timelineEventCount", { n: events.length })}
+            {t('editor.writing.timelineEventCount', { n: events.length })}
           </Typography>
           <Typography
             variant="caption"
             onClick={openLineOnTimeline}
-            title={t("writing.chapterTimelineOpen")}
-            sx={{ cursor: "pointer", color: "primary.main", "&:hover": { textDecoration: "underline" } }}
+            title={t('writing.chapterTimelineOpen')}
+            sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}
           >
-            {t("writing.chapterTimelineOpen")}
+            {t('writing.chapterTimelineOpen')}
           </Typography>
         </Box>
         {events.length === 0 ? (
-          <Typography variant="caption" color="text.disabled">{t("writing.storylineEmptyHint")}</Typography>
-        ) : (
-          events.map((ev) => (
-            <Box
-              key={ev.id}
-              onClick={() => selectTimelineEvent(ev.id)}
-              sx={{
-                cursor: "pointer", fontSize: 11.5, p: "3px 6px", borderRadius: 1,
-                border: 1, borderColor: "divider", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
-                "&:hover": { bgcolor: "action.hover" },
-              }}
-            >
-              {ev.at ? `${ev.at} · ` : ""}{ev.event || t("writing.timelineIncomplete")}
-            </Box>
-          ))
-        )}
-      </Box>
-      {/* 涉及章节（联动派生）：线内事件绑章去重，点行跳章（零强制：没绑章就整区不显示） */}
-      {lineChapters.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.secondary">
-            {t("writing.storylineChapters")}
+          <Typography variant="caption" color="text.disabled">
+            {t('writing.storylineEmptyHint')}
           </Typography>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-            {lineChapters.map((ch) => (
+        ) : (
+          events.map((ev) => {
+            const evChapter = ev.chapterId ? chapters.find((c) => c.id === ev.chapterId) : null;
+            const evSetting = ev.settingId ? settings.find((x) => x.id === ev.settingId) : null;
+            const extra = evChapter || evSetting ? [evChapter?.title, evSetting?.name].filter(Boolean).join(' · ') : '';
+            return (
               <Box
-                key={ch.id}
-                component="button"
-                type="button"
-                onClick={() => openLineChapter(ch.id)}
-                title={t("writing.timelineJumpChapter")}
+                key={ev.id}
+                onClick={() => (onEventPick ? onEventPick(ev.id) : selectTimelineEvent(ev.id))}
+                title={extra ? `${ev.at ?? ''} ${ev.event ?? ''}｜${extra}` : undefined}
                 sx={{
-                  cursor: "pointer", fontSize: 11, px: 1, py: 0.25, borderRadius: 2.5,
-                  border: 1, borderColor: "divider", bgcolor: "transparent", color: "text.secondary",
-                  overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: 180,
-                  "&:hover": { bgcolor: "action.hover", color: "text.primary" },
+                  cursor: 'pointer',
+                  fontSize: 11.5,
+                  p: '3px 6px',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: 'divider',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                  '&:hover': { bgcolor: 'action.hover' },
                 }}
               >
-                {ch.title || t("writingWorkbench.untitled")}
+                {ev.at ? `${ev.at} · ` : ''}
+                {ev.event || t('writing.timelineIncomplete')}
+                {extra && <span style={{ color: 'rgba(128,128,128,0.7)', marginLeft: 4 }}>｜{extra}</span>}
               </Box>
-            ))}
+            );
+          })
+        )}
+      </Box>
+      {/* 涉及章节（主线直连 ∪ 事件绑章派生）：主线章带「主归属」标识置顶，点行跳章 */}
+      {lineChapters.length > 0 && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.secondary">
+            {t('writing.storylineChapters')}
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {lineChapters.map((ch) => {
+              const isDirect = ch.storylineId === storyline.id;
+              return (
+                <Box
+                  key={ch.id}
+                  component="button"
+                  type="button"
+                  onClick={() => openLineChapter(ch.id)}
+                  title={
+                    isDirect
+                      ? `${t('writing.storylineLineMark')} · ${t('writing.timelineJumpChapter')}`
+                      : t('writing.timelineJumpChapter')
+                  }
+                  sx={{
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    px: 1,
+                    py: 0.25,
+                    borderRadius: 2.5,
+                    border: 1,
+                    borderColor: isDirect ? color : 'divider',
+                    bgcolor: isDirect ? `${color}14` : 'transparent',
+                    color: 'text.secondary',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    maxWidth: 180,
+                    '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+                  }}
+                >
+                  {isDirect && (
+                    <Box component="span" sx={{ fontSize: 9, color, fontWeight: 700, mr: 0.5, flexShrink: 0 }}>
+                      ★
+                    </Box>
+                  )}
+                  {ch.title || t('writingWorkbench.untitled')}
+                </Box>
+              );
+            })}
           </Box>
         </Box>
       )}
       {/* 涉及人物/设定（联动派生）：线内事件来源设定去重，点行选中该设定（右栏切设定详情） */}
       {lineSettings.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.secondary">
-            {t("writing.storylineCast")}
+            {t('writing.storylineCast')}
           </Typography>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
             {lineSettings.map((st) => (
               <Box
                 key={st.id}
                 component="button"
                 type="button"
                 onClick={() => selectSetting(st.id)}
-                title={t("writingDesign.viewDetail")}
+                title={t('writingDesign.viewDetail')}
                 sx={{
-                  cursor: "pointer", fontSize: 11, px: 1, py: 0.25, borderRadius: 2.5,
-                  border: 1, borderColor: "divider", bgcolor: "transparent", color: "text.secondary",
-                  overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: 180,
-                  "&:hover": { bgcolor: "action.hover", color: "text.primary" },
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: 2.5,
+                  border: 1,
+                  borderColor: 'divider',
+                  bgcolor: 'transparent',
+                  color: 'text.secondary',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                  maxWidth: 180,
+                  '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
                 }}
               >
-                {st.name || t("writingWorkbench.untitled")}
+                {st.name || t('writingWorkbench.untitled')}
               </Box>
             ))}
           </Box>
@@ -660,13 +923,13 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
       )}
       {/* 本线伏笔（剧情 P2-A·骨架互联补缺）：挂线伏笔状态序（待回收前），点行跳伏笔页签。
           伏笔挂线（storylineId）与线视角此前断层——作者挂了承诺、线的视角却看不见。 */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.secondary">
-          {t("writing.storylineForeshadows")} · {lineForeshadowings.length}
+          {t('writing.storylineForeshadows')} · {lineForeshadowings.length}
         </Typography>
         {lineForeshadowings.length === 0 ? (
           <Typography variant="caption" color="text.disabled">
-            {t("writing.storylineForeshadowsEmpty")}
+            {t('writing.storylineForeshadowsEmpty')}
           </Typography>
         ) : (
           lineForeshadowings.map((f) => (
@@ -675,20 +938,43 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
               component="button"
               type="button"
               onClick={() => openForeshadowing(f.id)}
-              title={t("writing.foreshadowDetailTitle")}
+              title={t('writing.foreshadowDetailTitle')}
               sx={{
-                cursor: "pointer", fontSize: 11.5, p: "3px 6px", borderRadius: 1,
-                border: 1, borderColor: "divider", bgcolor: "transparent", color: "text.primary",
-                display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, textAlign: "left",
-                "&:hover": { bgcolor: "action.hover" },
+                cursor: 'pointer',
+                fontSize: 11.5,
+                p: '3px 6px',
+                borderRadius: 1,
+                border: 1,
+                borderColor: 'divider',
+                bgcolor: 'transparent',
+                color: 'text.primary',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                minWidth: 0,
+                textAlign: 'left',
+                '&:hover': { bgcolor: 'action.hover' },
               }}
             >
-              <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: foreshadowStatusColor(f.status), flexShrink: 0 }} />
-              <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                {f.title || t("writing.foreshadowUntitled")}
+              <Box
+                sx={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  bgcolor: foreshadowStatusColor(f.status),
+                  flexShrink: 0,
+                }}
+              />
+              <Box
+                component="span"
+                sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
+              >
+                {f.title || t('writing.foreshadowUntitled')}
               </Box>
               {isOverdue(f, chapters) && (
-                <Box component="span" sx={{ color: WARN, flexShrink: 0 }}>⚠</Box>
+                <Box component="span" sx={{ color: WARN, flexShrink: 0 }}>
+                  ⚠
+                </Box>
               )}
             </Box>
           ))
@@ -698,10 +984,10 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
       <Typography
         variant="caption"
         onClick={() => void remove()}
-        title={t("writing.storylineDelete")}
-        sx={{ cursor: "pointer", color: "text.disabled", "&:hover": { color: "error.main" }, mt: 0.5 }}
+        title={t('writing.storylineDelete')}
+        sx={{ cursor: 'pointer', color: 'text.disabled', '&:hover': { color: 'error.main' }, mt: 0.5 }}
       >
-        {t("writing.storylineDelete")}
+        {t('writing.storylineDelete')}
       </Typography>
     </Box>
   );
@@ -714,9 +1000,7 @@ export function StorylineDetail({ storyline, bookId }: { storyline: WritingStory
 // 插入「间隔 N 章」断档提示行；顶部统计行（事件 / 覆盖章 / 待补全）。
 // **纯阅读视角**：点行跳时间线选中编辑，不新增编辑面（编辑面唯一铁律）；
 // 数据全在事件三维交叉（storylineId×chapterId×settingId）派生，零新模型。
-type NarrativeRow =
-  | { kind: "event"; ev: WritingTimelineEvent }
-  | { kind: "gap"; count: number };
+type NarrativeRow = { kind: 'event'; ev: WritingTimelineEvent } | { kind: 'gap'; count: number };
 
 export function StorylineNarrativeView({ storyline, bookId }: { storyline: WritingStoryline; bookId: string | null }) {
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
@@ -728,12 +1012,8 @@ export function StorylineNarrativeView({ storyline, bookId }: { storyline: Writi
   const color = storyline.color || LANE_COLORS[hashStr(storyline.id) % LANE_COLORS.length];
 
   const events = useMemo(() => {
-    const coll = new Intl.Collator("zh", { numeric: true });
     const mine = timelineEvents.filter((e) => e.storylineId === storyline.id);
-    return [
-      ...mine.filter(isComplete).sort((a, b) => coll.compare(a.at?.trim() || "", b.at?.trim() || "")),
-      ...mine.filter((e) => !isComplete(e)),
-    ];
+    return [...mine.filter(isComplete).sort((a, b) => compareByAt(a.at, b.at)), ...mine.filter((e) => !isComplete(e))];
   }, [timelineEvents, storyline.id]);
 
   const chapterOrder = useMemo(() => new Map(chapters.map((c) => [c.id, c.sortOrder])), [chapters]);
@@ -747,11 +1027,11 @@ export function StorylineNarrativeView({ storyline, bookId }: { storyline: Writi
       if (isComplete(ev) && ev.chapterId) {
         const order = chapterOrder.get(ev.chapterId);
         if (order !== undefined) {
-          if (prevOrder !== null && order - prevOrder > 1) out.push({ kind: "gap", count: order - prevOrder - 1 });
+          if (prevOrder !== null && order - prevOrder > 1) out.push({ kind: 'gap', count: order - prevOrder - 1 });
           prevOrder = order;
         }
       }
-      out.push({ kind: "event", ev });
+      out.push({ kind: 'event', ev });
     }
     return out;
   }, [events, chapterOrder]);
@@ -767,105 +1047,154 @@ export function StorylineNarrativeView({ storyline, bookId }: { storyline: Writi
     };
   }, [events, foreshadowings, storyline.id]);
 
-  const genre = books.find((b) => b.id === bookId)?.genre ?? "";
+  const genre = books.find((b) => b.id === bookId)?.genre ?? '';
   const jumpToTimeline = (eventId: string) => {
     try {
       const es = useEditorStore.getState();
-      if (es.timelineViewMode !== "storyline") es.setTimelineViewMode("storyline");
+      if (es.timelineViewMode !== 'storyline') es.setTimelineViewMode('storyline');
       es.selectTimelineEvent(eventId);
-      openTypedCarrierView(genre, "timeline");
+      openTypedCarrierView(genre, 'timeline');
     } catch (e) {
-      console.warn("StorylineNarrativeView.jumpToTimeline failed", String(e));
+      console.warn('StorylineNarrativeView.jumpToTimeline failed', String(e));
+    }
+  };
+  const openForeshadowing = (foreshadowingId: string) => {
+    try {
+      useEditorStore.getState().selectForeshadowing(foreshadowingId);
+      openTypedCarrierView(genre, 'foreshadowing');
+    } catch (e) {
+      console.warn('StorylineNarrativeView.openForeshadowing failed', String(e));
     }
   };
   const jumpChapter = (chapterId: string) => {
     try {
       if (!bookId) return;
       const ch = chapters.find((c) => c.id === chapterId);
-      openChapterCarrierView(chapterId, ch?.title ?? "", genre, bookId);
+      openChapterCarrierView(chapterId, ch?.title ?? '', genre, bookId);
     } catch (e) {
-      console.warn("StorylineNarrativeView.jumpChapter failed", String(e));
+      console.warn('StorylineNarrativeView.jumpChapter failed', String(e));
     }
   };
 
   return (
-    <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+    <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
       {/* 头部：线色点 + 线名 + 统计行 */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: color, flexShrink: 0 }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
         <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 12.5 }} noWrap>
-          {storyline.name || t("writingWorkbench.untitled")}
+          {storyline.name || t('writingWorkbench.untitled')}
         </Typography>
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10.5 }}>
-        {t("editor.writing.timelineEventCount", { n: stats.total })} ·{" "}
-        {t("writing.narrativeCoverage", { n: stats.covered })} ·{" "}
-        {t("writing.narrativeDrafts", { n: stats.drafts })} ·{" "}
-        {t("writing.narrativeForeshadows", { n: stats.fs })}
+        {t('editor.writing.timelineEventCount', { n: stats.total })} ·{' '}
+        {t('writing.narrativeCoverage', { n: stats.covered })} · {t('writing.narrativeDrafts', { n: stats.drafts })} ·{' '}
+        {stats.fs > 0 ? (
+          <span
+            onClick={() => {
+              const first = foreshadowings.find((f) => f.storylineId === storyline.id);
+              if (first) openForeshadowing(first.id);
+            }}
+            style={{ cursor: 'pointer', color: '#0f6e56' }}
+            title={t('writing.storylineForeshadows')}
+          >
+            {t('writing.narrativeForeshadows', { n: stats.fs })}
+          </span>
+        ) : (
+          t('writing.narrativeForeshadows', { n: stats.fs })
+        )}
       </Typography>
 
       {events.length === 0 ? (
         <Typography variant="caption" color="text.disabled" sx={{ pt: 2 }}>
-          {t("writing.narrativeEmpty")}
+          {t('writing.narrativeEmpty')}
         </Typography>
       ) : (
         rows.map((row, i) =>
-          row.kind === "gap" ? (
+          row.kind === 'gap' ? (
             <Typography
               key={`gap-${i}`}
               variant="caption"
-              sx={{ fontSize: 10, color: WARN, px: 1, py: 0.25, display: "block" }}
+              sx={{ fontSize: 10, color: WARN, px: 1, py: 0.25, display: 'block' }}
             >
-              {t("writing.narrativeGap", { n: row.count })}
+              {t('writing.narrativeGap', { n: row.count })}
             </Typography>
           ) : (
             <Box
               key={row.ev.id}
               onClick={() => jumpToTimeline(row.ev.id)}
-              title={t("writing.chapterTimelineOpen")}
+              title={t('writing.chapterTimelineOpen')}
               sx={{
-                cursor: "pointer", p: "5px 8px", borderRadius: 1.5, border: 1, borderColor: "divider",
-                borderLeft: `3px solid ${color}`, display: "flex", flexDirection: "column", gap: 0.25,
-                "&:hover": { bgcolor: "action.hover" },
+                cursor: 'pointer',
+                p: '5px 8px',
+                borderRadius: 1.5,
+                border: 1,
+                borderColor: 'divider',
+                borderLeft: `3px solid ${color}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0.25,
+                '&:hover': { bgcolor: 'action.hover' },
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
                 <Box
                   component="span"
                   sx={{
-                    fontSize: 9.5, fontWeight: 700, px: 0.5, borderRadius: 0.5, flexShrink: 0,
-                    bgcolor: isComplete(row.ev) ? "rgba(139,92,246,0.10)" : "rgba(180,83,9,0.12)",
-                    color: isComplete(row.ev) ? "text.secondary" : WARN,
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    px: 0.5,
+                    borderRadius: 0.5,
+                    flexShrink: 0,
+                    bgcolor: isComplete(row.ev) ? 'rgba(139,92,246,0.10)' : 'rgba(180,83,9,0.12)',
+                    color: isComplete(row.ev) ? 'text.secondary' : WARN,
                   }}
                 >
-                  {isComplete(row.ev) ? row.ev.at : t("writing.narrativeDraftTag")}
+                  {isComplete(row.ev) ? row.ev.at : t('writing.narrativeDraftTag')}
                 </Box>
                 {row.ev.chapterId && (
                   <Box
                     component="span"
-                    onClick={(e) => { e.stopPropagation(); jumpChapter(row.ev.chapterId!); }}
-                    title={t("writing.timelineJumpChapter")}
-                    sx={{ fontSize: 9.5, color: "primary.main", cursor: "pointer", flexShrink: 0, "&:hover": { textDecoration: "underline" } }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      jumpChapter(row.ev.chapterId!);
+                    }}
+                    title={t('writing.timelineJumpChapter')}
+                    sx={{
+                      fontSize: 9.5,
+                      color: 'primary.main',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      '&:hover': { textDecoration: 'underline' },
+                    }}
                   >
-                    {chapterTitle.get(row.ev.chapterId) || t("writingWorkbench.untitled")}
+                    {chapterTitle.get(row.ev.chapterId) || t('writingWorkbench.untitled')}
                   </Box>
                 )}
               </Box>
-              <Box sx={{ fontSize: 11.5, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
-                {row.ev.event || t("writing.timelineIncomplete")}
+              <Box sx={{ fontSize: 11.5, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                {row.ev.event || t('writing.timelineIncomplete')}
               </Box>
               {row.ev.settingId && (
                 <Box
                   component="span"
-                  onClick={(e) => { e.stopPropagation(); selectSetting(row.ev.settingId!); }}
-                  title={t("writingDesign.viewDetail")}
-                  sx={{ fontSize: 9.5, color: "text.disabled", cursor: "pointer", alignSelf: "flex-start", "&:hover": { color: "text.secondary" } }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    selectSetting(row.ev.settingId!);
+                  }}
+                  title={t('writingDesign.viewDetail')}
+                  sx={{
+                    fontSize: 9.5,
+                    color: 'text.disabled',
+                    cursor: 'pointer',
+                    alignSelf: 'flex-start',
+                    '&:hover': { color: 'text.secondary' },
+                  }}
                 >
                   ☺ {settings.find((x) => x.id === row.ev.settingId)?.name || row.ev.settingId}
                 </Box>
               )}
             </Box>
-          )
+          ),
         )
       )}
     </Box>
@@ -889,45 +1218,53 @@ export function StorylineMatrixView({ accent, bookId }: { accent: string; bookId
 
   const bookChapters = useMemo(
     () => (bookId ? chapters.filter((c) => c.bookId === bookId).sort((a, b) => a.sortOrder - b.sortOrder) : []),
-    [chapters, bookId]
+    [chapters, bookId],
   );
   const bookLines = useMemo(() => (bookId ? storylines.filter((l) => l.bookId === bookId) : []), [storylines, bookId]);
   const completeEvents = useMemo(
     () => (bookId ? timelineEvents.filter((e) => e.bookId === bookId).filter(isComplete) : []),
-    [timelineEvents, bookId]
+    [timelineEvents, bookId],
   );
   const matrix = useMemo(
     () => buildStorylineChapterMatrix(bookLines, completeEvents, bookChapters),
-    [bookLines, completeEvents, bookChapters]
+    [bookLines, completeEvents, bookChapters],
   );
+  // 伏笔计数一次性分组（避免每行 filter O(行×伏笔)）
+  const fsCountByLine = useMemo(() => {
+    const m = new Map<string | null, number>();
+    for (const f of foreshadowings) m.set(f.storylineId ?? null, (m.get(f.storylineId ?? null) ?? 0) + 1);
+    return m;
+  }, [foreshadowings]);
 
-  const genre = books.find((b) => b.id === bookId)?.genre ?? "";
+  const genre = books.find((b) => b.id === bookId)?.genre ?? '';
   const jumpChapter = (chapterId: string) => {
     try {
       if (!bookId) return;
       const ch = bookChapters.find((c) => c.id === chapterId);
-      openChapterCarrierView(chapterId, ch?.title ?? "", genre, bookId);
+      openChapterCarrierView(chapterId, ch?.title ?? '', genre, bookId);
     } catch (e) {
-      console.warn("StorylineMatrixView.jumpChapter failed", String(e));
+      console.warn('StorylineMatrixView.jumpChapter failed', String(e));
     }
   };
 
-  /** 点伏笔计数格 → 选中该线（高亮）并跳伏笔页签看本线伏笔 */
+  /** 点伏笔计数格 → 选线 + 选中本线首条伏笔并跳伏笔页签（与 StorylineDetail「相关伏笔」口径一致） */
   const openLineForeshadowing = (storylineId: string) => () => {
     try {
       const es = useEditorStore.getState();
       es.selectStoryline(storylineId);
-      openTypedCarrierView(genre, "foreshadowing");
+      const first = foreshadowings.find((f) => f.storylineId === storylineId);
+      if (first) es.selectForeshadowing(first.id);
+      openTypedCarrierView(genre, 'foreshadowing');
     } catch (e) {
-      console.warn("StorylineMatrixView.openLineForeshadowing failed", String(e));
+      console.warn('StorylineMatrixView.openLineForeshadowing failed', String(e));
     }
   };
 
   if (bookChapters.length === 0) {
     return (
-      <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Typography variant="caption" color="text.disabled" sx={{ pt: 2 }}>
-          {t("writing.storylineMatrixNoChapters")}
+          {t('writing.storylineMatrixNoChapters')}
         </Typography>
       </Box>
     );
@@ -939,67 +1276,113 @@ export function StorylineMatrixView({ accent, bookId }: { accent: string; bookId
   };
 
   return (
-    <Box sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+    <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
       <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10.5 }}>
-        {t("writing.storylineMatrixHint")}
+        {t('writing.storylineMatrixHint')}
       </Typography>
       {matrix.rows.length === 0 ? (
         <Typography variant="caption" color="text.disabled">
-          {t("writing.storylineEmptyHint")}
+          {t('writing.storylineEmptyHint')}
         </Typography>
       ) : (
-        <Box sx={{ overflowX: "auto", border: 1, borderColor: "divider", borderRadius: 1.5 }}>
+        <Box sx={{ overflowX: 'auto', border: 1, borderColor: 'divider', borderRadius: 1.5 }}>
           <Box
             sx={{
-              display: "grid",
+              display: 'grid',
               gridTemplateColumns: `96px repeat(${bookChapters.length}, 30px) 48px 44px`,
-              minWidth: "min-content",
+              minWidth: 'min-content',
             }}
           >
             {/* 表头：章序号（悬浮章名，点跳章）+ 未绑章列头 */}
-            <Box sx={{ position: "sticky", left: 0, bgcolor: "background.paper", px: 1, py: 0.5, fontSize: 9.5, color: "text.disabled", borderBottom: 1, borderColor: "divider", zIndex: 1 }}>
-              {t("writing.viewKind.storylines")}
+            <Box
+              sx={{
+                position: 'sticky',
+                left: 0,
+                bgcolor: 'background.paper',
+                px: 1,
+                py: 0.5,
+                fontSize: 9.5,
+                color: 'text.disabled',
+                borderBottom: 1,
+                borderColor: 'divider',
+                zIndex: 1,
+              }}
+            >
+              {t('writing.viewKind.storylines')}
             </Box>
             {bookChapters.map((c, i) => (
               <Box
                 key={c.id}
                 onClick={() => jumpChapter(c.id)}
-                title={c.title || t("writingWorkbench.untitled")}
+                title={c.title || t('writingWorkbench.untitled')}
                 sx={{
-                  cursor: "pointer", textAlign: "center", py: 0.5, fontSize: 9,
-                  color: "text.disabled", borderBottom: 1, borderColor: "divider",
-                  "&:hover": { color: "primary.main" },
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  py: 0.5,
+                  fontSize: 9,
+                  color: 'text.disabled',
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '&:hover': { color: 'primary.main' },
                 }}
               >
                 {i + 1}
               </Box>
             ))}
-            <Box sx={{ textAlign: "center", py: 0.5, fontSize: 9, color: WARN, borderBottom: 1, borderColor: "divider" }}>
-              {t("writing.storylineMatrixUnbound")}
+            <Box
+              sx={{ textAlign: 'center', py: 0.5, fontSize: 9, color: WARN, borderBottom: 1, borderColor: 'divider' }}
+            >
+              {t('writing.storylineMatrixUnbound')}
             </Box>
-            <Box sx={{ textAlign: "center", py: 0.5, fontSize: 9, color: "text.disabled", borderBottom: 1, borderColor: "divider" }}>
-              {t("writing.storylineMatrixForeshadow")}
+            <Box
+              sx={{
+                textAlign: 'center',
+                py: 0.5,
+                fontSize: 9,
+                color: 'text.disabled',
+                borderBottom: 1,
+                borderColor: 'divider',
+              }}
+            >
+              {t('writing.storylineMatrixForeshadow')}
             </Box>
             {/* 数据行：线名（sticky）+ 章格 + 未绑章数 */}
             {matrix.rows.map((row) => {
               const line = row.storylineId ? bookLines.find((l) => l.id === row.storylineId) : null;
               const { active, opacity } = rowStyler(row.storylineId);
-              const color = line?.color || LANE_COLORS[hashStr(row.storylineId ?? "__unlined__") % LANE_COLORS.length];
+              const color = line?.color || LANE_COLORS[hashStr(row.storylineId ?? '__unlined__') % LANE_COLORS.length];
               // 剧情 P2-A：本线伏笔计数（含未挂线行的未挂线伏笔数），骨架互联补缺
-              const fsCount = foreshadowings.filter((f) => f.storylineId === row.storylineId).length;
+              const fsCount = fsCountByLine.get(row.storylineId ?? null) ?? 0;
               return (
-                <Box key={row.storylineId ?? "__unlined__"} sx={{ display: "contents" }}>
+                <Box key={row.storylineId ?? '__unlined__'} sx={{ display: 'contents' }}>
                   <Box
                     sx={{
-                      position: "sticky", left: 0,
-                      display: "flex", alignItems: "center", gap: 0.5, px: 1, minWidth: 0,
-                      borderBottom: 1, borderColor: "divider", opacity, zIndex: 1,
-                      bgcolor: active ? `${accent}14` : "background.paper",
+                      position: 'sticky',
+                      left: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      px: 1,
+                      minWidth: 0,
+                      borderBottom: 1,
+                      borderColor: 'divider',
+                      opacity,
+                      zIndex: 1,
+                      bgcolor: active ? `${accent}14` : 'background.paper',
                     }}
                   >
-                    <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: color, flexShrink: 0 }} />
-                    <Box sx={{ fontSize: 10.5, fontWeight: active ? 700 : 400, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", color: row.storylineId === null ? "text.disabled" : "text.primary" }}>
-                      {line?.name || t("writing.storylineUnlined")}
+                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                    <Box
+                      sx={{
+                        fontSize: 10.5,
+                        fontWeight: active ? 700 : 400,
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        color: row.storylineId === null ? 'text.disabled' : 'text.primary',
+                      }}
+                    >
+                      {line?.name || t('writing.storylineUnlined')}
                     </Box>
                   </Box>
                   {bookChapters.map((c) => {
@@ -1009,33 +1392,57 @@ export function StorylineMatrixView({ accent, bookId }: { accent: string; bookId
                       <Box
                         key={c.id}
                         onClick={n > 0 ? () => jumpChapter(c.id) : undefined}
-                        title={n > 0 ? `${c.title || t("writingWorkbench.untitled")} · ${evs?.map((e) => e.event || t("writing.timelineIncomplete")).join(" / ")}` : undefined}
+                        title={
+                          n > 0
+                            ? `${c.title || t('writingWorkbench.untitled')} · ${evs?.map((e) => e.event || t('writing.timelineIncomplete')).join(' / ')}`
+                            : undefined
+                        }
                         sx={{
-                          textAlign: "center", py: 0.5, fontSize: 9.5, borderBottom: 1, borderColor: "divider",
-                          opacity, cursor: n > 0 ? "pointer" : "default",
-                          color: n > 0 ? color : "transparent",
-                          bgcolor: n > 0 && active ? `${accent}0a` : "transparent",
-                          "&:hover": n > 0 ? { bgcolor: "action.hover" } : {},
+                          textAlign: 'center',
+                          py: 0.5,
+                          fontSize: 9.5,
+                          borderBottom: 1,
+                          borderColor: 'divider',
+                          opacity,
+                          cursor: n > 0 ? 'pointer' : 'default',
+                          color: n > 0 ? color : 'transparent',
+                          bgcolor: n > 0 && active ? `${accent}0a` : 'transparent',
+                          '&:hover': n > 0 ? { bgcolor: 'action.hover' } : {},
                         }}
                       >
-                        {n > 0 ? n : "·"}
+                        {n > 0 ? n : '·'}
                       </Box>
                     );
                   })}
-                  <Box sx={{ textAlign: "center", py: 0.5, fontSize: 9.5, borderBottom: 1, borderColor: "divider", opacity, color: row.unboundCount > 0 ? WARN : "transparent" }}>
-                    {row.unboundCount > 0 ? row.unboundCount : "·"}
+                  <Box
+                    sx={{
+                      textAlign: 'center',
+                      py: 0.5,
+                      fontSize: 9.5,
+                      borderBottom: 1,
+                      borderColor: 'divider',
+                      opacity,
+                      color: row.unboundCount > 0 ? WARN : 'transparent',
+                    }}
+                  >
+                    {row.unboundCount > 0 ? row.unboundCount : '·'}
                   </Box>
                   <Box
                     onClick={fsCount > 0 && row.storylineId ? openLineForeshadowing(row.storylineId) : undefined}
-                    title={fsCount > 0 && row.storylineId ? t("writing.storylineForeshadows") : undefined}
+                    title={fsCount > 0 && row.storylineId ? t('writing.storylineForeshadows') : undefined}
                     sx={{
-                      textAlign: "center", py: 0.5, fontSize: 9.5, borderBottom: 1, borderColor: "divider", opacity,
-                      cursor: fsCount > 0 && row.storylineId ? "pointer" : "default",
-                      color: fsCount > 0 ? (row.storylineId ? "#0f6e56" : WARN) : "transparent",
-                      "&:hover": fsCount > 0 && row.storylineId ? { bgcolor: "action.hover" } : {},
+                      textAlign: 'center',
+                      py: 0.5,
+                      fontSize: 9.5,
+                      borderBottom: 1,
+                      borderColor: 'divider',
+                      opacity,
+                      cursor: fsCount > 0 && row.storylineId ? 'pointer' : 'default',
+                      color: fsCount > 0 ? (row.storylineId ? '#0f6e56' : WARN) : 'transparent',
+                      '&:hover': fsCount > 0 && row.storylineId ? { bgcolor: 'action.hover' } : {},
                     }}
                   >
-                    {fsCount > 0 ? fsCount : "·"}
+                    {fsCount > 0 ? fsCount : '·'}
                   </Box>
                 </Box>
               );

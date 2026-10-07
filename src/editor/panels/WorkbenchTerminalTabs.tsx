@@ -246,7 +246,7 @@ export function WorkbenchTerminalTabs({ onClose }: { onClose?: () => void }) {
                   e.stopPropagation();
                   closeTab(tab.id);
                 }}
-              >
+               aria-label={t("workbench.terminal.close")}>
                 <CloseIcon sx={{ fontSize: 11 }} />
               </IconButton>
             </Box>
@@ -257,7 +257,7 @@ export function WorkbenchTerminalTabs({ onClose }: { onClose?: () => void }) {
             size="small"
             sx={{ p: 0.3, color: "#9ca3af" }}
             onClick={() => void addTab()}
-          >
+           aria-label={t("workbench.terminal.addTab")}>
             <AddIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>
@@ -269,14 +269,14 @@ export function WorkbenchTerminalTabs({ onClose }: { onClose?: () => void }) {
               const fn = clearFns.current.get(activeId ?? "");
               fn?.();
             }}
-          >
+           aria-label={t("workbench.terminal.clear")}>
             <ClearAllIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>
         <Box sx={{ flex: 1 }} />
         {onClose && (
           <Tooltip title={t("workbench.terminal.close")}>
-            <IconButton size="small" sx={{ p: 0.3, color: "#9ca3af" }} onClick={onClose}>
+            <IconButton size="small" sx={{ p: 0.3, color: "#9ca3af" }} onClick={onClose} aria-label={t("workbench.terminal.close")}>
               <CloseIcon sx={{ fontSize: 14 }} />
             </IconButton>
           </Tooltip>

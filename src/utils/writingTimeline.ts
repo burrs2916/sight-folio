@@ -17,6 +17,13 @@ export type Lane = {
   order?: number;
   /** 章节级 lane 的层级名（章/节/卷…），作副标题 */
   subtitle?: string;
+  /** 章节级 lane 的卷名（时间线 chapter 视图按卷聚合用） */
+  volume?: string;
+  /** 分组折叠节点：代表一个卷/阶段的聚合，可展开/收起内部章节轨道 */
+  group?: {
+    volume: string;
+    chapters: Lane[];
+  };
 };
 
 /** 解析 at 为纯整数（仅当 at 整体为整数，如 "3" / "2024"）；混合单位（"第3年"）返回 null，避免跨章倒挂误报。 */
@@ -30,11 +37,25 @@ export function isComplete(ev: WritingTimelineEvent): boolean {
   return !!(ev.at?.trim() && ev.event?.trim());
 }
 
+// 事件 at 排序唯一口径：全部视图共用（时间线主视图 / 右侧栏 / 剧情线叙事与事件列表），禁止第二份。
+const atCollator = new Intl.Collator('zh', { numeric: true });
+
+/** 按 at 排序比较：中文数字感知（"3" < "10"）；空 at 排后（与「待补全殿后」分组语义一致）。 */
+export function compareByAt(a?: string | null, b?: string | null): number {
+  const ka = a?.trim() || '';
+  const kb = b?.trim() || '';
+  if (ka && kb) return atCollator.compare(ka, kb);
+  if (ka) return -1;
+  if (kb) return 1;
+  return 0;
+}
+
 /** 章节级 lane：本书章按 sortOrder 为骨架，每章一组其绑定事件；末尾「未绑章」组收纳 chapterId 为空的事件。空章（无绑定事件）也列出并标「未锚定」，作为规划空缺提示。 */
 export function buildChapterLanes(
   bookChapters: WritingChapter[],
   completeEvents: WritingTimelineEvent[],
   labels: { unbound: string; untitled: string },
+  opts?: { groupByVolume?: boolean },
 ): Lane[] {
   const list: Lane[] = [...bookChapters]
     .sort((a, b) => a.sortOrder - b.sortOrder) // 契约：章记录按 sortOrder 为骨架，不依赖调用方传入顺序
@@ -46,6 +67,7 @@ export function buildChapterLanes(
       chapterId: c.id,
       order: c.sortOrder,
       subtitle: c.kind || undefined,
+      volume: c.volume || '',
       events: completeEvents.filter((e) => e.chapterId === c.id),
     }));
   const unbound = completeEvents.filter((e) => !e.chapterId);
@@ -60,7 +82,33 @@ export function buildChapterLanes(
       events: unbound,
     });
   }
-  return list; // bookChapters 已按 sortOrder 排好；未绑章组置尾
+  if (!opts?.groupByVolume) return list;
+  // 按 volume 分组聚合：章节量增长时避免纵向无限膨胀
+  const groups = new Map<string, Lane[]>();
+  for (const lane of list) {
+    if (lane.id === '__unbound__') continue;
+    const vol = lane.volume || '';
+    if (!groups.has(vol)) groups.set(vol, []);
+    groups.get(vol)!.push(lane);
+  }
+  const result: Lane[] = [];
+  for (const [vol, chLanes] of groups) {
+    const allEvents = chLanes.flatMap((l) => l.events);
+    result.push({
+      id: `__vol__${vol || '__none__'}`,
+      name: vol || labels.untitled,
+      isBook: false,
+      settingId: null,
+      chapterId: null,
+      order: chLanes[0].order,
+      events: allEvents,
+      group: { volume: vol || labels.untitled, chapters: chLanes },
+    });
+  }
+  result.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const unboundLane = list.find((l) => l.id === '__unbound__');
+  if (unboundLane) result.push(unboundLane);
+  return result;
 }
 
 export type CoverageStats = {
@@ -256,7 +304,12 @@ export function buildStorylineChapterMatrix(
     return { storylineId, counts, events, unboundCount, total: evs.length };
   };
 
-  const rows = storylines.map((sl) => buildRow(sl.id, completeEvents.filter((e) => e.storylineId === sl.id)));
+  const rows = storylines.map((sl) =>
+    buildRow(
+      sl.id,
+      completeEvents.filter((e) => e.storylineId === sl.id),
+    ),
+  );
   const unlined = completeEvents.filter((e) => !e.storylineId);
   if (unlined.length > 0) rows.push(buildRow(null, unlined));
   return { columns, rows };

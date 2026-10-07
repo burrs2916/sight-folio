@@ -238,7 +238,7 @@ export function ChangeReviewBar({ activeRelPath, onOpenPath, emptySlot, onApplie
               e.stopPropagation();
               void load();
             }}
-          >
+           aria-label={t("workbench.aiChanges.refresh")}>
             {loading ? <CircularProgress size={11} /> : <RefreshIcon sx={{ fontSize: 14 }} />}
           </IconButton>
         </Tooltip>
@@ -320,7 +320,7 @@ export function ChangeReviewBar({ activeRelPath, onOpenPath, emptySlot, onApplie
                     size="small"
                     onClick={() => setExpandedId((v) => (v === row.id ? null : row.id))}
                     sx={{ fontSize: 10, minWidth: 0, p: 0.25 }}
-                  >
+                   aria-label={t("workbench.aiChanges.inlineDiff")}>
                     {expandedId === row.id ? <ExpandLessIcon sx={{ fontSize: 14 }} /> : <ExpandMoreIcon sx={{ fontSize: 14 }} />}
                   </IconButton>
                 </Tooltip>

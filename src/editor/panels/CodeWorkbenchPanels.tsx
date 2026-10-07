@@ -1,6 +1,6 @@
 /** CodeWorkbench 悬浮面板：QuickOpen / 定义选择 / Peek / 符号跳转。 */
 
-import { useEffect, useMemo, useState, useCallback, useRef, Fragment, CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useState, useRef, Fragment, CSSProperties } from "react";
 
 import Dialog from "@mui/material/Dialog";
 
@@ -18,20 +18,13 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 
 import SearchIcon from "@mui/icons-material/Search";
 
-import {
-  useCodeWorkbenchStore,
-  openWorkbenchTab,
-  type WorkbenchTab,
-  type PaneNode,
-  type PaneOrientation,
-  type SplitDirection,
-} from "../../store/codeWorkbenchStore";
+import { type SplitDirection } from "../../store/codeWorkbenchStore";
 
 import { useProjectStore } from "../../store/projectStore";
 
 import { t } from "../../i18n";
 
-import { parseFileMetricMeta, projectScanApi, type FileChangeEvent, type ProjectFile, type ProjectSymbol } from "../../services/tauri";
+import { projectScanApi, type ProjectFile, type ProjectSymbol } from "../../services/tauri";
 
 import { LanguageIcon } from "../../utils/languageIcon";
 

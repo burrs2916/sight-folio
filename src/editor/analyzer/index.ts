@@ -158,7 +158,6 @@ function mapPluginRuleToEngine(
   r: RuleRegistration
 ): { ruleType: string; targetType: string; ruleBody: string } | null {
   const id = r.id.toLowerCase();
-  const category = r.category;
 
   // ── 精确匹配：按规则 id 语义映射（后端可真实执行的四类）──
   if (id.includes("unsafe")) {

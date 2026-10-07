@@ -7,7 +7,7 @@
 //
 // key 用容器卡的 componentId（随场景 JSON 持久化、稳定），一个容器卡一组页签。
 // 标准 zustand（非 immer，对齐 toastStore 模式）：更新走不可变替换。
-import { create } from "zustand";
+import { create } from 'zustand';
 
 export interface WritingDocTab {
   /** 页签实例 id（同章多开时一个章有多个 tabId） */
@@ -28,6 +28,10 @@ interface WritingDocsState {
   /** 打开章节页签：默认按 chapterId 去重激活；forceNew=true 强制新页签（同章对照写） */
   openTab: (containerId: string, chapterId: string, name: string, opts?: { forceNew?: boolean }) => void;
   closeTab: (containerId: string, tabId: string) => void;
+  /** 批量关闭（原子一次 set，避免逐条 closeTab 的中间态）：
+   *  keepTabId 缺省 = 关闭全部页签；提供 = 仅保留该页签、关闭其余。
+   *  激活页签被关时按 closeTab 同一回退规则落到最近邻或清空。 */
+  closeTo: (containerId: string, opts?: { keepTabId?: string }) => void;
   setActive: (containerId: string, tabId: string) => void;
   /** 容器渲染器同步「该书当前激活章」（openTab/setActive/关页签回退后都由它统一登记） */
   setActiveChapterForBook: (bookId: string, chapterId: string | null) => void;
@@ -72,6 +76,26 @@ export const useWritingDocsStore = create<WritingDocsState>((set) => ({
         else delete activeTab[containerId];
       }
       return { tabs: { ...state.tabs, [containerId]: next }, activeTab };
+    });
+  },
+
+  closeTo: (containerId, opts) => {
+    set((state) => {
+      const list = state.tabs[containerId] ?? [];
+      if (list.length === 0) return {};
+      const keep = opts?.keepTabId;
+      const next = keep ? list.filter((tb) => tb.tabId === keep) : [];
+      if (keep && next.length === 0) return {}; // keepTabId 不存在于列表：防御性 no-op
+      const activeTab = { ...state.activeTab };
+      if (next.length === 0) {
+        delete activeTab[containerId];
+      } else if (keep && state.activeTab[containerId] !== keep) {
+        activeTab[containerId] = keep;
+      }
+      const tabs = { ...state.tabs };
+      if (next.length === 0) delete tabs[containerId];
+      else tabs[containerId] = next;
+      return { tabs, activeTab };
     });
   },
 

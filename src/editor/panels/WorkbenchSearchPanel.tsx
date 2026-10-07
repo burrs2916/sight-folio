@@ -197,7 +197,7 @@ function FilterToggle({
             color: active ? "#EF9F27" : "text.secondary",
             "&:hover": { bgcolor: active ? "rgba(239,159,39,0.24)" : "rgba(255,255,255,0.06)" },
           }}
-        >
+         aria-label={tooltip}>
           <Typography variant="caption" sx={{ fontWeight: 700, fontFamily: "monospace", lineHeight: 1 }}>
             {label}
           </Typography>
@@ -688,7 +688,7 @@ export function WorkbenchSearchPanel({ open, onClose, onJump }: WorkbenchSearchP
                 color: replaceMode ? "#EF9F27" : "text.secondary",
                 "&:hover": { bgcolor: "rgba(255,255,255,0.06)" },
               }}
-            >
+             aria-label={t("workbench.search.replaceToggleHint")}>
               <FindReplaceIcon fontSize="small" />
             </IconButton>
           </Tooltip>

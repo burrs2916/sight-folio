@@ -292,15 +292,15 @@ export const ArchitectureLayersPanel = memo(function ArchitectureLayersPanel({
                   </Typography>
 
                   {/* 排序按钮 */}
-                  <IconButton size="small" onClick={() => handleMoveUp(idx)} disabled={idx === 0}>
+                  <IconButton size="small" onClick={() => handleMoveUp(idx)} disabled={idx === 0} aria-label={t("layerPanel.moveUp")}>
                     <ArrowUpwardIcon sx={{ fontSize: 14 }} />
                   </IconButton>
-                  <IconButton size="small" onClick={() => handleMoveDown(idx)} disabled={idx >= layers.length - 1}>
+                  <IconButton size="small" onClick={() => handleMoveDown(idx)} disabled={idx >= layers.length - 1} aria-label={t("layerPanel.moveDown")}>
                     <ArrowDownwardIcon sx={{ fontSize: 14 }} />
                   </IconButton>
 
                   {/* 删除 */}
-                  <IconButton size="small" onClick={() => deleteLayer(layer.id)} color="error">
+                  <IconButton size="small" onClick={() => deleteLayer(layer.id)} color="error" aria-label={t("layerPanel.delete")}>
                     <DeleteIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Box>
@@ -583,7 +583,7 @@ function BookVolumeRow({ tree, depth, bookId, bookTitle, genre }: {
           />
         )}
         {/* 加子级：默认层级顺延（卷→章→节…） */}
-        <IconButton size="small" onClick={addChild} title={t("writingDesign.addChild")} sx={{ flexShrink: 0 }}>
+        <IconButton size="small" onClick={addChild} title={t("writingDesign.addChild")} sx={{ flexShrink: 0 }} aria-label={t("writingDesign.addChild")}>
           <AddIcon sx={{ fontSize: 16 }} />
         </IconButton>
         {/* 折叠/展开：有子级才出现 */}
@@ -593,7 +593,7 @@ function BookVolumeRow({ tree, depth, bookId, bookTitle, genre }: {
             onClick={() => toggleNodeCollapse(tree.node.id)}
             title={collapsed ? t("writingDesign.collapseNode") : t("writingDesign.expandNode")}
             sx={{ flexShrink: 0 }}
-          >
+           aria-label={collapsed ? t("writingDesign.collapseNode") : t("writingDesign.expandNode")}>
             {collapsed ? <ArrowDownwardIcon sx={{ fontSize: 14 }} /> : <ArrowUpwardIcon sx={{ fontSize: 14 }} />}
           </IconButton>
         )}
@@ -604,7 +604,7 @@ function BookVolumeRow({ tree, depth, bookId, bookTitle, genre }: {
           title={t("writingDesign.deleteNode")}
           color="error"
           sx={{ flexShrink: 0 }}
-        >
+         aria-label={t("writingDesign.deleteNode")}>
           <DeleteIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Box>

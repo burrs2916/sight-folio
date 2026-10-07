@@ -612,10 +612,10 @@ export function AcpHostPanel() {
                         </Typography>
                       </Box>
                     </Box>
-                    <IconButton size="small" onClick={() => setEditing(p)}>
+                    <IconButton size="small" onClick={() => setEditing(p)} aria-label={t("acp.editPreset")}>
                       <EditIcon fontSize="small" />
                     </IconButton>
-                    <IconButton size="small" onClick={() => removePreset(p.id)}>
+                    <IconButton size="small" onClick={() => removePreset(p.id)} aria-label={t("acp.deletePreset")}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   </Box>

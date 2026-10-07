@@ -192,7 +192,7 @@ function LayerRow({
             onClick={() => onToggleVisibility(layer.id)}
             sx={{ width: 18, height: 18 }}
             title={layer.visible ? t("layerPanel.hide") : t("layerPanel.show")}
-          >
+           aria-label={layer.visible ? t("layerPanel.hide") : t("layerPanel.show")}>
             {layer.visible ? (
               <VisibilityIcon sx={{ fontSize: 13 }} />
             ) : (
@@ -204,7 +204,7 @@ function LayerRow({
             onClick={() => onToggleLock(layer.id)}
             sx={{ width: 18, height: 18 }}
             title={layer.locked ? t("layerPanel.unlock") : t("layerPanel.lock")}
-          >
+           aria-label={layer.locked ? t("layerPanel.unlock") : t("layerPanel.lock")}>
             {layer.locked ? (
               <LockIcon sx={{ fontSize: 13, color: "warning.main" }} />
             ) : (
@@ -219,17 +219,17 @@ function LayerRow({
             }}
             sx={{ width: 18, height: 18 }}
             title={t("layerPanel.opacity", { n: Math.round(layer.opacity * 100) })}
-          >
+           aria-label={t("layerPanel.opacity", { n: Math.round(layer.opacity * 100) })}>
             <OpacityIcon sx={{ fontSize: 13 }} />
           </IconButton>
-          <IconButton size="small" onClick={() => onMove(layer.id, -1)} sx={{ width: 18, height: 18 }} title={t("layerPanel.moveUp")}>
+          <IconButton size="small" onClick={() => onMove(layer.id, -1)} sx={{ width: 18, height: 18 }} title={t("layerPanel.moveUp")} aria-label={t("layerPanel.moveUp")}>
             <ArrowUpwardIcon sx={{ fontSize: 12 }} />
           </IconButton>
-          <IconButton size="small" onClick={() => onMove(layer.id, 1)} sx={{ width: 18, height: 18 }} title={t("layerPanel.moveDown")}>
+          <IconButton size="small" onClick={() => onMove(layer.id, 1)} sx={{ width: 18, height: 18 }} title={t("layerPanel.moveDown")} aria-label={t("layerPanel.moveDown")}>
             <ArrowDownwardIcon sx={{ fontSize: 12 }} />
           </IconButton>
           {!layer.isDefault && (
-            <IconButton size="small" onClick={() => onDelete(layer.id)} sx={{ width: 18, height: 18 }} title={t("layerPanel.delete")}>
+            <IconButton size="small" onClick={() => onDelete(layer.id)} sx={{ width: 18, height: 18 }} title={t("layerPanel.delete")} aria-label={t("layerPanel.delete")}>
               <DeleteOutlineRoundedIcon sx={{ fontSize: 12, color: "error.main" }} />
             </IconButton>
           )}
@@ -330,12 +330,12 @@ export function CanvasLayerPanel() {
           {t("layerPanel.stats", { n: roots.length, m: totalEntities })}
         </Typography>
         <Tooltip title={t("layerPanel.addLayer")}>
-          <IconButton size="small" onClick={() => addLayer(undefined, activeLayerId)} sx={{ width: 24, height: 24 }}>
+          <IconButton size="small" onClick={() => addLayer(undefined, activeLayerId)} sx={{ width: 24, height: 24 }} aria-label={t("layerPanel.addLayer")}>
             <AddIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("layerPanel.addGroup")}>
-          <IconButton size="small" onClick={() => addLayerGroup(undefined, activeLayerId)} sx={{ width: 24, height: 24 }}>
+          <IconButton size="small" onClick={() => addLayerGroup(undefined, activeLayerId)} sx={{ width: 24, height: 24 }} aria-label={t("layerPanel.addGroup")}>
             <FolderIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>

@@ -758,12 +758,12 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
         }}
       >
         <Tooltip title={t("workbench.pane.splitRight")}>
-          <IconButton size="small" onClick={() => { focusPane(); splitPane("right", "clone"); }}>
+          <IconButton size="small" onClick={() => { focusPane(); splitPane("right", "clone"); }} aria-label={t("workbench.pane.splitRight")}>
             <CallSplitIcon sx={{ fontSize: 15, transform: "rotate(90deg)" }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.pane.splitDown")}>
-          <IconButton size="small" onClick={() => { focusPane(); splitPane("down", "clone"); }}>
+          <IconButton size="small" onClick={() => { focusPane(); splitPane("down", "clone"); }} aria-label={t("workbench.pane.splitDown")}>
             <CallSplitIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>
@@ -772,7 +772,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
             size="small"
             color={syncScroll ? "primary" : "default"}
             onClick={() => { focusPane(); toggleSyncScroll(); }}
-          >
+           aria-label={syncScroll ? t("workbench.pane.syncScrollOn") : t("workbench.pane.syncScrollOff")}>
             <SyncAltIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>
@@ -782,7 +782,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
             size="small"
             disabled={activePaneId === paneId && false}
             onClick={() => { focusPane(); closePane(paneId); }}
-          >
+           aria-label={t("workbench.pane.closePane")}>
             <CloseIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>
@@ -894,7 +894,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                   e.clientX < rect.left + rect.width / 2 ? "before" : "after";
                 setDropPos({ fileId: tab.fileId, pos });
               }}
-              onDragLeave={(e) => {
+              onDragLeave={() => {
                 setDropPos((p) => (p && p.fileId === tab.fileId ? null : p));
               }}
               onDrop={(e) => {
@@ -1002,7 +1002,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                   handleCloseTab(tab.fileId);
                 }}
                 sx={{ p: 0.1, ml: 0.3 }}
-              >
+               aria-label={t("workbench.tabMenu.close")}>
                 <CloseIcon sx={{ fontSize: 13 }} />
               </IconButton>
             </Box>

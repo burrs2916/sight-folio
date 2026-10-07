@@ -74,13 +74,13 @@ describe("写作台保存指示器 SaveIndicator（saveState 下沉 · 回归锁
     // 模拟 WritingPage flushSave:502 的原样语义：保存完成后若 pending 则 dirty 否则 saved
     let hasPending = false;
     act(() => {
-      captured!((cur) => (hasPending ? "dirty" : "saved"));
+      captured!(() => (hasPending ? "dirty" : "saved"));
     });
     expect((document.body.textContent ?? "").trim()).toBe(t("writing.saved"));
 
     hasPending = true;
     act(() => {
-      captured!((cur) => (hasPending ? "dirty" : "saved"));
+      captured!(() => (hasPending ? "dirty" : "saved"));
     });
     expect((document.body.textContent ?? "").trim()).toBe(t("writing.unsaved"));
   });

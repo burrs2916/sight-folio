@@ -28,6 +28,10 @@
 // parentId + kind 表达，WritingChapter.volume 的类型注释已标注它是旧模型遗留字段）。
 // 「移卷」对话框未动，能力未减。
 //
+// ─── 封面展示说明 ───
+// 2026-10-06：写作台只保留**排版渲染与展示**职责，不在这里设置/上传章头图。
+// 封面由工作室（studio）负责设置，写作台仅读取并展示已设置的封面缩略图。
+//
 // ─── memo ───
 // 与 ChapterListPanel 同因：WritingPage 每 800ms 自动保存会翻转顶层 saveState 触发整树重渲染，
 // 本面板 props 全为稳定引用（store 选择器 / useState setter / useMemo / ref）时 memo 浅比较
@@ -48,7 +52,14 @@ import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownR
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
 import type { WritingChapter, WritingOutline } from '../services/tauri';
-import { buildTree, defaultLevels, suggestedChildKind, treeRowIndent, type TreeNode } from '../utils/writingTree';
+import {
+  buildTree,
+  defaultLevels,
+  suggestedChildKind,
+  treeRowIndent,
+  chapterPathLabelMap,
+  type TreeNode,
+} from '../utils/writingTree';
 import { ChapterStatusDot } from '../editor/components/ChapterStatusDot';
 import { TreeIndentGuides, TreeChevron, TreeKindBadge, TreeMetaText } from '../editor/components/TreeRowShared';
 import { t } from '../i18n';
@@ -77,6 +88,8 @@ export interface ChapterTreePanelProps {
   setSelectedChapterIds: Dispatch<SetStateAction<string[]>>;
   setActiveSetting: (id: string | null) => void;
   setActiveChapter: (id: string) => void;
+  /** 非多选期点击章行后追加的动作（写作台用它切右栏「章详情」tab，点章即打开该章专有详情） */
+  onOpenChapterDetails?: (id: string) => void;
   dragChapterIdRef: MutableRefObject<string | null>;
   flushSave: () => Promise<void>;
   setDropIndex: (i: number | null) => void;
@@ -92,7 +105,7 @@ export interface ChapterTreePanelProps {
   createChildNode: (parentId: string, kind: string, title: string) => Promise<WritingChapter | null>;
 }
 
-/** 树的一行：引导线 + 折叠尖角 + 状态点 + 层级徽章 + 标题 + 尾注 + 行尾动作（悬停显出） */
+/** 树的一行：引导线 + 折叠尖角 + 状态点 + 层级徽章 + 封面缩略 + 标题 + 尾注 + 行尾动作（悬停显出） */
 function TreeRow({
   depth,
   chapter,
@@ -118,6 +131,7 @@ function TreeRow({
   flushSave,
   setDropIndex,
   reorderChapter,
+  chapterIndexById,
 }: {
   depth: number;
   chapter: WritingChapter;
@@ -145,6 +159,8 @@ function TreeRow({
   flushSave: () => Promise<void>;
   setDropIndex: (i: number | null) => void;
   reorderChapter: (id: string, toIndex: number) => Promise<void>;
+  /** 扁平下标 Map：行身拖拽换算落点（向后拖减 1 抵消移除偏移）时查询被拖节点下标 */
+  chapterIndexById: Map<string, number>;
 }) {
   // 挂载落点高亮：只有「手柄拖动」悬到本行才点亮，给「松手即挂到它下面」的明确反馈
   const [overNode, setOverNode] = useState(false);
@@ -194,7 +210,12 @@ function TreeRow({
           dragChapterIdRef.current = null;
           setDropIndex(null);
           if (draggedId && draggedId !== chapter.id) {
-            void reorderChapter(draggedId, idx).catch((err) => {
+            // 指示线画在本行上方 = 「移到本行之前」；reorderChapter 是「先移除再插入到 toIndex」。
+            // 向后拖（from < idx）时目标行移除后前移一格，直接传 idx 会落进目标行之后一格，
+            // 与视觉相反——需减 1 抵消偏移（向前拖 from > idx 不受影响）。
+            const from = chapterIndexById.get(draggedId);
+            const toIndex = from !== undefined && from < idx ? idx - 1 : idx;
+            void reorderChapter(draggedId, toIndex).catch((err) => {
               logger.warn('WritingPage', 'reorder chapter failed', { error: err });
               useToastStore.getState().error(String(err));
             });
@@ -292,6 +313,7 @@ function TreeRow({
                   e.stopPropagation();
                   onMoveUp();
                 }}
+                aria-label={t('writingTree.moveUp')}
               >
                 <KeyboardArrowUpRoundedIcon sx={{ fontSize: 13 }} />
               </IconButton>
@@ -305,6 +327,7 @@ function TreeRow({
                   e.stopPropagation();
                   onMoveDown();
                 }}
+                aria-label={t('writingTree.moveDown')}
               >
                 <KeyboardArrowDownRoundedIcon sx={{ fontSize: 13 }} />
               </IconButton>
@@ -317,6 +340,7 @@ function TreeRow({
                 e.stopPropagation();
                 onAddChild();
               }}
+              aria-label={t('writingDesign.addChild')}
             >
               <Typography component="span" sx={{ fontSize: 13, lineHeight: 1 }}>
                 ＋
@@ -329,6 +353,7 @@ function TreeRow({
               e.stopPropagation();
               onOpenDialog({ kind: 'move-volume', chapterId: chapter.id }, chapter.volume);
             }}
+            aria-label={t('writingDesign.addChild')}
           >
             <DriveFileMoveRoundedIcon sx={{ fontSize: 13 }} />
           </IconButton>
@@ -338,6 +363,7 @@ function TreeRow({
               e.stopPropagation();
               onOpenDialog({ kind: 'rename-chapter', chapterId: chapter.id }, chapter.title);
             }}
+            aria-label={t('writing.renameChapterTitle')}
           >
             <EditRoundedIcon sx={{ fontSize: 13 }} />
           </IconButton>
@@ -347,6 +373,7 @@ function TreeRow({
               e.stopPropagation();
               onOpenDialog({ kind: 'delete-chapter', chapterId: chapter.id });
             }}
+            aria-label={t('writing.deleteChapterTitle')}
           >
             <DeleteOutlineRoundedIcon sx={{ fontSize: 13 }} />
           </IconButton>
@@ -369,6 +396,7 @@ function ChapterTreePanelInner(props: ChapterTreePanelProps) {
     setSelectedChapterIds,
     setActiveSetting,
     setActiveChapter,
+    onOpenChapterDetails,
     dragChapterIdRef,
     flushSave,
     setDropIndex,
@@ -543,6 +571,8 @@ function ChapterTreePanelInner(props: ChapterTreePanelProps) {
           onClick={() => {
             setActiveSetting(null);
             setActiveChapter(ch.id);
+            // 点章 = 打开该章专有详情（右栏切「章详情」tab；写作台 2026-09-29 定稿语义）
+            onOpenChapterDetails?.(ch.id);
           }}
           onOpenDialog={openDialog}
           onAddChild={() => {
@@ -557,8 +587,8 @@ function ChapterTreePanelInner(props: ChapterTreePanelProps) {
           onMoveDown={
             !searching && !selectionMode && siblingNeighbors.get(ch.id)?.next ? () => moveSibling(n, 'down') : undefined
           }
-          onNestDrop={(draggedId) => {
-            void reparentNode(draggedId, ch.id).catch((err) => {
+          onNestDrop={(nestId) => {
+            void reparentNode(nestId, ch.id).catch((err) => {
               logger.warn('WritingPage', 'reparent chapter failed', { error: err });
               useToastStore.getState().error(String(err));
             });
@@ -569,6 +599,7 @@ function ChapterTreePanelInner(props: ChapterTreePanelProps) {
           flushSave={flushSave}
           setDropIndex={setDropIndex}
           reorderChapter={reorderChapter}
+          chapterIndexById={chapterIndexById}
         />
         {hasKids && expanded && n.children.map(renderNode)}
       </Box>

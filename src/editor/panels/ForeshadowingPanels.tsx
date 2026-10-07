@@ -5,23 +5,27 @@
 // ForeshadowingDetail —— 右栏「详情」tab · 选中伏笔的完整编辑器：
 //   标题 / 描述 / 埋设章 / 计划回收章 / 状态三态 / 挂剧情线 / 预警 / 删除。
 // 排序与预警算法复用 utils/writingForeshadowing（与页签编辑面同一份，禁止再写第二份）。
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Tooltip from '@mui/material/Tooltip';
 import { useWritingStore } from '../../store/writingStore';
 import { useEditorStore } from '../../store/editorStore';
 import type { WritingForeshadowing } from '../../services/tauri';
 import {
   isOverdue,
   sortForeshadowings,
+  sortForeshadowingsByPayoff,
   FORESHADOW_STATUSES,
   foreshadowStatusColor,
   foreshadowStatusLabelKey,
   foreshadowingCastOf,
 } from '../../utils/writingForeshadowing';
 import { openChapterCarrierView } from '../../utils/studioBook';
+import { clipSummary } from '../../utils/writingSearch';
 import { t } from '../../i18n';
 import { DraftInput } from '../components/DraftInput';
+import ChapterPicker from '../renderers/ChapterPicker';
 
 /**
  * 伏笔 P2 · 牵涉人物区（编辑卡内嵌，2026-09-19）：
@@ -121,7 +125,14 @@ export function ForeshadowingOverviewCard() {
     if (ws.activeBookId && ws.foreshadowings.length === 0) void ws.loadForeshadowings().catch(() => {});
   }, [loadForeshadowings]);
 
-  const sorted = useMemo(() => sortForeshadowings(foreshadowings, chapters), [foreshadowings, chapters]);
+  const [sortBy, setSortBy] = useState<'status' | 'payoff'>('status');
+  const sorted = useMemo(
+    () =>
+      sortBy === 'status'
+        ? sortForeshadowings(foreshadowings, chapters)
+        : sortForeshadowingsByPayoff(foreshadowings, chapters),
+    [sortBy, foreshadowings, chapters],
+  );
   const pendingCount = foreshadowings.filter((f) => f.status === 'pending').length;
   const paidoffCount = foreshadowings.filter((f) => f.status === 'paidoff').length;
   const abandonedCount = foreshadowings.filter((f) => f.status === 'abandoned').length;
@@ -144,6 +155,39 @@ export function ForeshadowingOverviewCard() {
         <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.secondary">
           {t('writing.viewKind.foreshadowing')} · {foreshadowings.length}
         </Typography>
+        {foreshadowings.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            {(
+              [
+                ['status', t('writing.foreshadowSortStatus')],
+                ['payoff', t('writing.foreshadowSortPayoff')],
+              ] as const
+            ).map(([mode, label]) => (
+              <Box
+                key={mode}
+                component="button"
+                type="button"
+                onClick={() => setSortBy(mode)}
+                title={label}
+                sx={{
+                  fontSize: 9,
+                  py: 0.1,
+                  px: 0.6,
+                  borderRadius: 0.75,
+                  border: 1,
+                  borderColor: sortBy === mode ? 'primary.main' : 'divider',
+                  bgcolor: sortBy === mode ? 'rgba(25,118,210,0.08)' : 'transparent',
+                  color: sortBy === mode ? 'primary.main' : 'text.secondary',
+                  fontWeight: sortBy === mode ? 700 : 400,
+                  cursor: 'pointer',
+                  minWidth: 0,
+                }}
+              >
+                {label}
+              </Box>
+            ))}
+          </Box>
+        )}
         <Typography
           variant="caption"
           onClick={() => {
@@ -181,6 +225,7 @@ export function ForeshadowingOverviewCard() {
             {sorted.map((f) => {
               const overdue = isOverdue(f, chapters);
               const line = f.storylineId ? storylines.find((sl) => sl.id === f.storylineId) : null;
+              const payoffCh = f.payoffChapterId ? chapters.find((c) => c.id === f.payoffChapterId) : null;
               return (
                 <Box
                   key={f.id}
@@ -215,10 +260,27 @@ export function ForeshadowingOverviewCard() {
                   >
                     {f.title || t('writing.foreshadowUntitled')}
                   </Box>
-                  {line && (
-                    <Box component="span" sx={{ color: 'text.disabled', flexShrink: 0, fontSize: 10 }}>
-                      {line.name}
+                  {sortBy === 'payoff' ? (
+                    <Box
+                      component="span"
+                      sx={{
+                        color: 'text.disabled',
+                        flexShrink: 0,
+                        fontSize: 9.5,
+                        maxWidth: 76,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {payoffCh?.title || t('writing.foreshadowNoChapter')}
                     </Box>
+                  ) : (
+                    line && (
+                      <Box component="span" sx={{ color: 'text.disabled', flexShrink: 0, fontSize: 10 }}>
+                        {line.name}
+                      </Box>
+                    )
                   )}
                   {overdue && (
                     <Box component="span" sx={{ color: '#b45309', flexShrink: 0 }}>
@@ -278,22 +340,6 @@ export function ForeshadowingDetail({ item, bookId }: { item: WritingForeshadowi
   const overdue = isOverdue(item, chapters);
   const plant = item.plantChapterId ? bookChapters.find((c) => c.id === item.plantChapterId) : null;
   const payoff = item.payoffChapterId ? bookChapters.find((c) => c.id === item.payoffChapterId) : null;
-
-  const chapterSelect = (value: string | null, onChange: (v: string | null) => void, emptyLabel: string) => (
-    <Box
-      component="select"
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value || null)}
-      style={{ ...fieldStyle, cursor: 'pointer' }}
-    >
-      <option value="">{emptyLabel}</option>
-      {bookChapters.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.title || t('writingWorkbench.untitled')}
-        </option>
-      ))}
-    </Box>
-  );
 
   return (
     <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25, overflowY: 'auto' }}>
@@ -392,21 +438,29 @@ export function ForeshadowingDetail({ item, bookId }: { item: WritingForeshadowi
         <Typography variant="caption" color="text.secondary">
           {t('writing.foreshadowPlantChapter')}
         </Typography>
-        {chapterSelect(
-          item.plantChapterId,
-          (v) => void updateForeshadowing(item.id, { plantChapterId: v }),
-          t('writing.foreshadowNoChapter'),
-        )}
+        <ChapterPicker
+          uniqueKey={item.id + '-plant'}
+          chapters={bookChapters}
+          accent="#1976d2"
+          onSelect={(v: string) => void updateForeshadowing(item.id, { plantChapterId: v })}
+          width="100%"
+          value={item.plantChapterId}
+          onClear={() => void updateForeshadowing(item.id, { plantChapterId: null })}
+        />
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         <Typography variant="caption" color="text.secondary">
           {t('writing.foreshadowPayoffChapter')}
         </Typography>
-        {chapterSelect(
-          item.payoffChapterId,
-          (v) => void updateForeshadowing(item.id, { payoffChapterId: v }),
-          t('writing.foreshadowNoChapter'),
-        )}
+        <ChapterPicker
+          uniqueKey={item.id + '-payoff'}
+          chapters={bookChapters}
+          accent="#1976d2"
+          onSelect={(v: string) => void updateForeshadowing(item.id, { payoffChapterId: v })}
+          width="100%"
+          value={item.payoffChapterId}
+          onClear={() => void updateForeshadowing(item.id, { payoffChapterId: null })}
+        />
       </Box>
       {/* 挂剧情线（可选、零强制） */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -430,52 +484,94 @@ export function ForeshadowingDetail({ item, bookId }: { item: WritingForeshadowi
       {/* 牵涉人物（伏笔 P2 · 零模型派生）：埋设/回收两章出场节拍 cast 并集，
           advisory 展示；点 chip 选中该设定（右栏切设定详情）。无绑定章 → 派生引导。 */}
       <ForeshadowingCastSection item={item} bookId={bookId} />
-      {/* 章跳转 */}
+      {/* 章跳转（G1 增强·正文 hover 预览）：悬停展示该章正文前 80 字摘要，不跳页回忆 */}
       {(plant || payoff) && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
           {plant && (
-            <Box
-              component="button"
-              type="button"
-              onClick={() => jumpChapter(plant.id)}
-              title={t('writing.chapterTimelineOpen')}
-              sx={{
-                cursor: 'pointer',
-                fontSize: 11,
-                px: 1,
-                py: 0.25,
-                borderRadius: 2.5,
-                border: 1,
-                borderColor: 'divider',
-                bgcolor: 'transparent',
-                color: 'text.secondary',
-                '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+            <Tooltip
+              placement="top"
+              arrow
+              title={
+                <Box sx={{ p: 0.5, maxWidth: 220 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#fff' }}>
+                    {t('writing.foreshadowJumpPlant')}：{plant.title || t('writingWorkbench.untitled')}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ display: 'block', mt: 0.25, color: 'rgba(255,255,255,0.85)', fontSize: '11px' }}
+                  >
+                    {clipSummary(plant.content) || t('writing.emptyChapterTitle')}
+                  </Typography>
+                </Box>
+              }
+              slotProps={{
+                tooltip: { sx: { bgcolor: 'rgba(15,23,42,0.92)', borderRadius: 1.5, maxWidth: 260 } },
               }}
             >
-              {t('writing.foreshadowJumpPlant')}：{plant.title || t('writingWorkbench.untitled')}
-            </Box>
+              <Box
+                component="button"
+                type="button"
+                onClick={() => jumpChapter(plant.id)}
+                title={t('writing.chapterTimelineOpen')}
+                sx={{
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: 2.5,
+                  border: 1,
+                  borderColor: 'divider',
+                  bgcolor: 'transparent',
+                  color: 'text.secondary',
+                  '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+                }}
+              >
+                {t('writing.foreshadowJumpPlant')}：{plant.title || t('writingWorkbench.untitled')}
+              </Box>
+            </Tooltip>
           )}
           {payoff && (
-            <Box
-              component="button"
-              type="button"
-              onClick={() => jumpChapter(payoff.id)}
-              title={t('writing.chapterTimelineOpen')}
-              sx={{
-                cursor: 'pointer',
-                fontSize: 11,
-                px: 1,
-                py: 0.25,
-                borderRadius: 2.5,
-                border: 1,
-                borderColor: 'divider',
-                bgcolor: 'transparent',
-                color: 'text.secondary',
-                '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+            <Tooltip
+              placement="top"
+              arrow
+              title={
+                <Box sx={{ p: 0.5, maxWidth: 220 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#fff' }}>
+                    {t('writing.foreshadowJumpPayoff')}：{payoff.title || t('writingWorkbench.untitled')}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ display: 'block', mt: 0.25, color: 'rgba(255,255,255,0.85)', fontSize: '11px' }}
+                  >
+                    {clipSummary(payoff.content) || t('writing.emptyChapterTitle')}
+                  </Typography>
+                </Box>
+              }
+              slotProps={{
+                tooltip: { sx: { bgcolor: 'rgba(15,23,42,0.92)', borderRadius: 1.5, maxWidth: 260 } },
               }}
             >
-              {t('writing.foreshadowJumpPayoff')}：{payoff.title || t('writingWorkbench.untitled')}
-            </Box>
+              <Box
+                component="button"
+                type="button"
+                onClick={() => jumpChapter(payoff.id)}
+                title={t('writing.chapterTimelineOpen')}
+                sx={{
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  px: 1,
+                  py: 0.25,
+                  borderRadius: 2.5,
+                  border: 1,
+                  borderColor: 'divider',
+                  bgcolor: 'transparent',
+                  color: 'text.secondary',
+                  '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+                }}
+              >
+                {t('writing.foreshadowJumpPayoff')}：{payoff.title || t('writingWorkbench.untitled')}
+              </Box>
+            </Tooltip>
           )}
         </Box>
       )}

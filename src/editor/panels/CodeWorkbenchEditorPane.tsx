@@ -1,6 +1,6 @@
 /** CodeWorkbench 编辑器面板：Monaco 编辑器、引用/定义/重命名悬浮面板宿主。 */
 
-import { useEffect, useMemo, useState, useCallback, useRef, Fragment, CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, Fragment } from "react";
 
 import Drawer from "@mui/material/Drawer";
 
@@ -27,13 +27,9 @@ import SearchIcon from "@mui/icons-material/Search";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 
 import {
-  useCodeWorkbenchStore,
   openWorkbenchTab,
   type WorkbenchTab,
-  type PaneNode,
-  type PaneOrientation,
-  type SplitDirection,
-} from "../../store/codeWorkbenchStore";
+  type SplitDirection} from "../../store/codeWorkbenchStore";
 
 import { useProjectStore } from "../../store/projectStore";
 
@@ -49,9 +45,9 @@ import { triggerDiagnosis } from "../../ai/triggerDiagnosis";
 
 import { t } from "../../i18n";
 
-import { parseFileMetricMeta, projectScanApi, type FileChangeEvent, type ProjectFile, type ProjectSymbol } from "../../services/tauri";
+import { projectScanApi} from "../../services/tauri";
 
-import { DefinitionPicker, PeekPanel, highlightCode } from "./CodeWorkbenchPanels";
+import { PeekPanel, highlightCode } from "./CodeWorkbenchPanels";
 
 import { onSymbolRenamed, replaceWordOnLine, type UsageGroup, type UsageHit } from "./CodeWorkbenchShared";
 
@@ -569,7 +565,7 @@ export function EditorPane({
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
               {t("workbench.findUsages")}: {usagesWord} ({usages.length})
             </Typography>
-            <IconButton size="small" onClick={() => setUsagesOpen(false)}>
+            <IconButton size="small" onClick={() => setUsagesOpen(false)} aria-label={t("workbench.close")}>
               <CloseIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Box>

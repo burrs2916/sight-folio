@@ -15,7 +15,7 @@ import MovieIcon from "@mui/icons-material/Movie";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import DescriptionIcon from "@mui/icons-material/Description";
 import { languageColor } from "../../utils/languageMeta";
-import { assetFormatLabel, assetKindOf, type AssetKind } from "../utils/fileKind";
+import { assetFormatLabel, assetKindOf} from "../utils/fileKind";
 import { t } from "../../i18n";
 import {
   BODY_STYLE,
@@ -28,8 +28,7 @@ import {
   metaStyle,
   shellStyle,
   stripeStyle,
-  tintGradient,
-} from "./canvasTheme";
+  tintGradient} from "./canvasTheme";
 import type { CanvasLod } from "../utils/lod";
 
 /** 资源子类：字体 / 媒体 / 压缩 / 其它二进制（决定图标与语义色，仍是同一个 asset 实体类型）。

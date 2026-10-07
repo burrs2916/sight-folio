@@ -2,10 +2,8 @@ import type {
   AiContextSection,
   AiDataQualityStatus,
   AiSectionDataQuality,
-  AiSectionDrilldown,
-} from "./contextTypes";
+  AiSectionDrilldown} from "./contextTypes";
 import { estimateTokens } from "./tokenBudget";
-import { t } from "../i18n";
 import { L } from "./aiLang";
 
 /**

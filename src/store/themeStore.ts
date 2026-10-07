@@ -1,10 +1,10 @@
 // sight-folio: 主题配置（仅 localStorage 持久化）
-import { create } from "zustand";
+import { create } from 'zustand';
 
-export type ThemeMode = "light" | "dark" | "system";
-export type ThemePreset = "default" | "blue" | "green" | "orange" | "purple" | "custom";
-export type FontSize = "small" | "medium" | "large";
-export type BorderRadius = "none" | "small" | "medium" | "large" | "round";
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemePreset = 'default' | 'blue' | 'green' | 'orange' | 'purple' | 'indigo' | 'custom';
+export type FontSize = 'small' | 'medium' | 'large';
+export type BorderRadius = 'none' | 'small' | 'medium' | 'large' | 'round';
 
 export interface ThemeConfig {
   mode: ThemeMode;
@@ -15,13 +15,13 @@ export interface ThemeConfig {
 }
 
 const DEFAULT_THEME_CONFIG: ThemeConfig = {
-  mode: "system",
-  preset: "default",
-  fontSize: "medium",
-  borderRadius: "medium",
+  mode: 'system',
+  preset: 'default',
+  fontSize: 'medium',
+  borderRadius: 'medium',
 };
 
-const STORAGE_KEY = "project-sight.theme";
+const STORAGE_KEY = 'project-sight.theme';
 
 function loadConfig(): ThemeConfig {
   try {
@@ -40,7 +40,7 @@ function persist(config: ThemeConfig): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   } catch (err) {
-    console.error("[ThemeStore] 持久化失败:", err);
+    console.error('[ThemeStore] 持久化失败:', err);
   }
 }
 
@@ -79,7 +79,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   setCustomPrimary: (color) => {
-    const config: ThemeConfig = { ...get().config, customPrimary: color, preset: "custom" };
+    const config: ThemeConfig = { ...get().config, customPrimary: color, preset: 'custom' };
     set({ config });
     persist(config);
   },

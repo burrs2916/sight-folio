@@ -2,7 +2,7 @@
 //
 // 一旦两处口径分了叉，同一章在写作台和工作室右栏会显示不同的大纲，
 // 而它们读的是同一张 writing_outlines 表 —— 这种不一致最难查，所以锁成测试。
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
   beatForChapter,
   looseBeats,
@@ -13,272 +13,262 @@ import {
   chaptersOfSetting,
   chapterPath,
   settingUsage,
-  volumeBeatAccount,
   subtreeAccount,
-  subtreeBeatAccount,
-} from "../writingOutline";
-import type { WritingChapter, WritingOutline } from "../../services/tauri";
+  parseChapterCover,
+} from '../writingOutline';
+import type { WritingChapter, WritingOutline } from '../../services/tauri';
 
 /** 带 extra 的节拍（挂载测试用） */
 function beatEx(id: string, chapterId: string | null, sortOrder: number, extra: unknown): WritingOutline {
-  return { ...beat(id, chapterId, sortOrder), extra: typeof extra === "string" ? extra : JSON.stringify(extra) };
+  return { ...beat(id, chapterId, sortOrder), extra: typeof extra === 'string' ? extra : JSON.stringify(extra) };
 }
 
 /** 结构树节点（parentId/kind 可控，供 chapterPath 用） */
 function node(id: string, parentId: string | null, kind: string, sortOrder = 0): WritingChapter {
-  return { ...ch(id, "", 0), parentId, kind, sortOrder };
+  return { ...ch(id, '', 0), parentId, kind, sortOrder };
 }
 
 function beat(id: string, chapterId: string | null, sortOrder: number): WritingOutline {
   return {
     id,
-    bookId: "b1",
+    bookId: 'b1',
     title: `节拍${id}`,
-    summary: "",
+    summary: '',
     chapterId,
-    extra: "{}",
+    extra: '{}',
     sortOrder,
     createdAt: 0,
     updatedAt: 0,
   };
 }
 
-function ch(id: string, volume: string, wordCount: number, status = "draft"): WritingChapter {
+function ch(id: string, volume: string, wordCount: number, status = 'draft'): WritingChapter {
   return {
     id,
-    bookId: "b1",
+    bookId: 'b1',
     title: `第${id}章`,
-    content: "",
+    content: '',
     sortOrder: 0,
     wordCount,
     status,
     volume,
     parentId: null,
-    kind: "章",
-    extra: "{}",
+    kind: '章',
+    extra: '{}',
     createdAt: 0,
     updatedAt: 0,
   };
 }
 
-describe("beatForChapter", () => {
-  it("按章取节拍", () => {
-    const outlines = [beat("o1", null, 1), beat("o2", "c1", 2), beat("o3", "c2", 3)];
-    expect(beatForChapter(outlines, "c1")!.id).toBe("o2");
-    expect(beatForChapter(outlines, "c2")!.id).toBe("o3");
+describe('beatForChapter', () => {
+  it('按章取节拍', () => {
+    const outlines = [beat('o1', null, 1), beat('o2', 'c1', 2), beat('o3', 'c2', 3)];
+    expect(beatForChapter(outlines, 'c1')!.id).toBe('o2');
+    expect(beatForChapter(outlines, 'c2')!.id).toBe('o3');
   });
 
-  it("没有绑定的章返回 null（右栏据此显示「还没大纲」而不是空白）", () => {
-    expect(beatForChapter([beat("o1", "c1", 1)], "c9")).toBeNull();
+  it('没有绑定的章返回 null（右栏据此显示「还没大纲」而不是空白）', () => {
+    expect(beatForChapter([beat('o1', 'c1', 1)], 'c9')).toBeNull();
   });
 
-  it("chapterId 为空时返回 null，不会误取到未落章的节拍", () => {
-    expect(beatForChapter([beat("o1", null, 1)], "")).toBeNull();
+  it('chapterId 为空时返回 null，不会误取到未落章的节拍', () => {
+    expect(beatForChapter([beat('o1', null, 1)], '')).toBeNull();
   });
 
-  it("一章被多条节拍绑定时取 sortOrder 最小的那条，且与数组顺序无关", () => {
-    const a = [beat("late", "c1", 9), beat("early", "c1", 2)];
-    expect(beatForChapter(a, "c1")!.id).toBe("early");
-    const b = [beat("early", "c1", 2), beat("late", "c1", 9)];
-    expect(beatForChapter(b, "c1")!.id).toBe("early");
+  it('一章被多条节拍绑定时取 sortOrder 最小的那条，且与数组顺序无关', () => {
+    const a = [beat('late', 'c1', 9), beat('early', 'c1', 2)];
+    expect(beatForChapter(a, 'c1')!.id).toBe('early');
+    const b = [beat('early', 'c1', 2), beat('late', 'c1', 9)];
+    expect(beatForChapter(b, 'c1')!.id).toBe('early');
   });
 });
 
-describe("looseBeats", () => {
-  it("只留未落章的节拍，并按 sortOrder 排（先规划的先显示）", () => {
-    const outlines = [beat("a", "c1", 5), beat("b", null, 3), beat("c", null, 1)];
-    expect(looseBeats(outlines).map((o) => o.id)).toEqual(["c", "b"]);
+describe('looseBeats', () => {
+  it('只留未落章的节拍，并按 sortOrder 排（先规划的先显示）', () => {
+    const outlines = [beat('a', 'c1', 5), beat('b', null, 3), beat('c', null, 1)];
+    expect(looseBeats(outlines).map((o) => o.id)).toEqual(['c', 'b']);
   });
 
-  it("不修改入参（纯函数）", () => {
-    const outlines = [beat("a", null, 2), beat("b", null, 1)];
+  it('不修改入参（纯函数）', () => {
+    const outlines = [beat('a', null, 2), beat('b', null, 1)];
     looseBeats(outlines);
-    expect(outlines.map((o) => o.id)).toEqual(["a", "b"]);
+    expect(outlines.map((o) => o.id)).toEqual(['a', 'b']);
   });
 });
 
-describe("volumeAccount", () => {
-  it("按卷名聚合章列表 / 字数 / 完稿数", () => {
-    const chapters = [ch("1", "卷一", 100), ch("2", "卷一", 200, "finished"), ch("3", "卷二", 50)];
-    const r = volumeAccount(chapters, "卷一");
-    expect(r.rows.map((c) => c.id)).toEqual(["1", "2"]);
+describe('volumeAccount', () => {
+  it('按卷名聚合章列表 / 字数 / 完稿数', () => {
+    const chapters = [ch('1', '卷一', 100), ch('2', '卷一', 200, 'finished'), ch('3', '卷二', 50)];
+    const r = volumeAccount(chapters, '卷一');
+    expect(r.rows.map((c) => c.id)).toEqual(['1', '2']);
     expect(r.words).toBe(300);
     expect(r.finished).toBe(1);
   });
 
   it("未分卷（'' 卷名）自成一组，不会被算进任何命名卷", () => {
-    const chapters = [ch("1", "", 10), ch("2", "卷一", 20)];
-    expect(volumeAccount(chapters, "卷一").rows.map((c) => c.id)).toEqual(["2"]);
-    expect(volumeAccount(chapters, "").rows.map((c) => c.id)).toEqual(["1"]);
+    const chapters = [ch('1', '', 10), ch('2', '卷一', 20)];
+    expect(volumeAccount(chapters, '卷一').rows.map((c) => c.id)).toEqual(['2']);
+    expect(volumeAccount(chapters, '').rows.map((c) => c.id)).toEqual(['1']);
   });
 
-  it("空卷返回空账而不是崩溃", () => {
-    const r = volumeAccount([], "卷一");
+  it('空卷返回空账而不是崩溃', () => {
+    const r = volumeAccount([], '卷一');
     expect(r).toEqual({ rows: [], words: 0, finished: 0 });
   });
 });
 
-describe("parseBeatExtra（宽容解析，全项目唯一入口）", () => {
-  it("正常对象解析出 cast/scenes/status", () => {
+describe('parseBeatExtra（宽容解析，全项目唯一入口）', () => {
+  it('正常对象解析出 cast/scenes/status', () => {
     expect(parseBeatExtra('{"cast":["a"],"scenes":["s"],"status":"written"}')).toEqual({
-      cast: ["a"],
-      scenes: ["s"],
-      status: "written",
+      cast: ['a'],
+      scenes: ['s'],
+      status: 'written',
     });
   });
 
-  it("坏 JSON / 空串 / 数组 / 字面量 一律当空挂载，绝不抛错", () => {
-    expect(parseBeatExtra("{坏")).toEqual({});
-    expect(parseBeatExtra("")).toEqual({});
-    expect(parseBeatExtra("[1,2]")).toEqual({});
-    expect(parseBeatExtra("null")).toEqual({});
-    expect(parseBeatExtra("42")).toEqual({});
+  it('坏 JSON / 空串 / 数组 / 字面量 一律当空挂载，绝不抛错', () => {
+    expect(parseBeatExtra('{坏')).toEqual({});
+    expect(parseBeatExtra('')).toEqual({});
+    expect(parseBeatExtra('[1,2]')).toEqual({});
+    expect(parseBeatExtra('null')).toEqual({});
+    expect(parseBeatExtra('42')).toEqual({});
   });
 });
 
-describe("castOfChapter / scenesOfChapter（本章挂载，读真数据）", () => {
-  it("汇总本章多条节拍挂的人物，去重保序", () => {
+describe('castOfChapter / scenesOfChapter（本章挂载，读真数据）', () => {
+  it('汇总本章多条节拍挂的人物，去重保序', () => {
     const outlines = [
-      beatEx("o1", "c1", 1, { cast: ["p1", "p2"] }),
-      beatEx("o2", "c1", 2, { cast: ["p2", "p3"] }),
-      beatEx("o3", "c2", 3, { cast: ["p9"] }),
+      beatEx('o1', 'c1', 1, { cast: ['p1', 'p2'] }),
+      beatEx('o2', 'c1', 2, { cast: ['p2', 'p3'] }),
+      beatEx('o3', 'c2', 3, { cast: ['p9'] }),
     ];
-    expect(castOfChapter(outlines, "c1")).toEqual(["p1", "p2", "p3"]);
-    expect(castOfChapter(outlines, "c2")).toEqual(["p9"]);
+    expect(castOfChapter(outlines, 'c1')).toEqual(['p1', 'p2', 'p3']);
+    expect(castOfChapter(outlines, 'c2')).toEqual(['p9']);
   });
 
-  it("场景走 scenes 字段，与 cast 不串（反之亦然）", () => {
-    const outlines = [beatEx("o1", "c1", 1, { cast: ["p1"], scenes: ["s1", "s2"] })];
-    expect(scenesOfChapter(outlines, "c1")).toEqual(["s1", "s2"]);
-    expect(castOfChapter(outlines, "c1")).toEqual(["p1"]);
+  it('场景走 scenes 字段，与 cast 不串（反之亦然）', () => {
+    const outlines = [beatEx('o1', 'c1', 1, { cast: ['p1'], scenes: ['s1', 's2'] })];
+    expect(scenesOfChapter(outlines, 'c1')).toEqual(['s1', 's2']);
+    expect(castOfChapter(outlines, 'c1')).toEqual(['p1']);
   });
 
-  it("非字符串 id / 空串 / 坏 extra 全被过滤", () => {
-    const outlines = [beatEx("o1", "c1", 1, { cast: ["p1", "", 7, null] }), beatEx("o2", "c1", 2, "{坏")];
-    expect(castOfChapter(outlines, "c1")).toEqual(["p1"]);
+  it('非字符串 id / 空串 / 坏 extra 全被过滤', () => {
+    const outlines = [beatEx('o1', 'c1', 1, { cast: ['p1', '', 7, null] }), beatEx('o2', 'c1', 2, '{坏')];
+    expect(castOfChapter(outlines, 'c1')).toEqual(['p1']);
   });
 });
 
-describe("chaptersOfSetting（人物出场章 / 场景关联章真数据口径）", () => {
-  it("人物读 cast：返回挂过它的章，按 sortOrder 排", () => {
+describe('chaptersOfSetting（人物出场章 / 场景关联章真数据口径）', () => {
+  it('人物读 cast：返回挂过它的章，按 sortOrder 排', () => {
     const outlines = [
-      beatEx("o1", "c1", 1, { cast: ["p1"] }),
-      beatEx("o2", "c2", 2, { cast: ["p1"] }),
-      beatEx("o3", "c3", 3, { cast: ["p2"] }),
+      beatEx('o1', 'c1', 1, { cast: ['p1'] }),
+      beatEx('o2', 'c2', 2, { cast: ['p1'] }),
+      beatEx('o3', 'c3', 3, { cast: ['p2'] }),
     ];
-    const chapters = [{ ...node("c1", null, "章"), sortOrder: 5 }, node("c2", null, "章", 2), node("c3", null, "章", 1)];
-    expect(chaptersOfSetting(outlines, chapters, "p1", "character").map((c) => c.id)).toEqual(["c2", "c1"]);
+    const chapters = [
+      { ...node('c1', null, '章'), sortOrder: 5 },
+      node('c2', null, '章', 2),
+      node('c3', null, '章', 1),
+    ];
+    expect(chaptersOfSetting(outlines, chapters, 'p1', 'character').map((c) => c.id)).toEqual(['c2', 'c1']);
   });
 
-  it("世界观读 scenes：同一 id 在 cast 里出现不算数", () => {
-    const outlines = [beatEx("o1", "c1", 1, { cast: ["x1"] }), beatEx("o2", "c2", 2, { scenes: ["x1"] })];
-    const chapters = [node("c1", null, "章", 1), node("c2", null, "章", 2)];
-    expect(chaptersOfSetting(outlines, chapters, "x1", "worldbuilding").map((c) => c.id)).toEqual(["c2"]);
+  it('世界观读 scenes：同一 id 在 cast 里出现不算数', () => {
+    const outlines = [beatEx('o1', 'c1', 1, { cast: ['x1'] }), beatEx('o2', 'c2', 2, { scenes: ['x1'] })];
+    const chapters = [node('c1', null, '章', 1), node('c2', null, '章', 2)];
+    expect(chaptersOfSetting(outlines, chapters, 'x1', 'worldbuilding').map((c) => c.id)).toEqual(['c2']);
   });
 
-  it("空 settingId 返回空（不误扫全表）", () => {
-    expect(chaptersOfSetting([beatEx("o1", "c1", 1, { cast: ["p1"] })], [node("c1", null, "章")], "", "character")).toEqual([]);
+  it('空 settingId 返回空（不误扫全表）', () => {
+    expect(
+      chaptersOfSetting([beatEx('o1', 'c1', 1, { cast: ['p1'] })], [node('c1', null, '章')], '', 'character'),
+    ).toEqual([]);
   });
 });
 
-describe("chapterPath（结构树面包屑，防环断链）", () => {
-  it("根 → 自身：部 › 卷 › 章", () => {
-    const chapters = [node("root", null, "部"), node("v1", "root", "卷"), node("c1", "v1", "章")];
-    expect(chapterPath(chapters, "c1").map((c) => c.id)).toEqual(["root", "v1", "c1"]);
+describe('chapterPath（结构树面包屑，防环断链）', () => {
+  it('根 → 自身：部 › 卷 › 章', () => {
+    const chapters = [node('root', null, '部'), node('v1', 'root', '卷'), node('c1', 'v1', '章')];
+    expect(chapterPath(chapters, 'c1').map((c) => c.id)).toEqual(['root', 'v1', 'c1']);
   });
 
-  it("找不到 / 空 id 返回 []", () => {
-    expect(chapterPath([node("c1", null, "章")], "nope")).toEqual([]);
-    expect(chapterPath([node("c1", null, "章")], "")).toEqual([]);
+  it('找不到 / 空 id 返回 []', () => {
+    expect(chapterPath([node('c1', null, '章')], 'nope')).toEqual([]);
+    expect(chapterPath([node('c1', null, '章')], '')).toEqual([]);
   });
 
-  it("parentId 成环时不死循环（seen 兜底），每个 id 只出现一次", () => {
-    const chapters = [node("a", "b", "卷"), node("b", "a", "章")];
-    const path = chapterPath(chapters, "a");
+  it('parentId 成环时不死循环（seen 兜底），每个 id 只出现一次', () => {
+    const chapters = [node('a', 'b', '卷'), node('b', 'a', '章')];
+    const path = chapterPath(chapters, 'a');
     expect(path.length).toBeLessThanOrEqual(2);
     const ids = path.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length); // 无重复
-    expect(ids).toContain("a"); // 自身一定在路径里
+    expect(ids).toContain('a'); // 自身一定在路径里
   });
 });
 
-describe("settingUsage（要素清点：已挂载 / 未挂载）", () => {
-  it("被任意节拍挂过的算已挂载，其余算未挂载", () => {
-    const outlines = [beatEx("o1", "c1", 1, { cast: ["p1"], scenes: ["s1"] })];
-    const r = settingUsage(outlines, [{ id: "p1" }, { id: "p2" }, { id: "s1" }, { id: "s2" }]);
-    expect(r.attached.sort()).toEqual(["p1", "s1"]);
-    expect(r.orphan.sort()).toEqual(["p2", "s2"]);
+describe('settingUsage（要素清点：已挂载 / 未挂载）', () => {
+  it('被任意节拍挂过的算已挂载，其余算未挂载', () => {
+    const outlines = [beatEx('o1', 'c1', 1, { cast: ['p1'], scenes: ['s1'] })];
+    const r = settingUsage(outlines, [{ id: 'p1' }, { id: 'p2' }, { id: 's1' }, { id: 's2' }]);
+    expect(r.attached.sort()).toEqual(['p1', 's1']);
+    expect(r.orphan.sort()).toEqual(['p2', 's2']);
   });
 
-  it("无任何节拍时全部未挂载", () => {
-    const r = settingUsage([], [{ id: "p1" }]);
-    expect(r).toEqual({ attached: [], orphan: ["p1"] });
-  });
-});
-
-describe("volumeBeatAccount（卷节拍账）", () => {
-  it("统计本卷节拍数 / 已写数 / 挂过的设定 id（去重）", () => {
-    const outlines = [
-      beatEx("o1", "c1", 1, { status: "written", cast: ["p1"] }),
-      beatEx("o2", "c2", 2, { status: "draft", scenes: ["s1"] }),
-      beatEx("o3", "c3", 3, { cast: ["p1"] }), // c3 属卷二，不计入
-    ];
-    const chapters = [ch("c1", "卷一", 0), ch("c2", "卷一", 0), ch("c3", "卷二", 0)];
-    const r = volumeBeatAccount(outlines, chapters, "卷一");
-    expect(r.beats).toBe(2);
-    expect(r.written).toBe(1);
-    expect(r.settingIds.sort()).toEqual(["p1", "s1"]);
-  });
-
-  it("status 缺省视为未写（todo）", () => {
-    const chapters = [ch("c1", "卷一", 0)];
-    const r = volumeBeatAccount([beatEx("o1", "c1", 1, {})], chapters, "卷一");
-    expect(r.beats).toBe(1);
-    expect(r.written).toBe(0);
+  it('无任何节拍时全部未挂载', () => {
+    const r = settingUsage([], [{ id: 'p1' }]);
+    expect(r).toEqual({ attached: [], orphan: ['p1'] });
   });
 });
 
-describe("subtreeAccount / subtreeBeatAccount（树口径卷账，2026-09-14 方案 A）", () => {
-  it("容器不计入：部>卷>章 的账只统计叶章", () => {
+describe('subtreeAccount（树口径卷账，2026-09-14 方案 A）', () => {
+  it('容器不计入：部>卷>章 的账只统计叶章', () => {
     const chapters = [
-      node("bu", null, "部", 1),
-      node("v1", "bu", "卷", 2),
-      { ...node("c1", "v1", "章", 3), wordCount: 100, status: "finished" },
-      { ...node("c2", "v1", "章", 4), wordCount: 50 },
+      node('bu', null, '部', 1),
+      node('v1', 'bu', '卷', 2),
+      { ...node('c1', 'v1', '章', 3), wordCount: 100, status: 'finished' },
+      { ...node('c2', 'v1', '章', 4), wordCount: 50 },
     ];
-    const r = subtreeAccount(chapters, "bu");
-    expect(r.rows.map((c) => c.id).sort()).toEqual(["c1", "c2"]);
+    const r = subtreeAccount(chapters, 'bu');
+    expect(r.rows.map((c) => c.id).sort()).toEqual(['c1', 'c2']);
     expect(r.words).toBe(150);
     expect(r.finished).toBe(1);
   });
 
-  it("根自身是叶章（根级章）→ 账就是它自己", () => {
-    const chapters = [{ ...node("c1", null, "章"), wordCount: 7 }];
-    const r = subtreeAccount(chapters, "c1");
-    expect(r.rows.map((c) => c.id)).toEqual(["c1"]);
+  it('根自身是叶章（根级章）→ 账就是它自己', () => {
+    const chapters = [{ ...node('c1', null, '章'), wordCount: 7 }];
+    const r = subtreeAccount(chapters, 'c1');
+    expect(r.rows.map((c) => c.id)).toEqual(['c1']);
     expect(r.words).toBe(7);
   });
 
-  it("空 rootId 返回空账（不误扫全表）", () => {
-    expect(subtreeAccount([node("c1", null, "章")], "")).toEqual({ rows: [], words: 0, finished: 0 });
+  it('空 rootId 返回空账（不误扫全表）', () => {
+    expect(subtreeAccount([node('c1', null, '章')], '')).toEqual({ rows: [], words: 0, finished: 0 });
   });
 
-  it("parentId 成环不死循环（seen 兜底）", () => {
-    const chapters = [node("a", "b", "卷"), node("b", "a", "章")];
-    const r = subtreeAccount(chapters, "a");
+  it('parentId 成环不死循环（seen 兜底）', () => {
+    const chapters = [node('a', 'b', '卷'), node('b', 'a', '章')];
+    const r = subtreeAccount(chapters, 'a');
     expect(r.rows.length).toBeLessThanOrEqual(1);
   });
+});
 
-  it("节拍账只统计子树叶章挂的节拍；容器节点上挂的不算", () => {
-    const chapters = [node("v1", null, "卷", 1), node("c1", "v1", "章", 2), node("c2", "v1", "章", 3)];
-    const outlines = [
-      beatEx("o1", "c1", 1, { status: "written", cast: ["p1"] }),
-      beatEx("o2", "v1", 2, { status: "written" }), // 挂在容器上，不计
-      beatEx("o3", "c2", 3, {}), // 缺省 status = 未写
-    ];
-    const r = subtreeBeatAccount(outlines, chapters, "v1");
-    expect(r.beats).toBe(2);
-    expect(r.written).toBe(1);
-    expect(r.settingIds).toEqual(["p1"]);
+describe('parseChapterCover（章/卷封面唯一口径：宽容解析，绝不抛错）', () => {
+  it('合法引用来回解析', () => {
+    expect(parseChapterCover('{"coverImage":"assets/writing/illustrations/hi.png"}')).toBe(
+      'assets/writing/illustrations/hi.png',
+    );
+  });
+
+  it('缺失 / 坏 JSON / 空串一律 undefined（创作者主权：无封面≠未完成）', () => {
+    expect(parseChapterCover('{}')).toBeUndefined();
+    expect(parseChapterCover('{坏')).toBeUndefined();
+    expect(parseChapterCover('')).toBeUndefined();
+    expect(parseChapterCover(undefined)).toBeUndefined();
+  });
+
+  it('非字符串 / 空字符串 coverImage 不算封面', () => {
+    expect(parseChapterCover('{"coverImage":123}')).toBeUndefined();
+    expect(parseChapterCover('{"coverImage":""}')).toBeUndefined();
   });
 });

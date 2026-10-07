@@ -191,7 +191,7 @@ export function BookmarkPicker({
                   title={t("workbench.bookmarkPicker.remove")}
                   onClick={(e) => remove(r, e)}
                   sx={{ flexShrink: 0 }}
-                >
+                 aria-label={t("workbench.bookmarkPicker.remove")}>
                   <DeleteOutlineIcon sx={{ fontSize: 16 }} />
                 </IconButton>
               </ListItemButton>

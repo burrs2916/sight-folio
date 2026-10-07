@@ -227,7 +227,7 @@ export default function CanvasMinimap({
             backdropFilter: "blur(8px)",
             "&:hover": { backgroundColor: (t) => (t.palette.mode === "dark" ? "rgba(40,40,55,0.95)" : "#fff") },
           }}
-        >
+         aria-label={t("canvasTip.minimapExpand")}>
           <MapIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Tooltip>
@@ -287,7 +287,7 @@ export default function CanvasMinimap({
           </Typography>
         </Tooltip>
         <Tooltip title={t("canvasTip.minimapCollapse")}>
-          <IconButton size="small" onClick={() => setCollapsed(true)} sx={{ p: 0.25 }}>
+          <IconButton size="small" onClick={() => setCollapsed(true)} sx={{ p: 0.25 }} aria-label={t("canvasTip.minimapCollapse")}>
             <CloseIcon sx={{ fontSize: 11 }} />
           </IconButton>
         </Tooltip>

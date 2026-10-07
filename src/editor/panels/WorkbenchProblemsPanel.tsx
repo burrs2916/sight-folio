@@ -25,7 +25,6 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { useTheme } from "@mui/material/styles";
 import { t } from "../../i18n";
 import { useEditorDiagnosticsStore, type EditorDiagnostic } from "../../store/editorDiagnosticsStore";
 
@@ -55,7 +54,6 @@ function basename(p: string): string {
 }
 
 export function WorkbenchProblemsPanel({ onClose, onJump }: WorkbenchProblemsPanelProps) {
-  const dark = useTheme().palette.mode === "dark";
   const byRelPath = useEditorDiagnosticsStore((s) => s.byRelPath);
   const [includeWarnings, setIncludeWarnings] = useState(true);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -133,12 +131,12 @@ export function WorkbenchProblemsPanel({ onClose, onJump }: WorkbenchProblemsPan
             size="small"
             color={includeWarnings ? "warning" : "default"}
             onClick={() => setIncludeWarnings((v) => !v)}
-          >
+           aria-label={t("workbench.problems.warnToggleTip")}>
             <WarningAmberIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.close")}>
-          <IconButton size="small" onClick={onClose}>
+          <IconButton size="small" onClick={onClose} aria-label={t("workbench.close")}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -255,7 +253,7 @@ export function WorkbenchProblemsPanel({ onClose, onJump }: WorkbenchProblemsPan
                             e.stopPropagation();
                             handleCopy(d, g.relPath);
                           }}
-                        >
+                         aria-label={t("workbench.problems.copyDiagnostic")}>
                           <ContentCopyIcon sx={{ fontSize: 14 }} />
                         </IconButton>
                       </Tooltip>

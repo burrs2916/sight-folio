@@ -48,7 +48,6 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
   const components = useEditorStore((s) => s.components);
   const layers = useEditorStore((s) => s.layers);
   const viewport = useEditorStore((s) => s.viewport);
-  const activeViewId = useEditorStore((s) => s.activeViewId);
   const selectedIds = useEditorStore((s) => s.selection.selectedIds);
   const hoveredId = useEditorStore((s) => s.selection.hoveredId);
   const canvasConfig = useEditorStore((s) => s.canvasConfig);
@@ -892,7 +891,7 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
         }}
       >
         <Tooltip title={t("editor.zoomOut")}>
-          <IconButton size="small" onClick={zoomOut}>
+          <IconButton size="small" onClick={zoomOut} aria-label={t("editor.zoomOut")}>
             <ZoomOutIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
@@ -912,17 +911,17 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
           {scalePercent}%
         </Typography>
         <Tooltip title={t("editor.zoomIn")}>
-          <IconButton size="small" onClick={zoomIn}>
+          <IconButton size="small" onClick={zoomIn} aria-label={t("editor.zoomIn")}>
             <ZoomInIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("editor.fitCanvas")}>
-          <IconButton size="small" onClick={() => resetViewport(containerSize.width, containerSize.height)}>
+          <IconButton size="small" onClick={() => resetViewport(containerSize.width, containerSize.height)} aria-label={t("editor.fitCanvas")}>
             <FitScreenIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("editor.actualSize")}>
-          <IconButton size="small" onClick={setActualSize}>
+          <IconButton size="small" onClick={setActualSize} aria-label={t("editor.actualSize")}>
             <CropFreeIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>

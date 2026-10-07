@@ -5,7 +5,7 @@
 //   最新会话，没有才 createConversation；历史消息直读 agentApi.listMessages 存本地 state，
 //   **完全不碰 store.messages**（避免与 AI 页当前会话互相污染；写作台独立窗口/store 双场景都安全）。
 // - 上下文注入：会话首轮（本地无历史）发送时自动把 buildContextBlock() 的写作上下文
-//   （书名/当前章尾部正文/人设卡清单）拼在用户输入前；后续轮次靠对话历史延续。
+//   （书名/当前章尾部正文/人物档案语料）拼在用户输入前；后续轮次靠对话历史延续。
 //   「新会话」按钮清空本地会话句柄，下一条消息触发重建 + 重新注入。
 // - 流式：订阅 store.streamingContent（与内联任务同通道，isStreaming 并发闸门保证唯一流），
 //   isStreaming 期间在消息尾渲染流式气泡；停止走 requestInterrupt（全局先例）。
@@ -174,10 +174,10 @@ export function WritingAiChatDialog({
             </MenuItem>
           ))}
         </Select>
-        <IconButton size="small" onClick={isStreaming ? undefined : handleNewChat} title={t('writing.aiChatNew')} data-testid="ai-chat-new">
+        <IconButton size="small" onClick={isStreaming ? undefined : handleNewChat} title={t('writing.aiChatNew')} data-testid="ai-chat-new" aria-label={t('writing.aiChatNew')}>
           <AddRoundedIcon sx={{ fontSize: 17 }} />
         </IconButton>
-        <IconButton size="small" onClick={onClose}>
+        <IconButton size="small" onClick={onClose} aria-label={t("writing.aiChatClose")}>
           <CloseRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </DialogTitle>
@@ -248,11 +248,11 @@ export function WritingAiChatDialog({
             sx={{ '& .MuiInputBase-input': { fontSize: 13 } }}
           />
           {isStreaming ? (
-            <IconButton color="error" onClick={() => useAgentStore.getState().requestInterrupt()} size="small" sx={{ flexShrink: 0 }} data-testid="ai-chat-stop">
+            <IconButton color="error" onClick={() => useAgentStore.getState().requestInterrupt()} size="small" sx={{ flexShrink: 0 }} data-testid="ai-chat-stop" aria-label={t("writing.aiChatStop")}>
               <StopRoundedIcon />
             </IconButton>
           ) : (
-            <IconButton color="primary" disabled={!canSend} onClick={() => void handleSend()} size="small" sx={{ flexShrink: 0 }} data-testid="ai-chat-send">
+            <IconButton color="primary" disabled={!canSend} onClick={() => void handleSend()} size="small" sx={{ flexShrink: 0 }} data-testid="ai-chat-send" aria-label={t("writing.aiChatSend")}>
               <SendRoundedIcon />
             </IconButton>
           )}

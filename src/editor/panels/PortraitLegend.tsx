@@ -78,7 +78,7 @@ export function PortraitLegend() {
             backdropFilter: "blur(8px)",
             "&:hover": { backgroundColor: (th) => (th.palette.mode === "dark" ? "rgba(40,40,55,0.95)" : "#fff") },
           }}
-        >
+         aria-label={t("legend.title")}>
           <LegendToggleIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Tooltip>

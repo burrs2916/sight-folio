@@ -6,11 +6,10 @@
  * 取代原先的单文件查看 dialog，对齐「比 IDEA 更强的开发平台」定位。
  */
 
-import { useEffect, useMemo, useState, useCallback, useRef, Fragment, CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, Fragment, type MouseEvent as ReactMouseEvent } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import Dialog from "@mui/material/Dialog";
-import Drawer from "@mui/material/Drawer";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
@@ -20,7 +19,6 @@ import Chip from "@mui/material/Chip";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import CircularProgress from "@mui/material/CircularProgress";
-import Alert from "@mui/material/Alert";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Divider from "@mui/material/Divider";
@@ -31,14 +29,8 @@ import Tab from "@mui/material/Tab";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CloseIcon from "@mui/icons-material/Close";
 import FolderIcon from "@mui/icons-material/Folder";
-import PushPinIcon from "@mui/icons-material/PushPin";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import SearchIcon from "@mui/icons-material/Search";
 import ListAltIcon from "@mui/icons-material/ListAlt";
-import { useTheme } from "@mui/material/styles";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
@@ -59,9 +51,7 @@ import {
 import { useProjectStore } from "../../store/projectStore";
 import { useToastStore } from "../../store/toastStore";
 import { useAgentStore } from "../../store/agentStore";
-import { MonacoCodeEditor, type HeatRange, type DeadRange, type CloneRange, type EditorSelectionInfo, type MonacoEditorHandle, type CursorStatus, type EditorInfo, type MarkerStats } from "./MonacoCodeEditor";
-import type { SourceMark } from "../../store/sourceViewerStore";
-import { useEditorDiagnosticsStore } from "../../store/editorDiagnosticsStore";
+import type { EditorSelectionInfo, MonacoEditorHandle } from "./MonacoCodeEditor";
 import { useProblemsPanelStore } from "../../store/problemsPanelStore";
 import { triggerDiagnosis } from "../../ai/triggerDiagnosis";
 import { L } from "../../ai/aiLang";
@@ -81,17 +71,14 @@ const EMPTY_TABS: WorkbenchTab[] = [];
 import { InlineChat } from "./InlineChat";
 import { t } from "../../i18n";
 import { readLineFromMetadata } from "../utils/sourceNavigate";
-import { parseFileMetricMeta, projectScanApi, type FileChangeEvent, type ProjectFile, type ProjectSymbol } from "../../services/tauri";
-import { languageColor } from "../../utils/languageMeta";
-import { LanguageIcon } from "../../utils/languageIcon";
+import { projectScanApi, type FileChangeEvent, type ProjectSymbol } from "../../services/tauri";
 
 import { escapeRegExp, emitSymbolRenamed, replaceWordOnLine, type RenameTarget } from "./CodeWorkbenchShared";
 
-import { KIND_ORDER, buildOutlineTree, collectOutlineNodes, filterOutlineTree, kindSortIndex, symbolKindColor, symbolKindLabel, type OutlineNode } from "./CodeWorkbenchOutline";
+import { buildOutlineTree, collectOutlineNodes, filterOutlineTree, kindSortIndex, symbolKindColor, symbolKindLabel, type OutlineNode } from "./CodeWorkbenchOutline";
 
-import { ccLevel, buildTree, collectDirPaths, filterTreeNodes, treeHeaderSx, treeHeaderTextSx, treeItemSx, treeMenuSx, FileTreeNode, type TreeNode } from "./CodeWorkbenchTree";
+import { buildTree, collectDirPaths, filterTreeNodes, treeHeaderSx, treeHeaderTextSx, treeItemSx, treeMenuSx, FileTreeNode, type TreeNode } from "./CodeWorkbenchTree";
 
-import { EditorPane } from "./CodeWorkbenchEditorPane";
 
 import { DefinitionPicker, GoToSymbol, QuickOpen } from "./CodeWorkbenchPanels";
 
@@ -108,7 +95,6 @@ export function CodeWorkbenchBody({
   // tabs / activeFileId 取「当前激活窗格」，与 Zed 一致：外壳的 AI 面板 / 大纲 / 终端跟随聚焦窗格
   const tabs = useCodeWorkbenchStore((s) => s.panes[s.activePaneId]?.tabs ?? EMPTY_TABS);
   const activeFileId = useCodeWorkbenchStore((s) => s.panes[s.activePaneId]?.activeFileId ?? null);
-  const diskChanged = useCodeWorkbenchStore((s) => s.diskChanged);
   const openTab = useCodeWorkbenchStore((s) => s.openTab);
   const setDraggingFile = useCodeWorkbenchStore((s) => s.setDraggingFile);
   const splitPaneWithFile = useCodeWorkbenchStore((s) => s.splitPaneWithFile);
@@ -130,19 +116,6 @@ export function CodeWorkbenchBody({
   const setAxisFlexes = useCodeWorkbenchStore((s) => s.setAxisFlexes);
   const resetPaneSizes = useCodeWorkbenchStore((s) => s.resetPaneSizes);
   const resetLayout = useCodeWorkbenchStore((s) => s.resetLayout);
-
-  // 标签拖拽重排（对标 Zed tab drag-reorder）：dragId=正在拖的标签，dropPos=落点指示
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dropPos, setDropPos] = useState<{ fileId: string; pos: "before" | "after" } | null>(null);
-
-  // 标签右键上下文菜单状态（对标 Zed tab context menu）
-  const [tabMenu, setTabMenu] = useState<{
-    anchor: HTMLElement;
-    fileId: string;
-    index: number;
-    pinned: boolean;
-    readOnly: boolean;
-  } | null>(null);
 
   // 窗格可拖拽分隔条（对标 Zed PaneGroup 分隔条：按所属 axis 调整 flex 权重，双击复位均分）
   const paneContainerRef = useRef<HTMLDivElement>(null);
@@ -433,11 +406,7 @@ export function CodeWorkbenchBody({
     },
     [tabs, activeFileId],
   );
-  const metrics = useProjectStore((s) => s.metrics);
-  const deadSymbols = useProjectStore((s) => s.deadSymbols);
-  const clones = useProjectStore((s) => s.clones);
   const findings = useProjectStore((s) => s.findings);
-  const themeMode = useTheme().palette.mode as "light" | "dark";
 
   // 当前激活文件的审查发现计数（驱动顶部状态条徽标，与编辑器行内标记同源）
   const activeFindingsCount = useMemo(() => {
@@ -456,56 +425,6 @@ export function CodeWorkbenchBody({
 
   const tree = useMemo(() => buildTree(files), [files]);
 
-  // 当前激活文件的复杂度热力区间（函数体整块）
-  const activeMetric = useMemo(() => {
-    if (!activeFileId) return null;
-    const list = metrics.filter((m) => m.fileId === activeFileId);
-    if (list.length === 0) return null;
-    return list.sort((a, b) => b.createdAt - a.createdAt)[0];
-  }, [metrics, activeFileId]);
-
-  const heatRanges = useMemo<HeatRange[]>(() => {
-    if (!activeMetric) return [];
-    const meta = parseFileMetricMeta(activeMetric);
-    return (meta.functions || [])
-      .filter((f) => f.endLine >= f.line)
-      .map((f) => ({
-        startLine: f.line,
-        endLine: f.endLine,
-        cc: f.cc,
-        level: ccLevel(f.cc),
-        name: f.name,
-      }));
-  }, [activeMetric]);
-
-  // 当前激活文件的死代码区间（整行灰显）
-  const deadRanges = useMemo<DeadRange[]>(() => {
-    if (!activeFileId) return [];
-    return deadSymbols
-      .filter((d) => d.fileId === activeFileId)
-      .map((d) => ({
-        startLine: d.lineStart,
-        endLine: d.lineEnd,
-        name: d.name,
-        reason: d.reason,
-        confidence: d.confidence,
-      }));
-  }, [deadSymbols, activeFileId]);
-
-  // 当前激活文件的代码克隆区间（同组同色整块高亮）
-  const cloneRanges = useMemo<CloneRange[]>(() => {
-    if (!activeFileId) return [];
-    return clones
-      .filter((c) => c.fileId === activeFileId)
-      .map((c) => ({
-        startLine: c.startLine,
-        endLine: c.endLine,
-        groupId: c.groupId,
-        groupSize: c.groupSize,
-        cloneType: c.cloneType,
-        snippet: c.snippet,
-      }));
-  }, [clones, activeFileId]);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
@@ -2058,20 +1977,6 @@ export function CodeWorkbenchBody({
   );
 
   // 切/关标签前先落盘当前文件待写缓冲区（P0-A 防静默丢改动）
-  const handleSetActive = useCallback(
-    (fid: string) => {
-      flushPendingBeforeLeave(activeFileId);
-      setActive(fid);
-    },
-    [activeFileId, flushPendingBeforeLeave, setActive],
-  );
-  const handleCloseTab = useCallback(
-    (fid: string) => {
-      flushPendingBeforeLeave(fid);
-      closeTab(fid);
-    },
-    [flushPendingBeforeLeave, closeTab],
-  );
 
   // Ctrl/Cmd+S 立即写回（仍屏蔽浏览器保存对话框；自动保存已覆盖常规场景）；终端内按键放行给 PTY
   useEffect(() => {
@@ -2189,20 +2094,8 @@ export function CodeWorkbenchBody({
     el?.scrollIntoView({ block: "nearest" });
   }, [activeOutlineId, filteredOutlineTree]);
   // 可定位符号名集合（小写去重），供编辑器按住 Ctrl/⌘ 悬停显示跳转下划线
-  const gotoSymbols = useMemo<string[]>(
-    () => Array.from(new Set(symbols.map((s) => s.name.toLowerCase()))),
-    [symbols],
-  );
 
   // 面包屑符号段：取光标所在（最内层）符号，点击可跳转该行（renderable AND useful）
-  const activeSymbol = useMemo<{ name: string; line: number } | null>(() => {
-    if (!selection?.startLine || outlineSymbols.length === 0) return null;
-    let best: (typeof outlineSymbols)[number] | null = null;
-    for (const s of outlineSymbols) {
-      if (s.lineStart <= selection.startLine && (!best || s.lineStart > best.lineStart)) best = s;
-    }
-    return best ? { name: best.name, line: best.lineStart } : null;
-  }, [selection, outlineSymbols]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
@@ -2221,7 +2114,7 @@ export function CodeWorkbenchBody({
       >
         {showBackButton && (
           <Tooltip title={t("workbench.backCanvas")}>
-            <IconButton size="small" onClick={onRequestClose}>
+            <IconButton size="small" onClick={onRequestClose} aria-label={t("workbench.backCanvas")}>
               <ArrowBackIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -2244,27 +2137,27 @@ export function CodeWorkbenchBody({
         )}
         <Box sx={{ flex: 1 }} />
         <Tooltip title={t("workbench.outlineToggle")}>
-          <IconButton size="small" onClick={() => setOutlineOpen((v) => !v)} color={outlineOpen ? "primary" : "default"}>
+          <IconButton size="small" onClick={() => setOutlineOpen((v) => !v)} color={outlineOpen ? "primary" : "default"} aria-label={t("workbench.outlineToggle")}>
             <ListAltIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.aiToggle")}>
-          <IconButton size="small" onClick={() => setAiOpen((v) => !v)} color={aiOpen ? "primary" : "default"}>
+          <IconButton size="small" onClick={() => setAiOpen((v) => !v)} color={aiOpen ? "primary" : "default"} aria-label={t("workbench.aiToggle")}>
             <SmartToyIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.terminalToggle")}>
-          <IconButton size="small" onClick={() => setTerminalOpen((v) => !v)} color={terminalOpen ? "primary" : "default"}>
+          <IconButton size="small" onClick={() => setTerminalOpen((v) => !v)} color={terminalOpen ? "primary" : "default"} aria-label={t("workbench.terminalToggle")}>
             <TerminalIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.problemsToggle")}>
-          <IconButton size="small" onClick={() => useProblemsPanelStore.getState().toggle()} color={problemsOpen ? "primary" : "default"}>
+          <IconButton size="small" onClick={() => useProblemsPanelStore.getState().toggle()} color={problemsOpen ? "primary" : "default"} aria-label={t("workbench.problemsToggle")}>
             <ReportProblemIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.close")}>
-          <IconButton size="small" onClick={onRequestClose}>
+          <IconButton size="small" onClick={onRequestClose} aria-label={t("workbench.close")}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -2510,7 +2403,7 @@ export function CodeWorkbenchBody({
                       setCollapsedOutline(new Set());
                       setCollapsedKind(new Set());
                     }}
-                  >
+                   aria-label={t("workbench.outlineExpandAll")}>
                     <span style={{ fontSize: 12, lineHeight: 1 }}>▾▾</span>
                   </IconButton>
                 </Tooltip>
@@ -2526,7 +2419,7 @@ export function CodeWorkbenchBody({
                       );
                       setCollapsedKind(new Set(kindGroups.map((g) => g.kind)));
                     }}
-                  >
+                   aria-label={t("workbench.outlineCollapseAll")}>
                     <span style={{ fontSize: 12, lineHeight: 1 }}>▸▸</span>
                   </IconButton>
                 </Tooltip>
@@ -2830,7 +2723,7 @@ export function CodeWorkbenchBody({
                 <Tab label={t("workbench.tab.ai")} sx={{ minHeight: 34, py: 0.5, fontSize: 12, textTransform: "none" }} />
                 <Tab label={t("workbench.tab.requirements")} sx={{ minHeight: 34, py: 0.5, fontSize: 12, textTransform: "none" }} />
               </Tabs>
-              <IconButton size="small" onClick={() => setAiOpen(false)} sx={{ flexShrink: 0 }}>
+              <IconButton size="small" onClick={() => setAiOpen(false)} sx={{ flexShrink: 0 }} aria-label={t("workbench.close")}>
                 <CloseIcon fontSize="small" />
               </IconButton>
             </Box>

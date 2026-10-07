@@ -399,7 +399,7 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
                   </Typography>
                 </Box>
                 <Tooltip title={t("aiPanel.auto.deleteRule")}>
-                  <IconButton size="small" onClick={() => handleDelete(r.id)}>
+                  <IconButton size="small" onClick={() => handleDelete(r.id)} aria-label={t("aiPanel.auto.deleteRule")}>
                     <DeleteOutlineIcon sx={{ fontSize: 15 }} />
                   </IconButton>
                 </Tooltip>

@@ -11,7 +11,7 @@
  * 3. 性能 —— 布局在 store 外算好，调用方一次性批量落库（见 addComponentsBulk）。
  */
 
-import type { ProjectDependency, ProjectFile, ProjectSymbolRef } from "../../services/tauri";
+import type { ProjectDependency, ProjectFile} from "../../services/tauri";
 import { FILE_NODE_H, FILE_NODE_W, fileNodeSize } from "./fileKind";
 
 /** 符号级引用（画布依赖连线标注符号名用）：只取关键字段，避免把整表引用带进纯函数 */
@@ -377,36 +377,6 @@ export function buildTreeLayout(
     const { width, height } = fileNodeSize(f);
     return { w: width, h: height };
   };
-
-  function subtreeHeight(f: ProjectFile): number {
-    const cached = nodeHeight.get(f.id);
-    if (cached !== undefined) return cached;
-
-    const children = childrenOf.get(f.id) || [];
-    const selfH = selfSize(f).h;
-
-    if (children.length === 0) {
-      nodeHeight.set(f.id, selfH);
-      return selfH;
-    }
-
-    let totalChildH = 0;
-    for (let i = 0; i < children.length; i++) {
-      totalChildH += subtreeHeight(children[i]);
-      if (i > 0) totalChildH += TREE_SIBLING_GAP;
-    }
-
-    const h = Math.max(selfH, totalChildH);
-    nodeHeight.set(f.id, h);
-    return h;
-  }
-
-  // 为所有根计算高度
-  let totalRootH = 0;
-  for (let i = 0; i < roots.length; i++) {
-    totalRootH += subtreeHeight(roots[i]);
-    if (i > 0) totalRootH += TREE_SIBLING_GAP;
-  }
 
   // ─── 3. 分配坐标（自顶向下）───
   const layoutNodes: TreeLayoutNode[] = [];

@@ -224,7 +224,7 @@ export function VerifySection({ entries, settled, onDismiss, onToggleCanvas }: {
         <AssessmentIcon sx={{ fontSize: 14, color: "success.main" }} />
         <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 10.5, flex: 1, color: "text.primary" }}>{t("workbench.aiVerify.title")}</Typography>
         <Tooltip title={canvasEnabled ? t("workbench.aiVerify.canvasOn") : t("workbench.aiVerify.canvasOff")}>
-          <IconButton size="small" onClick={onToggleCanvas} sx={{ p: 0.2 }}>
+          <IconButton size="small" onClick={onToggleCanvas} sx={{ p: 0.2 }} aria-label={canvasEnabled ? t("workbench.aiVerify.canvasOn") : t("workbench.aiVerify.canvasOff")}>
             {canvasEnabled ? <VisibilityIcon sx={{ fontSize: 14, color: "success.main" }} /> : <VisibilityOffIcon sx={{ fontSize: 14, color: "text.disabled" }} />}
           </IconButton>
         </Tooltip>
@@ -258,7 +258,7 @@ export function VerifySection({ entries, settled, onDismiss, onToggleCanvas }: {
             <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>{t("workbench.aiVerify.noChange")} · {e.relPath}</Typography>
           )}
           <Box sx={{ flex: 1 }} />
-          <IconButton size="small" onClick={() => onDismiss(e.id)} sx={{ p: 0.2 }}>
+          <IconButton size="small" onClick={() => onDismiss(e.id)} sx={{ p: 0.2 }} aria-label={t("workbench.aiVerify.dismiss")}>
             <CloseIcon sx={{ fontSize: 13 }} />
           </IconButton>
         </Box>
@@ -298,7 +298,7 @@ export function ImpactSurfaceBlock({
         {onToggle && (
           <Tooltip title={t("workbench.aiImpact.canvasToggleTip")}>
             <span onClick={(e) => e.stopPropagation()}>
-              <IconButton size="small" onClick={() => onToggle(!enabled)} sx={{ p: 0.25, ml: 0.5 }}>
+              <IconButton size="small" onClick={() => onToggle(!enabled)} sx={{ p: 0.25, ml: 0.5 }} aria-label={t("workbench.aiImpact.canvasToggleTip")}>
                 {enabled ? (
                   <VisibilityIcon sx={{ fontSize: 15, color: "primary.main" }} />
                 ) : (
@@ -607,7 +607,7 @@ export function WorkbenchInputBar({
                 ctx.setSlashAnchor(e.currentTarget);
               }}
               sx={{ width: 30, height: 30, borderRadius: "50%", color: "text.secondary", "&:hover": { color: "text.primary" } }}
-            >
+             aria-label={t("workbench.aiSlash")}>
               <CodeIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
@@ -631,7 +631,7 @@ export function WorkbenchInputBar({
                 "&:hover": { bgcolor: "error.dark" },
                 "&.Mui-disabled": { bgcolor: "action.disabledBackground", color: "action.disabled" },
               }}
-            >
+             aria-label={t("workbench.aiQueue.queued")}>
               <StopIcon sx={{ fontSize: 15 }} />
             </IconButton>
           ) : (
@@ -648,7 +648,7 @@ export function WorkbenchInputBar({
                 "&:hover": { bgcolor: "primary.dark" },
                 "&.Mui-disabled": { bgcolor: "action.disabledBackground", color: "action.disabled" },
               }}
-            >
+             aria-label={t("workbench.aiQueue.send")}>
               <ArrowUpwardIcon sx={{ fontSize: 16 }} />
             </IconButton>
           )}

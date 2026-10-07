@@ -1,6 +1,6 @@
-import { create } from "zustand";
-import { agentApi } from "../services/tauri";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { create } from 'zustand';
+import { agentApi } from '../services/tauri';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   AiProvider,
   AiEndpoint,
@@ -10,9 +10,9 @@ import type {
   AiMessage,
   ToolCallEvent,
   AgentToolApprovalEvent,
-} from "../services/tauri";
-import { logger } from "../utils/logger";
-import { mergeToolCallEvent } from "../utils/toolCallDisplay";
+} from '../services/tauri';
+import { logger } from '../utils/logger';
+import { mergeToolCallEvent } from '../utils/toolCallDisplay';
 
 interface AgentState {
   // 数据列表
@@ -92,7 +92,12 @@ interface AgentState {
   deleteConversation: (id: string) => Promise<void>;
 
   loadMessages: (conversationId: string) => Promise<void>;
-  sendMessage: (conversationId: string, content: string, allowedTools?: string[] | null, modelId?: string | null) => Promise<void>;
+  sendMessage: (
+    conversationId: string,
+    content: string,
+    allowedTools?: string[] | null,
+    modelId?: string | null,
+  ) => Promise<void>;
   /**
    * 从某条消息起截断当前转录（含该条），返回被截断的第一条消息（供「重试」拿回原始正文）。
    * 面板「重试 / 编辑重发」的公共前置动作：先抹掉旧的那一轮，再重跑，避免会话里留两份同样的请求。
@@ -121,7 +126,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   selectedAgentId: null,
   selectedConversationId: null,
 
-  streamingContent: "",
+  streamingContent: '',
   isStreaming: false,
   interruptRequested: false,
   currentRunId: null,
@@ -145,7 +150,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const providers = await agentApi.listProviders();
       set({ providers });
     } catch (error) {
-      logger.error("AgentStore", "loadProviders failed", { error });
+      logger.error('AgentStore', 'loadProviders failed', { error });
     } finally {
       set((state) => ({ loading: { ...state.loading, providers: false } }));
     }
@@ -156,7 +161,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await agentApi.saveProvider(provider);
       await get().loadProviders();
     } catch (error) {
-      logger.error("AgentStore", "saveProvider failed", { error });
+      logger.error('AgentStore', 'saveProvider failed', { error });
       throw error;
     }
   },
@@ -166,7 +171,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await agentApi.deleteProvider(id);
       await get().loadProviders();
     } catch (error) {
-      logger.error("AgentStore", "deleteProvider failed", { error });
+      logger.error('AgentStore', 'deleteProvider failed', { error });
       throw error;
     }
   },
@@ -180,7 +185,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         : await agentApi.listEndpoints();
       set({ endpoints });
     } catch (error) {
-      logger.error("AgentStore", "loadEndpoints failed", { error });
+      logger.error('AgentStore', 'loadEndpoints failed', { error });
     } finally {
       set((state) => ({ loading: { ...state.loading, endpoints: false } }));
     }
@@ -191,7 +196,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await agentApi.saveEndpoint(endpoint);
       await get().loadEndpoints();
     } catch (error) {
-      logger.error("AgentStore", "saveEndpoint failed", { error });
+      logger.error('AgentStore', 'saveEndpoint failed', { error });
       throw error;
     }
   },
@@ -201,7 +206,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await agentApi.deleteEndpoint(id);
       await get().loadEndpoints();
     } catch (error) {
-      logger.error("AgentStore", "deleteEndpoint failed", { error });
+      logger.error('AgentStore', 'deleteEndpoint failed', { error });
       throw error;
     }
   },
@@ -210,7 +215,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       return await agentApi.testEndpointConnection(endpointId);
     } catch (error) {
-      logger.error("AgentStore", "testEndpointConnection failed", { error });
+      logger.error('AgentStore', 'testEndpointConnection failed', { error });
       throw error;
     }
   },
@@ -219,12 +224,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   loadModels: async (endpointId) => {
     set((state) => ({ loading: { ...state.loading, models: true } }));
     try {
-      const models = endpointId
-        ? await agentApi.listModelsByEndpoint(endpointId)
-        : await agentApi.listModels();
+      const models = endpointId ? await agentApi.listModelsByEndpoint(endpointId) : await agentApi.listModels();
       set({ models });
     } catch (error) {
-      logger.error("AgentStore", "loadModels failed", { error });
+      logger.error('AgentStore', 'loadModels failed', { error });
     } finally {
       set((state) => ({ loading: { ...state.loading, models: false } }));
     }
@@ -235,7 +238,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await agentApi.saveModel(model);
       await get().loadModels();
     } catch (error) {
-      logger.error("AgentStore", "saveModel failed", { error });
+      logger.error('AgentStore', 'saveModel failed', { error });
       throw error;
     }
   },
@@ -245,7 +248,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await agentApi.deleteModel(id);
       await get().loadModels();
     } catch (error) {
-      logger.error("AgentStore", "deleteModel failed", { error });
+      logger.error('AgentStore', 'deleteModel failed', { error });
       throw error;
     }
   },
@@ -254,7 +257,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       return await agentApi.testModelChat(modelId);
     } catch (error) {
-      logger.error("AgentStore", "testModelChat failed", { error });
+      logger.error('AgentStore', 'testModelChat failed', { error });
       throw error;
     }
   },
@@ -266,7 +269,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const agents = await agentApi.listAgents();
       set({ agents });
     } catch (error) {
-      logger.error("AgentStore", "loadAgents failed", { error });
+      logger.error('AgentStore', 'loadAgents failed', { error });
     } finally {
       set((state) => ({ loading: { ...state.loading, agents: false } }));
     }
@@ -277,7 +280,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await agentApi.saveAgent(agent);
       await get().loadAgents();
     } catch (error) {
-      logger.error("AgentStore", "saveAgent failed", { error });
+      logger.error('AgentStore', 'saveAgent failed', { error });
       throw error;
     }
   },
@@ -287,7 +290,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       await agentApi.deleteAgent(id);
       await get().loadAgents();
     } catch (error) {
-      logger.error("AgentStore", "deleteAgent failed", { error });
+      logger.error('AgentStore', 'deleteAgent failed', { error });
       throw error;
     }
   },
@@ -299,19 +302,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const conversations = await agentApi.listConversations(agentId);
       set({ conversations });
     } catch (error) {
-      logger.error("AgentStore", "loadConversations failed", { error });
+      logger.error('AgentStore', 'loadConversations failed', { error });
     } finally {
       set((state) => ({ loading: { ...state.loading, conversations: false } }));
     }
   },
 
-  createConversation: async (agentId, title = "新对话") => {
+  createConversation: async (agentId, title = '新对话') => {
     try {
       const conversation = await agentApi.createConversation(agentId, title);
       await get().loadConversations(agentId);
       return conversation;
     } catch (error) {
-      logger.error("AgentStore", "createConversation failed", { error });
+      logger.error('AgentStore', 'createConversation failed', { error });
       throw error;
     }
   },
@@ -319,12 +322,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   deleteConversation: async (id) => {
     try {
       await agentApi.deleteConversation(id);
-      const { selectedAgentId } = get();
+      const { selectedAgentId, selectedConversationId } = get();
       if (selectedAgentId) {
         await get().loadConversations(selectedAgentId);
       }
+      // 如果删除的是当前选中的对话，自动回到欢迎视图（首页）
+      if (selectedConversationId === id) {
+        get().selectConversation(null);
+      }
     } catch (error) {
-      logger.error("AgentStore", "deleteConversation failed", { error });
+      logger.error('AgentStore', 'deleteConversation failed', { error });
       throw error;
     }
   },
@@ -336,7 +343,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const messages = await agentApi.listMessages(conversationId);
       set({ messages });
     } catch (error) {
-      logger.error("AgentStore", "loadMessages failed", { error });
+      logger.error('AgentStore', 'loadMessages failed', { error });
     } finally {
       set((state) => ({ loading: { ...state.loading, messages: false } }));
     }
@@ -345,7 +352,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   truncateMessagesFrom: async (messageId) => {
     const state = get();
     if (state.isStreaming || state.interruptRequested) {
-      logger.warn("AgentStore", "truncateMessagesFrom ignored while streaming");
+      logger.warn('AgentStore', 'truncateMessagesFrom ignored while streaming');
       return null;
     }
     const idx = state.messages.findIndex((m) => m.id === messageId);
@@ -353,12 +360,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const dropped = state.messages.slice(idx);
     const first = dropped[0];
     // 乐观渲染的本地消息（local_ 前缀）还没落库，不必也不能拿去删——传了只是空转
-    const persistedIds = dropped.map((m) => m.id).filter((id) => !id.startsWith("local_"));
+    const persistedIds = dropped.map((m) => m.id).filter((id) => !id.startsWith('local_'));
     try {
       if (persistedIds.length > 0) await agentApi.deleteMessages(persistedIds);
     } catch (error) {
       // 删库失败就不能改本地视图：否则界面少了几条、库里还在，重开会话又冒出来
-      logger.error("AgentStore", "truncateMessagesFrom failed", { error });
+      logger.error('AgentStore', 'truncateMessagesFrom failed', { error });
       throw error;
     }
     set((s) => ({ messages: s.messages.slice(0, idx) }));
@@ -368,17 +375,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   sendMessage: async (conversationId, content, allowedTools?: string[] | null, modelId?: string | null) => {
     const state = get();
     if (state.isStreaming || state.interruptRequested) {
-      logger.warn("AgentStore", "Already streaming / interrupt pending, ignoring message");
+      logger.warn('AgentStore', 'Already streaming / interrupt pending, ignoring message');
       return;
     }
 
     // run_agent 需要 agentId：优先取会话归属，回退到当前选中的 Agent。
     // 两者都拿不到就直接失败——绝不在这里兜底成某个写死的 Agent。
-    const agentId =
-      state.conversations.find((c) => c.id === conversationId)?.agentId ??
-      state.selectedAgentId;
+    const agentId = state.conversations.find((c) => c.id === conversationId)?.agentId ?? state.selectedAgentId;
     if (!agentId) {
-      logger.error("AgentStore", "sendMessage aborted: 无法确定 agentId", { conversationId });
+      logger.error('AgentStore', 'sendMessage aborted: 无法确定 agentId', { conversationId });
       return;
     }
 
@@ -386,7 +391,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const optimisticUserMessage: AiMessage = {
       id: `local_${Date.now()}`,
       conversationId,
-      role: "user",
+      role: 'user',
       content,
       toolCalls: null,
       createdAt: Date.now(),
@@ -399,7 +404,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const wasInterrupted = get().interruptRequested;
       set((s) => ({
         isStreaming: false,
-        streamingContent: "",
+        streamingContent: '',
         interruptRequested: false,
         currentRunId: null,
         stoppedConversationId: wasInterrupted ? conversationId : s.stoppedConversationId,
@@ -408,39 +413,35 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       }));
     };
 
+    // 高危工具审批监听：引擎即将执行 run_command 时推送，前端弹确认框。
+    // 仅在本轮运行期间有效，结束时务必反注册，避免泄漏监听器。
+    // 声明在 try 之外，catch 中也能反注册，防止异常路径悬挂监听。
+    const approvalUnlisten: Promise<UnlistenFn> = listen<AgentToolApprovalEvent>('agent-tool-approval', (event) => {
+      if (event.payload.conversationId !== conversationId) return;
+      set({
+        pendingToolApproval: {
+          runId: event.payload.runId,
+          toolCallId: event.payload.toolCallId,
+          tool: event.payload.tool,
+          command: event.payload.command,
+          cwd: event.payload.cwd,
+        },
+      });
+    });
+
     try {
       // 前端生成单次运行 id，随 run_agent 下发，供 requestInterrupt 精准取消本次运行
-      const runId =
-        globalThis.crypto?.randomUUID?.() ??
-        `run_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const runId = globalThis.crypto?.randomUUID?.() ?? `run_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
       // 开始流式响应（清掉上一轮的「已停止」标注：新一轮开始，旧回执作废）
       set({
         isStreaming: true,
-        streamingContent: "",
+        streamingContent: '',
         toolCalls: [],
         currentRunId: runId,
         stoppedConversationId: null,
         pendingToolApproval: null,
       });
-
-      // 高危工具审批监听：引擎即将执行 run_command 时推送，前端弹确认框。
-      // 仅在本轮运行期间有效，结束时务必反注册，避免泄漏监听器。
-      const approvalUnlisten: Promise<UnlistenFn> = listen<AgentToolApprovalEvent>(
-        "agent-tool-approval",
-        (event) => {
-          if (event.payload.conversationId !== conversationId) return;
-          set({
-            pendingToolApproval: {
-              runId: event.payload.runId,
-              toolCallId: event.payload.toolCallId,
-              tool: event.payload.tool,
-              command: event.payload.command,
-              cwd: event.payload.cwd,
-            },
-          });
-        }
-      );
 
       await agentApi.runAgent(
         agentId,
@@ -464,7 +465,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         },
         // onError
         (error) => {
-          logger.error("AgentStore", "runAgent error", { error });
+          logger.error('AgentStore', 'runAgent error', { error });
           settleStream();
         },
         // runId：后端取消令牌表的 key
@@ -472,7 +473,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // allowedTools：本次调用的工具白名单（模式切换只影响本次，不污染 Agent 配置）
         allowedTools,
         // modelId：模型选择器覆盖（对标 VS Code），发给 run_agent 覆盖 Agent 默认模型
-        modelId
+        modelId,
       );
       // 兜底：事件可能因窗口切换错过，命令返回后再对齐一次
       await get().loadMessages(conversationId);
@@ -481,8 +482,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const unlisten = await approvalUnlisten;
       unlisten();
     } catch (error) {
-      logger.error("AgentStore", "sendMessage failed", { error });
+      logger.error('AgentStore', 'sendMessage failed', { error });
       settleStream();
+      // 异常路径同样反注册审批监听器，防止悬挂监听泄漏
+      try {
+        const unlisten = await approvalUnlisten;
+        unlisten();
+      } catch (e) {
+        logger.warn('AgentStore', 'cleanup approval listener failed', { error: e });
+      }
     }
   },
 
@@ -494,7 +502,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       await agentApi.resolveToolApproval(pending.runId, pending.toolCallId, approved);
     } catch (e) {
-      logger.error("AgentStore", "resolveToolApproval failed", { error: e });
+      logger.error('AgentStore', 'resolveToolApproval failed', { error: e });
     }
   },
 
@@ -504,11 +512,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   selectConversation: (conversationId) => {
-    set({ selectedConversationId: conversationId });
     if (conversationId) {
+      // 先清空旧消息并置位加载态，再加载新消息，避免旧消息残留
+      set({ selectedConversationId: conversationId, messages: [] });
       get().loadMessages(conversationId);
     } else {
-      set({ messages: [] });
+      set({ selectedConversationId: null, messages: [] });
     }
   },
 
@@ -516,9 +525,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     // 1) 真正触发后端取消：按当前运行 id 置位取消令牌，引擎在下一轮迭代前停下（P2.3）。
     const runId = get().currentRunId;
     if (runId) {
-      agentApi
-        .cancelAgentRun(runId)
-        .catch((e) => logger.warn("AgentStore", "cancelAgentRun failed", { error: e }));
+      agentApi.cancelAgentRun(runId).catch((e) => logger.warn('AgentStore', 'cancelAgentRun failed', { error: e }));
     }
     // 2) 仅置位中断请求：不清除 isStreaming，保证并发闸门在后端回执前一直关闭，
     // 防止「点停止 → isStreaming 变 false → 用户再发一条 → 两轮并发写同一会话」。

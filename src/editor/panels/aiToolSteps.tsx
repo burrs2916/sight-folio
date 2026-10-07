@@ -18,8 +18,6 @@ import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
-import Chip from "@mui/material/Chip";
-import { useTheme } from "@mui/material/styles";
 // 注意：本项目安装的 @mui/icons-material 没有 `CheckCircleOutline` / `ErrorOutline` 这两个入口
 // （只有 `*Outlined` 后缀版），写成前者会直接 TS2307 编译失败。
 import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
@@ -27,7 +25,6 @@ import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import TerminalIcon from "@mui/icons-material/Terminal";
 import { t } from "../../i18n";
 import { formatToolArguments } from "../../utils/toolCallDisplay";
 import type { ToolCallEvent } from "../../services/tauri";
@@ -55,17 +52,6 @@ export function parseToolTrace(raw: string | null | undefined): ToolCallEvent[] 
 }
 
 /** 工具名 → 人话标签（对标 VS Code「Read file / Searched codebase」式动作描述） */
-function toolLabel(name: string): string {
-  const key = `workbench.aiTool.${name}`;
-  const label = t(key);
-  // i18n 未命中时 t() 回传 key 本身，此时退回原始工具名，别把 "workbench.aiTool.xxx" 摆给用户
-  return label === key ? name : label;
-}
-
-/**
- * 从入参里挑出「主语」摆在标签后面（VS Code 在步骤行直接显示文件名/搜索词，不用展开就知道干了什么）。
- * 返回 `[摘要文本, 可跳转的相对路径]`——后者存在时摘要可点击。
- */
 function argSummary(name: string, args: unknown): [string, string | null] {
   if (!args || typeof args !== "object") return ["", null];
   const a = args as Record<string, unknown>;
@@ -111,121 +97,11 @@ function argSummary(name: string, args: unknown): [string, string | null] {
   }
 }
 
-/**
- * 把 run_command 工具的 `result` 字符串解析成结构化字段。
- * 后端 `tools.rs::RunCommandTool` 产出的格式固定为：
- *   `[run_command] cwd=<cwd>\n$ <command>\nexit_code=<n>\n<combined stdout/stderr>`
- * 被拒绝时则为 `[run_command] REFUSED — <reason>`（无 $ / exit_code）。
- * 用宽松正则解析，缺失字段降级为空，绝不因格式微调让整条步骤崩掉。
- */
-interface RunCommandResult {
-  refused: boolean;
-  reason: string;
-  cwd: string;
-  command: string;
-  exitCode: number | null;
-  output: string;
-}
-function parseRunCommandResult(raw: string): RunCommandResult {
-  const refused = raw.match(/^\[run_command\]\s*REFUSED\s*[—-]\s*([\s\S]*)$/);
-  if (refused) {
-    return { refused: true, reason: refused[1].trim(), cwd: "", command: "", exitCode: null, output: "" };
-  }
-  const cwdM = raw.match(/\[run_command\]\s*cwd=(.*)/);
-  const cmdM = raw.match(/\n\$\s?(.*)/);
-  const exitM = raw.match(/exit_code=(\d+)/);
-  const cwd = cwdM ? cwdM[1].trim() : "";
-  const command = cmdM ? cmdM[1].trim() : "";
-  const exitCode = exitM ? parseInt(exitM[1], 10) : null;
-  let output = "";
-  const exitIdx = raw.indexOf("exit_code=");
-  if (exitIdx >= 0) {
-    const after = raw.slice(exitIdx);
-    const nl = after.indexOf("\n");
-    output = nl >= 0 ? after.slice(nl + 1) : "";
-  } else if (cmdM) {
-    output = raw.slice(raw.indexOf(cmdM[0]) + cmdM[0].length).trim();
-  }
-  return { refused: false, reason: "", cwd, command, exitCode, output: output.replace(/\n+$/, "") };
-}
-
-/**
- * run_command 输出渲染成「终端」风格块（对标 VS Code Agent / Cursor 把终端输出直接铺在对话里）：
- * 深色标题栏（终端图标 + Terminal + 目录 + 退出码徽标）+ 等宽正文（`$ command` + 输出，可滚动）。
- * 默认展开——终端输出是重点，不该再藏在一层 expand 后面。颜色用固定 hex，使亮/暗主题下都像真终端。
- */
-function TerminalBlock({ raw }: { raw: string }) {
-  const parsed = useMemo(() => parseRunCommandResult(raw), [raw]);
-  const [open, setOpen] = useState(true);
-  const exitCode = parsed.exitCode;
-  const exitOk = exitCode !== null && exitCode === 0;
-  return (
-    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, overflow: "hidden", mt: 0.25, bgcolor: "#0b0e14" }}>
-      {/* 终端标题栏 */}
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.5,
-          px: 0.75,
-          py: 0.3,
-          bgcolor: "#11151c",
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        }}
-      >
-        <TerminalIcon sx={{ fontSize: 13, color: "#4ade80" }} />
-        <Typography sx={{ fontSize: 9.5, color: "#e5e7eb", fontFamily: "monospace", fontWeight: 600 }}>
-          {t("workbench.aiTerminal.title")}
-        </Typography>
-        {parsed.cwd && (
-          <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-            <Typography sx={{ fontSize: 9, color: "#9ca3af", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {t("workbench.aiTerminal.cwd")}: {parsed.cwd}
-            </Typography>
-          </Box>
-        )}
-        {!parsed.cwd && <Box sx={{ flex: 1 }} />}
-        {exitCode !== null && (
-          <Chip
-            size="small"
-            label={`${t("workbench.aiTerminal.exit")} ${exitCode}`}
-            color={exitOk ? "success" : "error"}
-            sx={{ height: 16, fontSize: 8.5, fontFamily: "monospace", "& .MuiChip-label": { px: 0.5 } }}
-          />
-        )}
-        <IconButton size="small" sx={{ p: 0.1, color: "#9ca3af" }} onClick={() => setOpen((v) => !v)}>
-          {open ? <ExpandLessIcon sx={{ fontSize: 13 }} /> : <ExpandMoreIcon sx={{ fontSize: 13 }} />}
-        </IconButton>
-      </Box>
-      {open && (
-        <Box sx={{ p: 0.75, fontFamily: "monospace", fontSize: 9.5, lineHeight: 1.5, maxHeight: 240, overflow: "auto" }}>
-          {parsed.refused ? (
-            <Typography sx={{ color: "#fca5a5", fontSize: 9.5, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-              ⚠ {t("workbench.aiTerminal.refused")}: {parsed.reason}
-            </Typography>
-          ) : (
-            <>
-              {parsed.command && (
-                <Box sx={{ display: "flex", gap: 0.5, alignItems: "baseline" }}>
-                  <Box component="span" sx={{ color: "#4ade80", flexShrink: 0 }}>$</Box>
-                  <Box component="span" sx={{ color: "#e5e7eb", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{parsed.command}</Box>
-                </Box>
-              )}
-              {parsed.output && (
-                <Box
-                  component="pre"
-                  sx={{ m: 0, mt: 0.25, whiteSpace: "pre-wrap", wordBreak: "break-all", color: "#d1d5db", fontSize: 9.5, fontFamily: "monospace" }}
-                >
-                  {parsed.output}
-                </Box>
-              )}
-            </>
-          )}
-        </Box>
-      )}
-    </Box>
-  );
+function toolLabel(name: string): string {
+  const key = `workbench.aiTool.${name}`;
+  const label = t(key);
+  // i18n 未命中时 t() 回传 key 本身，此时退回原始工具名，别把 "workbench.aiTool.xxx" 摆给用户
+  return label === key ? name : label;
 }
 
 function StepRow({
@@ -294,14 +170,14 @@ function StepRow({
         {!summary && <Box sx={{ flex: 1 }} />}
         {jumpPath && onOpenPath && (
           <Tooltip title={t("workbench.aiToolStep.open")}>
-            <IconButton size="small" sx={{ p: 0.1 }} onClick={() => onOpenPath(jumpPath, jumpLine)}>
+            <IconButton size="small" sx={{ p: 0.1 }} onClick={() => onOpenPath(jumpPath, jumpLine)} aria-label={t("workbench.aiToolStep.open")}>
               <OpenInNewIcon sx={{ fontSize: 12 }} />
             </IconButton>
           </Tooltip>
         )}
         {expandable && (
           <Tooltip title={open ? t("workbench.aiToolStep.collapse") : t("workbench.aiToolStep.expand")}>
-            <IconButton size="small" sx={{ p: 0.1 }} onClick={() => setOpen((v) => !v)}>
+            <IconButton size="small" sx={{ p: 0.1 }} onClick={() => setOpen((v) => !v)} aria-label={open ? t("workbench.aiToolStep.collapse") : t("workbench.aiToolStep.expand")}>
               {open ? <ExpandLessIcon sx={{ fontSize: 13 }} /> : <ExpandMoreIcon sx={{ fontSize: 13 }} />}
             </IconButton>
           </Tooltip>

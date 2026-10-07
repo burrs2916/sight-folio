@@ -15,31 +15,30 @@
 //   写作台书设置，本页只展示（2026-09-21 拍板）。
 // - 分类：book.genre 经 genreDef 本地化（不再显示原始 id）。
 // - 卷/章/字数：逐书 listChapters 元数据（不碰正文内容）。
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Tooltip from "@mui/material/Tooltip";
-import IconButton from "@mui/material/IconButton";
-import AddRoundedIcon from "@mui/icons-material/AddRounded";
-import EditRoundedIcon from "@mui/icons-material/EditRounded";
-import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
-import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
-import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
-import { useWritingStore } from "../store/writingStore";
-import { assetApi, writingApi, type WritingBook } from "../services/tauri";
-import { genreDef } from "../utils/writingSchema";
-import {
-  openBookInStudio,
-  createBookNamed,
-} from "../utils/studioBook";
-import { NewBookDialog, type NewBookResult } from "./NewBookDialog";
-import { BookMetaDialog } from "./BookMetaDialog";
-import { useToastStore } from "../store/toastStore";
-import { t, getLang } from "../i18n";
-import { openWritingDesk as openWritingDeskWindow } from "../utils/writingDeskWindow";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Tooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import LocalOfferRoundedIcon from '@mui/icons-material/LocalOfferRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
+import { useWritingStore } from '../store/writingStore';
+import { assetApi, writingApi, type WritingBook } from '../services/tauri';
+import { genreDef } from '../utils/writingSchema';
+import { openBookInStudio, createBookNamed } from '../utils/studioBook';
+import { NewBookDialog, type NewBookResult } from './NewBookDialog';
+import { BookMetaDialog } from './BookMetaDialog';
+import { useToastStore } from '../store/toastStore';
+import { t, getLang } from '../i18n';
+import { openWritingDesk as openWritingDeskWindow } from '../utils/writingDeskWindow';
+import { formatBigCount } from '../utils/formatCount';
+import { resolveVolumeResolver, contentChapters, volumeNameOf } from '../utils/writingStats';
 
 interface BookStats {
   chapterCount: number;
@@ -48,17 +47,7 @@ interface BookStats {
   lastUpdated: number;
 }
 
-/** 字数展示：中文用「万」缩写（4.5万），英文保持千分位（45,200）。 */
-function fmtWords(n: number): string {
-  if (getLang() === "zh-CN" && n >= 10000) {
-    const w = n / 10000;
-    const s = w >= 100 ? String(Math.round(w)) : w.toFixed(1).replace(/\.0$/, "");
-    return `${s}万`;
-  }
-  return n.toLocaleString();
-}
-
-const chipSx = { height: 17, fontSize: 9, "& .MuiChip-label": { px: 0.6 } } as const;
+const chipSx = { height: 17, fontSize: 9, '& .MuiChip-label': { px: 0.6 } } as const;
 
 export default function BookshelfPage() {
   const navigate = useNavigate();
@@ -88,10 +77,12 @@ export default function BookshelfPage() {
         try {
           const chapters = await writingApi.listChapters(b.id);
           if (cancelled) return;
-          const volumes = new Set(chapters.map((c) => c.volume).filter(Boolean));
+          const r = resolveVolumeResolver(chapters);
+          const content = contentChapters(r, chapters);
+          const volumes = new Set(content.map((c) => volumeNameOf(r, c)).filter(Boolean));
           next[b.id] = {
-            chapterCount: chapters.length,
-            wordCount: chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0),
+            chapterCount: content.length,
+            wordCount: content.reduce((sum, c) => sum + (c.wordCount || 0), 0),
             volumeCount: volumes.size,
             lastUpdated: chapters.reduce((max, c) => Math.max(max, c.updatedAt || 0), b.updatedAt || 0),
           };
@@ -114,7 +105,7 @@ export default function BookshelfPage() {
       const next: Record<string, string | null> = {};
       for (const b of books) {
         try {
-          const assets = await assetApi.list("writing", `covers-${b.id}`);
+          const assets = await assetApi.list('writing', `covers-${b.id}`);
           if (cancelled) return;
           const first = assets[0];
           next[b.id] = first ? await assetApi.thumbnail(first.path, 480) : null;
@@ -136,7 +127,7 @@ export default function BookshelfPage() {
       chapterCount: Object.values(stats).reduce((s, x) => s + x.chapterCount, 0),
       wordCount: Object.values(stats).reduce((s, x) => s + x.wordCount, 0),
     }),
-    [books, stats]
+    [books, stats],
   );
 
   const openStudio = useCallback(
@@ -144,52 +135,49 @@ export default function BookshelfPage() {
       setOpening(book.id);
       try {
         await openBookInStudio(book.id, book.title);
-        navigate("/analyzer");
+        navigate('/analyzer');
       } catch (e) {
-        showToast(t("dashboard.openFail", { msg: String(e) }), "error");
+        showToast(t('dashboard.openFail', { msg: String(e) }), 'error');
       } finally {
         setOpening(null);
       }
     },
-    [navigate, showToast]
+    [navigate, showToast],
   );
 
-  const openWritingDesk = useCallback(
-    async (book: WritingBook) => {
-      // 写作台 = 独立窗口：定位参数由窗口内部消费（焦点事件/query），主窗无需先 setActiveBook
-      await openWritingDeskWindow({ bookId: book.id });
-    },
-    []
-  );
+  const openWritingDesk = useCallback(async (book: WritingBook) => {
+    // 写作台 = 独立窗口：定位参数由窗口内部消费（焦点事件/query），主窗无需先 setActiveBook
+    await openWritingDeskWindow({ bookId: book.id });
+  }, []);
 
   // 羽化 P：显式「新建作品」入口改走命名向导，消除「新建作品 N」丑默认名
   const [newBookOpen, setNewBookOpen] = useState(false);
   const handleBookCreated = useCallback(
     (b: NewBookResult) => {
-      showToast(t("dashboard.createdBook", { title: b.title }), "success");
+      showToast(t('dashboard.createdBook', { title: b.title }), 'success');
     },
-    [showToast]
+    [showToast],
   );
   const handleBookCreateError = useCallback(
-    (e: unknown) => showToast(t("dashboard.createFail", { msg: String(e) }), "error"),
-    [showToast]
+    (e: unknown) => showToast(t('dashboard.createFail', { msg: String(e) }), 'error'),
+    [showToast],
   );
-  const handleMetaSaved = useCallback(() => showToast(t("writing.saved"), "success"), [showToast]);
+  const handleMetaSaved = useCallback(() => showToast(t('writing.saved'), 'success'), [showToast]);
   const handleMetaError = useCallback(
-    (e: unknown) => showToast(t("studio.opFailed", { msg: String(e) }), "error"),
-    [showToast]
+    (e: unknown) => showToast(t('studio.opFailed', { msg: String(e) }), 'error'),
+    [showToast],
   );
 
   const fmtDate = (ts: number) =>
-    ts > 0 ? new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+    ts > 0 ? new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
 
   return (
     <Box sx={{ py: 0.5 }}>
       {/* 头部：标题 + 合计一行（新建/导入入口在空态引导与工作室 L1 栏，头部不放按钮） */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-        <Typography sx={{ fontSize: 19, fontWeight: 700 }}>{t("dashboard.welcome")}</Typography>
-        <Typography sx={{ fontSize: 12, color: "text.secondary", flex: 1, minWidth: 120 }}>
-          {t("dashboard.totals", {
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+        <Typography sx={{ fontSize: 19, fontWeight: 700 }}>{t('dashboard.welcome')}</Typography>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', flex: 1, minWidth: 120 }}>
+          {t('dashboard.totals', {
             b: totals.bookCount,
             c: totals.chapterCount,
             w: totals.wordCount.toLocaleString(),
@@ -199,24 +187,22 @@ export default function BookshelfPage() {
 
       {/* 书架：竖版海报卡 auto-fill 网格 */}
       {booksLoading ? null : books.length === 0 ? (
-        <Box sx={{ py: 10, textAlign: "center" }}>
-          <MenuBookRoundedIcon sx={{ fontSize: 52, color: "text.disabled", mb: 1 }} />
-          <Typography sx={{ fontSize: 14, fontWeight: 600, color: "text.secondary" }}>
-            {t("dashboard.emptyTitle")}
+        <Box sx={{ py: 10, textAlign: 'center' }}>
+          <MenuBookRoundedIcon sx={{ fontSize: 52, color: 'text.disabled', mb: 1 }} />
+          <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.secondary' }}>
+            {t('dashboard.emptyTitle')}
           </Typography>
-          <Typography sx={{ fontSize: 12, color: "text.disabled", mb: 2 }}>
-            {t("dashboard.emptyDesc")}
-          </Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 2 }}>{t('dashboard.emptyDesc')}</Typography>
           <Button size="small" variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setNewBookOpen(true)}>
-            {t("studio.newBook")}
+            {t('studio.newBook')}
           </Button>
         </Box>
       ) : (
         <Box
           sx={{
             mt: 2.5,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(164px, 1fr))",
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(164px, 1fr))',
             gap: 2,
           }}
         >
@@ -224,7 +210,7 @@ export default function BookshelfPage() {
             const st = stats[b.id];
             const cover = covers[b.id];
             const gd = genreDef(b.genre);
-            const finished = b.status === "finished";
+            const finished = b.status === 'finished';
             return (
               <Box
                 key={b.id}
@@ -232,96 +218,104 @@ export default function BookshelfPage() {
                 tabIndex={0}
                 onClick={() => void openStudio(b)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") void openStudio(b);
+                  if (e.key === 'Enter' || e.key === ' ') void openStudio(b);
                 }}
                 sx={{
                   borderRadius: 2,
-                  overflow: "hidden",
+                  overflow: 'hidden',
                   border: 1,
-                  borderColor: "divider",
-                  bgcolor: "background.paper",
-                  cursor: opening === b.id ? "wait" : "pointer",
-                  transition: "transform 0.15s, box-shadow 0.15s, border-color 0.15s",
-                  "&:hover": {
-                    transform: "translateY(-2px)",
-                    borderColor: b.coverColor || "primary.main",
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  cursor: opening === b.id ? 'wait' : 'pointer',
+                  transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    borderColor: b.coverColor || 'primary.main',
                     boxShadow: 3,
-                    "& .shelf-cover-actions": { opacity: 1 },
+                    '& .shelf-cover-actions': { opacity: 1 },
                   },
                 }}
               >
                 {/* 封面 3:4（无封面回退 coverColor + 书名首字） */}
                 <Box
                   sx={{
-                    position: "relative",
-                    width: "100%",
-                    aspectRatio: "3 / 4",
-                    bgcolor: b.coverColor || "primary.main",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    position: 'relative',
+                    width: '100%',
+                    aspectRatio: '3 / 4',
+                    bgcolor: b.coverColor || 'primary.main',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
                   {cover ? (
                     <img
                       src={cover}
                       alt={b.title}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     />
                   ) : (
                     <Typography
-                      sx={{ fontSize: 36, fontWeight: 800, color: "common.white", textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}
+                      sx={{
+                        fontSize: 36,
+                        fontWeight: 800,
+                        color: 'common.white',
+                        textShadow: '0 1px 6px rgba(0,0,0,0.35)',
+                      }}
                     >
-                      {(b.title || "?").slice(0, 1)}
+                      {(b.title || '?').slice(0, 1)}
                     </Typography>
                   )}
                   {/* hover 动作层：工作室 / 写作台（避免每卡一行按钮） */}
                   <Box
                     className="shelf-cover-actions"
                     sx={{
-                      position: "absolute",
+                      position: 'absolute',
                       inset: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       gap: 1,
-                      bgcolor: "rgba(15,20,30,0.45)",
+                      bgcolor: 'rgba(15,20,30,0.45)',
                       opacity: 0,
-                      transition: "opacity 0.15s",
+                      transition: 'opacity 0.15s',
                     }}
                   >
-                    <Tooltip title={t("dashboard.openStudio")}>
+                    <Tooltip title={t('dashboard.openStudio')}>
                       <IconButton
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
                           void openStudio(b);
                         }}
-                        sx={{ bgcolor: "background.paper", "&:hover": { bgcolor: "background.paper" } }}
+                        sx={{ bgcolor: 'background.paper', '&:hover': { bgcolor: 'background.paper' } }}
+                        aria-label={t('dashboard.openStudio')}
                       >
                         <DashboardRoundedIcon sx={{ fontSize: 17 }} />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title={t("dashboard.openWritingDesk")}>
+                    <Tooltip title={t('dashboard.openWritingDesk')}>
                       <IconButton
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
                           void openWritingDesk(b);
                         }}
-                        sx={{ bgcolor: "background.paper", "&:hover": { bgcolor: "background.paper" } }}
+                        sx={{ bgcolor: 'background.paper', '&:hover': { bgcolor: 'background.paper' } }}
+                        aria-label={t('dashboard.openWritingDesk')}
                       >
                         <EditRoundedIcon sx={{ fontSize: 17 }} />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title={t("writing.editBookMeta")}>
+                    <Tooltip title={t('writing.editBookMeta')}>
                       <IconButton
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
                           setMetaBook(b);
                         }}
-                        sx={{ bgcolor: "background.paper", "&:hover": { bgcolor: "background.paper" } }}
+                        sx={{ bgcolor: 'background.paper', '&:hover': { bgcolor: 'background.paper' } }}
+                        aria-label={t('writing.editBookMeta')}
                       >
                         <LocalOfferRoundedIcon sx={{ fontSize: 17 }} />
                       </IconButton>
@@ -333,27 +327,27 @@ export default function BookshelfPage() {
                   <Typography noWrap title={b.title} sx={{ fontSize: 13, fontWeight: 600 }}>
                     {b.title}
                   </Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
                     {gd && <Chip size="small" label={t(gd.labelKey)} sx={chipSx} />}
                     <Chip
                       size="small"
-                      label={finished ? t("dashboard.statusFinished") : t("dashboard.statusOngoing")}
-                      color={finished ? "success" : "default"}
-                      variant={finished ? "filled" : "outlined"}
+                      label={finished ? t('dashboard.statusFinished') : t('dashboard.statusOngoing')}
+                      color={finished ? 'success' : 'default'}
+                      variant={finished ? 'filled' : 'outlined'}
                       sx={chipSx}
                     />
                   </Box>
-                  <Typography sx={{ fontSize: 10.5, color: "text.secondary", mt: 0.6 }}>
+                  <Typography sx={{ fontSize: 10.5, color: 'text.secondary', mt: 0.6 }}>
                     {st
-                      ? t("dashboard.bookStats", {
+                      ? t('dashboard.bookStats', {
                           v: st.volumeCount,
                           c: st.chapterCount,
-                          w: fmtWords(st.wordCount),
+                          w: formatBigCount(st.wordCount, getLang()),
                         })
-                      : t("dashboard.loadingStats")}
+                      : t('dashboard.loadingStats')}
                   </Typography>
-                  <Typography sx={{ fontSize: 9.5, color: "text.disabled", mt: 0.25 }}>
-                    {st && st.lastUpdated > 0 ? t("dashboard.lastUpdated", { d: fmtDate(st.lastUpdated) }) : ""}
+                  <Typography sx={{ fontSize: 9.5, color: 'text.disabled', mt: 0.25 }}>
+                    {st && st.lastUpdated > 0 ? t('dashboard.lastUpdated', { d: fmtDate(st.lastUpdated) }) : ''}
                   </Typography>
                 </Box>
               </Box>
@@ -370,8 +364,8 @@ export default function BookshelfPage() {
       />
       <BookMetaDialog
         open={metaBook !== null}
-        initialGenre={metaBook?.genre ?? ""}
-        initialMedium={metaBook?.medium ?? ""}
+        initialGenre={metaBook?.genre ?? ''}
+        initialMedium={metaBook?.medium ?? ''}
         onClose={() => setMetaBook(null)}
         onSave={async (genre, medium) => {
           if (metaBook) await setBookMeta(metaBook.id, { genre, medium });

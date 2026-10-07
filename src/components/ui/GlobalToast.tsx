@@ -1,6 +1,7 @@
-import Alert from "@mui/material/Alert";
-import Snackbar from "@mui/material/Snackbar";
-import { useToastStore } from "../../store/toastStore";
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
+import Snackbar from '@mui/material/Snackbar';
+import { useToastStore } from '../../store/toastStore';
 
 /**
  * 全局 Toast 通知渲染器
@@ -17,7 +18,7 @@ export default function GlobalToast() {
   const toasts = useToastStore((s) => s.toasts);
   const removeToast = useToastStore((s) => s.removeToast);
 
-  const visible = toasts.filter((t) => t.severity !== "success");
+  const visible = toasts.filter((t) => t.severity !== 'success');
   if (visible.length === 0) return null;
 
   return (
@@ -28,15 +29,30 @@ export default function GlobalToast() {
           open
           autoHideDuration={t.duration ?? 4000}
           onClose={() => removeToast(t.id)}
-          anchorOrigin={{ vertical: "top", horizontal: "center" }}
-          sx={{ position: "fixed", zIndex: 1400, top: 16 + idx * 56 }}
-          style={{ position: "fixed" }}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+          sx={{ position: 'fixed', zIndex: 1400, top: 16 + idx * 56 }}
+          style={{ position: 'fixed' }}
         >
           <Alert
             onClose={() => removeToast(t.id)}
             severity={t.severity}
             variant="filled"
-            sx={{ width: "100%", minWidth: 280, maxWidth: 480 }}
+            action={
+              t.action ? (
+                <Button
+                  color="inherit"
+                  size="small"
+                  sx={{ ml: 1, whiteSpace: 'nowrap', fontWeight: 600, textTransform: 'none' }}
+                  onClick={() => {
+                    removeToast(t.id);
+                    t.action?.onClick();
+                  }}
+                >
+                  {t.action.label}
+                </Button>
+              ) : undefined
+            }
+            sx={{ width: '100%', minWidth: 280, maxWidth: 480 }}
           >
             {t.message}
           </Alert>

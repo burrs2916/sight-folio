@@ -4,7 +4,7 @@
 // 自填的层级名（部/卷/章/节/幕/场…）。这里把扁平列表建成树，并给出「按体裁的默认层级」
 // —— 默认层级只是 UI 的「加子级」建议，创作者可随时改名/越级，系统不强制一致。
 
-import type { WritingChapter } from "../services/tauri";
+import type { WritingChapter } from '../services/tauri';
 
 export interface TreeNode {
   node: WritingChapter;
@@ -30,8 +30,8 @@ export const treeRowIndent = (depth: number): string => `${INDENT_BASE + depth *
  * 小说：卷 › 章；散文/诗歌/剧本：篇（可再下钻节）。
  */
 export function defaultLevels(genre: string): string[] {
-  if (genre === "essay" || genre === "poetry" || genre === "script") return ["篇", "节"];
-  return ["卷", "章"]; // novel 及未指定
+  if (genre === 'essay' || genre === 'poetry' || genre === 'script') return ['篇', '节'];
+  return ['卷', '章']; // novel 及未指定
 }
 
 /** 给定父节点的 kind 与它在树中的深度，推测「加子级」应给的默认层级名。 */
@@ -40,11 +40,11 @@ export function suggestedChildKind(parentKind: string, depth: number, levels: st
   const idx = levels.indexOf(parentKind);
   if (idx >= 0 && idx + 1 < levels.length) return levels[idx + 1];
   if (levels.length > 0) return levels[levels.length - 1];
-  return "章";
+  return '章';
 }
 
 function normParent(p: string | null | undefined): string {
-  return p && p.length > 0 ? p : "";
+  return p && p.length > 0 ? p : '';
 }
 
 /** 扁平章节列表 → 根节点数组（按 sortOrder 升序；子节点递归同序）。 */
@@ -64,7 +64,7 @@ export function buildTree(chapters: WritingChapter[]): TreeNode[] {
     children: (byParent.get(node.id) ?? []).map((c) => make(c, depth + 1)),
   });
 
-  return (byParent.get("") ?? []).map((c) => make(c, 0));
+  return (byParent.get('') ?? []).map((c) => make(c, 0));
 }
 
 /** 收集某节点所有后代 id（含自身）—— reparent 时防环（不能拖进自己的子树）。 */
@@ -95,4 +95,34 @@ export function findNodeInForest(forest: TreeNode[], id: string): TreeNode | nul
     if (f) return f;
   }
   return null;
+}
+
+/**
+ * 节点在结构树上的「层级路径标签」（文字封面兜底等共用）：
+ * 沿根到目标节点，每层输出「kind 序号」（如 卷 1 → 章 3；序号 = 该节点在兄弟中的次序，
+ * buildTree 已按 sortOrder 升序，故序数 1 起、各入口一致）。kind 为空（旧模型节点）
+ * 用「章节」兜底。找不到 id 返回 null。禁第二份实现 —— 文字封面的卷章号只从这里出。
+ */
+export function chapterPathLabels(forest: TreeNode[], id: string): string[] | null {
+  return chapterPathLabelMap(forest).get(id) ?? null;
+}
+
+/**
+ * 一次性构建整树的「id → 层级路径标签」表（O(n)）：上万行的章树逐行调用
+ * chapterPathLabels 会退化成 O(n²) 全树扫描，这里建表后各渲染行 O(1) 查。
+ * 与 chapterPathLabels 同源同口径（后者内部即建表再查），禁第二份推导。
+ */
+export function chapterPathLabelMap(forest: TreeNode[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const walk = (nodes: TreeNode[], prefix: string[]): void => {
+    for (let i = 0; i < nodes.length; i++) {
+      const t = nodes[i];
+      const label = `${t.node.kind || '章节'} ${i + 1}`;
+      const path = [...prefix, label];
+      out.set(t.node.id, path);
+      walk(t.children, path);
+    }
+  };
+  walk(forest, []);
+  return out;
 }

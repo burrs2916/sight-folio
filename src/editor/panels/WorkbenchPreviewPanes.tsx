@@ -184,7 +184,7 @@ export function WorkbenchMediaPreview({ fileId, name, kind, themeMode }: MediaPr
         }}
       >
         <Tooltip title={t("workbench.previewZoomOut")}>
-          <IconButton size="small" onClick={() => { setFit(false); setScale((s) => Math.max(s / 1.2, 0.05)); }}>
+          <IconButton size="small" onClick={() => { setFit(false); setScale((s) => Math.max(s / 1.2, 0.05)); }} aria-label={t("workbench.previewZoomOut")}>
             <ZoomOutIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -192,23 +192,23 @@ export function WorkbenchMediaPreview({ fileId, name, kind, themeMode }: MediaPr
           {Math.round(scale * 100)}%
         </Typography>
         <Tooltip title={t("workbench.previewZoomIn")}>
-          <IconButton size="small" onClick={() => { setFit(false); setScale((s) => Math.min(s * 1.2, 16)); }}>
+          <IconButton size="small" onClick={() => { setFit(false); setScale((s) => Math.min(s * 1.2, 16)); }} aria-label={t("workbench.previewZoomIn")}>
             <ZoomInIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.previewReset")}>
-          <IconButton size="small" onClick={() => { setFit(false); setScale(1); }}>
+          <IconButton size="small" onClick={() => { setFit(false); setScale(1); }} aria-label={t("workbench.previewReset")}>
             <RestartAltIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.previewFit")}>
-          <IconButton size="small" color={fit ? "primary" : "default"} onClick={() => setFit((v) => !v)}>
+          <IconButton size="small" color={fit ? "primary" : "default"} onClick={() => setFit((v) => !v)} aria-label={t("workbench.previewFit")}>
             <FitScreenIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         {kind === "svg" && (
           <Tooltip title={showSource ? t("workbench.previewViewPreview") : t("workbench.previewViewSource")}>
-            <IconButton size="small" color={showSource ? "primary" : "default"} onClick={toggleSource}>
+            <IconButton size="small" color={showSource ? "primary" : "default"} onClick={toggleSource} aria-label={showSource ? t("workbench.previewViewPreview") : t("workbench.previewViewSource")}>
               <CodeIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -388,7 +388,7 @@ export function WorkbenchMarkdownPreview({ fileId, tab, themeMode }: MarkdownPre
         }}
       >
         <Tooltip title={showSource ? t("workbench.previewViewPreview") : t("workbench.previewViewSource")}>
-          <IconButton size="small" color={showSource ? "primary" : "default"} onClick={toggleSource}>
+          <IconButton size="small" color={showSource ? "primary" : "default"} onClick={toggleSource} aria-label={showSource ? t("workbench.previewViewPreview") : t("workbench.previewViewSource")}>
             <CodeIcon fontSize="small" />
           </IconButton>
         </Tooltip>

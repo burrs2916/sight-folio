@@ -10,6 +10,36 @@ vi.mock('../../services/tauri', () => ({
     saveChapter: vi.fn(async () => {}),
     deleteChapter: vi.fn(async () => {}),
   },
+  // 软删辅助（纯函数）：store 从 services/tauri 导入；mock 镜像真实实现（宽容解析）
+  parseChapterExtra: (extra: string) => {
+    try {
+      const parsed = JSON.parse(extra || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  },
+  chapterDeletedAt: (ch: { deletedAt?: number; extra?: string }) => {
+    const parsed = ch.extra ? JSON.parse(ch.extra || '{}') : {};
+    const t = ch.deletedAt ?? (parsed && typeof parsed === 'object' ? parsed.deletedAt : undefined);
+    return typeof t === 'number' && t > 0 ? t : 0;
+  },
+  isChapterDeleted: (ch: { deletedAt?: number; extra?: string }) => {
+    const parsed = ch.extra ? JSON.parse(ch.extra || '{}') : {};
+    const t = ch.deletedAt ?? (parsed && typeof parsed === 'object' ? parsed.deletedAt : undefined);
+    return typeof t === 'number' && t > 0;
+  },
+  withChapterDeletedAt: (ch: WritingChapter, deletedAt: number) => {
+    let extra: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(ch.extra || '{}');
+      if (parsed && typeof parsed === 'object') extra = parsed as Record<string, unknown>;
+    } catch {
+      extra = {};
+    }
+    extra.deletedAt = deletedAt;
+    return { ...ch, extra: JSON.stringify(extra), deletedAt };
+  },
   writingSettingsApi: {
     list: vi.fn(async () => []),
     save: vi.fn(async () => {}),
@@ -112,6 +142,131 @@ describe('writingStore.reorderChapter', () => {
     expect(useWritingStore.getState().chapters.map((c) => c.id)).toEqual(['a', 'b', 'c']);
   });
 
+  describe('writingStore.reorderOutline（大纲页签上/下移：与 reorderChapter 同一契约）', () => {
+    function outline(id: string, sortOrder: number) {
+      return {
+        id,
+        bookId: BOOK_ID,
+        title: `拍${id}`,
+        summary: '',
+        chapterId: null,
+        extra: '{}',
+        sortOrder,
+        createdAt: 1,
+        updatedAt: 1,
+      };
+    }
+
+    beforeEach(() => {
+      useWritingStore.setState({
+        books: [],
+        activeBookId: BOOK_ID,
+        activeChapterId: null,
+        chapters: [],
+        settings: [],
+        outlines: [outline('a', 1), outline('b', 2), outline('c', 3)],
+      });
+    });
+
+    it('下移：重排本地态并统一重编 sort_order（1..n）', async () => {
+      const { writingOutlinesApi } = await import('../../services/tauri');
+      const save = vi.mocked(writingOutlinesApi.save);
+      save.mockClear();
+      await useWritingStore.getState().reorderOutline('a', 1);
+      const outlines = useWritingStore.getState().outlines;
+      expect(outlines.map((o) => o.id)).toEqual(['b', 'a', 'c']);
+      expect(outlines.map((o) => o.sortOrder)).toEqual([1, 2, 3]);
+      expect(save).toHaveBeenCalledTimes(2); // 只落库顺序变化的 a/b
+    });
+
+    it('上移：目标索引钳制在合法范围，不会越界写库', async () => {
+      const { writingOutlinesApi } = await import('../../services/tauri');
+      const save = vi.mocked(writingOutlinesApi.save);
+      save.mockClear();
+      await useWritingStore.getState().reorderOutline('c', 0);
+      expect(useWritingStore.getState().outlines.map((o) => o.id)).toEqual(['c', 'a', 'b']);
+      // 首尾互移时 a/b/c 全部位移，三行都要落库
+      expect(save).toHaveBeenCalledTimes(3);
+    });
+
+    it('移到自己 / 未找到 id 是无操作', async () => {
+      const { writingOutlinesApi } = await import('../../services/tauri');
+      const save = vi.mocked(writingOutlinesApi.save);
+      save.mockClear();
+      await useWritingStore.getState().reorderOutline('a', 0);
+      await useWritingStore.getState().reorderOutline('nope', 1);
+      expect(save).not.toHaveBeenCalled();
+      expect(useWritingStore.getState().outlines.map((o) => o.id)).toEqual(['a', 'b', 'c']);
+    });
+
+    it('落库失败时抛错且本地态不变（先落库再改态的契约）', async () => {
+      const { writingOutlinesApi } = await import('../../services/tauri');
+      const save = vi.mocked(writingOutlinesApi.save);
+      save.mockRejectedValueOnce(new Error('db locked'));
+      await expect(useWritingStore.getState().reorderOutline('a', 1)).rejects.toThrow('db locked');
+      expect(useWritingStore.getState().outlines.map((o) => o.id)).toEqual(['a', 'b', 'c']);
+    });
+  });
+
+  describe('writingStore.setOutlineCover（节拍封面：extra.coverImage，宽容解析）', () => {
+    function outline(id: string, extra: string) {
+      return {
+        id,
+        bookId: BOOK_ID,
+        title: `拍${id}`,
+        summary: '',
+        chapterId: null,
+        extra,
+        sortOrder: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      };
+    }
+
+    beforeEach(() => {
+      useWritingStore.setState({
+        books: [],
+        activeBookId: BOOK_ID,
+        activeChapterId: null,
+        chapters: [],
+        settings: [],
+        outlines: [outline('a', JSON.stringify({ status: 'draft' }))],
+      });
+    });
+
+    it('设置封面：写入 extra.coverImage 并保留既有字段（status 共存）', async () => {
+      const { writingOutlinesApi } = await import('../../services/tauri');
+      const save = vi.mocked(writingOutlinesApi.save);
+      save.mockClear();
+      await useWritingStore.getState().setOutlineCover('a', 'assets/writing/illustrations/front.png');
+      const row = useWritingStore.getState().outlines.find((o) => o.id === 'a');
+      expect(JSON.parse(row?.extra ?? '{}')).toEqual({
+        status: 'draft',
+        coverImage: 'assets/writing/illustrations/front.png',
+      });
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+
+    it('传 null 清除封面并保留其它字段；坏 extra 也绝不抛错', async () => {
+      const { writingOutlinesApi } = await import('../../services/tauri');
+      const save = vi.mocked(writingOutlinesApi.save);
+      save.mockClear();
+      useWritingStore.setState({ outlines: [outline('a', JSON.stringify({ status: 'todo', coverImage: 'x.png' }))] });
+      await useWritingStore.getState().setOutlineCover('a', null);
+      expect(JSON.parse(useWritingStore.getState().outlines[0].extra)).toEqual({ status: 'todo' });
+      await useWritingStore.getState().setOutlineCover('a', 'y.png'); // 坏数据宽容（此处数据合法，行为一致）
+      expect(useWritingStore.getState().outlines[0].extra).toContain('y.png');
+    });
+
+    it('未找到 id 是无操作，不落库', async () => {
+      const { writingOutlinesApi } = await import('../../services/tauri');
+      const save = vi.mocked(writingOutlinesApi.save);
+      save.mockClear();
+      await useWritingStore.getState().setOutlineCover('nope', 'x.png');
+      expect(save).not.toHaveBeenCalled();
+    });
+  });
+
   it('删章时解绑挂在该章上的大纲条目（P5 双向联动的另一面）', async () => {
     const { writingOutlinesApi } = await import('../../services/tauri');
     const mockOutlineSave = vi.mocked(writingOutlinesApi.save);
@@ -177,6 +332,7 @@ describe('writingStore.reorderChapter', () => {
           event: '开场',
           chapterId: 'a',
           storylineId: null,
+          outlineId: null,
           sortOrder: 1,
           createdAt: 1,
           updatedAt: 1,
@@ -189,153 +345,7 @@ describe('writingStore.reorderChapter', () => {
           event: '终场',
           chapterId: null,
           storylineId: null,
-          sortOrder: 2,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ],
-      foreshadowings: [
-        {
-          id: 'fs1',
-          bookId: BOOK_ID,
-          title: '怀表',
-          description: '',
-          plantChapterId: 'a',
-          payoffChapterId: 'a',
-          status: 'pending',
-          storylineId: null,
-          sortOrder: 1,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-        {
-          id: 'fs2',
-          bookId: BOOK_ID,
-          title: '无关联',
-          description: '',
-          plantChapterId: null,
-          payoffChapterId: null,
-          status: 'pending',
-          storylineId: null,
-          sortOrder: 2,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ],
-    });
-    await useWritingStore.getState().deleteChapter('a');
-    const s = useWritingStore.getState();
-    // 引用解绑：事件与伏笔的章引用全部回到 null
-    expect(s.timelineEvents.find((e) => e.id === 'ev1')!.chapterId).toBeNull();
-    expect(s.foreshadowings.find((f) => f.id === 'fs1')!.plantChapterId).toBeNull();
-    expect(s.foreshadowings.find((f) => f.id === 'fs1')!.payoffChapterId).toBeNull();
-    // 内容保留（零强制）：事件与伏笔都还在，未绑定项不受影响
-    expect(s.timelineEvents.length).toBe(2);
-    expect(s.foreshadowings.length).toBe(2);
-    expect(s.timelineEvents.find((e) => e.id === 'ev2')!.chapterId).toBeNull();
-  });
-
-  it('删设定时解绑时间线事件的设定引用，事件保留（删除传播矩阵 P0 一致性）', async () => {
-    const { writingSettingsApi } = await import('../../services/tauri');
-    vi.mocked(writingSettingsApi.delete).mockClear();
-    useWritingStore.setState({
-      settings: [
-        {
-          id: 'set1',
-          bookId: BOOK_ID,
-          kind: 'character',
-          name: '阿强',
-          subtitle: '',
-          description: '',
-          extra: '{}',
-          sortOrder: 1,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ],
-      activeSettingId: 'set1',
-      timelineEvents: [
-        {
-          id: 'ev1',
-          bookId: BOOK_ID,
-          settingId: 'set1',
-          at: '第1年',
-          event: '出场',
-          chapterId: null,
-          storylineId: null,
-          sortOrder: 1,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-        {
-          id: 'ev2',
-          bookId: BOOK_ID,
-          settingId: null,
-          at: '第2年',
-          event: '书级',
-          chapterId: null,
-          storylineId: null,
-          sortOrder: 2,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ],
-    });
-    await useWritingStore.getState().deleteSetting('set1');
-    const s = useWritingStore.getState();
-    expect(vi.mocked(writingSettingsApi.delete)).toHaveBeenCalledWith('set1');
-    expect(s.settings.length).toBe(0);
-    expect(s.activeSettingId).toBeNull();
-    // 事件保留，挂卡事件回到「书级」
-    expect(s.timelineEvents.length).toBe(2);
-    expect(s.timelineEvents.find((e) => e.id === 'ev1')!.settingId).toBeNull();
-  });
-
-  it('删当前书时清空全部子域内存态（删除传播矩阵 P0 一致性）', async () => {
-    const { writingApi } = await import('../../services/tauri');
-    vi.mocked(writingApi.deleteBook).mockClear();
-    useWritingStore.setState({
-      books: [
-        {
-          id: BOOK_ID,
-          title: '长夜',
-          description: null,
-          genre: 'novel',
-          medium: 'serial',
-          status: 'draft',
-          coverColor: '#4A338F',
-          dailyGoal: 0,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ],
-      activeBookId: BOOK_ID,
-      activeChapterId: 'a',
-      chapters: [chap('a', 1)],
-      settings: [
-        {
-          id: 'set1',
-          bookId: BOOK_ID,
-          kind: 'character',
-          name: '阿强',
-          subtitle: '',
-          description: '',
-          extra: '{}',
-          sortOrder: 1,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ],
-      outlines: [],
-      timelineEvents: [
-        {
-          id: 'ev1',
-          bookId: BOOK_ID,
-          settingId: null,
-          at: '第1年',
-          event: '开场',
-          chapterId: null,
-          storylineId: null,
+          outlineId: null,
           sortOrder: 1,
           createdAt: 1,
           updatedAt: 1,

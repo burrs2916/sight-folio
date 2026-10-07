@@ -3,6 +3,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import Box from '@mui/material/Box';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { AppTheme } from './theme';
 import { SideMenu, AppNavbar, AppFooter } from './components/layout';
 import SettingsDrawer from './components/layout/SettingsDrawer';
@@ -24,7 +25,8 @@ import { useAppearanceStore } from './store/appearanceStore';
 import { useDataSourceStore } from './store/datasourceStore';
 import { useAuthStore } from './store/authStore';
 import { useProjectStore } from './store/projectStore';
-import { useWritingStore } from './store/writingStore';
+import { useWritingStore, WRITING_CONTENT_SAVED_EVENT, type WritingContentSavedPayload } from './store/writingStore';
+import { DESK_GOTO_VIEW_EVENT, applyDeskGotoView, type ChapterJumpPayload } from './utils/writingDeskJump';
 import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
 import { useCanvasWorkbenchLink, useWorkbenchFocusCanvasListener } from './editor/utils/canvasWorkbenchLink';
 import { startAnalysisScheduler, stopAnalysisScheduler } from './ai/analysisScheduler';
@@ -68,7 +70,6 @@ function AppLayout() {
   // useSyncExternalStore —— 只有根组件订阅，语言切换才能刷新所有文案。
   useI18n();
   const location = useLocation();
-  const themeConfig = useThemeStore((state) => state.config);
   const layoutConfig = useLayoutStore((state) => state.config);
   const standalone = isStandaloneRoute(location.pathname) || isWritingDeskWindow(location.pathname);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -83,6 +84,32 @@ function AppLayout() {
     return () => un?.();
   }, [navigate]);
 
+  // 跨窗口正文同步：写作台（独立 webview）落库成功后广播 content-saved，
+  // 本窗口（含主窗口正文容器）把该章 content 就地并入 writingStore——
+  // 保证「写作台写了正文 → 主窗口点章 1 能看到」，不需要整表 loadChapters 刷新。
+  // 幂等：store 内按「目标章存在且属于当前激活书」判定，重复事件无副作用。
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen<WritingContentSavedPayload>(WRITING_CONTENT_SAVED_EVENT, (e) => {
+      void useWritingStore.getState().applyExternalChapterContent(e.payload);
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, []);
+
+  // 跨窗口章级跳转：写作台独立窗口的提醒条点击 → desk-goto-view 事件 →
+  // 主窗口按同一语义执行（选中实体 / proofreadFocusKey / statsFocusChapterId +
+  // openTypedCarrierView 切页签），并置前聚焦。写作台窗口自身不消费（
+  // 跳转目标是主窗口 L2 页签体系；省去 emitTo 对主窗口 label 的硬依赖）。
+  useEffect(() => {
+    if (isWritingDeskWindow(location.pathname)) return;
+    let un: (() => void) | undefined;
+    listen<ChapterJumpPayload>(DESK_GOTO_VIEW_EVENT, (e) => {
+      applyDeskGotoView(e.payload);
+      void getCurrentWindow().setFocus();
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, [location.pathname]);
+
   const contentPaddingMap: Record<string, string> = {
     none: '0px',
     small: '8px',
@@ -91,11 +118,15 @@ function AppLayout() {
   };
   const contentPad = contentPaddingMap[layoutConfig?.contentPadding] ?? '24px';
 
-  // 工作室（/analyzer）是全屏编辑工作台：画布编辑区必须铺满视口。
-  // 内容壳的 padding / maxWidth(1700px) / mx:auto 对内容页（仪表盘等）合理，
-  // 但套在工作室上会在宽屏下四周留白、左右被压到上限——用户点名「编辑区没有占满还有空隙」
-  // （2026-09-19）。工作室路由全出血，其余页面维持原内容壳不动。
-  const isStudioRoute = location.pathname.startsWith('/analyzer');
+  // 全出血路由：内容壳的 padding / maxWidth(1700px) / mx:auto 对内容页（仪表盘等）合理，
+  // 但套在工作室（/analyzer）上会在宽屏下四周留白、左右被压到上限——用户点名「编辑区没有占满还有空隙」
+  // （2026-09-19）。语料库页（/library）同样要求不留边距（用户 2026-09-28 点名）。
+  // AI 助手页（/ai）同样要求不留边距（用户 2026-10-05 点名）。
+  // 这三条路由全出血，其余页面维持原内容壳不动。
+  const isFullBleedRoute =
+    location.pathname.startsWith('/analyzer') ||
+    location.pathname.startsWith('/library') ||
+    location.pathname.startsWith('/ai');
 
   // 启动加载分析列表，并自动选中第一个（避免分析仪空白屏）
   const sceneLoadScenes = useSceneStore((s) => s.loadScenes);
@@ -149,9 +180,9 @@ function AppLayout() {
         >
           <Box
             sx={{
-              p: isStudioRoute ? 0 : contentPad,
-              maxWidth: isStudioRoute ? 'none' : { sm: '100%', md: '1700px' },
-              mx: isStudioRoute ? 0 : 'auto',
+              p: isFullBleedRoute ? 0 : contentPad,
+              maxWidth: isFullBleedRoute ? 'none' : { sm: '100%', md: '1700px' },
+              mx: isFullBleedRoute ? 0 : 'auto',
               minHeight: 0,
               width: '100%',
               flex: 1,

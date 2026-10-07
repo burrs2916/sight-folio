@@ -12,6 +12,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extensions';
+import Highlight from '@tiptap/extension-highlight';
+import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { WritingAnnotation as WritingAnnotationExtension } from '../extensions/writingAnnotation';
 import IconButton from '@mui/material/IconButton';
 import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import PhotoRoundedIcon from '@mui/icons-material/PhotoRounded';
@@ -21,6 +29,17 @@ import { useAssetPickerStore } from '../../store/assetPickerStore';
 import { logger } from '../../utils/logger';
 import { openWritingDesk } from '../../utils/writingDeskWindow';
 import { resolveFragments, t } from '../../i18n';
+import { foreshadowingsPayableIn } from '../../utils/writingForeshadowing';
+import { beatEventText, beatImported } from '../../utils/writingTimeline';
+import { beatPlantedAsForeshadowing } from '../../utils/writingInspiration';
+import { chapterTextIssues } from '../../utils/writingProofread';
+import type { WritingChapter } from '../../services/writing';
+import {
+  ForeshadowReminder,
+  InspirationReminder,
+  ProofreadReminder,
+  StatsReminder,
+} from '../components/writingReminders';
 import { CV } from './canvasTheme';
 import {
   WritingImage,
@@ -46,19 +65,8 @@ export function saveText(state: SaveState): string {
   return '';
 }
 
-/** 从章 extra JSON 里读出章头图相对引用；坏数据/无图一律当 undefined（创作者主权：无图≠未完成） */
-export function parseChapterCover(extra: string | undefined): string | undefined {
-  if (!extra) return undefined;
-  try {
-    const parsed = JSON.parse(extra);
-    if (parsed && typeof parsed === 'object' && typeof parsed.coverImage === 'string') {
-      return parsed.coverImage;
-    }
-  } catch {
-    /* 脏数据按无图处理 */
-  }
-  return undefined;
-}
+// 章封面口径收敛到 utils/writingOutline（禁第二份解析）。
+import { parseChapterCover, ideasOfChapter } from '../../utils/writingOutline';
 
 /** 章头图横幅：相对引用 → asset:// 渲染；右上角一键移除。仅 chrome="paper" 使用。 */
 function ChapterCoverBanner({ assetRef, onRemove }: { assetRef: string; onRemove: () => void }) {
@@ -99,6 +107,7 @@ function ChapterCoverBanner({ assetRef, onRemove }: { assetRef: string; onRemove
           '&:hover': { bgcolor: 'rgba(0,0,0,0.65)' },
           p: 0.4,
         }}
+        aria-label={t('writing.removeCover')}
       >
         <CloseRoundedIcon sx={{ fontSize: 15 }} />
       </IconButton>
@@ -138,6 +147,12 @@ export function WritingChapterEditor({
   const genre = book?.genre ?? (typeof config.genre === 'string' ? config.genre : '');
   const isEssay = genre === 'essay';
 
+  // 写作台顶部校对提醒：本章有文本发现（错别字/重复用词/敏感词/长段等）时轻量提示
+  const proofreadReminders = useMemo(() => {
+    if (!chapter) return [];
+    return chapterTextIssues(chapter);
+  }, [chapter]);
+
   // ─── 书接线：卡片依赖的书未激活时自动接线（装载章节列表） ───
   useEffect(() => {
     if (!bookId) return;
@@ -170,7 +185,7 @@ export function WritingChapterEditor({
     try {
       setSaveState('saving');
       await useWritingStore.getState().saveChapterContent(pending.chapterId, pending.html, pending.wordCount);
-      setSaveState((cur) => (pendingRef.current ? 'dirty' : 'saved'));
+      setSaveState(() => (pendingRef.current ? 'dirty' : 'saved'));
     } catch {
       // 失败不丢稿：待存快照放回 pending，下一次输入/卸载自动重试
       if (!pendingRef.current) pendingRef.current = pending;
@@ -193,7 +208,19 @@ export function WritingChapterEditor({
   );
 
   const editor = useEditor({
-    extensions: [StarterKit, Placeholder.configure({ placeholder: t('writing.placeholder') }), WritingImage],
+    extensions: [
+      StarterKit,
+      Highlight.configure({ multicolor: true }),
+      Underline,
+      Link.configure({ openOnClick: false }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableCell,
+      TableHeader,
+      WritingAnnotationExtension,
+      Placeholder.configure({ placeholder: t('writing.placeholder') }),
+      WritingImage,
+    ],
     content: '',
     editable: !readOnly,
     onUpdate: ({ editor: ed }) => {
@@ -208,23 +235,40 @@ export function WritingChapterEditor({
     editor?.setEditable(!readOnly);
   }, [editor, readOnly]);
 
-  // 装载内容：chapterId 变化时装载（未就绪等下一轮），保存回写不重置编辑器
+  // 装载内容：chapterId 变化时装载（未就绪等下一轮），保存回写不重置编辑器。
+  // 只读正文容器另开一条「同章外部同步」通道：写作台（独立窗口）落库后经
+  // WRITING_CONTENT_SAVED_EVENT 把新 content 并入本窗口 store → 同章 content 变化
+  // 时重装正文（readOnly 无 pending 排程，必然来自外部同步，不会误伤在写场景）。
   const loadedIdRef = useRef<string | null>(null);
+  const loadedContentRef = useRef<string | null>(null);
   useEffect(() => {
     if (!editor) return;
-    if (chapterId === loadedIdRef.current) return;
-    if (!chapter) return; // 章节列表未就绪：不置 loadedRef，章节到达后本 effect 重跑
-    // 切章先把上一章 pending 落库：走微任务发起（flushSave 同步段含 setState，
-    // 移出 effect 同步调用链避免级联渲染；落库本身仍为异步）
-    void Promise.resolve().then(flushSave);
-    loadedIdRef.current = chapterId;
-    editor.commands.setContent(chapter.content ?? '', { emitUpdate: false });
-    // 装载重置必须与内容就位同步执行（先于任何新输入），不可挪入异步回调：
-    // 规则提示的级联渲染在此为一次性重置，可接受
+    if (chapterId !== loadedIdRef.current) {
+      if (!chapter) return; // 章节列表未就绪：不置 loadedRef，章节到达后本 effect 重跑
+      // 切章先把上一章 pending 落库：走微任务发起（flushSave 同步段含 setState，
+      // 移出 effect 同步调用链避免级联渲染；落库本身仍为异步）
+      void Promise.resolve().then(flushSave);
+      loadedIdRef.current = chapterId;
+      loadedContentRef.current = chapter.content ?? '';
+      editor.commands.setContent(chapter.content ?? '', { emitUpdate: false });
+      // 装载重置必须与内容就位同步执行（先于任何新输入），不可挪入异步回调：
+      // 规则提示的级联渲染在此为一次性重置，可接受
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSaveState('idle');
+      return;
+    }
+    // 同章：仅只读正文容器响应外部 content 同步；编辑窗口保持「保存回写不重置」语义
+    if (!readOnly) return;
+    if (!chapter) return;
+    const next = chapter.content ?? '';
+    if (next === loadedContentRef.current) return; // 内容未变（幂等，不重装）
+    loadedContentRef.current = next;
+    editor.commands.setContent(next, { emitUpdate: false });
+    // 只读容器无 pending 排程，saveState 恒 idle，重置无副作用
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSaveState('idle');
-    // 刻意不依赖 chapter 对象身份：装载后保存回写不应重置编辑器内容
-  }, [editor, chapterId, chapter, flushSave, setSaveState]);
+    // 刻意不依赖 chapter 对象身份：装载后保存回写/外部同步都靠内容快照判别，不按引用重置
+  }, [editor, chapterId, chapter, readOnly, flushSave, setSaveState]);
 
   // 卸载前 flush
   useEffect(() => {
@@ -252,8 +296,27 @@ export function WritingChapterEditor({
     if (!bookId || !chapterId) return;
     void openWritingDesk({ bookId, chapterId });
   }, [bookId, chapterId]);
-  // 章头图：从章 extra.coverImage 取出相对引用（无图 = undefined，不渲染横幅）
+  // 章头图：只读章自身 extra.coverImage（封面各自独立，2026-09-29 定稿——绝不借用卷封面）。
+  // 无封面 = undefined，页眉封面按钮仍可点（常驻入口）。
   const coverImage = useMemo(() => parseChapterCover(chapter?.extra), [chapter]);
+
+  const foreshadowings = useWritingStore((s) => s.foreshadowings);
+  // 写作台顶部伏笔提醒（G1 增强）：本章有待回收伏笔时轻量提示，点击跳伏笔页签
+  const payableForeshadowings = useMemo(
+    () => (chapterId ? foreshadowingsPayableIn(foreshadowings, chapterId).filter((f) => f.status === 'pending') : []),
+    [chapterId, foreshadowings],
+  );
+
+  // 写作台顶部灵感提醒：本章有关联且未分发的念头时轻量提示，点击跳灵感页签
+  const outlines = useWritingStore((s) => s.outlines);
+  const timelineEvents = useWritingStore((s) => s.timelineEvents);
+  const inspirationReminders = useMemo(() => {
+    if (!chapterId) return [];
+    const chapterIdeas = ideasOfChapter(outlines, chapterId);
+    return chapterIdeas.filter(
+      (b) => !beatImported(timelineEvents, beatEventText(b)) && !beatPlantedAsForeshadowing(foreshadowings, b),
+    );
+  }, [chapterId, outlines, timelineEvents, foreshadowings]);
 
   if (chrome === 'embedded') {
     // 容器视图页签：编辑区铺满外层卡，无自带标题栏；
@@ -334,6 +397,7 @@ export function WritingChapterEditor({
                 },
               })
             }
+            aria-label={t('writing.insertImage')}
           >
             <ImageRoundedIcon sx={{ fontSize: 15 }} />
           </IconButton>
@@ -421,6 +485,7 @@ export function WritingChapterEditor({
                 },
               })
             }
+            aria-label={t('writing.insertImage')}
           >
             <ImageRoundedIcon sx={{ fontSize: 16 }} />
           </IconButton>
@@ -436,11 +501,20 @@ export function WritingChapterEditor({
           }}
           onClick={() =>
             useAssetPickerStore.getState().openPicker({
-              chapterCoverSetter: (a) => {
-                useWritingStore.getState().setChapterCover(chapterId, illustrationAssetRef(a.name));
+              coverSetter: {
+                kind: 'chapter',
+                title: title || t('writingWorkbench.untitled'),
+                hasCover: !!coverImage,
+                clear: () => {
+                  useWritingStore.getState().setChapterCover(chapterId, null);
+                },
+                apply: (a) => {
+                  useWritingStore.getState().setChapterCover(chapterId, illustrationAssetRef(a.name));
+                },
               },
             })
           }
+          aria-label={t('writing.chapterCover')}
         >
           <PhotoRoundedIcon sx={{ fontSize: 16 }} />
         </IconButton>
@@ -467,6 +541,11 @@ export function WritingChapterEditor({
         )}
         {actions}
       </div>
+
+      <ForeshadowReminder foreshadowings={payableForeshadowings} genre={genre} />
+      <InspirationReminder inspirations={inspirationReminders} genre={genre} />
+      <ProofreadReminder issues={proofreadReminders} genre={genre} />
+      <StatsReminder chapter={chapter} chapters={chapters} genre={genre} />
 
       {/* 章头图横幅（批次 2）：有图才渲染；移除走横幅右上角 × */}
       {coverImage ? (

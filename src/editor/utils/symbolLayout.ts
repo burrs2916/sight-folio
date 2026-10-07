@@ -422,7 +422,6 @@ export function buildSymbolLayout(
   // dir -> (fileId -> symbols[])，文件内按定义行号升序
   const dirMap = new Map<string, Map<string, ProjectSymbol[]>>();
   for (const [fileId, syms] of byFile) {
-    const file = files.find((f) => f.id === fileId);
     const dir = dirnameOf(syms[0].filePath);
     if (!dirMap.has(dir)) dirMap.set(dir, new Map());
     dirMap.get(dir)!.set(

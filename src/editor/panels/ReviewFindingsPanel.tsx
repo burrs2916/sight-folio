@@ -20,7 +20,6 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import { useProjectStore } from "../../store/projectStore";
 import { useToastStore } from "../../store/toastStore";
 import { useEditorStore } from "../../store/editorStore";
-import { findComponentForFile, findComponentForModule } from "../utils/canvasLink";
 import { navigateToSource, navigateToModule, readLineFromMetadata } from "../utils/sourceNavigate";
 import { topDirOf } from "../utils/architectureMetrics";
 import { triggerDiagnosis } from "../../ai/triggerDiagnosis";

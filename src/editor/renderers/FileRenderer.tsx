@@ -286,7 +286,6 @@ export function FileRenderer(props: FileRendererProps) {
         ? "#f59e0b"
         : `${langColor}59`;
   const borderWidth = isRefactorFirst || depInCycle || isCallHub ? 2 : 1;
-  const borderStyle = depInCycle && !isRefactorFirst ? "dashed" : "solid";
   // v2.17 依赖画像焦点子图：焦点文件节点描一圈品牌琥珀金外环 + 发光，并在卡片上加
   // 「焦点」药丸，让用户在「树↔画布」联动后一眼知道画布当前在展示哪个文件的局部依赖网。
   // 颜色取品牌主色 #EF9F27，与调用枢纽(#f59e0b 边框)/依赖环(#dc2626 红虚线)/影响面(#6366f1 靛蓝)都不同，

@@ -476,8 +476,6 @@ export function buildUserMessage(ctx: WorkbenchContext, userText: string, isBook
 
 /** 尾部区块的起始标记（这些区块一律排在用户问题**之后**，故命中即可截断） */
 const TAIL_MARKERS = ["[上下文]", "[Context]", "[画布作用域]", "[Canvas scope]"];
-/** 头部区块的起始标记（排在用户问题**之前**）。工作区区块默认注入、助手具备 run_command 时终端区块也注入，二者可连续出现 */
-const HEAD_MARKERS = ["[Workspace]", "[Terminal]"];
 /** 模式指令的开头签名（双语）：用来判定首段是不是机器指令，而不是用户自己打的字 */
 const MODE_HEAD_SIGNATURES = ["你是一个", "You are a"];
 

@@ -12,7 +12,6 @@ import { componentRegistry } from "../registryCore";
 import { t, resolveFragments } from "../../i18n";
 import type {
   AnalyzerManifest,
-  ComponentTypeRegistration,
   EventHandlerRegistration,
   LayerTypeRegistration,
   RuleRegistration,

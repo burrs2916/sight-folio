@@ -8,7 +8,6 @@ import IconButton from "@mui/material/IconButton";
 import FolderIcon from "@mui/icons-material/Folder";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
-import LanguageIcon from "@mui/icons-material/Language";
 import RuleIcon from "@mui/icons-material/Rule";
 import DataObjectIcon from "@mui/icons-material/DataObject";
 import BuildIcon from "@mui/icons-material/Build";
@@ -73,13 +72,6 @@ function complexityTitle(st: FileRowStats): string {
   }
   const hot = st.hotFunction ? t("filesPanel.ccHotFunction", { fn: st.hotFunction, cc: st.maxFunctionCc }) : "";
   return t("filesPanel.ccAst", { cc: st.complexity, level, count: st.functionCount, nesting: st.maxNesting, hot });
-}
-
-/** 技术债标记短名（getter：模块级 const 固化中文切语言不刷新，历史教训 ×3） */
-function markerLabel(marker: string): string {
-  const key = `filesPanel.marker${marker}`;
-  const label = t(key);
-  return label !== key ? label : marker;
 }
 
 /**
@@ -869,7 +861,7 @@ const FileTreeNode = memo(function FileTreeNode({
               "&:hover": { bgcolor: "rgba(99,102,241,0.12)" },
             }}
             title={t("aiPanel.diagnoseFile")}
-          >
+           aria-label={t("aiPanel.diagnoseFile")}>
             <AutoFixHighIcon sx={{ fontSize: 13 }} />
           </IconButton>
         )}

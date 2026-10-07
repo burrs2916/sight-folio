@@ -37,7 +37,6 @@ import { t } from "../../i18n";
 import { aiButtonSx } from "../../ai/aiBrand";
 import LanguageToggle from "../i18n/LanguageToggle";
 import { projectScanApi, type ProjectSymbol, type CodeIndexEntry } from "../../services/tauri";
-import { locateFileInCanvas } from "../../editor/utils/canvasLink";
 import { navigateToSourceByPath } from "../../editor/utils/sourceNavigate";
 import { openWritingDesk } from "../../utils/writingDeskWindow";
 
@@ -109,7 +108,6 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
   const scenes = useSceneStore((s) => s.scenes);
   const files = useProjectStore((s) => s.files);
   const activeAnalysisId = useProjectStore((s) => s.activeAnalysisId);
-  const activeSceneId = useSceneStore((s) => s.activeSceneId);
   const setActiveScene = useSceneStore((s) => s.setActiveScene);
   const showToast = useToastStore((s) => s.showToast);
 
@@ -268,7 +266,7 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
           size="small"
           onClick={toggleSidebar}
           sx={{ color: "text.secondary" }}
-        >
+         aria-label={t("nav.toggleSidebar")}>
           {collapsed ? <MenuIcon sx={{ fontSize: 20 }} /> : <MenuOpenIcon sx={{ fontSize: 20 }} />}
         </IconButton>
 
@@ -332,7 +330,7 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
                 setSearchOpen(false);
               }}
               sx={{ p: 0.25 }}
-            >
+             aria-label={t("nav.clearSearch")}>
               <ClearIcon sx={{ fontSize: 14 }} />
             </IconButton>
           )}
@@ -418,7 +416,7 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
 
         {/* 通知铃铛 */}
         <Tooltip title={t("ui.notifications")}>
-          <IconButton size="small" sx={{ color: "text.secondary" }}>
+          <IconButton size="small" sx={{ color: "text.secondary" }} aria-label={t("ui.notifications")}>
             <Badge badgeContent={0} color="error" variant="dot">
               <NotificationsNoneOutlinedIcon sx={{ fontSize: 18 }} />
             </Badge>
@@ -464,7 +462,7 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
 
         {/* 设置按钮 */}
         <Tooltip title={t("ui.settings")}>
-          <IconButton size="small" onClick={onSettingsClick} sx={{ color: "text.secondary" }}>
+          <IconButton size="small" onClick={onSettingsClick} sx={{ color: "text.secondary" }} aria-label={t("ui.settings")}>
             <SettingsRoundedIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Tooltip>

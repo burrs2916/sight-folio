@@ -250,7 +250,6 @@ describe("结构体检三件套（v2.1）", () => {
   });
 
   it("detectSymbolCycles：A→B→C→A 标环，链式调用不标", () => {
-    const files = files3();
     const nodes = [
       makeNode("s1", "src/a.ts"), makeNode("s2", "src/b.ts"),
       makeNode("s3", "core/c.ts"), makeNode("s4", "core/d.ts"),

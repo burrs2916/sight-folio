@@ -579,7 +579,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
                   backgroundColor: isCadViewAdjusting ? "#1565c0" : "#1976d2",
                 },
               }}
-            >
+             aria-label={isCadViewAdjusting ? "退出图纸调整" : "调整图纸视图"}>
               {isCadViewAdjusting ? <DoneIcon sx={{ fontSize: 15 }} /> : <PanToolAltIcon sx={{ fontSize: 15 }} />}
             </IconButton>
           </Tooltip>

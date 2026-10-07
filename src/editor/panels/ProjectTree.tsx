@@ -20,8 +20,6 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import FolderIcon from "@mui/icons-material/Folder";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
-import ImageIcon from "@mui/icons-material/Image";
-import FontDownloadIcon from "@mui/icons-material/FontDownload";
 import CodeIcon from "@mui/icons-material/Code";
 import CenterFocusStrongIcon from "@mui/icons-material/CenterFocusStrong";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";

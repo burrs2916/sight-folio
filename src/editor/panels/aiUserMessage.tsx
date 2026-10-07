@@ -44,7 +44,7 @@ export function UserMessageBubble({ content }: { content: string }) {
         {view.wrapped && (
           // 完整提示词随手可查：折叠不等于藏起来——排查「模型为什么这么答」时必须能看到原文
           <Tooltip title={showRaw ? t("workbench.aiUserMsg.hideRaw") : t("workbench.aiUserMsg.showRaw")}>
-            <IconButton size="small" sx={{ p: 0.1, mt: -0.1 }} onClick={() => setShowRaw((v) => !v)}>
+            <IconButton size="small" sx={{ p: 0.1, mt: -0.1 }} onClick={() => setShowRaw((v) => !v)} aria-label={showRaw ? t("workbench.aiUserMsg.hideRaw") : t("workbench.aiUserMsg.showRaw")}>
               <DataObjectIcon sx={{ fontSize: 12, color: showRaw ? "primary.main" : "text.disabled" }} />
             </IconButton>
           </Tooltip>

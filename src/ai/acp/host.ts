@@ -31,9 +31,6 @@ import type {
   ResolvedPreset,
 } from "./types";
 
-type RequestHandler = (
-  params: Record<string, unknown>,
-) => Promise<unknown> | unknown;
 
 export class AcpHost {
   private transport: AcpTransport;

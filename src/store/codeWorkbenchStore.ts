@@ -18,14 +18,14 @@
  *    `setAxisFlexes` / `resetPaneSizes` 调整/复位尺寸（对标 Zed `PaneAxis.flexes`）。
  */
 
-import { create } from "zustand";
-import { immer } from "zustand/middleware/immer";
-import { projectScanApi, type SourceFileContent } from "../services/tauri";
-import type { SourceMark } from "./sourceViewerStore";
-import { useProjectStore } from "./projectStore";
+import { create } from 'zustand';
+import { immer } from 'zustand/middleware/immer';
+import { projectScanApi, type SourceFileContent } from '../services/tauri';
+import type { SourceMark } from './sourceViewerStore';
+import { useProjectStore } from './projectStore';
 
 /** 工作台里一个已打开的文件标签 */
-export type WorkbenchTabKind = "text" | "image" | "svg" | "markdown";
+export type WorkbenchTabKind = 'text' | 'image' | 'svg' | 'markdown';
 
 /** 编辑器书签（对标 Zed crates/editor/src/bookmarks.rs 的 BookmarkStore 单条记录）。
  *  - line 为 1 起的行号（对标 Zed 以 buffer anchor 记录，这里用稳定行号即可，重排后由用户重标）；
@@ -37,12 +37,12 @@ export interface WorkbenchBookmark {
 
 /** 由文件名 / 相对路径推断工作台标签的内容类型（对标 Zed 按扩展名分派 ImageViewer / SvgPreview / MarkdownPreview） */
 export function detectTabKind(relPath: string, name: string): WorkbenchTabKind {
-  const base = (name || relPath || "").toLowerCase();
-  const ext = base.includes(".") ? base.slice(base.lastIndexOf(".") + 1) : "";
-  if (["png", "jpg", "jpeg", "gif", "bmp", "webp", "ico", "avif", "tif", "tiff"].includes(ext)) return "image";
-  if (ext === "svg") return "svg";
-  if (["md", "markdown", "mdx"].includes(ext)) return "markdown";
-  return "text";
+  const base = (name || relPath || '').toLowerCase();
+  const ext = base.includes('.') ? base.slice(base.lastIndexOf('.') + 1) : '';
+  if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'ico', 'avif', 'tif', 'tiff'].includes(ext)) return 'image';
+  if (ext === 'svg') return 'svg';
+  if (['md', 'markdown', 'mdx'].includes(ext)) return 'markdown';
+  return 'text';
 }
 
 export interface WorkbenchTab {
@@ -76,7 +76,7 @@ export interface WorkbenchTab {
 
 /** 对比视图两端文本快照（只读，打开瞬间定格；对标 Zed diff buffer 的 original/modified 两侧） */
 export interface WorkbenchDiffSpec {
-  kind: "saved" | "file";
+  kind: 'saved' | 'file';
   /** 修改侧标签（如「file.ts — 工作区」） */
   modifiedLabel: string;
   /** 修改侧文本（当前缓冲区 / 当前文件内容） */
@@ -94,20 +94,20 @@ export interface WorkbenchPane {
   activeFileId: string | null;
 }
 
-export type SplitDirection = "left" | "right" | "up" | "down";
-export type SplitMode = "clone" | "empty" | "move";
+export type SplitDirection = 'left' | 'right' | 'up' | 'down';
+export type SplitMode = 'clone' | 'empty' | 'move';
 
 /** 窗格轴朝向（对标 Zed `Axis`：Horizontal=左右并排 / Vertical=上下堆叠）。
  *  用 row/col 而非 horizontal/vertical，与 CSS flexDirection 直接对应。 */
-export type PaneOrientation = "row" | "col";
+export type PaneOrientation = 'row' | 'col';
 
 /** 递归窗格树节点（对标 Zed `PaneGroup.root: Member` = `Pane | Axis(PaneAxis)`）。
  *  - 叶子 `pane`：仅持 id，标签数据仍存于 `panes` 字典（与 Zed `members` 存 `Entity<Pane>` 同理）；
  *  - 内部 `axis`：持自身轴向 + 子节点数组 + 各子 flex 权重（对标 `PaneAxis { axis, members, flexes }`）。
  *  与 Zed 一致：axis 可嵌套 axis，从而支持任意层级递归拆分（Phase 1 的扁平 paneOrder 仅支持单层拆分）。 */
 export type PaneNode =
-  | { kind: "pane"; id: string }
-  | { kind: "axis"; id: string; axis: PaneOrientation; children: PaneNode[]; flexes: number[] };
+  | { kind: 'pane'; id: string }
+  | { kind: 'axis'; id: string; axis: PaneOrientation; children: PaneNode[]; flexes: number[] };
 
 interface CodeWorkbenchState {
   open: boolean;
@@ -142,7 +142,7 @@ interface CodeWorkbenchActions {
     line?: number | null,
     reason?: string | null,
     marks?: SourceMark[],
-    focusColumn?: number | null
+    focusColumn?: number | null,
   ) => void;
   /** 切换激活标签（作用于当前窗格） */
   setActive: (fileId: string) => void;
@@ -203,20 +203,11 @@ interface CodeWorkbenchActions {
   setDraggingFile: (info: { fileId: string } | null) => void;
   /** 跨窗格拖拽落点：把 fileId 从 fromPaneId 拆分到 targetPaneId 的指定方向新窗格
    *  （对标 Zed `drag_split_direction`：拖到窗格边缘→按方向拆分、拖到中心→移入）。 */
-  splitPaneWithTab: (
-    fromPaneId: string,
-    fileId: string,
-    targetPaneId: string,
-    direction: SplitDirection
-  ) => void;
+  splitPaneWithTab: (fromPaneId: string, fileId: string, targetPaneId: string, direction: SplitDirection) => void;
   /** 跨组件拖拽落点：把文件树条目 fileId 拆分到 targetPaneId 的指定方向新窗格
    *  （对标 Zed `Event::SplitEntry`：从项目面板拖文件到窗格边缘→按方向拆分并以该文件开窗）。
    *  与 splitPaneWithTab 的差异：来源不是某个已开标签，而是文件树里的文件，故直接新建窗格承载。 */
-  splitPaneWithFile: (
-    targetPaneId: string,
-    fileId: string,
-    direction: SplitDirection
-  ) => void;
+  splitPaneWithFile: (targetPaneId: string, fileId: string, direction: SplitDirection) => void;
   /** 调整指定 axis 节点的各子 flex 权重（拖拽分隔条时实时调用；axisId 为轴节点 id） */
   setAxisFlexes: (axisId: string, flexes: number[]) => void;
   /** 复位所有 axis 的 flex 为均分（双击分隔条均分，对标 Zed 双击 handle） */
@@ -271,7 +262,7 @@ export function unregisterPaneFocus(paneId: string) {
   paneFocusRegistry.delete(paneId);
 }
 function focusPaneEditor(paneId: string) {
-  if (typeof document === "undefined") return;
+  if (typeof document === 'undefined') return;
   const fn = paneFocusRegistry.get(paneId);
   if (fn) {
     try {
@@ -282,9 +273,9 @@ function focusPaneEditor(paneId: string) {
   }
 }
 function isEditorFocused(): boolean {
-  if (typeof document === "undefined") return false;
+  if (typeof document === 'undefined') return false;
   const el = document.activeElement as HTMLElement | null;
-  return !!el && !!el.closest?.(".monaco-editor");
+  return !!el && !!el.closest?.('.monaco-editor');
 }
 
 const newAxisId = () => `ax${++_axisSeq}`;
@@ -299,11 +290,11 @@ interface PersistedPaneLayout {
   panes: Record<string, { fileIds: string[]; activeFileId: string | null }>;
 }
 
-const layoutKey = (aid: string | null) => `workbench.layout.${aid ?? "default"}`;
+const layoutKey = (aid: string | null) => `workbench.layout.${aid ?? 'default'}`;
 
 /** 由当前 store 状态生成可持久化快照（不含文件内容，文件内容按需懒加载） */
 function snapshotLayout(s: CodeWorkbenchState): PersistedPaneLayout {
-  const panes: PersistedPaneLayout["panes"] = {};
+  const panes: PersistedPaneLayout['panes'] = {};
   for (const [id, p] of Object.entries(s.panes)) {
     panes[id] = {
       fileIds: p.tabs.map((t) => t.fileId),
@@ -329,11 +320,7 @@ function schedulePersist(get: () => CodeWorkbenchStore) {
 }
 
 /** 异步懒加载某标签内容（复用 openTab 的读盘口径 + seq 守卫，跨窗格查找对应标签） */
-function loadTabContent(
-  fileId: string,
-  seq: number,
-  set: (fn: (s: CodeWorkbenchState) => void) => void
-) {
+function loadTabContent(fileId: string, seq: number, set: (fn: (s: CodeWorkbenchState) => void) => void) {
   void (async () => {
     // 图片走字节预览，跳过文本读取（read_source_file 对二进制会返回 skippedReason，徒增开销）
     const tab = (() => {
@@ -343,7 +330,7 @@ function loadTabContent(
       }
       return undefined;
     })();
-    if (tab?.kind === "image") {
+    if (tab?.kind === 'image') {
       set((s) => {
         for (const p of Object.values(s.panes)) {
           const t = p.tabs.find((x) => x.fileId === fileId);
@@ -384,12 +371,10 @@ function loadTabContent(
 
 /** 把持久化 tree 中引用了已丢弃窗格(id 不在 panes)的节点递归剔除/坍塌 */
 function normalizeTreeToPanes(node: PaneNode, panes: Record<string, WorkbenchPane>): PaneNode | null {
-  if (node.kind === "pane") {
+  if (node.kind === 'pane') {
     return panes[node.id] ? node : null;
   }
-  const children = node.children
-    .map((c) => normalizeTreeToPanes(c, panes))
-    .filter((c): c is PaneNode => c !== null);
+  const children = node.children.map((c) => normalizeTreeToPanes(c, panes)).filter((c): c is PaneNode => c !== null);
   if (children.length === 0) return null;
   if (children.length === 1) return children[0];
   return { ...node, children, flexes: children.map(() => 1) };
@@ -400,7 +385,7 @@ function normalizeTreeToPanes(node: PaneNode, panes: Record<string, WorkbenchPan
 function restoreInto(
   s: CodeWorkbenchState,
   get: () => CodeWorkbenchStore,
-  set: (fn: (s: CodeWorkbenchState) => void) => void
+  set: (fn: (s: CodeWorkbenchState) => void) => void,
 ): boolean {
   let raw: string | null = null;
   try {
@@ -451,9 +436,7 @@ function restoreInto(
     }
     if (tabs.length === 0) continue; // 窗格内文件全部失效 → 丢弃该窗格
     const activeFileId =
-      info.activeFileId && tabs.some((t) => t.fileId === info.activeFileId)
-        ? info.activeFileId
-        : tabs[0].fileId;
+      info.activeFileId && tabs.some((t) => t.fileId === info.activeFileId) ? info.activeFileId : tabs[0].fileId;
     newPanes[pid] = { id: pid, tabs, activeFileId };
     validCount += 1;
   }
@@ -461,8 +444,8 @@ function restoreInto(
 
   // 修正 paneTree：剔除已丢弃窗格的引用（与 removePaneFromTree 同口径）
   let tree = normalizeTreeToPanes(parsed.tree, newPanes);
-  if (!tree) tree = { kind: "pane", id: Object.keys(newPanes)[0] };
-  else if (tree.kind === "axis" && tree.children.length === 1) tree = tree.children[0];
+  if (!tree) tree = { kind: 'pane', id: Object.keys(newPanes)[0] };
+  else if (tree.kind === 'axis' && tree.children.length === 1) tree = tree.children[0];
 
   s.panes = newPanes;
   s.paneTree = tree;
@@ -476,7 +459,7 @@ function restoreInto(
     if (m) maxP = Math.max(maxP, Number(m[1]));
   }
   const walk = (n: PaneNode) => {
-    if (n.kind === "pane") return;
+    if (n.kind === 'pane') return;
     const m = n.id.match(/^ax(\d+)$/);
     if (m) maxAx = Math.max(maxAx, Number(m[1]));
     n.children.forEach(walk);
@@ -496,23 +479,23 @@ function activePaneOf(s: CodeWorkbenchState): WorkbenchPane {
 
 /** 方向 → 轴朝向：left/right 并排(row)，up/down 堆叠(col) */
 function dirToAxis(d: SplitDirection): PaneOrientation {
-  return d === "left" || d === "right" ? "row" : "col";
+  return d === 'left' || d === 'right' ? 'row' : 'col';
 }
 /** 方向是否「递增侧」：right/down 插到源之后，left/up 插到源之前 */
 function isIncreasing(d: SplitDirection): boolean {
-  return d === "right" || d === "down";
+  return d === 'right' || d === 'down';
 }
 /** 收集树中所有叶子窗格 id（顺序即视觉先后） */
 export function collectPaneIds(node: PaneNode): string[] {
-  return node.kind === "pane" ? [node.id] : node.children.flatMap(collectPaneIds);
+  return node.kind === 'pane' ? [node.id] : node.children.flatMap(collectPaneIds);
 }
 /** 树中窗格总数 */
 export function countPanes(node: PaneNode): number {
-  return node.kind === "pane" ? 1 : node.children.reduce((n, c) => n + countPanes(c), 0);
+  return node.kind === 'pane' ? 1 : node.children.reduce((n, c) => n + countPanes(c), 0);
 }
 /** 树中首个窗格 id（根若为轴则取其首个叶子） */
 export function firstPaneId(node: PaneNode): string {
-  return node.kind === "pane" ? node.id : firstPaneId(node.children[0]);
+  return node.kind === 'pane' ? node.id : firstPaneId(node.children[0]);
 }
 
 /** 按方向几何查找相邻窗格（对标 Zed `PaneGroup::find_pane_in_direction`）：
@@ -521,13 +504,11 @@ export function firstPaneId(node: PaneNode): string {
  *  因此可正确处理任意层级的递归窗格树（嵌套 axis 的相邻关系无法从树结构静态推断，必须看渲染几何）。 */
 const PANE_NAV_HITBOX = 4;
 function findPaneInDirection(activeId: string, dir: SplitDirection): string | null {
-  if (typeof document === "undefined") return null;
-  const nodes = Array.from(
-    document.querySelectorAll<HTMLElement>("[data-pane-id]")
-  );
+  if (typeof document === 'undefined') return null;
+  const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-pane-id]'));
   const rects = new Map<string, DOMRect>();
   for (const n of nodes) {
-    const id = n.getAttribute("data-pane-id");
+    const id = n.getAttribute('data-pane-id');
     if (id) rects.set(id, n.getBoundingClientRect());
   }
   const active = rects.get(activeId);
@@ -537,16 +518,16 @@ function findPaneInDirection(activeId: string, dir: SplitDirection): string | nu
   let tx = cx;
   let ty = cy;
   switch (dir) {
-    case "left":
+    case 'left':
       tx = active.left - PANE_NAV_HITBOX;
       break;
-    case "right":
+    case 'right':
       tx = active.right + PANE_NAV_HITBOX;
       break;
-    case "up":
+    case 'up':
       ty = active.top - PANE_NAV_HITBOX;
       break;
-    case "down":
+    case 'down':
       ty = active.bottom + PANE_NAV_HITBOX;
       break;
   }
@@ -556,10 +537,7 @@ function findPaneInDirection(activeId: string, dir: SplitDirection): string | nu
   for (const [id, r] of rects) {
     if (id === activeId) continue;
     if (tx >= r.left && tx <= r.right && ty >= r.top && ty <= r.bottom) {
-      const d = Math.hypot(
-        r.left + r.width / 2 - cx,
-        r.top + r.height / 2 - cy
-      );
+      const d = Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy);
       if (d < bestDist) {
         bestDist = d;
         best = id;
@@ -571,7 +549,7 @@ function findPaneInDirection(activeId: string, dir: SplitDirection): string | nu
 
 /** 递归交换树中两个窗格节点的 id（swapPanesInDirection 用；panes 字典按 id 存内容，故交换节点 id 即交换内容所在位置） */
 function swapPaneIdsInTree(root: PaneNode, a: string, b: string): PaneNode {
-  if (root.kind === "pane") {
+  if (root.kind === 'pane') {
     if (root.id === a) return { ...root, id: b };
     if (root.id === b) return { ...root, id: a };
     return root;
@@ -585,26 +563,21 @@ function swapPaneIdsInTree(root: PaneNode, a: string, b: string): PaneNode {
 /** 将 sourcePaneId 按方向拆分出新窗格 newPane（递归，对标 Zed `PaneAxis::split`）。
  *  - 若源窗格所在父轴朝向与方向一致 → 作为兄弟插入（该轴 flex 复位均分，对标 insert_pane 重置）；
  *  - 否则 → 把源窗格就地包进一个垂直方向的新 axis 子组（对标 wrap）。 */
-export function addPaneToTree(
-  root: PaneNode,
-  sourcePaneId: string,
-  newPane: PaneNode,
-  dir: SplitDirection
-): PaneNode {
+export function addPaneToTree(root: PaneNode, sourcePaneId: string, newPane: PaneNode, dir: SplitDirection): PaneNode {
   const axis = dirToAxis(dir);
   const inc = isIncreasing(dir);
   // 根即单个窗格：直接包成 axis
-  if (root.kind === "pane") {
+  if (root.kind === 'pane') {
     if (root.id === sourcePaneId) {
-      return { kind: "axis", id: newAxisId(), axis, children: [root, newPane], flexes: [1, 1] };
+      return { kind: 'axis', id: newAxisId(), axis, children: [root, newPane], flexes: [1, 1] };
     }
     return root;
   }
   const rec = (node: PaneNode): PaneNode => {
-    if (node.kind === "pane") return node;
+    if (node.kind === 'pane') return node;
     for (let i = 0; i < node.children.length; i++) {
       const child = node.children[i];
-      if (child.kind === "pane" && child.id === sourcePaneId) {
+      if (child.kind === 'pane' && child.id === sourcePaneId) {
         if (node.axis === axis) {
           // 同朝向：插为兄弟，flex 复位均分（与 Zed insert_pane 一致）
           const insertIdx = inc ? i + 1 : i;
@@ -614,7 +587,7 @@ export function addPaneToTree(
         }
         // 异朝向：源窗格就地包进新 axis 子组，父轴 flex 不变
         const wrapped: PaneNode = {
-          kind: "axis",
+          kind: 'axis',
           id: newAxisId(),
           axis,
           children: [child, newPane],
@@ -623,7 +596,7 @@ export function addPaneToTree(
         const newChildren = [...node.children];
         newChildren[i] = wrapped;
         return { ...node, children: newChildren };
-      } else if (child.kind === "axis") {
+      } else if (child.kind === 'axis') {
         const updated = rec(child);
         if (updated !== child) {
           const newChildren = [...node.children];
@@ -642,19 +615,19 @@ export function addPaneToTree(
  *  - 发生变化的 axis 其 flex 复位均分（与 Zed 删除后重置一致）。
  *  仅在确有删除/坍塌发生时改动 flex，避免误清用户自定义尺寸。 */
 export function removePaneFromTree(root: PaneNode, paneId: string): PaneNode {
-  if (root.kind === "pane") return root; // 根窗格永不被此路径删除
+  if (root.kind === 'pane') return root; // 根窗格永不被此路径删除
   let changed = false;
   const newChildren: PaneNode[] = [];
   for (const child of root.children) {
-    if (child.kind === "pane" && child.id === paneId) {
+    if (child.kind === 'pane' && child.id === paneId) {
       changed = true;
       continue;
     }
-    if (child.kind === "axis") {
+    if (child.kind === 'axis') {
       const updated = removePaneFromTree(child, paneId);
       if (updated !== child) changed = true;
       // 单子轴坍塌：用其唯一成员替换该轴
-      if (updated.kind === "axis" && updated.children.length === 1) {
+      if (updated.kind === 'axis' && updated.children.length === 1) {
         newChildren.push(updated.children[0]);
       } else {
         newChildren.push(updated);
@@ -666,7 +639,7 @@ export function removePaneFromTree(root: PaneNode, paneId: string): PaneNode {
   if (!changed) return root; // 本子树无删除：保留原 flex
   let result: PaneNode = { ...root, children: newChildren, flexes: newChildren.map(() => 1) };
   // 根轴若仅剩 1 个成员，坍塌为那个成员（对标 Zed 根 single pane）
-  if (result.kind === "axis" && result.children.length === 1) {
+  if (result.kind === 'axis' && result.children.length === 1) {
     result = result.children[0];
   }
   return result;
@@ -674,17 +647,15 @@ export function removePaneFromTree(root: PaneNode, paneId: string): PaneNode {
 
 /** 把根轴（或任意轴）调整 flex：仅替换目标 axis 的 flexes，其余结构不变 */
 function updateAxisFlexes(node: PaneNode, axisId: string, flexes: number[]): PaneNode {
-  if (node.kind === "pane") return node;
+  if (node.kind === 'pane') return node;
   if (node.id === axisId) return { ...node, flexes };
-  const children = node.children.map((c) =>
-    c.kind === "axis" ? updateAxisFlexes(c, axisId, flexes) : c
-  );
+  const children = node.children.map((c) => (c.kind === 'axis' ? updateAxisFlexes(c, axisId, flexes) : c));
   return { ...node, children };
 }
 
 /** 复位全部 axis 的 flex 为均分（双击分隔条） */
 function resetAllFlexes(node: PaneNode): PaneNode {
-  if (node.kind === "pane") return node;
+  if (node.kind === 'pane') return node;
   return {
     ...node,
     flexes: node.children.map(() => 1),
@@ -695,9 +666,9 @@ function resetAllFlexes(node: PaneNode): PaneNode {
 export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
   immer((set, get) => ({
     open: false,
-    panes: { p0: { id: "p0", tabs: [], activeFileId: null } },
-    paneTree: { kind: "pane", id: "p0" },
-    activePaneId: "p0",
+    panes: { p0: { id: 'p0', tabs: [], activeFileId: null } },
+    paneTree: { kind: 'pane', id: 'p0' },
+    activePaneId: 'p0',
     draggingTab: null,
     draggingFile: null,
     diskChanged: new Set<string>(),
@@ -769,7 +740,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         s.open = true;
       });
 
-      if (kind === "image") {
+      if (kind === 'image') {
         // 图片不读文本：字节由预览组件按需读取，这里仅标记已加载（避免对二进制调用 read_source_file 徒增开销）
         set((s) => {
           const p = s.panes[s.activePaneId];
@@ -879,7 +850,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
           const emptyId = p.id;
           delete s.panes[emptyId];
           let tree = removePaneFromTree(s.paneTree, emptyId);
-          if (tree.kind === "axis" && tree.children.length === 1) tree = tree.children[0];
+          if (tree.kind === 'axis' && tree.children.length === 1) tree = tree.children[0];
           s.paneTree = tree;
           if (s.activePaneId === emptyId) {
             s.activePaneId = firstPaneId(tree);
@@ -958,23 +929,22 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         const len = p.tabs.length;
         if (len <= 1) return;
         const to = Math.max(0, Math.min(len, toIndex));
-        const wasPinned = p.tabs[fromIdx].pinned;
         const pinnedAfter = p.tabs.filter((t) => t.pinned && t.fileId !== fromId);
         const unpinnedAfter = p.tabs.filter((t) => !t.pinned && t.fileId !== fromId);
 
-        let target: "pinned" | "unpinned";
+        let target: 'pinned' | 'unpinned';
         let groupIndex: number;
         if (to <= pinnedAfter.length) {
-          target = "pinned";
+          target = 'pinned';
           groupIndex = Math.max(0, Math.min(pinnedAfter.length, to));
         } else {
-          target = "unpinned";
+          target = 'unpinned';
           groupIndex = Math.max(0, Math.min(unpinnedAfter.length, to - pinnedAfter.length));
         }
 
         const moved = p.tabs[fromIdx];
-        moved.pinned = target === "pinned";
-        if (target === "pinned") pinnedAfter.splice(groupIndex, 0, moved);
+        moved.pinned = target === 'pinned';
+        if (target === 'pinned') pinnedAfter.splice(groupIndex, 0, moved);
         else unpinnedAfter.splice(groupIndex, 0, moved);
 
         p.tabs = [...pinnedAfter, ...unpinnedAfter];
@@ -998,7 +968,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         const p = activePaneOf(s);
         const t = p.tabs.find((x) => x.fileId === fileId);
         if (!t || !t.content) return;
-        const lines = text.split("\n");
+        const lines = text.split('\n');
         t.content = { ...t.content, lines, totalLines: lines.length };
       }),
 
@@ -1062,11 +1032,11 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         const id = newPaneId();
         let newTabs: WorkbenchTab[];
         let newActive: string | null;
-        if (mode === "clone") {
+        if (mode === 'clone') {
           // ClonePane：复制当前窗格的全部标签（深拷贝，保证两 pane 独立）
           newTabs = JSON.parse(JSON.stringify(src.tabs));
           newActive = src.activeFileId;
-        } else if (mode === "empty") {
+        } else if (mode === 'empty') {
           newTabs = [];
           newActive = null;
         } else {
@@ -1079,7 +1049,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         }
         s.panes[id] = { id, tabs: newTabs, activeFileId: newActive };
         // 递归拆分：相对当前激活窗格按方向生长（支持嵌套，对标 Zed PaneGroup::split）
-        s.paneTree = addPaneToTree(s.paneTree, src.id, { kind: "pane", id }, direction);
+        s.paneTree = addPaneToTree(s.paneTree, src.id, { kind: 'pane', id }, direction);
         s.activePaneId = id;
       });
       schedulePersist(get);
@@ -1090,7 +1060,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         if (countPanes(s.paneTree) <= 1) return; // 至少保留一个窗格
         delete s.panes[paneId];
         let tree = removePaneFromTree(s.paneTree, paneId);
-        if (tree.kind === "axis" && tree.children.length === 1) tree = tree.children[0];
+        if (tree.kind === 'axis' && tree.children.length === 1) tree = tree.children[0];
         s.paneTree = tree;
         if (s.activePaneId === paneId) {
           s.activePaneId = firstPaneId(tree);
@@ -1109,13 +1079,13 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
     moveTabToPane: (fileId, toPaneId, toIndex) => {
       set((s) => {
         // 来源窗格优先取拖拽起点记录的 paneId（跨窗格落点时 active 可能已切走），兜底回退激活窗格
-        const from = s.panes[s.draggingTab?.paneId ?? ""] ?? activePaneOf(s);
+        const from = s.panes[s.draggingTab?.paneId ?? ''] ?? activePaneOf(s);
         const to = s.panes[toPaneId];
         if (!to || from.id === to.id) return;
         const idx = from.tabs.findIndex((t) => t.fileId === fileId);
         if (idx < 0) return;
         const [t] = from.tabs.splice(idx, 1);
-        if (typeof toIndex === "number") {
+        if (typeof toIndex === 'number') {
           // 精确插入（对标 Zed handle_tab_drop 的 ix）：flat 顺序 pinned 在前，与 reorderTab 同口径，
           // 落入 pinned 区自动钉住，落入 unpinned 区取消钉住。
           const pinned = to.tabs.filter((x) => x.pinned);
@@ -1136,7 +1106,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         if (from.tabs.length === 0) {
           delete s.panes[from.id];
           let tree = removePaneFromTree(s.paneTree, from.id);
-          if (tree.kind === "axis" && tree.children.length === 1) tree = tree.children[0];
+          if (tree.kind === 'axis' && tree.children.length === 1) tree = tree.children[0];
           s.paneTree = tree;
           if (s.activePaneId === from.id) {
             s.activePaneId = firstPaneId(tree);
@@ -1164,13 +1134,13 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         const id = newPaneId();
         s.panes[id] = { id, tabs: [tab], activeFileId: fileId };
         // 递归拆分：相对目标窗格按方向生长新窗格（拖标签到边缘→拆分，对标 Zed drag_split_direction）
-        s.paneTree = addPaneToTree(s.paneTree, targetPaneId, { kind: "pane", id }, direction);
+        s.paneTree = addPaneToTree(s.paneTree, targetPaneId, { kind: 'pane', id }, direction);
         s.activePaneId = id;
         // 来源窗格因移出而变空：就地收起（与 closeTab/ moveTabToPane 一致）
         if (from.tabs.length === 0) {
           delete s.panes[fromPaneId];
           let tree = removePaneFromTree(s.paneTree, fromPaneId);
-          if (tree.kind === "axis" && tree.children.length === 1) tree = tree.children[0];
+          if (tree.kind === 'axis' && tree.children.length === 1) tree = tree.children[0];
           s.paneTree = tree;
           if (s.activePaneId === fromPaneId) s.activePaneId = id;
         } else if (from.activeFileId === fileId) {
@@ -1224,7 +1194,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
         const id = newPaneId();
         s.panes[id] = { id, tabs: [tab], activeFileId: fileId };
         // 递归拆分：相对目标窗格按方向生长新窗格（与 splitPaneWithTab 同一棵树、同一生长规则）
-        s.paneTree = addPaneToTree(s.paneTree, targetPaneId, { kind: "pane", id }, direction);
+        s.paneTree = addPaneToTree(s.paneTree, targetPaneId, { kind: 'pane', id }, direction);
         s.activePaneId = id;
         s.draggingFile = null;
         // 异步懒加载内容（与 openTab 同口径；seq 守卫丢弃过期响应）
@@ -1258,9 +1228,9 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
       _axisSeq = 0;
       _seq += 1;
       set((s) => {
-        s.panes = { p0: { id: "p0", tabs: [], activeFileId: null } };
-        s.paneTree = { kind: "pane", id: "p0" };
-        s.activePaneId = "p0";
+        s.panes = { p0: { id: 'p0', tabs: [], activeFileId: null } };
+        s.paneTree = { kind: 'pane', id: 'p0' };
+        s.activePaneId = 'p0';
         s.draggingTab = null;
         s.diskChanged = new Set<string>();
       });
@@ -1332,9 +1302,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
           if (next.length === 0) delete s.bookmarks[fileId];
           else s.bookmarks[fileId] = next;
         } else {
-          s.bookmarks[fileId] = list
-            .concat({ line })
-            .sort((a, b) => a.line - b.line);
+          s.bookmarks[fileId] = list.concat({ line }).sort((a, b) => a.line - b.line);
         }
       }),
 
@@ -1383,7 +1351,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
       const s = get();
       return computeAllBookmarks(s.panes, s.bookmarks);
     },
-  }))
+  })),
 );
 
 /**
@@ -1397,7 +1365,7 @@ export const useCodeWorkbenchStore = create<CodeWorkbenchStore>()(
  */
 export function computeAllBookmarks(
   panes: Record<string, WorkbenchPane>,
-  bookmarks: Record<string, WorkbenchBookmark[]>
+  bookmarks: Record<string, WorkbenchBookmark[]>,
 ): { fileId: string; name: string; relPath: string; line: number; label?: string }[] {
   const meta = new Map<string, { name: string; relPath: string }>();
   for (const p of Object.values(panes)) {
@@ -1412,7 +1380,7 @@ export function computeAllBookmarks(
       out.push({
         fileId: fid,
         name: m?.name ?? fid,
-        relPath: m?.relPath ?? "",
+        relPath: m?.relPath ?? '',
         line: b.line,
         label: b.label,
       });
@@ -1423,15 +1391,8 @@ export function computeAllBookmarks(
 }
 
 /** 便捷函数：非 React 上下文（画布事件、工具函数）中打开工作台并定位文件 */
-export function openWorkbenchTab(
-  fileId: string,
-  line?: number | null,
-  reason?: string | null,
-  marks?: SourceMark[]
-) {
+export function openWorkbenchTab(fileId: string, line?: number | null, reason?: string | null, marks?: SourceMark[]) {
   const f = useProjectStore.getState().files.find((x) => x.id === fileId);
   if (!f) return;
-  useCodeWorkbenchStore
-    .getState()
-    .openTab(f.id, f.relPath, f.name, f.language, line, reason, marks);
+  useCodeWorkbenchStore.getState().openTab(f.id, f.relPath, f.name, f.language, line, reason, marks);
 }

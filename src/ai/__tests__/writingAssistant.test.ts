@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi} from "vitest";
 import {
   buildContinueMessage,
   buildPolishMessage,
@@ -6,8 +6,7 @@ import {
   tailOf,
   textToParagraphHtml,
   TAIL_CHARS,
-  type InlineWritingContext,
-} from "../writingAssistant";
+  type InlineWritingContext} from "../writingAssistant";
 
 // C 流式：runInlineWritingTask 依赖 agentStore（subscribe/streamingContent）与 agentApi.listMessages。
 // mock 路径从 src/ai/__tests__ 到 src 是两级 ../../（层级错一级会静默失效）。

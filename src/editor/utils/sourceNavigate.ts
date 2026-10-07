@@ -138,8 +138,8 @@ export interface NavigateResult {
 export function navigateToSource(
   fileId: string | null | undefined,
   line: number | null = null,
-  reason: string | null = null,
-  extraMarks?: SourceMark[]
+  _reason: string | null = null,
+  _extraMarks?: SourceMark[]
 ): NavigateResult {
   if (!fileId) {
     return { opened: false, focusedCanvas: false, message: L("该分析项没有关联到具体文件，无法打开源码", "This analysis item is not linked to a concrete file; cannot open source") };
@@ -158,7 +158,6 @@ export function navigateToSource(
     };
   }
 
-  const marks = extraMarks && extraMarks.length > 0 ? extraMarks : buildMarksForFile(fileId);
   // 拉起独立原生代码工作台窗口（Rust 创建/复用单例 code-workbench 窗口）；
   // 主窗口保留画布联动（tryFocusCanvasFile）。analysisId 让新窗口自举加载项目数据。
   // analysisId 兜底：优先当前激活分析 → 文件自身归属的分析 → 文件监视分析，

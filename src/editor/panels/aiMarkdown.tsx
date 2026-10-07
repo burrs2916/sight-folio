@@ -201,20 +201,20 @@ function CodeBlockCard({ meta, onCodeInsert, onCodeApply, canApply }: { meta: Co
         )}
         {canApply && onCodeInsert && (
           <Tooltip title={t("workbench.aiCode.insert")}>
-            <IconButton size="small" sx={{ p: 0.25 }} onClick={() => onCodeInsert?.(meta)}>
+            <IconButton size="small" sx={{ p: 0.25 }} onClick={() => onCodeInsert?.(meta)} aria-label={t("workbench.aiCode.insert")}>
               <NorthWestIcon sx={{ fontSize: 14 }} />
             </IconButton>
           </Tooltip>
         )}
         {canApply && onCodeApply && (
           <Tooltip title={t("workbench.aiCode.apply")}>
-            <IconButton size="small" sx={{ p: 0.25 }} onClick={() => onCodeApply?.(meta)}>
+            <IconButton size="small" sx={{ p: 0.25 }} onClick={() => onCodeApply?.(meta)} aria-label={t("workbench.aiCode.apply")}>
               <FileUploadIcon sx={{ fontSize: 14 }} />
             </IconButton>
           </Tooltip>
         )}
         <Tooltip title={copied ? t("workbench.aiCode.copied") : t("workbench.aiCode.copy")}>
-          <IconButton size="small" sx={{ p: 0.25 }} onClick={copy}>
+          <IconButton size="small" sx={{ p: 0.25 }} onClick={copy} aria-label={copied ? t("workbench.aiCode.copied") : t("workbench.aiCode.copy")}>
             <ContentCopyIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>

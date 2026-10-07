@@ -33,9 +33,6 @@ import { L } from "../aiLang";
  * 这样一份包通常几千 token 就能覆盖一个中大型项目的全部分析维度。
  */
 
-/** 各分节明细条目上限：够定位问题，又不至于淹没上下文 */
-const TOP_N = 15;
-const TOP_N_SMALL = 10;
 
 export interface ScanSnapshot {
   files: ProjectFile[];

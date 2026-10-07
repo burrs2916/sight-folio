@@ -221,7 +221,7 @@ describe('写作台左栏章节树 ChapterTreePanel（树形化 · 回归锁）'
     mount(<ChapterTreePanel {...props} />);
 
     const btns = Array.from(row('v1').querySelectorAll('button'));
-    // v1 是首个根：无「上移」、有「下移」→ 下移 / ＋子级 / 移卷 / 改名 / 删除 共五个动作
+    // v1 是首个根：无「上移」、有「下移」→ 下移 / ＋子级 / 移卷 / 改名 / 删除 共五个动作（封面为行首常驻位，不算行尾按钮）
     expect(btns.length, '应有 下移 / ＋子级 / 移卷 / 改名 / 删除 五个动作').toBe(5);
 
     // 卷（depth 0，novel → 默认层级 卷/章）→ 子级应为「章」；默认名 = 已有子级数 + 1（卷一下已有两个章 → 章 3）
@@ -241,8 +241,9 @@ describe('写作台左栏章节树 ChapterTreePanel（树形化 · 回归锁）'
     mount(<ChapterTreePanel {...props} />);
 
     const btnsOf = (id: string) => Array.from(row(id).querySelectorAll('button'));
-    // v1 首根（无上移）；v2 末根（无下移）→ 各 5 个动作
+    // v1 首根（无上移）；v2 末根（无下移）→ 各 5 个动作（↕ / ＋子级 / 移卷 / 改名 / 删除）
     expect(btnsOf('v2').length).toBe(5);
+    // 移动按钮是行尾第一个按钮（[0]=下移/上移）
     // v1 下移 → 后兄弟 v2 的扁平位 3（重排在移除后进行，插入点恰在其后一格）
     await click(btnsOf('v1')[0]);
     expect(props.reorderChapter).toHaveBeenCalledWith('v1', 3);
@@ -256,7 +257,7 @@ describe('写作台左栏章节树 ChapterTreePanel（树形化 · 回归锁）'
     expect(props.reorderChapter).toHaveBeenCalledWith('c2', 1);
     expect(props.setActiveChapter, '点移动按钮不应误触切章').not.toHaveBeenCalled();
 
-    // 检索期手势消失（与拖拽同口径）：只剩 ＋子级 / 移卷 / 改名 / 删除
+    // 检索期手势消失（与拖拽同口径，封面按钮同消失）：只剩 ＋子级 / 移卷 / 改名 / 删除
     if (root) act(() => root!.unmount());
     document.body.innerHTML = '';
     mount(
@@ -288,6 +289,18 @@ describe('写作台左栏章节树 ChapterTreePanel（树形化 · 回归锁）'
     await fireDrag(row('c1'), 'drop', bodyDT);
     expect(props.reorderChapter).toHaveBeenCalledWith('c2', 1);
     expect(props.flushSave, '拖动前应先 flush 未保存正文').toHaveBeenCalled();
+  });
+
+  it('向后拖拽（from < idx）落点减 1：拖 c1 到 c2 行上 = 移到 c2 之前（否则 splite 偏移会落到其后）', async () => {
+    const props = baseProps();
+    mount(<ChapterTreePanel {...props} />);
+
+    const bodyDT = makeDT();
+    await fireDrag(row('c1'), 'dragstart', bodyDT);
+    await fireDrag(row('c2'), 'drop', bodyDT);
+    // c1 扁平下标 1，目标 c2 扁平下标 2；向后拖需减 1 → toIndex=1，保证 c1 排在 c2 前
+    expect(props.reorderChapter).toHaveBeenCalledWith('c1', 1);
+    expect(props.reorderChapter, '不应产生其它重排调用').toHaveBeenCalledTimes(1);
   });
 
   it('检索保留祖先链：命中的孙节点会让父容器一起渲染；无命中 → 空态且零行', () => {

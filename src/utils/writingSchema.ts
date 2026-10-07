@@ -8,8 +8,8 @@
 //   label 渲染一律在组件里 t(labelKey)。
 // - poetry / script 为预留域：货架回落到通用元素集并明示「建设中」。
 
-export type WritingGenre = "novel" | "essay" | "poetry" | "script";
-export type WritingMedium = "serial" | "standalone" | "collection";
+export type WritingGenre = 'novel' | 'essay' | 'poetry' | 'script';
+export type WritingMedium = 'serial' | 'standalone' | 'collection';
 
 export interface WritingGenreDef {
   id: WritingGenre;
@@ -20,10 +20,10 @@ export interface WritingGenreDef {
 }
 
 export const WRITING_GENRES: WritingGenreDef[] = [
-  { id: "novel", labelKey: "writing.genre.novel", color: "#4A338F", ready: true },
-  { id: "essay", labelKey: "writing.genre.essay", color: "#0ea5e9", ready: true },
-  { id: "poetry", labelKey: "writing.genre.poetry", color: "#f59e0b", ready: false },
-  { id: "script", labelKey: "writing.genre.script", color: "#10b981", ready: false },
+  { id: 'novel', labelKey: 'writing.genre.novel', color: '#4A338F', ready: true },
+  { id: 'essay', labelKey: 'writing.genre.essay', color: '#2563eb', ready: true },
+  { id: 'poetry', labelKey: 'writing.genre.poetry', color: '#875b1c', ready: false },
+  { id: 'script', labelKey: 'writing.genre.script', color: '#047857', ready: false },
 ];
 
 export interface WritingMediumDef {
@@ -35,9 +35,19 @@ export interface WritingMediumDef {
 }
 
 export const WRITING_MEDIUMS: WritingMediumDef[] = [
-  { id: "serial", labelKey: "writing.medium.serial", descKey: "writing.medium.serialDesc", fits: ["novel"] },
-  { id: "standalone", labelKey: "writing.medium.standalone", descKey: "writing.medium.standaloneDesc", fits: ["novel"] },
-  { id: "collection", labelKey: "writing.medium.collection", descKey: "writing.medium.collectionDesc", fits: ["essay"] },
+  { id: 'serial', labelKey: 'writing.medium.serial', descKey: 'writing.medium.serialDesc', fits: ['novel'] },
+  {
+    id: 'standalone',
+    labelKey: 'writing.medium.standalone',
+    descKey: 'writing.medium.standaloneDesc',
+    fits: ['novel'],
+  },
+  {
+    id: 'collection',
+    labelKey: 'writing.medium.collection',
+    descKey: 'writing.medium.collectionDesc',
+    fits: ['essay'],
+  },
 ];
 
 export function genreDef(genre: string): WritingGenreDef | undefined {
@@ -55,17 +65,17 @@ export function mediumDef(medium: string): WritingMediumDef | undefined {
  */
 export function defaultMediumForGenre(genre: string): string {
   const g = genreDef(genre);
-  if (!g?.ready) return "";
-  return WRITING_MEDIUMS.find((m) => m.fits.includes(g.id))?.id ?? "";
+  if (!g?.ready) return '';
+  return WRITING_MEDIUMS.find((m) => m.fits.includes(g.id))?.id ?? '';
 }
 
 /** 显示用 label key（未设置的旧书回退「未设置」） */
 export function genreLabelKey(genre: string): string {
-  return genreDef(genre)?.labelKey ?? "writing.genre.unset";
+  return genreDef(genre)?.labelKey ?? 'writing.genre.unset';
 }
 
 export function mediumLabelKey(medium: string): string {
-  return mediumDef(medium)?.labelKey ?? "writing.medium.unset";
+  return mediumDef(medium)?.labelKey ?? 'writing.medium.unset';
 }
 
 /**
@@ -90,29 +100,37 @@ function tpl(
   labelKey: string,
   color: string,
   blank: boolean,
-  config: Record<string, unknown> = {}
+  config: Record<string, unknown> = {},
 ): ShelfTemplate {
   return { type, labelKey, color, blank, config, genre };
 }
 
 const NOVEL_SHELF: ShelfTemplate[] = [
-  tpl("novel", "writing-chapter", "writingLeft.tplChapter", "#8b5cf6", true, { volume: "", wordCount: 0, chapterStatus: "draft" }),
-  tpl("novel", "writing-character", "writingLeft.tplCharacter", "#f59e0b", true, { appearances: 0 }),
-  tpl("novel", "writing-worldview", "writingLeft.tplWorldview", "#10b981", true, { kind: "worldview" }),
-  tpl("novel", "writing-outline", "writingLeft.tplOutline", "#0ea5e9", false),
-  tpl("novel", "annotation-text", "writingLeft.tplNote", "#94a3b8", false, { text: "" }),
+  tpl('novel', 'writing-chapter', 'writingLeft.tplChapter', '#8b5cf6', true, {
+    volume: '',
+    wordCount: 0,
+    chapterStatus: 'draft',
+  }),
+  tpl('novel', 'writing-character', 'writingLeft.tplCharacter', '#f59e0b', true, { appearances: 0 }),
+  tpl('novel', 'writing-worldview', 'writingLeft.tplWorldview', '#10b981', true, { kind: 'worldview' }),
+  tpl('novel', 'writing-outline', 'writingLeft.tplOutline', '#0ea5e9', false),
+  tpl('novel', 'annotation-text', 'writingLeft.tplNote', '#94a3b8', false, { text: '' }),
 ];
 
 const ESSAY_SHELF: ShelfTemplate[] = [
   // 散文篇目 = writing-chapter 同表复用，仅术语不同（labelKey 指向「篇目」）
-  tpl("essay", "writing-chapter", "writingLeft.tplEssayPiece", "#8b5cf6", true, { volume: "", wordCount: 0, chapterStatus: "draft" }),
-  tpl("essay", "writing-outline", "writingLeft.tplEssayIdea", "#0ea5e9", false),
-  tpl("essay", "annotation-text", "writingLeft.tplNote", "#94a3b8", false, { text: "" }),
+  tpl('essay', 'writing-chapter', 'writingLeft.tplEssayPiece', '#8b5cf6', true, {
+    volume: '',
+    wordCount: 0,
+    chapterStatus: 'draft',
+  }),
+  tpl('essay', 'writing-outline', 'writingLeft.tplEssayIdea', '#0ea5e9', false),
+  tpl('essay', 'annotation-text', 'writingLeft.tplNote', '#94a3b8', false, { text: '' }),
 ];
 
 export function shelfFor(genre: string): { templates: ShelfTemplate[]; fallback: boolean } {
   const def = genreDef(genre);
   if (!def || !def.ready) return { templates: NOVEL_SHELF, fallback: true };
-  if (def.id === "essay") return { templates: ESSAY_SHELF, fallback: false };
+  if (def.id === 'essay') return { templates: ESSAY_SHELF, fallback: false };
   return { templates: NOVEL_SHELF, fallback: false };
 }

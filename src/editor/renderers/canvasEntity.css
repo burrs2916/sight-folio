@@ -24,7 +24,9 @@
   border-radius: 10px;
   outline: var(--ps-outline, 1px solid transparent);
   outline-offset: 0;
-  transition: opacity 0.15s, box-shadow 0.2s;
+  transition:
+    opacity 0.15s,
+    box-shadow 0.2s;
 }
 
 /* treemap-cell：紧凑铺满色块，自身渲染器已画 zone 底色+白边+圆角，
@@ -51,7 +53,8 @@
    描边沿用 inline --ps-outline（2px primary），这里只补一圈呼吸光 + 抬升层级。 */
 .ps-entity--selected {
   z-index: 4;
-  box-shadow: 0 0 0 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.18),
+  box-shadow:
+    0 0 0 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.18),
     0 0 10px 2px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.3);
   animation: ps-selected-pulse 1.8s ease-in-out infinite;
 }
@@ -63,11 +66,13 @@
 @keyframes ps-selected-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.14),
+    box-shadow:
+      0 0 0 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.14),
       0 0 8px 1px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.22);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.1),
+    box-shadow:
+      0 0 0 5px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.1),
       0 0 16px 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.4);
   }
 }
@@ -159,6 +164,57 @@
   margin: 0.6em 0;
 }
 
+/* 批次② T4：与写作台 editorSx 同口径的格式/批注样式（画布渲染一致性） */
+.ps-workbench .ProseMirror mark {
+  background: rgba(255, 235, 59, 0.5);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.ps-workbench .ProseMirror u {
+  text-decoration: underline;
+}
+
+.ps-workbench .ProseMirror a {
+  color: #8b5cf6;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ps-workbench .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0;
+  table-layout: fixed;
+}
+
+.ps-workbench .ProseMirror th,
+.ps-workbench .ProseMirror td {
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  padding: 6px 10px;
+  vertical-align: top;
+  min-width: 48px;
+}
+
+.ps-workbench .ProseMirror th {
+  background: rgba(139, 92, 246, 0.08);
+  font-weight: 600;
+  text-align: left;
+}
+
+.ps-workbench .ProseMirror span.writing-annotation {
+  background: rgba(255, 152, 0, 0.14);
+  border-bottom: 2px dashed rgba(255, 152, 0, 0.55);
+  border-radius: 2px;
+  padding: 0 1px;
+  cursor: pointer;
+}
+
+.ps-workbench .ProseMirror span.writing-annotation:hover {
+  background: rgba(255, 152, 0, 0.26);
+}
+
 /* 空卡占位提示（tiptap v3 Placeholder 扩展的 is-editor-empty 标记） */
 .ps-workbench .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -167,7 +223,6 @@
   color: #94a3b8;
   pointer-events: none;
 }
-
 
 /* ─── 设计视图（WritingDesignView）输入态 ───
    卡内编辑输入框平时无边框隐形，悬停/聚焦显形 —— 视觉干净且可发现。 */

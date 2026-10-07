@@ -8,8 +8,8 @@
 //
 // 数据全部来自 F2 扫描产物（project_files.metadata.appearances），零新后端命令。
 
-import { parseWritingChapters, type ChapterRow } from "./bookOverview";
-import type { ProjectFile } from "../services/tauri";
+import { parseWritingChapters } from './bookOverview';
+import type { ProjectFile } from '../services/tauri';
 
 export interface BoardCard {
   type: string;
@@ -26,7 +26,7 @@ export interface BoardCard {
 interface Card {
   id: string;
   name: string;
-  kind: "character" | "worldbuilding";
+  kind: 'character' | 'worldbuilding';
   total: number;
   chapters: number;
   /** 主出场章节（提及最多的一章，并列取靠前）：设定卡不是文件，挂上它双击才有落点 */
@@ -39,9 +39,8 @@ function aggregateCards(chapters: ReturnType<typeof parseWritingChapters>): Card
   const map = new Map<string, Card>();
   for (const ch of chapters) {
     for (const a of ch.appearances) {
-      const kind: Card["kind"] = a.kind === "worldbuilding" ? "worldbuilding" : "character";
-      const acc =
-        map.get(a.id) ?? { id: a.id, name: a.name, kind, total: 0, chapters: 0, top: null, topCount: 0 };
+      const kind: Card['kind'] = a.kind === 'worldbuilding' ? 'worldbuilding' : 'character';
+      const acc = map.get(a.id) ?? { id: a.id, name: a.name, kind, total: 0, chapters: 0, top: null, topCount: 0 };
       acc.total += a.count;
       acc.chapters += 1;
       if (a.count > acc.topCount) {
@@ -85,7 +84,7 @@ export function buildStoryboard(files: ProjectFile[]): StoryboardResult {
     if (vol) {
       volumeCount += 1;
       cards.push({
-        type: "writing-outline",
+        type: 'writing-outline',
         name: vol,
         x,
         y: 0,
@@ -95,12 +94,10 @@ export function buildStoryboard(files: ProjectFile[]): StoryboardResult {
         config: {
           title: vol,
           summary: group.length,
-          kind: "volume",
+          kind: 'volume',
           // 卷头双击跳本卷第一章（横向时间轴的卷分段也不能是死节点）
           topChapter: group[0].file.name,
-          ...(group[0]
-            ? { fileId: group[0].file.id, filePath: group[0].file.path }
-            : {}),
+          ...(group[0] ? { fileId: group[0].file.id, filePath: group[0].file.path } : {}),
         },
       });
     }
@@ -112,7 +109,7 @@ export function buildStoryboard(files: ProjectFile[]): StoryboardResult {
         .slice(0, 3)
         .map((a) => ({ name: a.name, count: a.count }));
       cards.push({
-        type: "writing-chapter",
+        type: 'writing-chapter',
         name: ch.file.name,
         x: x + i * (SHOT_W + SHOT_GAP),
         y: topY,
@@ -179,7 +176,7 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
   }
   const edges = [...pair.entries()]
     .map(([key, co]) => {
-      const [a, b] = key.split("|");
+      const [a, b] = key.split('|');
       return { a, b, co };
     })
     .sort((m, n) => n.co - m.co);
@@ -199,7 +196,7 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
     const py = cy + radius * Math.sin(angle);
     pos.set(c.id, { x: px, y: py });
     cards.push({
-      type: c.kind === "worldbuilding" ? "writing-worldview" : "writing-character",
+      type: c.kind === 'worldbuilding' ? 'writing-worldview' : 'writing-character',
       name: c.name,
       x: px - NODE_W / 2,
       y: py - NODE_H / 2,
@@ -213,7 +210,7 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
         kind: c.kind,
         // 主出场章节：双击跳正文的落点（设定卡本身不是文件，没有它双击就是死节点）。
         // 无主出场章时不写 fileId/filePath —— 空串会被通用兜底当成有效 id 去跳。
-        topChapter: c.top?.file.name ?? "",
+        topChapter: c.top?.file.name ?? '',
         ...(c.top ? { fileId: c.top.file.id, filePath: c.top.file.path } : {}),
       },
     });
@@ -228,7 +225,7 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
     const minX = Math.min(p1.x, p2.x);
     const minY = Math.min(p1.y, p2.y);
     cards.push({
-      type: "dependency-edge",
+      type: 'dependency-edge',
       name: `${nameOf.get(e.a)} ⇄ ${nameOf.get(e.b)}`,
       x: minX,
       y: minY,
@@ -236,7 +233,7 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
       height: Math.max(4, Math.abs(p2.y - p1.y)),
       locked: true, // 边由布局算出来，拖动只会让它与节点脱节
       config: {
-        depType: "cooccur",
+        depType: 'cooccur',
         fromX: p1.x - minX,
         fromY: p1.y - minY,
         toX: p2.x - minX,
@@ -244,8 +241,8 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
         // 线宽归一：degree 0..1（相对最强共现）；coChanges 是真实共现章数（标签/tooltip 用）
         degree: maxCo > 0 ? e.co / maxCo : 0,
         coChanges: e.co,
-        fromName: nameOf.get(e.a) ?? "",
-        toName: nameOf.get(e.b) ?? "",
+        fromName: nameOf.get(e.a) ?? '',
+        toName: nameOf.get(e.b) ?? '',
       },
     });
   }
@@ -254,8 +251,8 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
     a: e.a,
     b: e.b,
     co: e.co,
-    aName: nameOf.get(e.a) ?? "",
-    bName: nameOf.get(e.b) ?? "",
+    aName: nameOf.get(e.a) ?? '',
+    bName: nameOf.get(e.b) ?? '',
   }));
 
   return { cards, nodeCount: all.length, edgeCount: kept.length, maxCo, dropped, edges: edgeList };
@@ -279,12 +276,12 @@ const WV_COLS = 5;
 
 export function buildWorldviewBoard(files: ProjectFile[]): WorldviewBoardResult {
   const chapters = parseWritingChapters(files);
-  const all = aggregateCards(chapters).filter((c) => c.kind === "worldbuilding");
+  const all = aggregateCards(chapters).filter((c) => c.kind === 'worldbuilding');
   const cards: BoardCard[] = all.map((c, i) => {
     const col = i % WV_COLS;
     const row = Math.floor(i / WV_COLS);
     return {
-      type: "writing-worldview",
+      type: 'writing-worldview',
       name: c.name,
       x: col * (WV_W + WV_GAP),
       y: row * (WV_H + WV_GAP),
@@ -297,14 +294,13 @@ export function buildWorldviewBoard(files: ProjectFile[]): WorldviewBoardResult 
         chapterCount: c.chapters,
         kind: c.kind,
         // 主出场章节：双击跳正文的落点（与关系板节点同一约定，无则不写避免空串误跳）
-        topChapter: c.top?.file.name ?? "",
+        topChapter: c.top?.file.name ?? '',
         ...(c.top ? { fileId: c.top.file.id, filePath: c.top.file.path } : {}),
       },
     };
   });
   return { cards, cardCount: all.length };
 }
-
 
 // ─────────────────────────────────────────────────────────────
 // 统计板：体量 KPI + 卷分布 + 章节体量（L2 统计视图）
@@ -386,16 +382,16 @@ export function buildStatsBoard(files: ProjectFile[]): StatsBoardResult {
   // 卷分布：按首次出现顺序（= parseWritingChapters 的章序），空卷名归到一组
   const volMap = new Map<string, StatsVolumeRow>();
   for (const ch of chapters) {
-    const key = ch.volume || "";
+    const key = ch.volume || '';
     const row = volMap.get(key) ?? { volume: key, chapters: 0, words: 0, finished: 0 };
     row.chapters += 1;
     row.words += ch.file.size || 0;
-    if (ch.status === "finished") row.finished += 1;
+    if (ch.status === 'finished') row.finished += 1;
     volMap.set(key, row);
   }
   const volumes = [...volMap.values()];
   // volumeCount 只数「真有卷名」的卷 —— 未分卷不是一个卷，否则空书上会显示 1 卷
-  const volumeCount = volumes.filter((v) => v.volume !== "").length;
+  const volumeCount = volumes.filter((v) => v.volume !== '').length;
 
   const maxChapterWords = chapters.reduce((max, c) => Math.max(max, c.file.size || 0), 0);
   const maxVolumeWords = volumes.reduce((max, v) => Math.max(max, v.words), 0);
@@ -408,15 +404,40 @@ export function buildStatsBoard(files: ProjectFile[]): StatsBoardResult {
   // 切语言不必重跑布局器。字数/章节数复用既有 writing.* 键（文案与统计口径一致），
   // 不另造同义键 —— 同一个中文值挂两个 key 会污染 zh 反查索引。
   const kpis: { metric: string; label: string; value: string; sub: string }[] = [
-    { metric: "words", label: "writing.totalWords", value: String(totalWords), sub: "editor.writing.stats.kpiWordsSub" },
-    { metric: "chapters", label: "writing.chapterCount", value: String(chapterCount), sub: "editor.writing.stats.kpiChaptersSub" },
-    { metric: "volumes", label: "editor.writing.stats.kpiVolumes", value: String(volumeCount), sub: "editor.writing.stats.kpiVolumesSub" },
-    { metric: "settings", label: "editor.writing.stats.kpiSettings", value: String(settingCount), sub: "editor.writing.stats.kpiSettingsSub" },
-    { metric: "avg", label: "editor.writing.stats.kpiAvg", value: String(avgWords), sub: "editor.writing.stats.kpiAvgSub" },
+    {
+      metric: 'words',
+      label: 'writing.totalWords',
+      value: String(totalWords),
+      sub: 'editor.writing.stats.kpiWordsSub',
+    },
+    {
+      metric: 'chapters',
+      label: 'writing.chapterCount',
+      value: String(chapterCount),
+      sub: 'editor.writing.stats.kpiChaptersSub',
+    },
+    {
+      metric: 'volumes',
+      label: 'editor.writing.stats.kpiVolumes',
+      value: String(volumeCount),
+      sub: 'editor.writing.stats.kpiVolumesSub',
+    },
+    {
+      metric: 'settings',
+      label: 'editor.writing.stats.kpiSettings',
+      value: String(settingCount),
+      sub: 'editor.writing.stats.kpiSettingsSub',
+    },
+    {
+      metric: 'avg',
+      label: 'editor.writing.stats.kpiAvg',
+      value: String(avgWords),
+      sub: 'editor.writing.stats.kpiAvgSub',
+    },
   ];
   kpis.forEach((k, i) => {
     cards.push({
-      type: "writing-outline",
+      type: 'writing-outline',
       name: `${k.value}`,
       x: i * (KPI_W + KPI_GAP),
       y: 0,
@@ -424,8 +445,8 @@ export function buildStatsBoard(files: ProjectFile[]): StatsBoardResult {
       height: KPI_H,
       locked: false,
       config: {
-        kind: "stat",
-        shape: "kpi",
+        kind: 'stat',
+        shape: 'kpi',
         metric: k.metric,
         label: k.label,
         value: k.value,
@@ -440,16 +461,16 @@ export function buildStatsBoard(files: ProjectFile[]): StatsBoardResult {
     const col = i % VOLC_COLS;
     const row = Math.floor(i / VOLC_COLS);
     cards.push({
-      type: "writing-outline",
-      name: v.volume || "—",
+      type: 'writing-outline',
+      name: v.volume || '—',
       x: col * (VOLC_W + VOLC_GAP),
       y: bandB + row * (VOLC_H + VOLC_GAP),
       width: VOLC_W,
       height: VOLC_H,
       locked: false,
       config: {
-        kind: "stat",
-        shape: "volume",
+        kind: 'stat',
+        shape: 'volume',
         volumeName: v.volume,
         entries: v.chapters,
         value: String(v.words),
@@ -468,7 +489,7 @@ export function buildStatsBoard(files: ProjectFile[]): StatsBoardResult {
     const row = Math.floor(i / CHC_COLS);
     const words = ch.file.size || 0;
     cards.push({
-      type: "writing-outline",
+      type: 'writing-outline',
       name: ch.file.name,
       x: col * (CHC_W + CHC_GAP),
       y: bandC + row * (CHC_H + CHC_GAP),
@@ -476,8 +497,8 @@ export function buildStatsBoard(files: ProjectFile[]): StatsBoardResult {
       height: CHC_H,
       locked: false,
       config: {
-        kind: "stat",
-        shape: "chapter",
+        kind: 'stat',
+        shape: 'chapter',
         title: ch.file.name,
         volume: ch.volume,
         value: String(words),
@@ -501,4 +522,3 @@ export function buildStatsBoard(files: ProjectFile[]): StatsBoardResult {
     maxVolumeWords,
   };
 }
-

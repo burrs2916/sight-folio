@@ -342,7 +342,7 @@ export default function ScenePreviewPage() {
             </Typography>
           )}
           <Tooltip title={isFullscreen ? t("preview.exitFullscreen") : t("preview.fullscreen")}>
-            <IconButton size="small" onClick={handleFullscreen}>
+            <IconButton size="small" onClick={handleFullscreen} aria-label={isFullscreen ? t("preview.exitFullscreen") : t("preview.fullscreen")}>
               {isFullscreen ? (
                 <FullscreenExitIcon sx={{ fontSize: 16 }} />
               ) : (
@@ -351,7 +351,7 @@ export default function ScenePreviewPage() {
             </IconButton>
           </Tooltip>
           <Tooltip title={t("preview.close")}>
-            <IconButton size="small" onClick={handleClose}>
+            <IconButton size="small" onClick={handleClose} aria-label={t("preview.close")}>
               <CloseIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>

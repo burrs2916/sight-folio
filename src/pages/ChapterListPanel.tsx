@@ -93,8 +93,7 @@ function ChapterListPanelInner(props: ChapterListPanelProps) {
         // 卷分组头（P6）：书里出现过任一命名卷才启用分组展示
         const prev = vIdx > 0 ? visibleChapters[vIdx - 1] : null;
         const anyNamedVolume = visibleChapters.some((c) => c.volume);
-        const showVolumeHeader =
-          anyNamedVolume && chapter.volume !== (prev ? prev.volume : '\u0000no-prev');
+        const showVolumeHeader = anyNamedVolume && chapter.volume !== (prev ? prev.volume : '\u0000no-prev');
         const header = showVolumeHeader ? (
           <Typography
             key={`hdr_${chapter.id}`}
@@ -147,7 +146,12 @@ function ChapterListPanelInner(props: ChapterListPanelProps) {
               dragChapterIdRef.current = null;
               setDropIndex(null);
               if (draggedId && draggedId !== chapter.id) {
-                void reorderChapter(draggedId, idx).catch((err) => {
+                // 指示线画在本行上方 = 「移到本行之前」；reorderChapter 是「先移除再插入到 toIndex」。
+                // 向后拖（from < idx）时目标行移除后前移一格，直接传 idx 会落进目标行之后一格，
+                // 与视觉相反——需减 1 抵消偏移（向前拖 from > idx 不受影响）。
+                const from = chapterIndexById.get(draggedId);
+                const toIndex = from !== undefined && from < idx ? idx - 1 : idx;
+                void reorderChapter(draggedId, toIndex).catch((err) => {
                   logger.warn('WritingPage', 'reorder chapter failed', { error: err });
                   useToastStore.getState().error(String(err));
                 });
@@ -170,22 +174,16 @@ function ChapterListPanelInner(props: ChapterListPanelProps) {
               '& .row-actions': { opacity: 0 },
               '&:hover .row-actions': { opacity: 1 },
               // 放置指示线：落在该行上方
-              boxShadow: (th) =>
-                dropIndex === idx ? `inset 0 2px 0 0 ${th.palette.primary.main}` : undefined,
+              boxShadow: (th) => (dropIndex === idx ? `inset 0 2px 0 0 ${th.palette.primary.main}` : undefined),
             }}
           >
             {selectionMode &&
               (selectedChapterIds.includes(chapter.id) ? (
                 <CheckCircleRoundedIcon sx={{ fontSize: 16, color: 'primary.main', flexShrink: 0 }} />
               ) : (
-                <RadioButtonUncheckedRoundedIcon
-                  sx={{ fontSize: 16, color: 'text.disabled', flexShrink: 0 }}
-                />
+                <RadioButtonUncheckedRoundedIcon sx={{ fontSize: 16, color: 'text.disabled', flexShrink: 0 }} />
               ))}
-            <Typography
-              noWrap
-              sx={{ fontSize: 12.5, fontWeight: selected ? 600 : 400, flex: 1, minWidth: 0 }}
-            >
+            <Typography noWrap sx={{ fontSize: 12.5, fontWeight: selected ? 600 : 400, flex: 1, minWidth: 0 }}>
               <Box component="span" sx={{ color: 'text.disabled', mr: 0.75, fontSize: 11 }}>
                 {idx + 1}
               </Box>
@@ -199,16 +197,14 @@ function ChapterListPanelInner(props: ChapterListPanelProps) {
             <Typography sx={{ fontSize: 10, color: 'text.disabled', flexShrink: 0 }}>
               {chapter.wordCount > 0 ? t('writing.words', { n: chapter.wordCount }) : ''}
             </Typography>
-            <Box
-              className="row-actions"
-              sx={{ display: selectionMode ? 'none' : 'flex', transition: 'opacity 0.15s' }}
-            >
+            <Box className="row-actions" sx={{ display: selectionMode ? 'none' : 'flex', transition: 'opacity 0.15s' }}>
               <IconButton
                 size="small"
                 onClick={(e) => {
                   e.stopPropagation();
                   openDialog({ kind: 'move-volume', chapterId: chapter.id }, chapter.volume);
                 }}
+                aria-label={t('writing.moveToVolume')}
               >
                 <DriveFileMoveRoundedIcon sx={{ fontSize: 13 }} />
               </IconButton>
@@ -218,6 +214,7 @@ function ChapterListPanelInner(props: ChapterListPanelProps) {
                   e.stopPropagation();
                   openDialog({ kind: 'rename-chapter', chapterId: chapter.id }, chapter.title);
                 }}
+                aria-label={t('writing.renameChapterTitle')}
               >
                 <EditRoundedIcon sx={{ fontSize: 13 }} />
               </IconButton>
@@ -227,6 +224,7 @@ function ChapterListPanelInner(props: ChapterListPanelProps) {
                   e.stopPropagation();
                   openDialog({ kind: 'delete-chapter', chapterId: chapter.id });
                 }}
+                aria-label={t('writing.deleteChapterTitle')}
               >
                 <DeleteOutlineRoundedIcon sx={{ fontSize: 13 }} />
               </IconButton>

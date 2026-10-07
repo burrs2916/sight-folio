@@ -1,6 +1,6 @@
 /** CodeWorkbench 文件树：树构建、模糊匹配与 FileTreeNode 组件。 */
 
-import { useEffect, useMemo, useState, useCallback, useRef, Fragment, CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 
 import Box from "@mui/material/Box";
 
@@ -8,13 +8,12 @@ import Typography from "@mui/material/Typography";
 
 import FolderIcon from "@mui/icons-material/Folder";
 
-import { MonacoCodeEditor, type HeatRange, type DeadRange, type CloneRange, type EditorSelectionInfo, type MonacoEditorHandle, type CursorStatus, type EditorInfo, type MarkerStats } from "./MonacoCodeEditor";
+import type { HeatRange } from "./MonacoCodeEditor";
 
-import { t } from "../../i18n";
 
-import { parseFileMetricMeta, projectScanApi, type FileChangeEvent, type ProjectFile, type ProjectSymbol } from "../../services/tauri";
-
+import type { ProjectFile } from "../../services/tauri";
 import { LanguageIcon } from "../../utils/languageIcon";
+
 
 /** 圈复杂度 → 等级（McCabe 通用阈值） */
 export function ccLevel(cc: number): HeatRange["level"] {

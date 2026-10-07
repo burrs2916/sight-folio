@@ -373,12 +373,12 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
           sx={{ height: 18, fontSize: 10, fontWeight: 700, "& .MuiChip-label": { px: 0.75 } }}
         />
         <Tooltip title={t("workbench.aiInline.openPanel")}>
-          <IconButton size="small" onClick={onOpenPanel}>
+          <IconButton size="small" onClick={onOpenPanel} aria-label={t("workbench.aiInline.openPanel")}>
             <OpenInFullIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={t("workbench.aiInline.close")}>
-          <IconButton size="small" onClick={handleClose}>
+          <IconButton size="small" onClick={handleClose} aria-label={t("workbench.aiInline.close")}>
             <CloseIcon sx={{ fontSize: 15 }} />
           </IconButton>
         </Tooltip>
@@ -494,11 +494,11 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
           sx={{ "& .MuiInputBase-root": { fontSize: 12, py: 0.5 }, "& .MuiOutlinedInput-notchedOutline": { borderRadius: 1.5 } }}
         />
         {isStreaming ? (
-          <IconButton size="small" color="error" disabled={interruptRequested} onClick={() => useAgentStore.getState().requestInterrupt()}>
+          <IconButton size="small" color="error" disabled={interruptRequested} onClick={() => useAgentStore.getState().requestInterrupt()} aria-label={t("workbench.aiInline.stop")}>
             <StopIcon sx={{ fontSize: 16 }} />
           </IconButton>
         ) : (
-          <IconButton size="small" color="primary" onClick={() => void send(input)} disabled={!input.trim()}>
+          <IconButton size="small" color="primary" onClick={() => void send(input)} disabled={!input.trim()} aria-label={t("workbench.aiInline.send")}>
             <SendIcon sx={{ fontSize: 16 }} />
           </IconButton>
         )}

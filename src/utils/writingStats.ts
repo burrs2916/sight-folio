@@ -3,12 +3,80 @@
 // 统计页签 = 全书体量与节奏总览：**纯本地派生、零新表、零 Rust 新命令**——
 //   KPI（总字数/章节数/卷数/设定条目/平均章长）——数据源 writingStore（writing_chapters /
 //         writing_settings 表，与校对/灵感等页签同一域口径）；
-//   卷分布（按 chapter.volume 归组，空卷名归「未分卷」一组）；
+//   卷分布（按章节卷归属归组，归属见 resolveVolumeNames 注释；空卷名归「未分卷」一组）；
 //   章节体量排行（离群标注：>2×章均=超长、<0.3×章均=偏短，克制可解释）；
 //   日更趋势（Rust 落库的「当日全书总字数」快照差分出每日新增，算法从
 //         pages/WritingStatsDialog 下沉至此，Dialog 与统计页签共用一份）。
 // 离群是 advisory 软提示：只标注不强制（创作者主权）。
-import type { WritingChapter, WritingDailyStat, WritingSetting } from "../services/tauri";
+import type { WritingChapter, WritingDailyStat, WritingSetting } from '../services/tauri';
+
+// ─── 卷归属解析（2026-09-28 树感知修复） ───
+//
+// 历代模型差异：旧书用 chapter.volume 字符串表卷（'' = 未分卷）；新结构树由
+// parentId + kind 表达（卷 = kind 为结构层「卷/篇」的节点或确有子级的容器，章挂在
+// 卷下）。统计/总览/语料曾全按 volume 归组 → 新树书全部落「未分卷」。
+// 修复：resolveVolumeNames 按树解析归属，旧模型书（全书无 parentId）零变化。
+
+const STRUCTURE_KINDS = new Set(['卷', '篇']); // 默认根层级：novel→卷，essay/poetry/script→篇
+
+export interface VolumeResolver {
+  /** chapterId → 行（沿 parentId 上溯用） */
+  byId: Map<string, WritingChapter>;
+  /** 有子级节点的 id 集合（容器兜底判定） */
+  hasChildren: Set<string>;
+  /** 是否旧模型书：全书无 parentId 层级（纯 volume 字符串） */
+  legacy: boolean;
+}
+
+export function resolveVolumeResolver(chapters: WritingChapter[]): VolumeResolver {
+  const byId = new Map<string, WritingChapter>();
+  const hasChildren = new Set<string>();
+  for (const c of chapters) {
+    byId.set(c.id, c);
+    if (c.parentId) hasChildren.add(c.parentId);
+  }
+  return { byId, hasChildren, legacy: !chapters.some((c) => !!c.parentId) };
+}
+
+/**
+ * 是否为卷级结构节点（不算内容章）：
+ *   kind ∈ {卷, 篇}（默认结构层）直接命中；否则「确有子级」兜底
+ *   （创作者自定义结构层如 部/集/幕 等——没有子级的空结构节点按内容章计，
+ *   与树面板「容器 = 有子节点」展示口径一致的统计侧投影）。
+ */
+export function isVolumeNode(r: VolumeResolver, ch: WritingChapter): boolean {
+  if (STRUCTURE_KINDS.has(ch.kind)) return true;
+  return r.hasChildren.has(ch.id);
+}
+
+/** 旧模型（全书无 parentId）时章节卷名直接取遗留 volume 字段 */
+function legacyVolumeName(r: VolumeResolver, ch: WritingChapter): string {
+  return ch.volume || '';
+}
+
+/**
+ * 章节卷名（'' = 未分卷）。旧模型书按 volume 字段；新树书沿 parentId 链向上
+ * 找最近一个卷级祖先，取其标题为卷名；查无卷级祖先（章直接挂根下）→ 未分卷。
+ */
+export function volumeNameOf(r: VolumeResolver, ch: WritingChapter): string {
+  if (r.legacy) return legacyVolumeName(r, ch);
+  let cur = ch;
+  const seen = new Set<string>();
+  while (cur.parentId && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    const parent = r.byId.get(cur.parentId);
+    if (!parent) break;
+    if (isVolumeNode(r, parent)) return parent.title || '';
+    cur = parent;
+  }
+  return '';
+}
+
+/** 统计口径的内容章列表：旧模型全部是章；新模型过滤卷级结构节点（卷本身不算章）。 */
+export function contentChapters(r: VolumeResolver, chapters: WritingChapter[]): WritingChapter[] {
+  if (r.legacy) return chapters;
+  return chapters.filter((c) => !isVolumeNode(r, c));
+}
 
 // ─── 日更快照差分（自 WritingStatsDialog 下沉，口径与注释一并保留） ───
 
@@ -17,9 +85,26 @@ const WINDOW_DAYS = 30;
 /** 本地时区的 YYYY-MM-DD（不能用 toISOString，那是 UTC，会在中国时区晚上差一天） */
 export function localDay(d: Date): string {
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+export interface GoalProgress {
+  pct: number;
+  remain: number;
+  hit: boolean;
+}
+
+/** 日更目标进度：delta（今日已写）vs goal（日更目标，>0）；pct 截断到 [0,100] */
+export function goalProgress(delta: number, goal: number): GoalProgress | null {
+  if (!(goal > 0)) return null;
+  const safeDelta = Math.max(0, delta);
+  return {
+    pct: Math.min(100, Math.round((safeDelta / goal) * 100)),
+    remain: Math.max(0, goal - safeDelta),
+    hit: safeDelta >= goal,
+  };
 }
 
 export interface DailyDelta {
@@ -65,17 +150,19 @@ export interface WritingKpis {
 }
 
 export function computeWritingKpis(chapters: WritingChapter[], settings: WritingSetting[]): WritingKpis {
-  const totalWords = chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0);
-  const chapterCount = chapters.length;
+  const r = resolveVolumeResolver(chapters);
+  const content = contentChapters(r, chapters);
+  const totalWords = content.reduce((sum, c) => sum + (c.wordCount || 0), 0);
+  const chapterCount = content.length;
   const avgWords = chapterCount > 0 ? Math.round(totalWords / chapterCount) : 0;
-  const volumes = new Set(chapters.map((c) => c.volume).filter((v) => v !== ""));
+  const volumes = new Set(content.map((c) => volumeNameOf(r, c)).filter((v) => v !== ''));
   return {
     totalWords,
     chapterCount,
     volumeCount: volumes.size,
     settingCount: settings.length,
     avgWords,
-    maxChapterWords: chapters.reduce((max, c) => Math.max(max, c.wordCount || 0), 0),
+    maxChapterWords: content.reduce((max, c) => Math.max(max, c.wordCount || 0), 0),
     maxVolumeWords: buildVolumeRows(chapters).reduce((max, v) => Math.max(max, v.words), 0),
   };
 }
@@ -92,13 +179,14 @@ export interface WritingVolumeRow {
 }
 
 export function buildVolumeRows(chapters: WritingChapter[]): WritingVolumeRow[] {
+  const r = resolveVolumeResolver(chapters);
   const volMap = new Map<string, WritingVolumeRow>();
-  for (const ch of chapters) {
-    const key = ch.volume || "";
+  for (const ch of contentChapters(r, chapters)) {
+    const key = volumeNameOf(r, ch);
     const row = volMap.get(key) ?? { volume: key, chapters: 0, words: 0, finished: 0, chapterIds: [] };
     row.chapters += 1;
     row.words += ch.wordCount || 0;
-    if (ch.status === "finished") row.finished += 1;
+    if (ch.status === 'finished') row.finished += 1;
     row.chapterIds.push(ch.id);
     volMap.set(key, row);
   }
@@ -107,7 +195,7 @@ export function buildVolumeRows(chapters: WritingChapter[]): WritingVolumeRow[] 
 
 // ─── 章节体量 + 离群标注（advisory） ───
 
-export type ChapterOutlier = "long" | "short" | null;
+export type ChapterOutlier = 'long' | 'short' | null;
 
 /**
  * 离群判定（克制口径，均基于「章均字数」）：
@@ -116,8 +204,8 @@ export type ChapterOutlier = "long" | "short" | null;
  */
 export function chapterOutlier(words: number, avgWords: number, chapterCount: number): ChapterOutlier {
   if (avgWords <= 0) return null;
-  if (words > avgWords * 2) return "long";
-  if (chapterCount >= 3 && words > 0 && words < avgWords * 0.3) return "short";
+  if (words > avgWords * 2) return 'long';
+  if (chapterCount >= 3 && words > 0 && words < avgWords * 0.3) return 'short';
   return null;
 }
 
@@ -132,15 +220,30 @@ export interface WritingChapterWordRow {
 
 /** 章节体量行（保持章序 sortOrder），outlier 由 chapterOutlier 统一口径派生 */
 export function buildChapterWordRows(chapters: WritingChapter[]): WritingChapterWordRow[] {
-  const sorted = [...chapters].sort((a, b) => a.sortOrder - b.sortOrder);
+  const r = resolveVolumeResolver(chapters);
+  const sorted = [...contentChapters(r, chapters)].sort((a, b) => a.sortOrder - b.sortOrder);
   const total = sorted.reduce((sum, c) => sum + (c.wordCount || 0), 0);
   const avg = sorted.length > 0 ? total / sorted.length : 0;
   return sorted.map((c) => ({
     id: c.id,
-    title: c.title || "未命名",
-    volume: c.volume || "",
+    title: c.title || '未命名',
+    volume: volumeNameOf(r, c),
     words: c.wordCount || 0,
     status: c.status,
     outlier: chapterOutlier(c.wordCount || 0, avg, sorted.length),
   }));
+}
+
+export type StatsChapterFilter = 'all' | 'outlier' | 'normal';
+export type StatsChapterSort = 'default' | 'words';
+
+export function filterChapterRows(rows: WritingChapterWordRow[], filter: StatsChapterFilter): WritingChapterWordRow[] {
+  if (filter === 'all') return rows;
+  if (filter === 'outlier') return rows.filter((r) => r.outlier !== null);
+  return rows.filter((r) => r.outlier === null);
+}
+
+export function sortChapterRows(rows: WritingChapterWordRow[], sort: StatsChapterSort): WritingChapterWordRow[] {
+  if (sort === 'default') return rows;
+  return [...rows].sort((a, b) => b.words - a.words);
 }

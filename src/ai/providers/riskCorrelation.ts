@@ -1,7 +1,7 @@
 import type { AiContextSection, AiFocusReport, AiFocusTarget, AiFocusDimensionHit } from "../contextTypes";
 import { cell, makeSection, mdTable, type ScanSnapshot } from "./scanSections";
 import { buildStageCoverage, type ScanStageCoverage } from "./scanCoverage";
-import { t, getLang } from "../../i18n";
+import { t} from "../../i18n";
 import { H, L } from "../aiLang";
 
 /**

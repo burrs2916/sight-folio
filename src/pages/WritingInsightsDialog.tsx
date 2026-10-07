@@ -104,7 +104,7 @@ export function WritingInsightsDialog({ open, bookId, onClose }: WritingInsights
             </Typography>
           )}
         </Typography>
-        <IconButton size="small" onClick={onClose}>
+        <IconButton size="small" onClick={onClose} aria-label={t("workbench.close")}>
           <CloseRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </DialogTitle>

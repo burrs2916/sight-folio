@@ -13,7 +13,6 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import Box from "@mui/material/Box";
-import { t } from "../../i18n";
 import { terminalApi } from "../../services/tauri";
 
 /** 暗色终端主题（与现有 TerminalBlock 配色一致） */
@@ -40,16 +39,6 @@ const TERMINAL_THEME = {
   brightCyan: "#67e8f9",
   brightWhite: "#f9fafb",
 };
-
-/** 估算初始 PTY 尺寸：xterm 用 fit() 真正计算，这里只是兜底下限 */
-function estimateSize(el: HTMLElement): { cols: number; rows: number } {
-  const charW = 7.2;
-  const charH = 16;
-  return {
-    cols: Math.max(1, Math.floor(el.clientWidth / charW)),
-    rows: Math.max(1, Math.floor(el.clientHeight / charH)),
-  };
-}
 
 interface PaneProps {
   /** 后端已起好的会话 id（父组件 spawn 后传入） */

@@ -31,16 +31,6 @@ import type { AiInsightDto } from "../../services/tauri";
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
-
-function mount(ui: ReactElement) {
-  host = document.createElement("div");
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => {
-    root!.render(ui);
-  });
-}
-
 async function mountAsync(ui: ReactElement) {
   host = document.createElement("div");
   document.body.appendChild(host);

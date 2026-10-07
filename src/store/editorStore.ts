@@ -1,6 +1,6 @@
-import { create } from "zustand";
-import { immer } from "zustand/middleware/immer";
-import logger from "../utils/logger";
+import { create } from 'zustand';
+import { immer } from 'zustand/middleware/immer';
+import logger from '../utils/logger';
 import type {
   SceneComponent,
   LayerNode,
@@ -10,13 +10,9 @@ import type {
   Point,
   Transform,
   CanvasBackground,
-} from "../types/editor";
-import {
-  createDefaultAnalysisComponent,
-  createDefaultLayer,
-  getLayerDescendants,
-} from "../types/editor";
-import { componentRegistry } from "../editor/registry";
+} from '../types/editor';
+import { createDefaultAnalysisComponent, createDefaultLayer, getLayerDescendants } from '../types/editor';
+import { componentRegistry } from '../editor/registry';
 
 interface DirtyState {
   isDirty: boolean;
@@ -30,10 +26,10 @@ export const useDirtyStore = create<DirtyState>()((set) => ({
   markClean: () => set({ isDirty: false }),
 }));
 
-export type EditorTool = "select" | "pan" | "zoom-in" | "zoom-out";
+export type EditorTool = 'select' | 'pan' | 'zoom-in' | 'zoom-out';
 
-export type AdaptationType = "scale" | "full-x" | "full-y" | "full-screen" | "none";
-export type CanvasOrientation = "landscape" | "portrait";
+export type AdaptationType = 'scale' | 'full-x' | 'full-y' | 'full-screen' | 'none';
+export type CanvasOrientation = 'landscape' | 'portrait';
 
 export interface CanvasGridConfig {
   visible: boolean;
@@ -51,9 +47,9 @@ export interface CanvasRulerConfig {
   visible: boolean;
 }
 
-export type GuideLineStyle = "solid" | "dashed" | "dotted";
+export type GuideLineStyle = 'solid' | 'dashed' | 'dotted';
 
-export type GuideLinePreset = "center" | "edges" | "center-edges" | "custom";
+export type GuideLinePreset = 'center' | 'edges' | 'center-edges' | 'custom';
 
 export interface CanvasGuideConfig {
   visible: boolean;
@@ -91,19 +87,19 @@ export interface CanvasConfig {
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   width: 1920,
   height: 1080,
-  orientation: "landscape",
-  adaptationType: "scale",
+  orientation: 'landscape',
+  adaptationType: 'scale',
   lockAspectRatio: false,
   background: {
-    type: "solid",
-    color: "#ffffff",
+    type: 'solid',
+    color: '#ffffff',
     gradient: {
-      direction: "to-bottom",
-      colors: ["#1a1a2e", "#16213e"],
+      direction: 'to-bottom',
+      colors: ['#1a1a2e', '#16213e'],
     },
-    imageUrl: "",
-    imageFit: "cover",
-    videoUrl: "",
+    imageUrl: '',
+    imageFit: 'cover',
+    videoUrl: '',
     videoAutoplay: false,
     videoMuted: true,
     videoLoop: true,
@@ -114,8 +110,8 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
     snapToGrid: false,
     dragStep: 1,
     resizeStep: 1,
-    minorColor: "",
-    majorColor: "",
+    minorColor: '',
+    majorColor: '',
     opacity: 1,
     brightness: 1,
   },
@@ -124,11 +120,11 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   },
   guide: {
     visible: true,
-    color: "#ff3b30",
+    color: '#ff3b30',
     opacity: 0.6,
     lineWidth: 1,
-    lineStyle: "dashed",
-    preset: "center",
+    lineStyle: 'dashed',
+    preset: 'center',
     customVertical: [],
     customHorizontal: [],
     snapToGuide: true,
@@ -162,17 +158,17 @@ export interface ViewTemplateOptions {
   meta?: {
     carrierType?: string;
     kind?:
-      | "catalog"
-      | "characters"
-      | "worldview"
-      | "timeline"
-      | "storylines"
-      | "foreshadowing"
-      | "inspiration"
-      | "proofread"
-      | "stats"
-      | "writing"
-      | "overview";
+      | 'catalog'
+      | 'characters'
+      | 'worldview'
+      | 'timeline'
+      | 'storylines'
+      | 'foreshadowing'
+      | 'inspiration'
+      | 'proofread'
+      | 'stats'
+      | 'writing'
+      | 'overview';
   };
 }
 
@@ -214,29 +210,43 @@ export interface EditorState {
   selectedSettingId: string | null;
   /**
    * sight-folio 写作台：时间线事件的右栏选中态。
-   * 与画布选择（selection.selectedIds）、写作设定选中（selectedSettingId）三者互斥——
-   * 任一被显式选中即清空另外两项，保证右栏只聚焦一个编辑目标。
+   * 与画布选择（selection.selectedIds）及全部右栏选中态（selectedSettingId / selectedStorylineId /
+   * selectedForeshadowingId / selectedInspirationId / selectedChapterId）六者互斥——
+   * 任一被显式选中即清空其余五项，保证右栏只聚焦一个编辑目标。
    */
   selectedTimelineEventId: string | null;
-  /** 选中剧情线（多线叙事实体）：与事件/设定/画布选中互斥，右栏详情 tab 编辑线实体 */
+  /** 选中剧情线（多线叙事实体）：与事件/设定/伏笔/灵感/大纲/画布选中互斥，右栏详情 tab 编辑线实体 */
   selectedStorylineId: string | null;
-  /** 选中伏笔（「埋设 → 回收」承诺）：与事件/设定/剧情线/画布选中互斥，右栏详情 tab 编辑伏笔 */
+  /** 选中伏笔（「埋设 → 回收」承诺）：与事件/设定/剧情线/灵感/大纲/画布选中互斥，右栏详情 tab 编辑伏笔 */
   selectedForeshadowingId: string | null;
-  /** 选中灵感念头（未落章 beat）：与事件/设定/剧情线/伏笔/画布选中互斥，右栏详情 tab 编辑分发 */
+  /** 选中灵感念头（未落章 beat）：与事件/设定/剧情线/伏笔/大纲/画布选中互斥，右栏详情 tab 编辑分发 */
   selectedInspirationId: string | null;
+  /** 大纲选中章（书场景大纲视图 StorylinePane 点章行锚点）：与画布/设定/事件/剧情线/伏笔/灵感
+   * 六者互斥 —— 点章行 → 右栏「详情」tab 展示该章详情卡（封面可设/换/清除 + 章信息）。 */
+  selectedChapterId: string | null;
+  /** 校对定位请求（章检视器→校对页签联动）：非空表示外部请求打开校对页签并高亮该发现行；
+   * 值 = ProofreadIssue.key（如 "ch1:TypoPhrase"），由 ProofreadPane 消费后由消费方清空（无互斥语义）。 */
+  proofreadFocusKey: string | null;
+  /** 设置校对定位请求（章检视器点击发现行时调用）；null = 清除。 */
+  setProofreadFocusKey: (key: string | null) => void;
+  /** 统计定位请求（章检视器→统计页签联动）：非空表示外部请求打开统计页签并滚动定位到该章体量行；
+   * 值 = chapter.id，由 StatsPane 消费后由消费方清空。 */
+  statsFocusChapterId: string | null;
+  /** 设置统计定位请求（章检视器点击统计区时调用）；null = 清除。 */
+  setStatsFocusChapterId: (id: string | null) => void;
   /**
    * sight-folio 写作台：时间线 pane 的子视图口径（book=全书轴按设定分轨 / chapter=按章轴分轨）。
    * 放 store 而非 pane 本地 state：右栏总览卡的冲突行点选时需要切换口径
    * （跨章倒挂只在按章轴可见），主 pane 与右栏必须共享同一份。
    */
-  timelineViewMode: "book" | "chapter" | "storyline";
+  timelineViewMode: 'book' | 'chapter' | 'storyline';
   /** v2.14 目录树符号展开的文件 id 集合（代码结构画像：双击文件展开/收起符号） */
   expandedSymFiles: Set<string>;
   activeTool: EditorTool;
   /** v2.17 依赖画像布局模式：force=力导向聚簇 / layered=拓扑分层（入口→底座） */
-  depLayoutMode: "force" | "layered";
+  depLayoutMode: 'force' | 'layered';
   /** v2.17 依赖画像筛选镜：all=不过滤 / cycles=只看循环依赖 / crossModule=只看跨模块边 */
-  depFilter: "all" | "cycles" | "crossModule";
+  depFilter: 'all' | 'cycles' | 'crossModule';
   /** v2.17 依赖画像焦点文件：非空=树驱动焦点子图模式（以该文件为焦点重绘 1 跳依赖网），null=全局总览（top-90） */
   depFocusFileId: string | null;
   /**
@@ -246,7 +256,7 @@ export interface EditorState {
    * - highRisk   ：riskLevel 为 high / extreme 的对（最该处理的）
    * - crossModule：跨顶层模块的对（架构边界被绕过）
    */
-  couplingFilter: "all" | "hidden" | "highRisk" | "crossModule";
+  couplingFilter: 'all' | 'hidden' | 'highRisk' | 'crossModule';
   /**
    * v2.18 变更耦合时间窗（天）。
    * - null = 全量（与后端默认一致）
@@ -266,14 +276,14 @@ export interface EditorState {
    * 该象限文件集合高亮、其余淡化（复用 relatedFileIds 淡化机制），回答「先重构谁」。
    * 再次点击同一象限或点「象限复位」即清空回全局视图。
    */
-  quadrantFocusZone: "refactorFirst" | "legacyStable" | "activeSimple" | "healthy" | null;
+  quadrantFocusZone: 'refactorFirst' | 'legacyStable' | 'activeSimple' | 'healthy' | null;
   /**
    * v2.18 变更耦合布局模式（与 depLayoutMode 同形态，但语义对齐「时间维度耦合」）：
    * - force   ：力导向自然聚团（耦合伙伴数做 weight）—— 默认，与现状一致
    * - cluster ：按顶层目录硬分区（topDirOf）+ 模块簇染色（MODULE_PALETTE），
    *             让"命运共同体"的真实模块边界视觉化；跨模块边额外加粗
    */
-  couplingLayoutMode: "force" | "cluster";
+  couplingLayoutMode: 'force' | 'cluster';
   activeLayerId: string | null;
   /** 当前正在被拖动的实体类型（保留接口兼容） */
   draggedComponentType: string | null;
@@ -285,7 +295,7 @@ export interface EditorState {
   clipboard: SceneComponent[];
   eventBindings: any[];
   previewMode: boolean;
-  views: import("../types/scene").AnalysisView[];
+  views: import('../types/scene').AnalysisView[];
   activeViewId: string;
   globalComponents: SceneComponent[];
   /** 左侧面板/文件树发起的画布定位请求（{ id, ts }），画布监听到后居中该组件 */
@@ -327,13 +337,13 @@ export interface EditorState {
   /** 目录树视图搜索关键词（空=不过滤） */
   directorySearch: string;
   /** 目录树视图排序方式：size=规模 / name=名称 / path=路径 */
-  directorySort: "size" | "name" | "path";
+  directorySort: 'size' | 'name' | 'path';
   /**
    * 图片详情弹窗状态（画布双击 / 目录树双击 / 画像面板「查看大图」共享触发）。
    * 此前该状态只活在 SceneEditor 局部，目录树与画像面板无法复用同一个弹窗；
    * 提到 store 后三处统一调 openImagePreview，弹窗在 SceneEditor 单例渲染，零重复。
    */
-  imagePreview: import("../editor/panels/ImagePreviewDialog").ImagePreviewData | null;
+  imagePreview: import('../editor/panels/ImagePreviewDialog').ImagePreviewData | null;
 }
 
 export interface EditorActions {
@@ -342,7 +352,7 @@ export interface EditorActions {
   addComponentsBulk: (items: BulkComponentInput[]) => string[];
   /** 批量覆写实体 name/config/尺寸：一次 store 更新，不进历史（画像数据海量） */
   updateComponentsConfig: (
-    entries: { id: string; name?: string; config?: Record<string, unknown>; width?: number; height?: number }[]
+    entries: { id: string; name?: string; config?: Record<string, unknown>; width?: number; height?: number }[],
   ) => void;
   removeComponent: (id: string) => void;
   /**
@@ -357,11 +367,14 @@ export interface EditorActions {
   /** P3 业务→画布回流：按业务 id（chapterId/settingId）反查所有视图中的写作卡，回写名称/配置。
    *  面向业务层自动保存调用：不推历史（自动行为不该刷爆撤销栈）、跨全部视图匹配，只 markDirty。 */
   syncWritingEntityCards: (
-    bizKey: "chapterId" | "settingId",
+    bizKey: 'chapterId' | 'settingId',
     bizId: string,
-    patch: { name?: string; configPatch?: Record<string, unknown> }
+    patch: { name?: string; configPatch?: Record<string, unknown> },
   ) => void;
-  batchUpdateComponent: (id: string, updates: { config?: Record<string, unknown>; transform?: Partial<Transform> }) => void;
+  batchUpdateComponent: (
+    id: string,
+    updates: { config?: Record<string, unknown>; transform?: Partial<Transform> },
+  ) => void;
   moveComponentToLayer: (id: string, layerId: string) => void;
   reorderComponent: (id: string, zIndex: number) => void;
   duplicateComponent: (id: string) => SceneComponent | null;
@@ -401,8 +414,10 @@ export interface EditorActions {
   selectForeshadowing: (id: string | null) => void;
   /** 选中灵感念头（右栏详情编辑分发）；null = 清除 */
   selectInspiration: (id: string | null) => void;
+  /** 选中大纲章（书场景大纲视图点章行锚点，右栏详情卡展示）；null = 清除 */
+  selectChapter: (id: string | null) => void;
   /** sight-folio 写作台：切换时间线 pane 的子视图口径（book=全书轴 / chapter=按章轴 / storyline=按剧情线）；主 pane 与右栏总览共享 */
-  setTimelineViewMode: (mode: "book" | "chapter" | "storyline") => void;
+  setTimelineViewMode: (mode: 'book' | 'chapter' | 'storyline') => void;
 
   setViewport: (viewport: Partial<ViewportState>) => void;
   zoomIn: () => void;
@@ -422,7 +437,7 @@ export interface EditorActions {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
-  pushHistory: (type: HistoryEntry["type"]) => void;
+  pushHistory: (type: HistoryEntry['type']) => void;
   /** 批量挂起：期间 addComponent/addComponentsBulk 不逐条记历史，endBatch 统一提交一条（根治 O(N²) 克隆卡死） */
   beginBatch: () => void;
   endBatch: () => void;
@@ -431,9 +446,17 @@ export interface EditorActions {
   pasteClipboard: () => void;
 
   loadScene: (components: SceneComponent[], layers: LayerNode[]) => void;
-  loadSceneWithViews: (views: import("../types/scene").AnalysisView[], globalComponents: SceneComponent[], activeViewId: string) => void;
+  loadSceneWithViews: (
+    views: import('../types/scene').AnalysisView[],
+    globalComponents: SceneComponent[],
+    activeViewId: string,
+  ) => void;
   exportScene: () => { components: SceneComponent[]; layers: LayerNode[] };
-  exportSceneWithViews: () => { views: import("../types/scene").AnalysisView[]; globalComponents: SceneComponent[]; activeViewId: string };
+  exportSceneWithViews: () => {
+    views: import('../types/scene').AnalysisView[];
+    globalComponents: SceneComponent[];
+    activeViewId: string;
+  };
   clearScene: () => void;
   setPreviewMode: (preview: boolean) => void;
 
@@ -447,7 +470,7 @@ export interface EditorActions {
    */
   ensureStructureView: () => string;
   renameView: (viewId: string, name: string) => void;
-  getActiveView: () => import("../types/scene").AnalysisView | undefined;
+  getActiveView: () => import('../types/scene').AnalysisView | undefined;
   /** 定位到画布中的某个组件：选中 + 发出居中请求（供左侧面板/文件树联动） */
   focusComponent: (id: string) => void;
   /** 请求「审查结果」面板聚焦并高亮某条审查发现（供编辑器内联标记点击联动） */
@@ -470,21 +493,21 @@ export interface EditorActions {
    */
   requestFit: (ids?: string[]) => void;
   /** v2.17 设置依赖画像布局模式（会话态，重跑依赖画像生效） */
-  setDepLayoutMode: (mode: "force" | "layered") => void;
+  setDepLayoutMode: (mode: 'force' | 'layered') => void;
   /** v2.17 设置依赖画像筛选镜（会话态，仅影响画布淡化，不重排布局） */
-  setDepFilter: (f: "all" | "cycles" | "crossModule") => void;
+  setDepFilter: (f: 'all' | 'cycles' | 'crossModule') => void;
   /** v2.17 设置依赖画像焦点文件（会话态，非空=焦点子图模式，重跑依赖画像生效） */
   setDepFocusFileId: (id: string | null) => void;
   /** v2.18 设置变更耦合筛选镜（会话态，仅前端切片） */
-  setCouplingFilter: (f: "all" | "hidden" | "highRisk" | "crossModule") => void;
+  setCouplingFilter: (f: 'all' | 'hidden' | 'highRisk' | 'crossModule') => void;
   /** v2.18 设置变更耦合时间窗（会话态，UI 切时窗会触发后端真重扫） */
   setCouplingWindowDays: (d: number | null) => void;
   /** v2.18 设置变更耦合焦点文件（会话态，B3 焦点子图消费） */
   setCouplingFocusFileId: (id: string | null) => void;
   /** v2.28 设置重构四象限聚焦象限（会话态，象限区域标签单击消费） */
-  setQuadrantFocusZone: (zone: "refactorFirst" | "legacyStable" | "activeSimple" | "healthy" | null) => void;
+  setQuadrantFocusZone: (zone: 'refactorFirst' | 'legacyStable' | 'activeSimple' | 'healthy' | null) => void;
   /** v2.18 设置变更耦合布局模式（force=力导向 / cluster=按模块硬分区+模块簇染色） */
-  setCouplingLayoutMode: (mode: "force" | "cluster") => void;
+  setCouplingLayoutMode: (mode: 'force' | 'cluster') => void;
   /** v2.14 展开/收起某文件的符号卡（目录树符号展开） */
   toggleSymbolFile: (fileId: string) => void;
   /** 切换目录树是否显示文件叶子 */
@@ -492,9 +515,9 @@ export interface EditorActions {
   /** 设置目录树搜索关键词 */
   setDirectorySearch: (v: string) => void;
   /** 设置目录树排序方式 */
-  setDirectorySort: (v: "size" | "name" | "path") => void;
+  setDirectorySort: (v: 'size' | 'name' | 'path') => void;
   /** 打开图片详情弹窗（data 内含 absPath 等；画布/目录树/画像面板共用） */
-  openImagePreview: (data: import("../editor/panels/ImagePreviewDialog").ImagePreviewData) => void;
+  openImagePreview: (data: import('../editor/panels/ImagePreviewDialog').ImagePreviewData) => void;
   /** 关闭图片详情弹窗 */
   closeImagePreview: () => void;
 }
@@ -536,24 +559,27 @@ export const useEditorStore = create<EditorStore>()(
     selectedStorylineId: null as string | null,
     selectedForeshadowingId: null as string | null,
     selectedInspirationId: null as string | null,
+    selectedChapterId: null as string | null,
+    proofreadFocusKey: null as string | null,
+    statsFocusChapterId: null as string | null,
     // 时间线 pane 子视图口径（主 pane 与右栏总览共享，默认全书轴）
-    timelineViewMode: "book" as "book" | "chapter" | "storyline",
+    timelineViewMode: 'book' as 'book' | 'chapter' | 'storyline',
     // v2.14 目录树符号展开：双击文件展开/收起其符号卡（代码结构画像）
     expandedSymFiles: new Set<string>(),
-    activeTool: "select" as EditorTool,
+    activeTool: 'select' as EditorTool,
     // v2.17 依赖画像布局模式（默认力导向聚簇，分层模式可在工具条切换）
-    depLayoutMode: "force" as "force" | "layered",
+    depLayoutMode: 'force' as 'force' | 'layered',
     // v2.17 依赖画像筛选镜（默认不过滤；切换即生效，不改布局）
-    depFilter: "all" as "all" | "cycles" | "crossModule",
+    depFilter: 'all' as 'all' | 'cycles' | 'crossModule',
     // v2.17 依赖画像焦点文件（默认 null=全局总览；树点文件→焦点子图）
     depFocusFileId: null as string | null,
     // v2.18 变更耦合三件套：filter/windowDays/focusFileId（与 dep 三件套同位置同形态）
-    couplingFilter: "all" as "all" | "hidden" | "highRisk" | "crossModule",
+    couplingFilter: 'all' as 'all' | 'hidden' | 'highRisk' | 'crossModule',
     couplingWindowDays: null as number | null,
     couplingFocusFileId: null as string | null,
-    couplingLayoutMode: "force" as "force" | "cluster",
+    couplingLayoutMode: 'force' as 'force' | 'cluster',
     // v2.28 重构四象限聚焦象限（null=全局视图）
-    quadrantFocusZone: null as "refactorFirst" | "legacyStable" | "activeSimple" | "healthy" | null,
+    quadrantFocusZone: null as 'refactorFirst' | 'legacyStable' | 'activeSimple' | 'healthy' | null,
     activeLayerId: null as string | null,
     draggedComponentType: null as string | null,
     canvasConfig: { ...DEFAULT_CANVAS_CONFIG },
@@ -564,8 +590,18 @@ export const useEditorStore = create<EditorStore>()(
     clipboard: [] as SceneComponent[],
     eventBindings: [] as any[],
     previewMode: false,
-    views: [{ id: "default", name: "viewTab.defaultView", components: [], layers: [], canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG), viewport: deepClone(DEFAULT_VIEWPORT), eventBindings: [] }],
-    activeViewId: "default",
+    views: [
+      {
+        id: 'default',
+        name: 'viewTab.defaultView',
+        components: [],
+        layers: [],
+        canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG),
+        viewport: deepClone(DEFAULT_VIEWPORT),
+        eventBindings: [],
+      },
+    ],
+    activeViewId: 'default',
     globalComponents: [],
     focusRequest: null,
     reviewFindingFocus: null,
@@ -574,8 +610,8 @@ export const useEditorStore = create<EditorStore>()(
     fitRequest: null,
     viewportLoadSeq: 0,
     directoryShowFiles: false,
-    directorySearch: "",
-    directorySort: "size",
+    directorySearch: '',
+    directorySort: 'size',
     imagePreview: null,
 
     addComponent: (type, layerId, position) => {
@@ -583,7 +619,7 @@ export const useEditorStore = create<EditorStore>()(
       if (!definition) {
         // 不再静默丢弃：未注册类型直接告警（对齐 biosphere「未知组件可见」契约），
         // 此前这是符号实体/新类型写入后画布空白却无任何日志的根因之一。
-        logger.warn("EditorStore", "addComponent skipped: type NOT registered", {
+        logger.warn('EditorStore', 'addComponent skipped: type NOT registered', {
           type,
           registeredTypes: componentRegistry.getAll().map((d) => d.type),
         });
@@ -592,39 +628,37 @@ export const useEditorStore = create<EditorStore>()(
 
       const state = get();
       let targetLayerId: string | undefined = layerId;
-      
+
       if (!targetLayerId) {
         targetLayerId = state.activeLayerId || undefined;
       }
 
       if (targetLayerId) {
-        const targetLayer = state.layers.find(l => l.id === targetLayerId);
-        if (targetLayer?.type === "group") {
-          const firstChildLayer = state.layers.find(
-            l => l.type === "layer" && l.parentId === targetLayerId
-          );
+        const targetLayer = state.layers.find((l) => l.id === targetLayerId);
+        if (targetLayer?.type === 'group') {
+          const firstChildLayer = state.layers.find((l) => l.type === 'layer' && l.parentId === targetLayerId);
           if (firstChildLayer) {
             targetLayerId = firstChildLayer.id;
           } else {
-            targetLayerId = state.layers.find(l => l.type === "layer")?.id;
+            targetLayerId = state.layers.find((l) => l.type === 'layer')?.id;
           }
         }
       }
-      
+
       if (!targetLayerId && state.layers.length > 0) {
-        targetLayerId = state.layers.find(l => l.type === "layer")?.id;
+        targetLayerId = state.layers.find((l) => l.type === 'layer')?.id;
       }
 
       // 绝不静默：无图层 return null 曾是「拖入创建没反应」的静默失败点之一
       //（对比 addComponentsBulk :577 有自动补层兜底，这里先补告警，兜底后续对齐）
       if (!targetLayerId) {
-        logger.warn("EditorStore", "addComponent skipped: no layer available", { type });
+        logger.warn('EditorStore', 'addComponent skipped: no layer available', { type });
         return null;
       }
 
       const component = createDefaultAnalysisComponent(definition, targetLayerId, position);
 
-      get().pushHistory("add");
+      get().pushHistory('add');
 
       set((draft: EditorState) => {
         const maxZ = draft.components
@@ -643,12 +677,12 @@ export const useEditorStore = create<EditorStore>()(
       const state = get();
       let targetLayerId = state.activeLayerId || undefined;
       if (!targetLayerId && state.layers.length > 0) {
-        targetLayerId = state.layers.find((l) => l.type === "layer")?.id;
+        targetLayerId = state.layers.find((l) => l.type === 'layer')?.id;
       }
       // 兜底：无图层时自动补一个默认图层，而不是静默失败 ——
       // 「同步到画布」曾因此返回空数组但页面仍提示成功（画布空白），是用户反馈的根因之一。
       if (!targetLayerId) {
-        const fallbackLayer = createDefaultLayer("viewTab.defaultLayer", "layer", null, true);
+        const fallbackLayer = createDefaultLayer('viewTab.defaultLayer', 'layer', null, true);
         set((draft: EditorState) => {
           draft.layers = [fallbackLayer];
           draft.activeLayerId = fallbackLayer.id;
@@ -677,7 +711,7 @@ export const useEditorStore = create<EditorStore>()(
         created.push(comp);
       }
       if (skippedTypes.size > 0) {
-        logger.warn("EditorStore", "addComponentsBulk skipped unregistered types", {
+        logger.warn('EditorStore', 'addComponentsBulk skipped unregistered types', {
           skipped: Object.fromEntries(skippedTypes),
           createdCount: created.length,
           registeredTypes: componentRegistry.getAll().map((d) => d.type),
@@ -686,7 +720,7 @@ export const useEditorStore = create<EditorStore>()(
       if (created.length === 0) return ids;
 
       // 批量操作只记一条历史（快照发生在 set 之前，数组尚小，无 O(N²)）
-      get().pushHistory("add");
+      get().pushHistory('add');
       set((draft: EditorState) => {
         const maxZ = draft.components.reduce((max, c) => Math.max(max, c.zIndex), 0);
         created.forEach((c, i) => {
@@ -717,7 +751,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     removeComponent: (id) => {
-      get().pushHistory("delete");
+      get().pushHistory('delete');
       set((draft: EditorState) => {
         draft.components = draft.components.filter((c: SceneComponent) => c.id !== id);
         draft.selection.selectedIds = draft.selection.selectedIds.filter((sid: string) => sid !== id);
@@ -729,7 +763,7 @@ export const useEditorStore = create<EditorStore>()(
       if (ids.length === 0) return 0;
       const idSet = new Set(ids);
       const before = get().components.length;
-      get().pushHistory("delete");
+      get().pushHistory('delete');
       set((draft: EditorState) => {
         draft.components = draft.components.filter((c: SceneComponent) => !idSet.has(c.id));
         draft.selection.selectedIds = draft.selection.selectedIds.filter((sid: string) => !idSet.has(sid));
@@ -739,7 +773,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     updateComponent: (id, updates) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const idx = draft.components.findIndex((c: SceneComponent) => c.id === id);
         if (idx !== -1) {
@@ -759,7 +793,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       if (_transformHistoryTimer) clearTimeout(_transformHistoryTimer);
       _transformHistoryTimer = setTimeout(() => {
-        get().pushHistory("update");
+        get().pushHistory('update');
         _transformHistoryTimer = null;
       }, TRANSFORM_HISTORY_DELAY);
     },
@@ -774,7 +808,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       if (_configHistoryTimer) clearTimeout(_configHistoryTimer);
       _configHistoryTimer = setTimeout(() => {
-        get().pushHistory("update");
+        get().pushHistory('update');
         _configHistoryTimer = null;
       }, 300);
     },
@@ -821,13 +855,13 @@ export const useEditorStore = create<EditorStore>()(
       });
       if (_configHistoryTimer) clearTimeout(_configHistoryTimer);
       _configHistoryTimer = setTimeout(() => {
-        get().pushHistory("update");
+        get().pushHistory('update');
         _configHistoryTimer = null;
       }, 300);
     },
 
     moveComponentToLayer: (id, layerId) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
@@ -838,7 +872,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     reorderComponent: (id, zIndex) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
@@ -864,7 +898,7 @@ export const useEditorStore = create<EditorStore>()(
         },
       };
 
-      get().pushHistory("add");
+      get().pushHistory('add');
 
       set((draft: EditorState) => {
         draft.components.push(newComp);
@@ -886,8 +920,8 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     addLayer: (name, parentId = null) => {
-      const layer = createDefaultLayer(name, "layer", parentId);
-      get().pushHistory("add");
+      const layer = createDefaultLayer(name, 'layer', parentId);
+      get().pushHistory('add');
       set((draft: EditorState) => {
         const siblings = parentId
           ? draft.layers.filter((l: LayerNode) => l.parentId === parentId)
@@ -906,8 +940,8 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     addLayerGroup: (name, parentId = null) => {
-      const layer = createDefaultLayer(name, "group", parentId);
-      get().pushHistory("add");
+      const layer = createDefaultLayer(name, 'group', parentId);
+      get().pushHistory('add');
       set((draft: EditorState) => {
         const siblings = parentId
           ? draft.layers.filter((l: LayerNode) => l.parentId === parentId)
@@ -926,34 +960,30 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     removeLayer: (id) => {
-      get().pushHistory("delete");
+      get().pushHistory('delete');
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer?.isDefault) return;
-        
+
         const descendantIds = getLayerDescendants(draft.layers, id);
-        draft.components = draft.components.filter(
-          (c: SceneComponent) => !descendantIds.includes(c.layerId)
-        );
+        draft.components = draft.components.filter((c: SceneComponent) => !descendantIds.includes(c.layerId));
         const parent = draft.layers.find((l: LayerNode) => l.children.includes(id));
         if (parent) {
           parent.children = parent.children.filter((cid: string) => cid !== id);
         }
-        draft.layers = draft.layers.filter(
-          (l: LayerNode) => !descendantIds.includes(l.id)
-        );
-        
+        draft.layers = draft.layers.filter((l: LayerNode) => !descendantIds.includes(l.id));
+
         if (draft.activeLayerId === id) {
           const defaultLayer = draft.layers.find((l: LayerNode) => l.isDefault);
           draft.activeLayerId = defaultLayer?.id || null;
         }
-        
+
         useDirtyStore.getState().markDirty();
       });
     },
 
     updateLayer: (id, updates) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const idx = draft.layers.findIndex((l: LayerNode) => l.id === id);
         if (idx !== -1) {
@@ -964,7 +994,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     moveLayerToParent: (id, parentId, order) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (!layer) return;
@@ -1001,7 +1031,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     reorderLayer: (id, order) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer) {
@@ -1012,13 +1042,13 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     toggleLayerVisibility: (id) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer) {
           const newVisible = !layer.visible;
           layer.visible = newVisible;
-          if (layer.type === "group") {
+          if (layer.type === 'group') {
             const descendantIds = getLayerDescendants(draft.layers, id);
             for (const did of descendantIds) {
               if (did === id) continue;
@@ -1032,13 +1062,13 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     toggleLayerLock: (id) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer) {
           const newLocked = !layer.locked;
           layer.locked = newLocked;
-          if (layer.type === "group") {
+          if (layer.type === 'group') {
             const descendantIds = getLayerDescendants(draft.layers, id);
             for (const did of descendantIds) {
               if (did === id) continue;
@@ -1065,8 +1095,8 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     getRootLayers: () => {
-      return get().layers
-        .filter((l: LayerNode) => l.parentId === null)
+      return get()
+        .layers.filter((l: LayerNode) => l.parentId === null)
         .sort((a: LayerNode, b: LayerNode) => a.order - b.order);
     },
 
@@ -1083,7 +1113,7 @@ export const useEditorStore = create<EditorStore>()(
           draft.eventBindings[existing] = { ...draft.eventBindings[existing], ...binding };
         }
       });
-      logger.info("EditorStore", "Event binding added", { eventId: binding.id, sourceEvent: binding.sourceEvent });
+      logger.info('EditorStore', 'Event binding added', { eventId: binding.id, sourceEvent: binding.sourceEvent });
     },
 
     removeEventBinding: (id: string) => {
@@ -1128,6 +1158,8 @@ export const useEditorStore = create<EditorStore>()(
         draft.selectedForeshadowingId = null;
         // 与灵感念头选中互斥
         draft.selectedInspirationId = null;
+        // 与大纲章选中互斥
+        draft.selectedChapterId = null;
       });
     },
 
@@ -1146,7 +1178,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     setHoveredComponent: (id) => {
-      logger.debug("EditorStore", "setHoveredComponent", { id });
+      logger.debug('EditorStore', 'setHoveredComponent', { id });
       set((draft: EditorState) => {
         draft.selection.hoveredId = id;
       });
@@ -1164,6 +1196,8 @@ export const useEditorStore = create<EditorStore>()(
         draft.selectedForeshadowingId = null;
         // 与灵感念头选中互斥
         draft.selectedInspirationId = null;
+        // 与大纲章选中互斥
+        draft.selectedChapterId = null;
         if (id) {
           draft.selection.selectedIds = [];
           draft.selection.isMultiSelect = false;
@@ -1179,6 +1213,7 @@ export const useEditorStore = create<EditorStore>()(
         draft.selectedStorylineId = null;
         draft.selectedForeshadowingId = null;
         draft.selectedInspirationId = null;
+        draft.selectedChapterId = null;
         if (id) {
           draft.selection.selectedIds = [];
           draft.selection.isMultiSelect = false;
@@ -1194,6 +1229,7 @@ export const useEditorStore = create<EditorStore>()(
         draft.selectedSettingId = null;
         draft.selectedForeshadowingId = null;
         draft.selectedInspirationId = null;
+        draft.selectedChapterId = null;
         if (id) {
           draft.selection.selectedIds = [];
           draft.selection.isMultiSelect = false;
@@ -1209,6 +1245,7 @@ export const useEditorStore = create<EditorStore>()(
         draft.selectedTimelineEventId = null;
         draft.selectedSettingId = null;
         draft.selectedInspirationId = null;
+        draft.selectedChapterId = null;
         if (id) {
           draft.selection.selectedIds = [];
           draft.selection.isMultiSelect = false;
@@ -1218,12 +1255,29 @@ export const useEditorStore = create<EditorStore>()(
 
     selectInspiration: (id) => {
       set((draft: EditorState) => {
-        // 与事件/设定/剧情线/伏笔/画布选中互斥：选中灵感念头即清空五者
+        // 与事件/设定/剧情线/伏笔/画布选中互斥：选中灵感念头即清空其余
         draft.selectedInspirationId = id;
-        draft.selectedForeshadowingId = null;
-        draft.selectedStorylineId = null;
         draft.selectedTimelineEventId = null;
         draft.selectedSettingId = null;
+        draft.selectedStorylineId = null;
+        draft.selectedForeshadowingId = null;
+        draft.selectedChapterId = null;
+        if (id) {
+          draft.selection.selectedIds = [];
+          draft.selection.isMultiSelect = false;
+        }
+      });
+    },
+
+    selectChapter: (id) => {
+      set((draft: EditorState) => {
+        // 与画布选择、设定/事件/剧情线/伏笔/灵感选中互斥：选中大纲章即清空其余
+        draft.selectedChapterId = id;
+        draft.selectedSettingId = null;
+        draft.selectedTimelineEventId = null;
+        draft.selectedStorylineId = null;
+        draft.selectedForeshadowingId = null;
+        draft.selectedInspirationId = null;
         if (id) {
           draft.selection.selectedIds = [];
           draft.selection.isMultiSelect = false;
@@ -1234,6 +1288,36 @@ export const useEditorStore = create<EditorStore>()(
     setTimelineViewMode: (mode) => {
       set((draft: EditorState) => {
         draft.timelineViewMode = mode;
+      });
+    },
+
+    setProofreadFocusKey: (key) => {
+      set((draft: EditorState) => {
+        draft.proofreadFocusKey = key;
+        // 校对定位与伏笔/灵感/事件等右栏选中互斥：聚焦发现行时不应残留其他选中态
+        if (key) {
+          draft.selectedForeshadowingId = null;
+          draft.selectedInspirationId = null;
+          draft.selectedTimelineEventId = null;
+          draft.selectedChapterId = null;
+          draft.selectedSettingId = null;
+          draft.selectedStorylineId = null;
+        }
+      });
+    },
+
+    setStatsFocusChapterId: (id) => {
+      set((draft: EditorState) => {
+        draft.statsFocusChapterId = id;
+        if (id) {
+          draft.selectedForeshadowingId = null;
+          draft.selectedInspirationId = null;
+          draft.selectedTimelineEventId = null;
+          draft.selectedChapterId = null;
+          draft.selectedSettingId = null;
+          draft.selectedStorylineId = null;
+          draft.proofreadFocusKey = null;
+        }
       });
     },
 
@@ -1251,7 +1335,10 @@ export const useEditorStore = create<EditorStore>()(
     zoomIn: () => {
       set((draft: EditorState) => {
         const oldScale = draft.viewport.scale;
-        const newScale = Math.min(oldScale + draft.canvasConfig.viewport.zoomStep, draft.canvasConfig.viewport.maxScale);
+        const newScale = Math.min(
+          oldScale + draft.canvasConfig.viewport.zoomStep,
+          draft.canvasConfig.viewport.maxScale,
+        );
         const roundedScale = Math.round(newScale * 100) / 100;
         const centerX = (draft.canvasConfig.width * oldScale) / 2 + draft.viewport.offset.x;
         const centerY = (draft.canvasConfig.height * oldScale) / 2 + draft.viewport.offset.y;
@@ -1264,7 +1351,10 @@ export const useEditorStore = create<EditorStore>()(
     zoomOut: () => {
       set((draft: EditorState) => {
         const oldScale = draft.viewport.scale;
-        const newScale = Math.max(oldScale - draft.canvasConfig.viewport.zoomStep, draft.canvasConfig.viewport.minScale);
+        const newScale = Math.max(
+          oldScale - draft.canvasConfig.viewport.zoomStep,
+          draft.canvasConfig.viewport.minScale,
+        );
         const roundedScale = Math.round(newScale * 100) / 100;
         const centerX = (draft.canvasConfig.width * oldScale) / 2 + draft.viewport.offset.x;
         const centerY = (draft.canvasConfig.height * oldScale) / 2 + draft.viewport.offset.y;
@@ -1336,12 +1426,20 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     setCanvasConfig: (updates) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         const merged = { ...DEFAULT_CANVAS_CONFIG, ...draft.canvasConfig, ...updates };
-        merged.background = { ...DEFAULT_CANVAS_CONFIG.background, ...draft.canvasConfig.background, ...updates.background };
+        merged.background = {
+          ...DEFAULT_CANVAS_CONFIG.background,
+          ...draft.canvasConfig.background,
+          ...updates.background,
+        };
         if (updates.background?.gradient || draft.canvasConfig.background?.gradient) {
-          merged.background.gradient = { ...DEFAULT_CANVAS_CONFIG.background.gradient, ...draft.canvasConfig.background.gradient, ...updates.background?.gradient };
+          merged.background.gradient = {
+            ...DEFAULT_CANVAS_CONFIG.background.gradient,
+            ...draft.canvasConfig.background.gradient,
+            ...updates.background?.gradient,
+          };
         }
         merged.grid = { ...DEFAULT_CANVAS_CONFIG.grid, ...draft.canvasConfig.grid, ...updates.grid };
         merged.ruler = { ...DEFAULT_CANVAS_CONFIG.ruler, ...draft.canvasConfig.ruler, ...updates.ruler };
@@ -1353,17 +1451,19 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     setCanvasSize: (width, height) => {
-      get().pushHistory("update");
+      get().pushHistory('update');
       set((draft: EditorState) => {
         draft.canvasConfig.width = width;
         draft.canvasConfig.height = height;
-        draft.canvasConfig.orientation = width >= height ? "landscape" : "portrait";
+        draft.canvasConfig.orientation = width >= height ? 'landscape' : 'portrait';
         const maxDim = Math.max(width, height);
         let recommendedMaxScale = 5;
         if (maxDim > 10000) recommendedMaxScale = 10;
         else if (maxDim > 5000) recommendedMaxScale = 8;
-        if (draft.canvasConfig.viewport.maxScale === DEFAULT_CANVAS_CONFIG.viewport.maxScale
-            || draft.canvasConfig.viewport.maxScale < recommendedMaxScale) {
+        if (
+          draft.canvasConfig.viewport.maxScale === DEFAULT_CANVAS_CONFIG.viewport.maxScale ||
+          draft.canvasConfig.viewport.maxScale < recommendedMaxScale
+        ) {
           draft.canvasConfig.viewport.maxScale = recommendedMaxScale;
         }
         for (const comp of draft.components) {
@@ -1457,7 +1557,7 @@ export const useEditorStore = create<EditorStore>()(
       const entry: HistoryEntry = {
         id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         timestamp: Date.now(),
-        type: "batch",
+        type: 'batch',
         before: _batchBeforeComponents ?? structuredClone(s.components),
         after: structuredClone(s.components),
         layersBefore: _batchBeforeLayers ?? structuredClone(s.layers),
@@ -1530,7 +1630,7 @@ export const useEditorStore = create<EditorStore>()(
         },
       }));
 
-      get().pushHistory("add");
+      get().pushHistory('add');
 
       set((draft: EditorState) => {
         draft.components.push(...pasted);
@@ -1540,7 +1640,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     loadScene: (components, layers) => {
-      logger.warn("EditorStore", "loadScene called, clearing selection", { componentCount: components.length });
+      logger.warn('EditorStore', 'loadScene called, clearing selection', { componentCount: components.length });
       set((draft: EditorState) => {
         const layerIds = new Set(layers.map((l) => l.id));
         const validComponents = components.filter((c) => layerIds.has(c.layerId));
@@ -1553,11 +1653,21 @@ export const useEditorStore = create<EditorStore>()(
         draft.eventBindings = [];
         draft.canvasConfig = deepClone(DEFAULT_CANVAS_CONFIG);
         draft.viewport = deepClone(DEFAULT_VIEWPORT);
-        draft.views = [{ id: "default", name: "viewTab.defaultView", components: validComponents, layers, canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG), viewport: deepClone(DEFAULT_VIEWPORT), eventBindings: [] }];
-        draft.activeViewId = "default";
+        draft.views = [
+          {
+            id: 'default',
+            name: 'viewTab.defaultView',
+            components: validComponents,
+            layers,
+            canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG),
+            viewport: deepClone(DEFAULT_VIEWPORT),
+            eventBindings: [],
+          },
+        ];
+        draft.activeViewId = 'default';
         draft.globalComponents = [];
 
-        const defaultLayer = layers.find(l => l.isDefault);
+        const defaultLayer = layers.find((l) => l.isDefault);
         if (defaultLayer) {
           draft.activeLayerId = defaultLayer.id;
         } else if (layers.length > 0) {
@@ -1577,9 +1687,9 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     clearScene: () => {
-      logger.warn("EditorStore", "clearScene called, clearing selection");
+      logger.warn('EditorStore', 'clearScene called, clearing selection');
       set((draft: EditorState) => {
-        const defaultLayer = createDefaultLayer("viewTab.defaultLayer", "layer", null, true);
+        const defaultLayer = createDefaultLayer('viewTab.defaultLayer', 'layer', null, true);
         draft.components = [];
         draft.layers = [defaultLayer];
         draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
@@ -1589,8 +1699,18 @@ export const useEditorStore = create<EditorStore>()(
         draft.canvasConfig = deepClone(DEFAULT_CANVAS_CONFIG);
         draft.viewport = deepClone(DEFAULT_VIEWPORT);
         draft.previewMode = false;
-        draft.views = [{ id: "default", name: "viewTab.defaultView", components: [], layers: [defaultLayer], canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG), viewport: deepClone(DEFAULT_VIEWPORT), eventBindings: [] }];
-        draft.activeViewId = "default";
+        draft.views = [
+          {
+            id: 'default',
+            name: 'viewTab.defaultView',
+            components: [],
+            layers: [defaultLayer],
+            canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG),
+            viewport: deepClone(DEFAULT_VIEWPORT),
+            eventBindings: [],
+          },
+        ];
+        draft.activeViewId = 'default';
         draft.globalComponents = [];
         draft.focusRequest = null;
         draft.fitRequest = null;
@@ -1599,7 +1719,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     setPreviewMode: (preview) => {
-      if (preview) logger.warn("EditorStore", "setPreviewMode(true) called, clearing selection");
+      if (preview) logger.warn('EditorStore', 'setPreviewMode(true) called, clearing selection');
       set((draft: EditorState) => {
         draft.previewMode = preview;
         if (preview) {
@@ -1609,7 +1729,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     loadSceneWithViews: (views, globalComponents, activeViewId) => {
-      logger.info("EditorStore", "loadSceneWithViews called", {
+      logger.info('EditorStore', 'loadSceneWithViews called', {
         viewsCount: views.length,
         globalComponentsCount: globalComponents.length,
         activeViewId,
@@ -1622,11 +1742,13 @@ export const useEditorStore = create<EditorStore>()(
         if (activeView) {
           draft.components = activeView.components;
           draft.layers = activeView.layers;
-          draft.canvasConfig = activeView.canvasConfig ? deepClone(activeView.canvasConfig) : { ...DEFAULT_CANVAS_CONFIG };
+          draft.canvasConfig = activeView.canvasConfig
+            ? deepClone(activeView.canvasConfig)
+            : { ...DEFAULT_CANVAS_CONFIG };
           draft.viewport = activeView.viewport ? deepClone(activeView.viewport) : { ...DEFAULT_VIEWPORT };
           draft.eventBindings = activeView.eventBindings ? deepClone(activeView.eventBindings) : [];
           // 🔍 DIAGNOSTIC: 输出每个组件的类型信息
-          logger.info("EditorStore", "Active view components loaded", {
+          logger.info('EditorStore', 'Active view components loaded', {
             viewId: activeView.id,
             viewName: activeView.name,
             componentsCount: activeView.components.length,
@@ -1694,12 +1816,12 @@ export const useEditorStore = create<EditorStore>()(
         // 未提供模板时保持原行为：单个"默认图层" + 沿用当前画布配置。
         const templateLayers = template?.layers?.length
           ? template.layers.map((l, i) => ({
-              ...createDefaultLayer(l.name, "layer", null, i === 0),
+              ...createDefaultLayer(l.name, 'layer', null, i === 0),
               color: l.color,
               order: i,
             }))
           : null;
-        const layers = templateLayers ?? [createDefaultLayer("viewTab.defaultLayer", "layer", null, true)];
+        const layers = templateLayers ?? [createDefaultLayer('viewTab.defaultLayer', 'layer', null, true)];
         const newViewport: ViewportState = template?.layout
           ? {
               scale: template.layout.scale ?? DEFAULT_VIEWPORT.scale,
@@ -1764,7 +1886,9 @@ export const useEditorStore = create<EditorStore>()(
             draft.components = nextView.components || [];
             draft.layers = nextView.layers || [];
             draft.canvasConfig = nextView.canvasConfig ? { ...nextView.canvasConfig } : { ...DEFAULT_CANVAS_CONFIG };
-            draft.viewport = nextView.viewport ? { ...nextView.viewport, offset: { ...nextView.viewport.offset } } : { ...DEFAULT_VIEWPORT };
+            draft.viewport = nextView.viewport
+              ? { ...nextView.viewport, offset: { ...nextView.viewport.offset } }
+              : { ...DEFAULT_VIEWPORT };
             draft.eventBindings = nextView.eventBindings ? [...nextView.eventBindings] : [];
             draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
             const defaultLayer = draft.layers.find((l) => l.isDefault);
@@ -1815,7 +1939,7 @@ export const useEditorStore = create<EditorStore>()(
         const defaultLayer = draft.layers.find((l) => l.isDefault);
         draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
       });
-      logger.info("EditorStore", "switchView", {
+      logger.info('EditorStore', 'switchView', {
         from: prevViewId,
         to: viewId,
         newViewport: get().viewport,
@@ -1825,15 +1949,15 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     ensureStructureView: () => {
-      const existing = get().views.find((v) => v.id === "default");
-      if (existing) return "default";
+      const existing = get().views.find((v) => v.id === 'default');
+      if (existing) return 'default';
       // 结构视图被用户删了：按初始结构重建，id 固定为 default（幂等，
       // 下次同步仍命中同一视图而不是又开一个空白视图）。
       set((draft: EditorState) => {
-        const layer = createDefaultLayer("viewTab.defaultLayer", "layer", null, true);
+        const layer = createDefaultLayer('viewTab.defaultLayer', 'layer', null, true);
         draft.views.push({
-          id: "default",
-          name: "viewTab.defaultView",
+          id: 'default',
+          name: 'viewTab.defaultView',
           components: [],
           layers: [layer],
           canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG),
@@ -1842,11 +1966,11 @@ export const useEditorStore = create<EditorStore>()(
         });
         useDirtyStore.getState().markDirty();
       });
-      return "default";
+      return 'default';
     },
 
     renameView: (viewId, name) => {
-      if (viewId === "default") return; // 默认视图（目录树）名称不可编辑
+      if (viewId === 'default') return; // 默认视图（目录树）名称不可编辑
       set((draft: EditorState) => {
         const view = draft.views.find((v) => v.id === viewId);
         if (view) {
@@ -1982,10 +2106,10 @@ export const useEditorStore = create<EditorStore>()(
     },
     openImagePreview: (data) => set({ imagePreview: data }),
     closeImagePreview: () => set({ imagePreview: null }),
-  }))
+  })),
 );
 
 // 开发模式暴露到 window，方便 Console 调试
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   (window as any).__editorStore = useEditorStore;
 }

@@ -285,7 +285,7 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
         </Tooltip>
         <Tooltip title={t("aiPanel.insights.refresh")}>
           <span>
-            <IconButton size="small" onClick={() => void load()} disabled={loading || !scopeId}>
+            <IconButton size="small" onClick={() => void load()} disabled={loading || !scopeId} aria-label={t("aiPanel.insights.refresh")}>
               {loading ? <CircularProgress size={14} /> : <RefreshIcon sx={{ fontSize: 16 }} />}
             </IconButton>
           </span>

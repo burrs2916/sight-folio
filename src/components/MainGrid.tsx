@@ -10,13 +10,10 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import LayersRoundedIcon from '@mui/icons-material/LayersRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import MapRoundedIcon from '@mui/icons-material/MapRounded';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import { MetricWidget } from './widgets';
-import type { MetricWidgetProps } from './widgets';
 import { LineChartWidget, BarChartWidget, PieChartWidget } from './widgets/ChartWidget';
 import { useSceneStore } from '../store/sceneStore';
 import { useProjectStore } from '../store/projectStore';
@@ -55,41 +52,6 @@ function computeTrend(scenes: ReturnType<typeof useSceneStore.getState>['scenes'
 
   return { trend, data, total: scenes.length };
 }
-
-const statData: MetricWidgetProps[] = [
-  {
-    id: 'stat-analyses',
-    title: t('dashboard.statAnalyses'),
-    value: '0',
-    interval: t('dashboard.intervalAll'),
-    trend: 'neutral',
-    data: [],
-  },
-  {
-    id: 'stat-files',
-    title: t('dashboard.statFiles'),
-    value: '0',
-    interval: t('dashboard.intervalAll'),
-    trend: 'neutral',
-    data: [],
-  },
-  {
-    id: 'stat-deps',
-    title: t('dashboard.statLines'),
-    value: '0',
-    interval: t('dashboard.intervalAll'),
-    trend: 'neutral',
-    data: [],
-  },
-  {
-    id: 'stat-findings',
-    title: t('dashboard.statLanguages'),
-    value: '0',
-    interval: t('dashboard.intervalKind'),
-    trend: 'neutral',
-    data: [],
-  },
-];
 
 const pieChartData = [
   { name: 'TypeScript', value: 42 },
@@ -245,6 +207,7 @@ export default function MainGrid() {
                 borderColor: 'primary.main',
                 borderRadius: 1,
               }}
+              aria-label={t('dashboard.newAnalysis')}
             >
               <AddRoundedIcon />
             </IconButton>

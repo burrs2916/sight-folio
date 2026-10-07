@@ -18,7 +18,6 @@ import LinkIcon from '@mui/icons-material/Link';
 import LayersIcon from '@mui/icons-material/Layers';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import BuildIcon from '@mui/icons-material/Build';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -27,7 +26,6 @@ import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined';
 import HubIcon from '@mui/icons-material/Hub';
 import InsightsIcon from '@mui/icons-material/Insights';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import DeviceHubIcon from '@mui/icons-material/DeviceHub';
 import GppMaybeIcon from '@mui/icons-material/GppMaybe';
 import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
 import GridViewIcon from '@mui/icons-material/GridView';
@@ -87,18 +85,16 @@ import {
   syncPluginRulesToBackend,
 } from '../editor/analyzer';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
-import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
 import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded';
-import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
-import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import ViewCarouselIcon from '@mui/icons-material/ViewCarousel';
-import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
 import { buildFileInsights, emptyFileInsight } from '../editor/utils/fileInsights';
 import { buildTreeLayout } from '../editor/utils/syncLayout';
 import { entityTypeForFile } from '../editor/utils/fileKind';
 import { runPortrait, type PortraitKind } from '../editor/utils/portraits';
 import { CommandPalette, type WorkbenchCommand } from '../editor/panels/CommandPalette';
-import { t } from '../i18n';
+import { t, getLang } from '../i18n';
+import { formatBigCount } from '../utils/formatCount';
+import { PORTRAIT_ICON_COLORS, PORTRAIT_FALLBACK_COLOR, WATCHING_STATUS_COLOR } from '../theme/categoryColors';
 
 /**
  * 写作预设画板（H1/H5）
@@ -129,21 +125,21 @@ const BOARD_MENU: {
     labelKey: 'editorPage.board.overview.label',
     descKey: 'editorPage.board.overview.desc',
     icon: <AccountTreeIcon sx={{ fontSize: 17 }} />,
-    color: '#8b5cf6',
+    color: PORTRAIT_ICON_COLORS.violet,
   },
   {
     kind: 'storyboard',
     labelKey: 'editorPage.board.storyboard.label',
     descKey: 'editorPage.board.storyboard.desc',
     icon: <ViewCarouselIcon sx={{ fontSize: 17 }} />,
-    color: '#8b5cf6',
+    color: PORTRAIT_ICON_COLORS.violet,
   },
   {
     kind: 'relation',
     labelKey: 'editorPage.board.relation.label',
     descKey: 'editorPage.board.relation.desc',
     icon: <HubIcon sx={{ fontSize: 17 }} />,
-    color: '#f59e0b',
+    color: PORTRAIT_ICON_COLORS.amber,
   },
 ];
 
@@ -170,7 +166,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.directory.label',
     descKey: 'editorPage.portrait.directory.desc',
     icon: <FolderSpecialIcon sx={{ fontSize: 17 }} />,
-    color: '#f59e0b',
+    color: PORTRAIT_ICON_COLORS.amber,
   },
   {
     key: 'moduleGraph',
@@ -178,7 +174,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.moduleGraph.label',
     descKey: 'editorPage.portrait.moduleGraph.desc',
     icon: <HubIcon sx={{ fontSize: 17 }} />,
-    color: '#8b5cf6',
+    color: PORTRAIT_ICON_COLORS.violet,
   },
   {
     key: 'symbols',
@@ -186,7 +182,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.symbols.label',
     descKey: 'editorPage.portrait.symbols.desc',
     icon: <CodeIcon sx={{ fontSize: 17 }} />,
-    color: '#3b82f6',
+    color: PORTRAIT_ICON_COLORS.blue,
   },
   {
     key: 'dependency',
@@ -194,7 +190,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.dependency.label',
     descKey: 'editorPage.portrait.dependency.desc',
     icon: <AccountTreeIcon sx={{ fontSize: 17 }} />,
-    color: '#6366f1',
+    color: PORTRAIT_ICON_COLORS.indigo,
   },
   {
     key: 'changeCoupling',
@@ -202,7 +198,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.changeCoupling.label',
     descKey: 'editorPage.portrait.changeCoupling.desc',
     icon: <LinkIcon sx={{ fontSize: 17 }} />,
-    color: '#f59e0b',
+    color: PORTRAIT_ICON_COLORS.amber,
   },
   {
     key: 'coupling',
@@ -210,7 +206,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.coupling.label',
     descKey: 'editorPage.portrait.coupling.desc',
     icon: <ScatterPlotIcon sx={{ fontSize: 17 }} />,
-    color: '#a855f7',
+    color: PORTRAIT_ICON_COLORS.fuchsia,
   },
   {
     key: 'layering',
@@ -218,7 +214,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.layering.label',
     descKey: 'editorPage.portrait.layering.desc',
     icon: <LayersIcon sx={{ fontSize: 17 }} />,
-    color: '#0ea5e9',
+    color: PORTRAIT_ICON_COLORS.sky,
   },
   {
     key: 'architecture',
@@ -226,7 +222,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.architecture.label',
     descKey: 'editorPage.portrait.architecture.desc',
     icon: <AccountTreeIcon sx={{ fontSize: 17 }} />,
-    color: '#6366f1',
+    color: PORTRAIT_ICON_COLORS.indigo,
   },
   {
     key: 'callGraph',
@@ -234,7 +230,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.callGraph.label',
     descKey: 'editorPage.portrait.callGraph.desc',
     icon: <HubIcon sx={{ fontSize: 17 }} />,
-    color: '#8b5cf6',
+    color: PORTRAIT_ICON_COLORS.violet,
   },
   {
     key: 'dataFlow',
@@ -242,7 +238,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.dataFlow.label',
     descKey: 'editorPage.portrait.dataFlow.desc',
     icon: <WaterfallChartIcon sx={{ fontSize: 17 }} />,
-    color: '#14b8a6',
+    color: PORTRAIT_ICON_COLORS.teal,
   },
   {
     key: 'executionFlow',
@@ -250,7 +246,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.executionFlow.label',
     descKey: 'editorPage.portrait.executionFlow.desc',
     icon: <AccountTreeIcon sx={{ fontSize: 17 }} />,
-    color: '#22c55e',
+    color: PORTRAIT_ICON_COLORS.green,
   },
   {
     key: 'apiTrace',
@@ -258,7 +254,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.apiTrace.label',
     descKey: 'editorPage.portrait.apiTrace.desc',
     icon: <ApiIcon sx={{ fontSize: 17 }} />,
-    color: '#3b82f6',
+    color: PORTRAIT_ICON_COLORS.blue,
   },
   {
     key: 'taintFlow',
@@ -266,7 +262,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.taintFlow.label',
     descKey: 'editorPage.portrait.taintFlow.desc',
     icon: <CoronavirusIcon sx={{ fontSize: 17 }} />,
-    color: '#ef4444',
+    color: PORTRAIT_ICON_COLORS.red,
   },
   {
     key: 'patterns',
@@ -274,7 +270,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.patterns.label',
     descKey: 'editorPage.portrait.patterns.desc',
     icon: <AutoAwesomeMosaicIcon sx={{ fontSize: 17 }} />,
-    color: '#38bdf8',
+    color: PORTRAIT_ICON_COLORS.cyan,
   },
   { key: 'h2', labelKey: 'editorPage.portrait.h2', divider: true },
   {
@@ -283,7 +279,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.hotspotFunctions.label',
     descKey: 'editorPage.portrait.hotspotFunctions.desc',
     icon: <LocalFireDepartmentIcon sx={{ fontSize: 17 }} />,
-    color: '#ef4444',
+    color: PORTRAIT_ICON_COLORS.red,
   },
   {
     key: 'quadrant',
@@ -291,7 +287,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.quadrant.label',
     descKey: 'editorPage.portrait.quadrant.desc',
     icon: <GridViewIcon sx={{ fontSize: 17 }} />,
-    color: '#d946ef',
+    color: PORTRAIT_ICON_COLORS.purple,
   },
   {
     key: 'complexity',
@@ -299,7 +295,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.complexity.label',
     descKey: 'editorPage.portrait.complexity.desc',
     icon: <WhatshotIcon sx={{ fontSize: 17 }} />,
-    color: '#f97316',
+    color: PORTRAIT_ICON_COLORS.orange,
   },
   {
     key: 'risk',
@@ -307,7 +303,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.risk.label',
     descKey: 'editorPage.portrait.risk.desc',
     icon: <GppMaybeIcon sx={{ fontSize: 17 }} />,
-    color: '#ef4444',
+    color: PORTRAIT_ICON_COLORS.red,
   },
   {
     key: 'techDebt',
@@ -315,7 +311,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.techDebt.label',
     descKey: 'editorPage.portrait.techDebt.desc',
     icon: <BuildIcon sx={{ fontSize: 17 }} />,
-    color: '#f59e0b',
+    color: PORTRAIT_ICON_COLORS.amber,
   },
   {
     key: 'churn',
@@ -323,7 +319,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.churn.label',
     descKey: 'editorPage.portrait.churn.desc',
     icon: <TrendingUpIcon sx={{ fontSize: 17 }} />,
-    color: '#ec4899',
+    color: PORTRAIT_ICON_COLORS.pink,
   },
   {
     key: 'duplication',
@@ -331,7 +327,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.duplication.label',
     descKey: 'editorPage.portrait.duplication.desc',
     icon: <ContentCopyIcon sx={{ fontSize: 17 }} />,
-    color: '#14b8a6',
+    color: PORTRAIT_ICON_COLORS.teal,
   },
   {
     key: 'deadCode',
@@ -339,7 +335,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.deadCode.label',
     descKey: 'editorPage.portrait.deadCode.desc',
     icon: <BlockIcon sx={{ fontSize: 17 }} />,
-    color: '#64748b',
+    color: PORTRAIT_ICON_COLORS.slate,
   },
   {
     key: 'syntax',
@@ -347,7 +343,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.syntax.label',
     descKey: 'editorPage.portrait.syntax.desc',
     icon: <ErrorOutlinedIcon sx={{ fontSize: 17 }} />,
-    color: '#ef4444',
+    color: PORTRAIT_ICON_COLORS.red,
   },
   { key: 'h3', labelKey: 'editorPage.portrait.h3', divider: true },
   {
@@ -356,7 +352,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.testCoverage.label',
     descKey: 'editorPage.portrait.testCoverage.desc',
     icon: <VerifiedIcon sx={{ fontSize: 17 }} />,
-    color: '#22c55e',
+    color: PORTRAIT_ICON_COLORS.green,
   },
   {
     key: 'security',
@@ -364,7 +360,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.security.label',
     descKey: 'editorPage.portrait.security.desc',
     icon: <SecurityIcon sx={{ fontSize: 17 }} />,
-    color: '#ef4444',
+    color: PORTRAIT_ICON_COLORS.red,
   },
   {
     key: 'apiSurface',
@@ -372,7 +368,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.apiSurface.label',
     descKey: 'editorPage.portrait.apiSurface.desc',
     icon: <ApiIcon sx={{ fontSize: 17 }} />,
-    color: '#38bdf8',
+    color: PORTRAIT_ICON_COLORS.cyan,
   },
   {
     key: 'busFactor',
@@ -380,7 +376,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.busFactor.label',
     descKey: 'editorPage.portrait.busFactor.desc',
     icon: <GroupsIcon sx={{ fontSize: 17 }} />,
-    color: '#a855f7',
+    color: PORTRAIT_ICON_COLORS.fuchsia,
   },
   {
     key: 'ripple',
@@ -388,7 +384,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.ripple.label',
     descKey: 'editorPage.portrait.ripple.desc',
     icon: <ShareIcon sx={{ fontSize: 17 }} />,
-    color: '#0ea5e9',
+    color: PORTRAIT_ICON_COLORS.sky,
   },
   {
     key: 'docsCoverage',
@@ -396,7 +392,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.docsCoverage.label',
     descKey: 'editorPage.portrait.docsCoverage.desc',
     icon: <MenuBookIcon sx={{ fontSize: 17 }} />,
-    color: '#f59e0b',
+    color: PORTRAIT_ICON_COLORS.amber,
   },
   {
     key: 'errorHandling',
@@ -404,7 +400,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.errorHandling.label',
     descKey: 'editorPage.portrait.errorHandling.desc',
     icon: <BugReportIcon sx={{ fontSize: 17 }} />,
-    color: '#f97316',
+    color: PORTRAIT_ICON_COLORS.orange,
   },
   {
     key: 'logging',
@@ -412,7 +408,7 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.logging.label',
     descKey: 'editorPage.portrait.logging.desc',
     icon: <TerminalIcon sx={{ fontSize: 17 }} />,
-    color: '#64748b',
+    color: PORTRAIT_ICON_COLORS.slate,
   },
   {
     key: 'commentRatio',
@@ -420,15 +416,9 @@ const PORTRAIT_MENU: {
     labelKey: 'editorPage.portrait.commentRatio.label',
     descKey: 'editorPage.portrait.commentRatio.desc',
     icon: <CommentIcon sx={{ fontSize: 17 }} />,
-    color: '#14b8a6',
+    color: PORTRAIT_ICON_COLORS.teal,
   },
 ];
-
-/** 字数友好化：≥1 万显示「x.x万」，否则千分位（书顶栏统计用）。 */
-function fmtWords(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
-  return n.toLocaleString();
-}
 
 /** 时间戳友好化（秒 / 毫秒都兼容）→「9月22日」。 */
 function fmtUpdated(ts: number): string {
@@ -460,7 +450,7 @@ export default function SceneEditorPage() {
   const books = useWritingStore((s) => s.books);
   const activeBookId = parseBookIdFromRoot(activeScene?.projectRoot);
   const activeBook = activeBookId ? (books.find((b) => b.id === activeBookId) ?? null) : null;
-  const activeBookGenreColor = genreDef(activeBook?.genre ?? '')?.color ?? '#8b5cf6';
+  const activeBookGenreColor = genreDef(activeBook?.genre ?? '')?.color ?? PORTRAIT_FALLBACK_COLOR;
   // 作品身份 = 唯一标识，必须完整可读：书名是行2 里信息优先级最高的元素，
   // 绝不能被后续 chip / 统计挤到省略号（旧实现 flex-shrink 默认 1 会被中间都吃掉）。
   const activeBookName = activeBook?.title ?? activeScene?.name ?? '';
@@ -1031,10 +1021,10 @@ export default function SceneEditorPage() {
       showToast(t('studio.illustration.inserted'), 'success');
       return;
     }
-    // 批次 2（章头图）：选中的素材设为某章的章头图，由打开方注入的闭包执行
-    const pickerCoverSetter = useAssetPickerStore.getState().chapterCoverSetter;
+    // 批次 2（封面）：选中的素材设为目标封面（章/卷/节拍），由打开方注入的闭包执行
+    const pickerCoverSetter = useAssetPickerStore.getState().coverSetter;
     if (pickerCoverSetter) {
-      pickerCoverSetter(asset);
+      pickerCoverSetter.apply(asset);
       showToast(t('studio.illustration.coverSet'), 'success');
       return;
     }
@@ -1842,7 +1832,7 @@ export default function SceneEditorPage() {
                   variant="caption"
                   title={t('editorPage.bookMeta', {
                     chapters: bookChapters.length,
-                    words: fmtWords(bookWords),
+                    words: formatBigCount(bookWords, getLang()),
                   })}
                   sx={{
                     color: 'text.secondary',
@@ -1854,7 +1844,7 @@ export default function SceneEditorPage() {
                 >
                   {t('editorPage.bookMeta', {
                     chapters: bookChapters.length,
-                    words: fmtWords(bookWords),
+                    words: formatBigCount(bookWords, getLang()),
                   })}
                   {activeBook && activeBook.updatedAt > 0
                     ? ` · ${t('dashboard.lastUpdated', { d: fmtUpdated(activeBook.updatedAt) })}`
@@ -1871,6 +1861,7 @@ export default function SceneEditorPage() {
                     onClick={() => setLayersDialogOpen(true)}
                     disabled={!activeSceneId}
                     sx={{ position: 'relative' }}
+                    aria-label={t('editorPage.layerManageTipBook')}
                   >
                     <LayersIcon sx={{ fontSize: 14 }} />
                     {(isBookScene ? bookChapters.length : layers.length) > 0 && (
@@ -1898,7 +1889,11 @@ export default function SceneEditorPage() {
                   </IconButton>
                 </Tooltip>
                 <Tooltip title={t('studio.importBookTip')}>
-                  <IconButton size="small" onClick={() => void handleImportBookInStudio()}>
+                  <IconButton
+                    size="small"
+                    onClick={() => void handleImportBookInStudio()}
+                    aria-label={t('studio.importBookTip')}
+                  >
                     <UploadFileRoundedIcon sx={{ fontSize: 14 }} />
                   </IconButton>
                 </Tooltip>
@@ -1910,7 +1905,7 @@ export default function SceneEditorPage() {
                     px: 1,
                     py: 0.25,
                     borderRadius: 1,
-                    bgcolor: (th) =>
+                    bgcolor: () =>
                       findings.some((f) => f.severity === 'critical')
                         ? 'error.main'
                         : findings.some((f) => f.severity === 'warning')
@@ -1945,7 +1940,7 @@ export default function SceneEditorPage() {
               {activeScene.projectRoot || t('editorPage.noProjectRoot')}
             </Typography>
             <Tooltip title={t('editorPage.selectRoot')}>
-              <IconButton size="small" onClick={handleSelectRoot}>
+              <IconButton size="small" onClick={handleSelectRoot} aria-label={t('editorPage.selectRoot')}>
                 <FolderOpenIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </Tooltip>
@@ -1955,7 +1950,12 @@ export default function SceneEditorPage() {
         {/* 扫描设置（R40）：.gitignore 过滤提示 + 手动排除目录 + 非代码资源开关（仅代码场景） */}
         {!isBookScene && (
           <Tooltip title={t('editorPage.scanSettingsTip')}>
-            <IconButton size="small" onClick={openScanSettings} disabled={!activeSceneId}>
+            <IconButton
+              size="small"
+              onClick={openScanSettings}
+              disabled={!activeSceneId}
+              aria-label={t('editorPage.scanSettingsTip')}
+            >
               <TuneIcon sx={{ fontSize: 14 }} />
             </IconButton>
           </Tooltip>
@@ -1969,6 +1969,7 @@ export default function SceneEditorPage() {
               onClick={() => setLayersDialogOpen(true)}
               disabled={!activeSceneId}
               sx={{ position: 'relative' }}
+              aria-label={t('editorPage.layerManageTip')}
             >
               <LayersIcon sx={{ fontSize: 14 }} />
               {layers.length > 0 && (
@@ -2004,19 +2005,21 @@ export default function SceneEditorPage() {
             <Tooltip title={t('studio.newBookTip')}>
               <Button
                 size="small"
+                sx={{ minWidth: 0, px: 1 }}
                 startIcon={<MenuBookRoundedIcon sx={{ fontSize: 14 }} />}
                 onClick={() => void handleNewBookInStudio()}
               >
-                {t('studio.newBook')}
+                {!compact && t('studio.newBook')}
               </Button>
             </Tooltip>
             <Tooltip title={t('studio.importBookTip')}>
               <Button
                 size="small"
+                sx={{ minWidth: 0, px: 1 }}
                 startIcon={<UploadFileRoundedIcon sx={{ fontSize: 14 }} />}
                 onClick={() => void handleImportBookInStudio()}
               >
-                {t('studio.importBook')}
+                {!compact && t('studio.importBook')}
               </Button>
             </Tooltip>
           </>
@@ -2050,7 +2053,7 @@ export default function SceneEditorPage() {
                       width: 8,
                       height: 8,
                       borderRadius: '50%',
-                      bgcolor: '#4caf50',
+                      bgcolor: WATCHING_STATUS_COLOR,
                       animation: 'watchPulse 1.5s ease-in-out infinite',
                       '@keyframes watchPulse': {
                         '0%': { opacity: 1, transform: 'scale(1)' },
@@ -2059,7 +2062,7 @@ export default function SceneEditorPage() {
                       },
                     }}
                   />
-                  <Typography variant="caption" sx={{ fontSize: 10, color: '#4caf50', fontWeight: 600 }}>
+                  <Typography variant="caption" sx={{ fontSize: 10, color: WATCHING_STATUS_COLOR, fontWeight: 600 }}>
                     {t('editorPage.watching')}
                   </Typography>
                   {recentChanges.length > 0 && (
@@ -2070,7 +2073,7 @@ export default function SceneEditorPage() {
                           height: 16,
                           px: 0.5,
                           borderRadius: 8,
-                          bgcolor: '#4caf50',
+                          bgcolor: WATCHING_STATUS_COLOR,
                           color: 'common.white',
                           fontSize: 9,
                           fontWeight: 600,
@@ -2092,6 +2095,7 @@ export default function SceneEditorPage() {
                     stopWatching();
                     clearChanges();
                   }}
+                  aria-label={t('editorPage.stopWatch')}
                 >
                   <VisibilityOffIcon sx={{ fontSize: 14 }} />
                 </IconButton>
@@ -2099,7 +2103,11 @@ export default function SceneEditorPage() {
             </>
           ) : (
             <Tooltip title={t('editorPage.watchingTip')}>
-              <IconButton size="small" onClick={() => activeSceneId && startWatching(activeSceneId, projectRoot)}>
+              <IconButton
+                size="small"
+                onClick={() => activeSceneId && startWatching(activeSceneId, projectRoot)}
+                aria-label={t('editorPage.watchingTip')}
+              >
                 <VisibilityIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </Tooltip>
@@ -2231,16 +2239,18 @@ export default function SceneEditorPage() {
         {/* 取消扫描 / 刷新 / 扫描项目（仅代码场景；书场景的解析全书与刷新在上方行1） */}
         {!isBookScene &&
           (scanning ? (
-            <Button
-              size="small"
-              variant="outlined"
-              color="warning"
-              sx={{ fontSize: 11, minWidth: 0, px: 1 }}
-              startIcon={<StopIcon sx={{ fontSize: 13 }} />}
-              onClick={handleCancel}
-            >
-              {t('editorPage.cancel')}
-            </Button>
+            <Tooltip title={t('editorPage.cancel')}>
+              <Button
+                size="small"
+                variant="outlined"
+                color="warning"
+                sx={{ fontSize: 11, minWidth: 0, px: 1 }}
+                startIcon={<StopIcon sx={{ fontSize: 13 }} />}
+                onClick={handleCancel}
+              >
+                {!compact && t('editorPage.cancel')}
+              </Button>
+            </Tooltip>
           ) : (
             <>
               <Tooltip title={t('editorPage.refreshTip')}>
@@ -2249,6 +2259,7 @@ export default function SceneEditorPage() {
                     size="small"
                     onClick={() => activeSceneId && loadAll(activeSceneId)}
                     disabled={!activeScene.projectRoot}
+                    aria-label={t('editorPage.refreshTip')}
                   >
                     <RefreshIcon sx={{ fontSize: 13 }} />
                   </IconButton>
@@ -2378,7 +2389,7 @@ export default function SceneEditorPage() {
               px: 1,
               py: 0.25,
               borderRadius: 1,
-              bgcolor: (t) =>
+              bgcolor: () =>
                 findings.some((f) => f.severity === 'critical')
                   ? 'error.main'
                   : findings.some((f) => f.severity === 'warning')

@@ -9,27 +9,38 @@
 //   念头池（未分发念头汇总，beatImported/beatPlantedAsForeshadowing 复用）
 // 发现是**可行动的**：每行带 target，点行即跳对应章/页签/实体（renderable ≠ useful）。
 // 文本检查刻意克制：每章每类最多 1 条汇总行（带计数），不做逐条轰炸。
-import type { WritingChapter, WritingForeshadowing, WritingOutline, WritingTimelineEvent } from "../services/tauri";
-import { isOverdue } from "./writingForeshadowing";
-import { computeTimelineConflicts, isComplete } from "./writingTimeline";
-import { looseBeats } from "./writingOutline";
-import { beatEventText, beatImported } from "./writingTimeline";
-import { beatPlantedAsForeshadowing } from "./writingInspiration";
+import type { WritingChapter, WritingForeshadowing, WritingOutline, WritingTimelineEvent } from '../services/tauri';
+import { isOverdue } from './writingForeshadowing';
+import { computeTimelineConflicts, isComplete } from './writingTimeline';
+import { looseBeats } from './writingOutline';
+import { beatEventText, beatImported } from './writingTimeline';
+import { beatPlantedAsForeshadowing } from './writingInspiration';
+// 批次③ T5：错别字/重复用词/敏感词检测复用编辑器实时引擎，全书口径与编辑器口径同一份数据
+import { runProofread } from '../editor/proofread/proofreadEngine';
 
-export type ProofreadGroup =
-  | "chapter-text"
-  | "chapter-account"
-  | "foreshadow"
-  | "timeline"
-  | "storyline"
-  | "idea";
+/** 轻量剥离 HTML 标签与常见实体 → 纯文本（<p>/<br> 归一为换行，供文本级校对使用）。 */
+export function stripHtmlText(html: string): string {
+  return html
+    .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, '&')
+    .replace(/\n+$/g, '');
+}
+
+export type ProofreadGroup = 'chapter-text' | 'chapter-account' | 'foreshadow' | 'timeline' | 'storyline' | 'idea';
 
 export type ProofreadTarget =
-  | { type: "chapter"; id: string }
-  | { type: "foreshadowing"; id: string }
-  | { type: "timeline-event"; id: string }
-  | { type: "idea"; id: string }
-  | { type: "view"; id: "timeline" | "storylines" | "inspiration" | "foreshadowing" };
+  | { type: 'chapter'; id: string }
+  | { type: 'foreshadowing'; id: string }
+  | { type: 'timeline-event'; id: string }
+  | { type: 'idea'; id: string }
+  | { type: 'view'; id: 'timeline' | 'storylines' | 'inspiration' | 'foreshadowing' };
 
 export interface ProofreadIssue {
   /** 稳定 key（React key / 跳转定位） */
@@ -40,34 +51,50 @@ export interface ProofreadIssue {
   args?: Record<string, string | number>;
   /** 跳转目标；无 = 仅计数展示 */
   target?: ProofreadTarget;
+  /** 轻量优先级（仅敏感词汇总行使用，block=必须处理 / warning=建议处理） */
+  severity?: 'warning' | 'block';
 }
 
 /** 单章文本级检查（每类最多 1 条汇总行，args 带计数/字数）。 */
 export function chapterTextIssues(chapter: WritingChapter): ProofreadIssue[] {
   const issues: ProofreadIssue[] = [];
-  const text = chapter.content ?? "";
+  // 正文存 HTML（编辑器 getHTML()）；先剥标签/实体得到纯文本，五类+三类统一在同一文本口径下检测
+  const text = stripHtmlText(chapter.content ?? '');
   if (!text.trim()) return issues;
   const mk = (messageKey: string, args?: Record<string, string | number>): ProofreadIssue => ({
     key: `${chapter.id}:${messageKey}`,
-    group: "chapter-text",
+    group: 'chapter-text',
     messageKey,
     args,
-    target: { type: "chapter", id: chapter.id },
+    target: { type: 'chapter', id: chapter.id },
   });
   // 重复标点：。。！！？？……——（同一标点紧邻出现 ≥2 次）
   const punct = text.match(/([。！？…，、；：])\1{1,}/g);
-  if (punct && punct.length > 0) issues.push(mk("RepeatPunct", { n: punct.length }));
+  if (punct && punct.length > 0) issues.push(mk('RepeatPunct', { n: punct.length }));
   // 三连同字：了了了 / 的的的 —— 几乎必是笔误（两连叠词是正常修辞，不报）
   const repeat = text.match(/([\u4e00-\u9fff])\1{2,}/g);
-  if (repeat && repeat.length > 0) issues.push(mk("RepeatChar", { n: repeat.length }));
+  if (repeat && repeat.length > 0) issues.push(mk('RepeatChar', { n: repeat.length }));
   // 超长段落：单段 > 600 字无分段（阅读负担，advisory）
   const longPara = text.split(/\n/).filter((p) => p.trim().length > 600);
-  if (longPara.length > 0) issues.push(mk("LongParagraph", { n: longPara.length }));
+  if (longPara.length > 0) issues.push(mk('LongParagraph', { n: longPara.length }));
   // 连续空行：≥3 个换行（含空白行）
   const blanks = text.match(/\n[ \t]*\n[ \t]*\n/g);
-  if (blanks && blanks.length > 0) issues.push(mk("BlankLines", { n: blanks.length }));
+  if (blanks && blanks.length > 0) issues.push(mk('BlankLines', { n: blanks.length }));
   // 引号风格混用：弯引号与直引号并存
-  if (text.includes("“") && text.includes('"')) issues.push(mk("QuoteMix"));
+  if (text.includes('“') && text.includes('"')) issues.push(mk('QuoteMix'));
+  // 批次③ T5：错别字 / 重复用词 / 敏感词（复用编辑器实时引擎，逐条聚合为每类 1 条汇总行）
+  const engineIssues = runProofread(text);
+  const byKind = {
+    typo: engineIssues.filter((i) => i.kind === 'typo').length,
+    repeat: engineIssues.filter((i) => i.kind === 'repeat').length,
+    sensitive: engineIssues.filter((i) => i.kind === 'sensitive').length,
+  };
+  if (byKind.typo > 0) issues.push({ ...mk('TypoPhrase', { n: byKind.typo }), severity: 'warning' });
+  if (byKind.repeat > 0) issues.push({ ...mk('RepeatPhrase', { n: byKind.repeat }), severity: 'warning' });
+  if (byKind.sensitive > 0) {
+    const hasBlock = engineIssues.some((i) => i.kind === 'sensitive' && i.severity === 'block');
+    issues.push({ ...mk('SensitiveWord', { n: byKind.sensitive }), severity: hasBlock ? 'block' : 'warning' });
+  }
   return issues;
 }
 
@@ -77,12 +104,12 @@ export interface ProofreadReport {
 }
 
 export const PROOFREAD_GROUPS: ProofreadGroup[] = [
-  "chapter-text",
-  "chapter-account",
-  "foreshadow",
-  "timeline",
-  "storyline",
-  "idea",
+  'chapter-text',
+  'chapter-account',
+  'foreshadow',
+  'timeline',
+  'storyline',
+  'idea',
 ];
 
 /** 全书体检汇总（六组维度；纯派生，零迁移，便于单测）。 */
@@ -91,7 +118,7 @@ export function buildProofreadReport(
   outlines: WritingOutline[],
   timelineEvents: WritingTimelineEvent[],
   foreshadowings: WritingForeshadowing[],
-  storylines: { id: string }[] = []
+  storylines: { id: string }[] = [],
 ): ProofreadReport {
   const issues: ProofreadIssue[] = [];
 
@@ -99,9 +126,23 @@ export function buildProofreadReport(
   for (const c of chapters) {
     issues.push(...chapterTextIssues(c));
     if (!c.content?.trim() && (c.wordCount ?? 0) === 0) {
-      issues.push({ key: `${c.id}:empty`, group: "chapter-account", messageKey: "EmptyChapter", args: { title: c.title || "…" }, target: { type: "chapter", id: c.id } });
-    } else if (c.status === "finished" && (c.wordCount ?? 0) === 0) {
-      issues.push({ key: `${c.id}:fin0`, group: "chapter-account", messageKey: "FinishedNoWords", args: { title: c.title || "…" }, target: { type: "chapter", id: c.id } });
+      issues.push({
+        key: `${c.id}:empty`,
+        group: 'chapter-account',
+        messageKey: 'EmptyChapter',
+        args: { title: c.title || '…' },
+        target: { type: 'chapter', id: c.id },
+        severity: 'warning',
+      });
+    } else if (c.status === 'finished' && (c.wordCount ?? 0) === 0) {
+      issues.push({
+        key: `${c.id}:fin0`,
+        group: 'chapter-account',
+        messageKey: 'FinishedNoWords',
+        args: { title: c.title || '…' },
+        target: { type: 'chapter', id: c.id },
+        severity: 'block',
+      });
     }
   }
 
@@ -110,47 +151,66 @@ export function buildProofreadReport(
     if (isOverdue(f, chapters)) {
       issues.push({
         key: `fs:${f.id}`,
-        group: "foreshadow",
-        messageKey: "ForeshadowOverdueRow",
-        args: { title: f.title || "…" },
-        target: { type: "foreshadowing", id: f.id },
+        group: 'foreshadow',
+        messageKey: 'ForeshadowOverdueRow',
+        args: { title: f.title || '…' },
+        target: { type: 'foreshadowing', id: f.id },
+        severity: 'warning',
       });
     }
   }
 
   // ④ 时间线：冲突逐行（跳选中事件）+ 待补全草稿汇总行（跳时间线页签）
-  const conflictIds = computeTimelineConflicts(timelineEvents, { view: "book" });
+  const conflictIds = computeTimelineConflicts(timelineEvents, { view: 'book' });
   for (const evId of conflictIds) {
     const ev = timelineEvents.find((e) => e.id === evId);
     issues.push({
       key: `ev:${evId}`,
-      group: "timeline",
-      messageKey: "TimelineConflictRow",
-      args: { text: (ev?.event || "").slice(0, 24) || "…" },
-      target: { type: "timeline-event", id: evId },
+      group: 'timeline',
+      messageKey: 'TimelineConflictRow',
+      args: { text: (ev?.event || '').slice(0, 24) || '…' },
+      target: { type: 'timeline-event', id: evId },
+      severity: 'block',
     });
   }
   const drafts = timelineEvents.filter((e) => !isComplete(e));
   if (drafts.length > 0) {
-    issues.push({ key: "tl:drafts", group: "timeline", messageKey: "TimelineDraftRow", args: { n: drafts.length }, target: { type: "view", id: "timeline" } });
+    issues.push({
+      key: 'tl:drafts',
+      group: 'timeline',
+      messageKey: 'TimelineDraftRow',
+      args: { n: drafts.length },
+      target: { type: 'view', id: 'timeline' },
+      severity: 'warning',
+    });
   }
 
   // ⑤ 剧情线：未挂线事件汇总行
   const unlined = timelineEvents.filter((e) => !e.storylineId);
   if (unlined.length > 0) {
-    issues.push({ key: "sl:unlined", group: "storyline", messageKey: "StorylineUnlinedRow", args: { n: unlined.length }, target: { type: "view", id: "storylines" } });
+    issues.push({
+      key: 'sl:unlined',
+      group: 'storyline',
+      messageKey: 'StorylineUnlinedRow',
+      args: { n: unlined.length },
+      target: { type: 'view', id: 'storylines' },
+      severity: 'warning',
+    });
   }
 
   // ⑥ 念头池：未分发念头汇总行（已转时间线/伏笔的不算）
   const loose = looseBeats(outlines);
-  const fresh = loose.filter((b) => !beatImported(timelineEvents, beatEventText(b)) && !beatPlantedAsForeshadowing(foreshadowings, b));
+  const fresh = loose.filter(
+    (b) => !beatImported(timelineEvents, beatEventText(b)) && !beatPlantedAsForeshadowing(foreshadowings, b),
+  );
   if (fresh.length > 0) {
     issues.push({
-      key: "idea:fresh",
-      group: "idea",
-      messageKey: "IdeaUndispatchedRow",
+      key: 'idea:fresh',
+      group: 'idea',
+      messageKey: 'IdeaUndispatchedRow',
       args: { n: fresh.length },
-      target: fresh.length === 1 && fresh[0] ? { type: "idea", id: fresh[0].id } : { type: "view", id: "inspiration" },
+      target: fresh.length === 1 && fresh[0] ? { type: 'idea', id: fresh[0].id } : { type: 'view', id: 'inspiration' },
+      severity: 'warning',
     });
   }
   void storylines; // 预留：线级体检（空线/长静默线）后续在此扩展
@@ -160,4 +220,59 @@ export function buildProofreadReport(
     {} as Record<ProofreadGroup, number>,
   );
   return { issues, counts };
+}
+
+// ─── 排序与过滤（纯函数，供校对页签左栏浏览用；禁在 pane 重写第二份） ───
+
+export type ProofreadSeverityFilter = 'all' | 'block' | 'warning';
+export type ProofreadSortMode = 'default' | 'severity' | 'chapter' | 'type';
+
+/** 严重性数值（0=必须处理 block / 1=建议处理 warning / 2=普通）。 */
+export function proofreadSeverityRank(issue: ProofreadIssue): number {
+  if (issue.severity === 'block') return 0;
+  if (issue.severity === 'warning') return 1;
+  return 2;
+}
+
+/** severity → 标识色（对标灵感状态 chip 的语义三色：严重红 / 建议琥珀 / 普通灰）。 */
+export function proofreadSeverityColor(severity: ProofreadIssue['severity']): string {
+  if (severity === 'block') return '#dc2626';
+  if (severity === 'warning') return '#b45309';
+  return '#94a3b8';
+}
+
+/** 按严重性过滤；all 返回原数组（顺序不变）。 */
+export function filterProofreadIssues(issues: ProofreadIssue[], severity: ProofreadSeverityFilter): ProofreadIssue[] {
+  if (severity === 'all') return issues;
+  return issues.filter((i) => i.severity === severity);
+}
+
+/** 排序：default 保持派发序；severity 严重在前；chapter 按章序（无 target 章排后）；type 按 messageKey 字典序（同键稳定）。 */
+export function sortProofreadIssues(
+  issues: ProofreadIssue[],
+  mode: ProofreadSortMode,
+  chapterOrder: string[] = [],
+): ProofreadIssue[] {
+  if (mode === 'default') return issues;
+  const arr = [...issues];
+  if (mode === 'severity') {
+    arr.sort((a, b) => proofreadSeverityRank(a) - proofreadSeverityRank(b));
+  } else if (mode === 'chapter') {
+    const order = new Map(chapterOrder.map((id, idx) => [id, idx]));
+    arr.sort((a, b) => {
+      const ai =
+        a.target?.type === 'chapter' ? (order.get(a.target.id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+      const bi =
+        b.target?.type === 'chapter' ? (order.get(b.target.id) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+      if (ai !== bi) return ai - bi;
+      return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+    });
+  } else {
+    arr.sort((a, b) => {
+      const ka = a.messageKey + ':' + a.key;
+      const kb = b.messageKey + ':' + b.key;
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+  }
+  return arr;
 }

@@ -5,7 +5,6 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Collapse from "@mui/material/Collapse";
 import Tabs from "@mui/material/Tabs";
@@ -35,7 +34,6 @@ import { useEditorStore } from "../../store/editorStore";
 import type { ProjectFile } from "../../services/tauri";
 import { EntityRendererPreview } from "../components/EntityRendererPreview";
 import { navigateToSource, navigateToSourceByPath, readLineFromMetadata } from "../utils/sourceNavigate";
-import { projectScanApi } from "../../services/tauri";
 import { openDirectorySubtree, runImpactPortraitFor } from "../utils/portraits";
 import { useSceneStore } from "../../store/sceneStore";
 import { assetFormatLabel, assetKindOf, type AssetKind } from "../utils/fileKind";
@@ -51,8 +49,7 @@ import {
   formatDimensions,
   useAssetImage,
   type ImageDimensions,
-  useProjectRoot,
-} from "../utils/imageAsset";
+  useProjectRoot} from "../utils/imageAsset";
 
 const TYPE_LABELS: Record<string, string> = {
   file: "file",
@@ -81,16 +78,6 @@ const SEVERITY_COLORS: Record<string, string> = {
   warning: "#EF9F27",
   info: "#378ADD",
 };
-const SEVERITY_LABELS: Record<string, string> = {
-  critical: "critical",
-  warning: "warning",
-  info: "info",
-};
-/** 严重度名（跟随 UI 语言；未知回退原始值） */
-function severityLabel(sev: string): string {
-  const v = t(`portrait.sev.${sev}`);
-  return v && !v.startsWith("portrait.sev.") ? v : sev;
-}
 
 function strVal(v: unknown): string {
   if (typeof v === "string") return v;

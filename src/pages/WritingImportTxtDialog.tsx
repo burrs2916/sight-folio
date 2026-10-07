@@ -4,7 +4,6 @@
 // 实际建章由调用方执行（createChapter + saveChapterContent）。粘贴方案零新依赖
 // （plugin-fs 不在依赖内，file picker 记 backlog）。上限 200 章防误操作。
 import { useMemo, useState } from 'react';
-import Box from '@mui/material/Box';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';

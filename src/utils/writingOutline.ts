@@ -4,8 +4,14 @@
 // 同一章的不同大纲，而它们读的是同一张 writing_outlines 表 —— 这种不一致最难查。
 // 写作台的口径是 `outlines.find(o => o.chapterId === chapter.id)`，这里保持一致。
 
-import type { WritingChapter, WritingOutline, WritingSetting, WritingRelation, WritingSettingExtra } from "../services/tauri";
-import { parseSettingExtra } from "../services/tauri";
+import type {
+  WritingChapter,
+  WritingOutline,
+  WritingSetting,
+  WritingRelation,
+  WritingSettingExtra,
+} from '../services/tauri';
+import { parseSettingExtra } from '../services/tauri';
 
 /**
  * 设定项「完整性」判定（零迁移，纯函数，可测）。
@@ -29,20 +35,39 @@ interface RequiredField {
 }
 
 const WB_REQUIRED: Record<string, RequiredField> = {
-  type: { i18nKey: "writing.wbType", isEmpty: (p) => !(p && typeof p.type === "string" && p.type.length > 0) },
-  rules: { i18nKey: "writing.wbRules", isEmpty: (p) => !(p && typeof p.rules === "string" && p.rules.trim().length > 0) },
+  type: { i18nKey: 'writing.wbType', isEmpty: (p) => !(p && typeof p.type === 'string' && p.type.length > 0) },
+  rules: {
+    i18nKey: 'writing.wbRules',
+    isEmpty: (p) => !(p && typeof p.rules === 'string' && p.rules.trim().length > 0),
+  },
 };
 const CHAR_REQUIRED: Record<string, RequiredField> = {
-  appearance: { i18nKey: "writing.appearance", isEmpty: (p) => !(p && typeof p.appearance === "string" && p.appearance.trim().length > 0) },
-  personality: { i18nKey: "writing.personality", isEmpty: (p) => !(p && typeof p.personality === "string" && p.personality.trim().length > 0) },
-  motivation: { i18nKey: "writing.motivation", isEmpty: (p) => !(p && typeof p.motivation === "string" && p.motivation.trim().length > 0) },
+  appearance: {
+    i18nKey: 'writing.appearance',
+    isEmpty: (p) => !(p && typeof p.appearance === 'string' && p.appearance.trim().length > 0),
+  },
+  personality: {
+    i18nKey: 'writing.personality',
+    isEmpty: (p) => !(p && typeof p.personality === 'string' && p.personality.trim().length > 0),
+  },
+  motivation: {
+    i18nKey: 'writing.motivation',
+    isEmpty: (p) => !(p && typeof p.motivation === 'string' && p.motivation.trim().length > 0),
+  },
 };
 
-export function settingCompleteness(kind: "character" | "worldbuilding", extra: string | WritingSettingExtra): SettingCompleteness {
-  const parsed = typeof extra === "string" ? parseSettingExtra(extra) : extra;
-  const profile = (kind === "worldbuilding" ? parsed.worldbuildingProfile : parsed.profile) as Record<string, unknown> | undefined;
-  const required = kind === "worldbuilding" ? WB_REQUIRED : CHAR_REQUIRED;
-  const missingKeys = Object.values(required).filter((f) => f.isEmpty(profile)).map((f) => f.i18nKey);
+export function settingCompleteness(
+  kind: 'character' | 'worldbuilding',
+  extra: string | WritingSettingExtra,
+): SettingCompleteness {
+  const parsed = typeof extra === 'string' ? parseSettingExtra(extra) : extra;
+  const profile = (kind === 'worldbuilding' ? parsed.worldbuildingProfile : parsed.profile) as
+    | Record<string, unknown>
+    | undefined;
+  const required = kind === 'worldbuilding' ? WB_REQUIRED : CHAR_REQUIRED;
+  const missingKeys = Object.values(required)
+    .filter((f) => f.isEmpty(profile))
+    .map((f) => f.i18nKey);
   return { complete: missingKeys.length === 0, missingKeys };
 }
 
@@ -74,11 +99,11 @@ export interface VolumeAccount {
 
 /** 卷的结构账：卷名 → 章列表 / 总字数 / 已完稿数。'' 卷名 = 未分卷。 */
 export function volumeAccount(chapters: WritingChapter[], volume: string): VolumeAccount {
-  const rows = chapters.filter((c) => (c.volume || "") === volume);
+  const rows = chapters.filter((c) => (c.volume || '') === volume);
   return {
     rows,
     words: rows.reduce((n, c) => n + (c.wordCount || 0), 0),
-    finished: rows.filter((c) => c.status === "finished").length,
+    finished: rows.filter((c) => c.status === 'finished').length,
   };
 }
 
@@ -89,28 +114,53 @@ export function volumeAccount(chapters: WritingChapter[], volume: string): Volum
 export interface BeatExtra {
   cast?: string[];
   scenes?: string[];
-  status?: string;
 }
 
 /** 节拍 extra 的宽容解析：非对象 / 坏 JSON 一律当空挂载，绝不抛错 */
 export function parseBeatExtra(extra: string): BeatExtra {
   try {
     const o = JSON.parse(extra);
-    return o && typeof o === "object" && !Array.isArray(o) ? (o as BeatExtra) : {};
+    return o && typeof o === 'object' && !Array.isArray(o) ? (o as BeatExtra) : {};
   } catch {
     return {};
   }
 }
 
 function idsOf(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x) : [];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : [];
 }
 
 /**
- * 节拍挂载 toggle 的**唯一写口径**（灵感工作台与大纲 BeatRow 共用，禁写第二份）：
+ * 章/卷封面（各自 extra.coverImage）：宽容解析，坏数据/无图一律 undefined。
+ * **唯一口径**（章树行缩略图、编辑器纸面卡横幅、WritingPage 作品卡共用），
+ * 从渲染器抽到 utils 禁第二份。
+ * 语义：**各自独立**（2026-09-29 定稿）——只读自身字段，绝不向上借用卷/全书封面。
+ */
+export function parseChapterCover(extra: string | undefined): string | undefined {
+  if (!extra) return undefined;
+  try {
+    const parsed = JSON.parse(extra);
+    if (parsed && typeof parsed === 'object' && typeof parsed.coverImage === 'string' && parsed.coverImage.length > 0) {
+      return parsed.coverImage;
+    }
+  } catch {
+    /* 脏数据按无图处理 */
+  }
+  return undefined;
+}
+
+/**
+ * 封面**各自独立**（2026-09-29 定稿）：章/卷/书各管各的封面，**绝不向上借用**——
+ * 章未设封面显示章自己的文字封面（主题色 + 卷章号），卷同理；全书封面只用于书维度，
+ * 不渗入章节行。渲染入口一律读各自 extra.coverImage（唯一样式化口径 = parseChapterCover），
+ * 禁用任何「沿 parentId 上溯借图」的实现（同卷章节共用一张图 = 千篇一律，已废弃）。
+ */
+
+/**
+ * 节拍挂载 toggle 的**唯一写口径**（灵感工作台共用，禁写第二份）：
  * 输入旧 extra JSON，返回挂载/取消挂载后的新 extra JSON（不落库，调用方走 updateOutline）。
  */
-export function toggleBeatMount(extra: string, key: "cast" | "scenes", settingId: string): string {
+export function toggleBeatMount(extra: string, key: 'cast' | 'scenes', settingId: string): string {
   if (!settingId) return extra;
   const ex = parseBeatExtra(extra);
   const cur = idsOf(ex[key]);
@@ -128,6 +178,24 @@ export function ideasOfSetting(outlines: WritingOutline[], settingId: string): W
   return looseBeats(outlines).filter((o) => {
     const ex = parseBeatExtra(o.extra);
     return idsOf(ex.cast).includes(settingId) || idsOf(ex.scenes).includes(settingId);
+  });
+}
+
+/**
+ * 与某章节关联的念头（联动派生·零模型）：未落章节拍中，
+ * extra.cast / extra.scenes 与该章节拍挂载的出场人物/场景有交集——
+ * 大纲树 NodeRow 微型标识据此派生，零模型。
+ */
+export function ideasOfChapter(outlines: WritingOutline[], chapterId: string): WritingOutline[] {
+  if (!chapterId) return [];
+  const chapterCast = new Set(castOfChapter(outlines, chapterId));
+  const chapterScenes = new Set(scenesOfChapter(outlines, chapterId));
+  if (chapterCast.size === 0 && chapterScenes.size === 0) return [];
+  return looseBeats(outlines).filter((o) => {
+    const ex = parseBeatExtra(o.extra);
+    const beatCast = new Set(idsOf(ex.cast));
+    const beatScenes = new Set(idsOf(ex.scenes));
+    return [...beatCast].some((id) => chapterCast.has(id)) || [...beatScenes].some((id) => chapterScenes.has(id));
   });
 }
 
@@ -155,15 +223,32 @@ export function scenesOfChapter(outlines: WritingOutline[], chapterId: string): 
  * 某设定被哪些章挂载（人物读 cast / 场景读 scenes，由 kind 决定）。
  * 这是「人物出现在哪些章」的**真数据**口径 —— 与扫描层 metadata.appearances 无关。
  * 返回按 sortOrder 排的章列表。
+ *
+ * T9：优先查 store 倒排索引（characterChapterIndex），O(1) 命中；
+ * 索引未就绪时 fallback 全量扫描。
  */
 export function chaptersOfSetting(
   outlines: WritingOutline[],
   chapters: WritingChapter[],
   settingId: string,
-  kind: "character" | "worldbuilding"
+  kind: 'character' | 'worldbuilding',
 ): WritingChapter[] {
   if (!settingId) return [];
-  const field = kind === "character" ? "cast" : "scenes";
+
+  // T9: 优先查索引（懒加载 store 避免循环依赖初始化问题）
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useWritingStore } = require('../store/writingStore');
+    const idx = useWritingStore.getState().characterChapterIndex.get(settingId);
+    if (idx) {
+      const ids = Array.from(idx);
+      return chapters.filter((c) => ids.includes(c.id)).sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+  } catch {
+    // 索引不可用（store 尚未初始化），fallback 全量扫描
+  }
+
+  const field = kind === 'character' ? 'cast' : 'scenes';
   const hit = new Set<string>();
   for (const o of outlines) {
     if (!o.chapterId) continue;
@@ -177,18 +262,41 @@ export function chaptersOfSetting(
  * 关系（relations）存在每个设定自己的 extra.relations 里（targetId 连 id，与自由文本 target 并存）。
  * 供世界观/人物设定在右栏「要素」看到"哪些人物/设定连着我"——让世界能装下自己的人物。
  * 零迁移：只读 extra.relations，不写。
+ *
+ * T9：优先查 store 倒排索引（settingInboundIndex），O(1) 命中；
+ * 索引未就绪时 fallback 全量扫描。
  */
 export function relatedSettingsOf(
   settings: WritingSetting[],
-  targetId: string
+  targetId: string,
 ): { setting: WritingSetting; relationType: string }[] {
   if (!targetId) return [];
+
+  // T9: 优先查索引
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useWritingStore } = require('../store/writingStore');
+    const idx = useWritingStore.getState().settingInboundIndex.get(targetId);
+    if (idx) {
+      const ids = Array.from(idx);
+      return settings
+        .filter((s) => s.id !== targetId && ids.includes(s.id))
+        .map((s) => {
+          const extra = parseSettingExtra(s.extra);
+          const rel = (extra.relations ?? []).find((r: WritingRelation) => r.targetId === targetId);
+          return { setting: s, relationType: rel?.type ?? '' };
+        });
+    }
+  } catch {
+    // 索引不可用，fallback 全量扫描
+  }
+
   const out: { setting: WritingSetting; relationType: string }[] = [];
   for (const s of settings) {
     if (s.id === targetId) continue;
     const extra = parseSettingExtra(s.extra);
     const rel = (extra.relations ?? []).find((r: WritingRelation) => r.targetId === targetId);
-    if (rel) out.push({ setting: s, relationType: rel.type ?? "" });
+    if (rel) out.push({ setting: s, relationType: rel.type ?? '' });
   }
   return out;
 }
@@ -238,18 +346,43 @@ export interface ChapterBindStore {
   createOutline: (title: string) => Promise<WritingOutline | null>;
   updateOutline: (
     outlineId: string,
-    patch: Partial<Pick<WritingOutline, "title" | "summary" | "chapterId" | "extra">>
+    patch: Partial<Pick<WritingOutline, 'title' | 'summary' | 'chapterId' | 'extra'>>,
   ) => Promise<void>;
+}
+
+function findBeatContaining(
+  outlines: WritingOutline[],
+  chapterId: string,
+  key: 'cast' | 'scenes',
+  settingId: string,
+): WritingOutline | null {
+  for (const o of outlines) {
+    if (o.chapterId !== chapterId) continue;
+    if (idsOf(parseBeatExtra(o.extra)[key]).includes(settingId)) return o;
+  }
+  return null;
 }
 
 export async function toggleSettingOnChapter(
   store: ChapterBindStore,
   chapterId: string,
-  key: "cast" | "scenes",
+  key: 'cast' | 'scenes',
   settingId: string,
-  fallbackTitle: string
+  fallbackTitle: string,
 ): Promise<void> {
   if (!chapterId || !settingId) return;
+
+  // 扫描该章全部 beat，找到实际包含 settingId 的那条（与 castOfChapter 读口径一致）
+  const owner = findBeatContaining(store.outlines, chapterId, key, settingId);
+  if (owner) {
+    const ex = parseBeatExtra(owner.extra);
+    const cur = Array.isArray(ex[key]) ? (ex[key] as string[]) : [];
+    const next = cur.filter((x) => x !== settingId);
+    await store.updateOutline(owner.id, { extra: JSON.stringify({ ...ex, [key]: next }) });
+    return;
+  }
+
+  // 未绑定 → 添加到 beatForChapter（sortOrder 最小者），无则新建
   let beat = beatForChapter(store.outlines, chapterId);
   if (!beat) {
     const created = await store.createOutline(fallbackTitle);
@@ -259,38 +392,8 @@ export async function toggleSettingOnChapter(
   }
   const ex = parseBeatExtra(beat.extra);
   const cur = Array.isArray(ex[key]) ? (ex[key] as string[]) : [];
-  const next = cur.includes(settingId) ? cur.filter((x) => x !== settingId) : [...cur, settingId];
+  const next = [...cur, settingId];
   await store.updateOutline(beat.id, { extra: JSON.stringify({ ...ex, [key]: next }) });
-}
-
-export interface VolumeBeatAccount {
-  /** 本卷所有章挂的节拍数 */
-  beats: number;
-  /** 其中已写（extra.status === "written"）的节拍数 */
-  written: number;
-  /** 本卷各章节拍挂过的设定 id（去重） */
-  settingIds: string[];
-}
-
-/** 卷的节拍账：本卷章数 / 节拍数 / 已写节拍 / 挂过的设定 */
-export function volumeBeatAccount(
-  outlines: WritingOutline[],
-  chapters: WritingChapter[],
-  volume: string
-): VolumeBeatAccount {
-  const rows = chapters.filter((c) => (c.volume || "") === volume);
-  let beats = 0;
-  let written = 0;
-  const settingIds = new Set<string>();
-  for (const c of rows) {
-    for (const o of beatsOfChapter(outlines, c.id)) {
-      beats += 1;
-      const ex = parseBeatExtra(o.extra);
-      if ((ex.status ?? "todo") === "written") written += 1;
-      for (const id of [...idsOf(ex.cast), ...idsOf(ex.scenes)]) settingIds.add(id);
-    }
-  }
-  return { beats, written, settingIds: [...settingIds] };
 }
 
 // ─── 树口径的卷账（2026-09-14 方案 A）：卷/章关系的事实源是 parent_id 树，
@@ -305,7 +408,7 @@ export function subtreeLeafIds(chapters: WritingChapter[], rootId: string): stri
   if (!rootId) return [];
   const childrenOf = new Map<string, string[]>();
   for (const c of chapters) {
-    const p = c.parentId || "";
+    const p = c.parentId || '';
     const arr = childrenOf.get(p);
     if (arr) arr.push(c.id);
     else childrenOf.set(p, [c.id]);
@@ -333,26 +436,6 @@ export function subtreeAccount(chapters: WritingChapter[], rootId: string): Volu
   return {
     rows,
     words: rows.reduce((n, c) => n + (c.wordCount || 0), 0),
-    finished: rows.filter((c) => c.status === "finished").length,
+    finished: rows.filter((c) => c.status === 'finished').length,
   };
-}
-
-/** 树口径的节拍账：子树叶章挂的节拍数 / 已写数 / 挂过的设定 id（去重） */
-export function subtreeBeatAccount(
-  outlines: WritingOutline[],
-  chapters: WritingChapter[],
-  rootId: string
-): VolumeBeatAccount {
-  const leafIds = new Set(subtreeLeafIds(chapters, rootId));
-  let beats = 0;
-  let written = 0;
-  const settingIds = new Set<string>();
-  for (const o of outlines) {
-    if (!o.chapterId || !leafIds.has(o.chapterId)) continue;
-    beats += 1;
-    const ex = parseBeatExtra(o.extra);
-    if ((ex.status ?? "todo") === "written") written += 1;
-    for (const id of [...idsOf(ex.cast), ...idsOf(ex.scenes)]) settingIds.add(id);
-  }
-  return { beats, written, settingIds: [...settingIds] };
 }

@@ -22,53 +22,7 @@ const PROJECT_ENTITY_CATEGORY: ComponentCategory = {
   updatedAt: 0,
 };
 
-/**
- * 遗留的 biosphere 分类（保留为引用，不再主动注入到 loadCategories 中）
- * 这些分类对于 biosphere 的组件管理页面仍然是合法的，但在 sight-folio
- * 的实体图鉴中不应自动显示。用户可手动创建同名分类。
- */
-const LEGACY_BIOSPHERE_CATEGORIES: ComponentCategory[] = [
-  {
-    id: "ccat_device",
-    name: "设备组件",
-    icon: "devices",
-    color: "#00BCD4",
-    sortOrder: 80,
-    description: "矿用设备组件（集控器/分控器/传感器/执行机构）",
-    createdAt: 0,
-    updatedAt: 0,
-  },
-  {
-    id: "ccat_line-chart",
-    name: "折线图",
-    icon: "show_chart",
-    color: "#F57474",
-    sortOrder: 20,
-    description: "折线图组件（基础、堆叠、极坐标、数据集、迷你图矩阵）",
-    createdAt: 0,
-    updatedAt: 0,
-  },
-  {
-    id: "ccat_gauge",
-    name: "仪表盘",
-    icon: "speed",
-    color: "#56D0E3",
-    sortOrder: 21,
-    description: "仪表盘组件（基础、三色分段、进度条、传感器、百分比）",
-    createdAt: 0,
-    updatedAt: 0,
-  },
-  {
-    id: "ccat_industrial",
-    name: "工业监控",
-    icon: "factory",
-    color: "#F8B448",
-    sortOrder: 22,
-    description: "工业监控组件（状态灯、状态卡片、告警栏、滚动表格、视频等）",
-    createdAt: 0,
-    updatedAt: 0,
-  },
-];
+
 
 function ensureProjectEntityCategory(categories: ComponentCategory[]) {
   if (categories.some((c) => c.id === PROJECT_ENTITY_CATEGORY.id)) return;

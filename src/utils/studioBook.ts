@@ -12,24 +12,24 @@
 // - createBookAutoNamed = 建书 + 自动建「第 1 章」+ 走 openBookInStudio 落场景；
 // - importBookFromDialog = 系统对话框选 txt/md → import_writing_book → 刷新书架。
 
-import { open } from "@tauri-apps/plugin-dialog";
-import { analyzerRegistry } from "../editor/analyzer/analyzerRegistry";
-import { useProjectStore } from "../store/projectStore";
-import { useSceneStore } from "../store/sceneStore";
-import { useWritingStore } from "../store/writingStore";
-import { useEditorStore } from "../store/editorStore";
-import { useWritingDocsStore } from "../store/writingDocsStore";
-import { writingScanApi, type WritingImportSummary, type WritingScanSummary } from "../services/tauri";
-import { defaultMediumForGenre, genreLabelKey } from "./writingSchema";
-import { buildStatsBoard } from "./writingBoards";
+import { open } from '@tauri-apps/plugin-dialog';
+import { analyzerRegistry } from '../editor/analyzer/analyzerRegistry';
+import { useProjectStore } from '../store/projectStore';
+import { useSceneStore } from '../store/sceneStore';
+import { useWritingStore } from '../store/writingStore';
+import { useEditorStore } from '../store/editorStore';
+import { useWritingDocsStore } from '../store/writingDocsStore';
+import { writingScanApi, type WritingImportSummary, type WritingScanSummary } from '../services/tauri';
+import { defaultMediumForGenre, genreLabelKey } from './writingSchema';
+import { buildStatsBoard } from './writingBoards';
 import {
   duplicateStudioPaneIds,
   isLegacyBoardCard,
   studioPaneForViewKind,
   type StudioPaneKind,
-} from "./writingPaneSeed";
-import { t } from "../i18n";
-import logger from "./logger";
+} from './writingPaneSeed';
+import { t } from '../i18n';
+import logger from './logger';
 
 /**
  * 并发 seed 守卫：同一 (viewId, kind) 只允许一个 seed 在途。
@@ -71,9 +71,9 @@ export async function openBookInStudio(bookId: string, title?: string): Promise<
       id: sid,
       name: bookTitle,
       projectRoot: `writing://${bookId}/`,
-      primaryLanguage: "novel-zh",
-      tags: ["writing"],
-      scanStatus: "ready",
+      primaryLanguage: 'novel-zh',
+      tags: ['writing'],
+      scanStatus: 'ready',
       scanProgress: 100,
       lastScannedAt: Math.floor(Date.now() / 1000),
       totalFiles: scanned.fileCount,
@@ -82,7 +82,7 @@ export async function openBookInStudio(bookId: string, title?: string): Promise<
   }
 
   // 3) 激活写作分析器 + 场景 + projectStore 接线
-  analyzerRegistry.setActiveAnalyzer("writing-analyzer");
+  analyzerRegistry.setActiveAnalyzer('writing-analyzer');
   useSceneStore.getState().setActiveScene(sid);
   const ps = useProjectStore.getState();
   ps.setActiveAnalysis(scanned.analysisId);
@@ -105,8 +105,8 @@ export async function openBookInStudio(bookId: string, title?: string): Promise<
  */
 export async function createBookNamed(
   name: string,
-  genre = "",
-  medium = defaultMediumForGenre(genre)
+  genre = '',
+  medium = defaultMediumForGenre(genre),
 ): Promise<{ id: string; title: string }> {
   const ws = useWritingStore.getState();
   if (ws.books.length === 0) await ws.loadBooks();
@@ -114,7 +114,7 @@ export async function createBookNamed(
   await ws.setActiveBook(book.id);
   // 首章：工作室画布要有一章可渲染，写作台也直接可写
   await ws.loadChapters(book.id);
-  await ws.createChapter(t("studio.firstChapter"));
+  await ws.createChapter(t('studio.firstChapter'));
   await openBookInStudio(book.id, book.title);
   return { id: book.id, title: book.title };
 }
@@ -130,12 +130,12 @@ export async function createBookNamed(
  * genre 可传（2026-09-12 起 L1 = 书）：拖「散文」进画布 = 新建一本散文书。
  */
 export async function createBookAutoNamed(
-  genre = "",
-  medium = defaultMediumForGenre(genre)
+  genre = '',
+  medium = defaultMediumForGenre(genre),
 ): Promise<{ id: string; title: string }> {
   const ws = useWritingStore.getState();
   if (ws.books.length === 0) await ws.loadBooks();
-  return createBookNamed(t("studio.defaultBookName", { n: ws.books.length + 1 }), genre, medium);
+  return createBookNamed(t('studio.defaultBookName', { n: ws.books.length + 1 }), genre, medium);
 }
 
 /**
@@ -152,7 +152,7 @@ export async function createBookAutoNamed(
  */
 export async function createBookFromCarrierDrop(genre: string): Promise<{ id: string; title: string }> {
   const book = await createBookAutoNamed(genre);
-  openTypedCarrierView(genre, "catalog");
+  openTypedCarrierView(genre, 'catalog');
   return book;
 }
 
@@ -169,8 +169,7 @@ export async function createBookFromCarrierDrop(genre: string): Promise<{ id: st
  * 无场景的悬空态）。剩余为空则什么都不做，L1 栏只剩「＋」。
  */
 export async function deleteBookWithScene(bookId: string): Promise<void> {
-  const wasActive = parseBookIdFromScene() === bookId
-    || useWritingStore.getState().activeBookId === bookId;
+  const wasActive = parseBookIdFromScene() === bookId || useWritingStore.getState().activeBookId === bookId;
   await useWritingStore.getState().deleteBook(bookId);
 
   const sid = bookSceneId(bookId);
@@ -184,7 +183,7 @@ export async function deleteBookWithScene(bookId: string): Promise<void> {
       await useSceneStore.getState().deleteScene(sid);
     }
   }
-  logger.info("studioBook", "book deleted with scene", { bookId, wasActive, sceneId: sid });
+  logger.info('studioBook', 'book deleted with scene', { bookId, wasActive, sceneId: sid });
 
   if (!wasActive) return;
   const rest = useWritingStore.getState().books;
@@ -195,14 +194,14 @@ export async function deleteBookWithScene(bookId: string): Promise<void> {
 
 /** 系统对话框选 txt/md → 导入写作库 → 刷新书架。取消选择返回 null。 */
 export async function importBookFromDialog(): Promise<WritingImportSummary | null> {
-  const isTauri = typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+  const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
   if (!isTauri) return null;
   const selected = await open({
     multiple: false,
     directory: false,
-    filters: [{ name: t("studio.importFilter"), extensions: ["txt", "md"] }],
+    filters: [{ name: t('studio.importFilter'), extensions: ['txt', 'md'] }],
   });
-  if (typeof selected !== "string") return null;
+  if (typeof selected !== 'string') return null;
   const imported = await writingScanApi.importBook(selected);
   await useWritingStore.getState().loadBooks();
   return imported;
@@ -220,14 +219,17 @@ export async function importBookFromDialog(): Promise<WritingImportSummary | nul
  * 场景不是书（projectRoot 非 writing://）也返回 null —— 货架只在书场景出现，防御性兜底。
  */
 /** 章节卡绑定 config（确定性约定与 Rust scan_writing_book 一致）。建档与已有元素拖入共用。 */
-export function chapterCardConfig(bookId: string, chapter: { id: string; title: string; volume?: string; wordCount?: number; status?: string }): Record<string, unknown> {
+export function chapterCardConfig(
+  bookId: string,
+  chapter: { id: string; title: string; volume?: string; wordCount?: number; status?: string },
+): Record<string, unknown> {
   return {
     fileId: `wfile_${chapter.id}`,
     filePath: `writing://${bookId}/${chapter.id}.md`,
     title: chapter.title,
-    volume: chapter.volume ?? "",
+    volume: chapter.volume ?? '',
     wordCount: chapter.wordCount ?? 0,
-    chapterStatus: chapter.status ?? "draft",
+    chapterStatus: chapter.status ?? 'draft',
     chapterId: chapter.id,
   };
 }
@@ -238,25 +240,25 @@ export function settingCardConfig(setting: { id: string; name: string; kind?: st
     name: setting.name,
     settingId: setting.id,
     appearances: 0,
-    ...(setting.kind === "worldbuilding" ? { kind: "worldview" } : {}),
+    ...(setting.kind === 'worldbuilding' ? { kind: 'worldview' } : {}),
   };
 }
 
 export async function createBlankWritingEntity(
   type: string,
-  genreHint = "",
-  chapterId = ""
+  genreHint = '',
+  _chapterId = '',
 ): Promise<{ name: string; config: Record<string, unknown> } | null> {
   if (
-    type !== "writing-chapter" &&
-    type !== "writing-character" &&
-    type !== "writing-worldview" &&
-    type !== "writing-workbench"
+    type !== 'writing-chapter' &&
+    type !== 'writing-character' &&
+    type !== 'writing-worldview' &&
+    type !== 'writing-workbench'
   ) {
     return null;
   }
   const scene = useSceneStore.getState().getActiveScene();
-  const bookId = scene?.projectRoot?.replace(/^writing:\/\//, "").replace(/\/+$/, "");
+  const bookId = scene?.projectRoot?.replace(/^writing:\/\//, '').replace(/\/+$/, '');
   if (!bookId) return null;
 
   const ws = useWritingStore.getState();
@@ -266,12 +268,12 @@ export async function createBlankWritingEntity(
   }
   const state = useWritingStore.getState();
 
-  if (type === "writing-workbench") {
+  if (type === 'writing-workbench') {
     // 设计视图（用户拍板「拖载体落设计视图」）：载体拖进画布 = 落一张**书级**
     // 设计视图大卡，绑定当前书（书的画布就是这本书的场景，书已存在，不再建章）。
     // 人物 / 主线 / 场景在卡内设计；正文成稿仍在写作台。
-    const genre = genreHint || state.books.find((b) => b.id === bookId)?.genre || "";
-    const bookTitle = state.books.find((b) => b.id === bookId)?.title ?? "";
+    const genre = genreHint || state.books.find((b) => b.id === bookId)?.genre || '';
+    const bookTitle = state.books.find((b) => b.id === bookId)?.title ?? '';
     return {
       name: bookTitle,
       config: {
@@ -281,18 +283,18 @@ export async function createBlankWritingEntity(
     };
   }
 
-  if (type === "writing-chapter") {
+  if (type === 'writing-chapter') {
     // 体裁术语层（载体线索）：命名跟随**所拖模板的体裁**（散文分区拖出即「第 N 篇」），
     // 未带提示时回落当前书体裁 —— 分区切换与书体裁不一致时以用户选择为准
-    const genre = genreHint || state.books.find((b) => b.id === bookId)?.genre || "";
-    const isEssay = genre === "essay";
+    const genre = genreHint || state.books.find((b) => b.id === bookId)?.genre || '';
+    const isEssay = genre === 'essay';
     const chapter = await state.createChapter(
-      t(isEssay ? "studio.pieceN" : "studio.chapterN", { n: state.chapters.length + 1 })
+      t(isEssay ? 'studio.pieceN' : 'studio.chapterN', { n: state.chapters.length + 1 }),
     );
     if (!chapter) return null;
     // 后台幂等补扫：project_files 落 wfile_{chapter_id} 行（绑定不依赖它，只为准确定位）
     void writingScanApi.scanBook(bookId).catch((e) => {
-      logger.warn("studioBook", "blank chapter backfill scan failed (binding unaffected)", { error: e });
+      logger.warn('studioBook', 'blank chapter backfill scan failed (binding unaffected)', { error: e });
     });
     return {
       name: chapter.title,
@@ -301,10 +303,10 @@ export async function createBlankWritingEntity(
   }
 
   // 人物 / 世界观 → 设定卡真建档
-  const kind = type === "writing-character" ? "character" : "worldbuilding";
+  const kind = type === 'writing-character' ? 'character' : 'worldbuilding';
   const setting = await state.createSetting(
     kind,
-    t(type === "writing-character" ? "studio.newCharacter" : "studio.newWorldview")
+    t(type === 'writing-character' ? 'studio.newCharacter' : 'studio.newWorldview'),
   );
   if (!setting) return null;
   return {
@@ -327,11 +329,11 @@ export function openChapterCarrierView(
   name: string,
   genre: string,
   bookId: string,
-  opts?: { forceNew?: boolean }
+  opts?: { forceNew?: boolean },
 ) {
   const { docsCompId } = ensureCarrierContainer(genre, bookId);
   if (!docsCompId) {
-    logger.warn("studioBook", "openChapterCarrierView: container has no docs card", { chapterId, genre });
+    logger.warn('studioBook', 'openChapterCarrierView: container has no docs card', { chapterId, genre });
     return;
   }
   useWritingDocsStore.getState().openTab(docsCompId, chapterId, name, opts);
@@ -351,32 +353,32 @@ export function ensureCarrierContainer(genre: string, bookId: string): { viewId:
   // docsCompId === null 守卫（openChapterCarrierView / SceneEditor 落卡 / openTypedCarrierView 忽略返回值），
   // 且「无作品不建作品视图」正是空态规范（2026-09-19 拍板）。
   if (!bookIdSafe) {
-    logger.warn("studioBook", "ensureCarrierContainer: no bookId, skip container creation", { genre });
-    return { viewId: "", docsCompId: null };
+    logger.warn('studioBook', 'ensureCarrierContainer: no bookId, skip container creation', { genre });
+    return { viewId: '', docsCompId: null };
   }
   const es = useEditorStore.getState();
-  const found = es.views.find((v) => v.carrierType === genre && v.kind === "writing");
+  const found = es.views.find((v) => v.carrierType === genre && v.kind === 'writing');
   if (found) {
     if (es.activeViewId !== found.id) es.switchView(found.id);
     const st = useEditorStore.getState();
     const view = st.views.find((v) => v.id === found.id);
-    const card = view?.components.find((c) => c.type === "writing-docs");
+    const card = view?.components.find((c) => c.type === 'writing-docs');
     if (card) return { viewId: found.id, docsCompId: card.id };
     // 卡丢失：补一张铺满 writing-docs（当前 activeView 即该视图）
-    logger.warn("studioBook", "carrier container missing docs card, re-adding", { viewId: found.id });
+    logger.warn('studioBook', 'carrier container missing docs card, re-adding', { viewId: found.id });
     const docsCompId = addDocsCard(bookIdSafe, genre);
     return { viewId: found.id, docsCompId };
   }
   // 新建容器视图
-  const label = genre ? t(genreLabelKey(genre)) : t("writing.viewKind.writing");
+  const label = genre ? t(genreLabelKey(genre)) : t('writing.viewKind.writing');
   const taken = new Set(useEditorStore.getState().views.map((v) => v.name));
   let viewName = label;
   let i = 2;
   while (taken.has(viewName)) viewName = `${label} ${i++}`;
-  useEditorStore.getState().addView(viewName, { meta: { carrierType: genre || undefined, kind: "writing" } });
+  useEditorStore.getState().addView(viewName, { meta: { carrierType: genre || undefined, kind: 'writing' } });
   const docsCompId = addDocsCard(bookIdSafe, genre);
   useEditorStore.getState().deselectAll();
-  logger.info("studioBook", "carrier container created", { genre, viewName, docsCompId });
+  logger.info('studioBook', 'carrier container created', { genre, viewName, docsCompId });
   return { viewId: useEditorStore.getState().activeViewId, docsCompId };
 }
 
@@ -384,9 +386,9 @@ export function ensureCarrierContainer(genre: string, bookId: string): { viewId:
 function addDocsCard(bookId: string, genre: string): string | null {
   const es = useEditorStore.getState();
   const cfg = es.canvasConfig;
-  const comp = es.addComponent("writing-docs", undefined, { x: 0, y: 0 });
+  const comp = es.addComponent('writing-docs', undefined, { x: 0, y: 0 });
   if (!comp) {
-    logger.warn("studioBook", "addDocsCard: addComponent returned null", { bookId, genre });
+    logger.warn('studioBook', 'addDocsCard: addComponent returned null', { bookId, genre });
     return null;
   }
   es.updateComponentTransform(comp.id, { x: 0, y: 0, width: cfg.width, height: cfg.height });
@@ -399,8 +401,8 @@ function addDocsCard(bookId: string, genre: string): string | null {
 
 /** projectRoot（`writing://{bookId}/`）→ bookId；非书场景返回空串。 */
 export function parseBookIdFromRoot(root: string | undefined | null): string {
-  if (!root || !root.startsWith("writing://")) return "";
-  return root.replace(/^writing:\/\//, "").replace(/\/+$/, "");
+  if (!root || !root.startsWith('writing://')) return '';
+  return root.replace(/^writing:\/\//, '').replace(/\/+$/, '');
 }
 
 /** 当前场景 projectRoot（writing://{bookId}/）→ bookId；非书场景返回空串。 */
@@ -431,16 +433,16 @@ export function parseBookIdFromScene(): string {
 
 /** 题材视图的 bookId：场景优先，回落当前激活的书（重启后场景可能还没接线）。 */
 function currentBookId(): string {
-  return parseBookIdFromScene() || useWritingStore.getState().activeBookId || "";
+  return parseBookIdFromScene() || useWritingStore.getState().activeBookId || '';
 }
 
 /** 往当前激活视图铺一张铺满画布的 writing-studio-pane 编辑面卡。 */
 function addStudioPaneCard(pane: StudioPaneKind, bookId: string): string | null {
   const es = useEditorStore.getState();
   const cfg = es.canvasConfig;
-  const comp = es.addComponent("writing-studio-pane", undefined, { x: 0, y: 0 });
+  const comp = es.addComponent('writing-studio-pane', undefined, { x: 0, y: 0 });
   if (!comp) {
-    logger.warn("studioBook", "addStudioPaneCard: addComponent returned null", { pane, bookId });
+    logger.warn('studioBook', 'addStudioPaneCard: addComponent returned null', { pane, bookId });
     return null;
   }
   es.updateComponentTransform(comp.id, { x: 0, y: 0, width: cfg.width, height: cfg.height });
@@ -457,9 +459,7 @@ function addStudioPaneCard(pane: StudioPaneKind, bookId: string): string | null 
  * 非题材编辑视图（正文容器 / 时间线 / 统计 / 自定义视图）直接返回，零副作用。
  */
 export function reconcileStudioPaneView(viewId: string): void {
-  const pane = studioPaneForViewKind(
-    useEditorStore.getState().views.find((v) => v.id === viewId)?.kind
-  );
+  const pane = studioPaneForViewKind(useEditorStore.getState().views.find((v) => v.id === viewId)?.kind);
   if (!pane) return;
   const bookId = currentBookId();
   const filePath = `writing://${bookId}/`;
@@ -476,10 +476,10 @@ export function reconcileStudioPaneView(viewId: string): void {
     const es = useEditorStore.getState();
     if (es.activeViewId !== viewId) es.switchView(viewId);
     useEditorStore.getState().removeComponentsBulk(stale);
-    logger.info("studioBook", "legacy board cards removed", { viewId, pane, removed: stale.length });
+    logger.info('studioBook', 'legacy board cards removed', { viewId, pane, removed: stale.length });
   }
 
-  const existing = view.components.find((c) => c.type === "writing-studio-pane");
+  const existing = view.components.find((c) => c.type === 'writing-studio-pane');
   if (existing) {
     // 重复残留清理（真实事故：本函数的两个触发点在同一轮提交里各补了一张，
     // 同一视图叠了两张坐标完全相同的编辑面 —— 看不出来，但两个编辑面同时在
@@ -488,17 +488,17 @@ export function reconcileStudioPaneView(viewId: string): void {
     const dupes = duplicateStudioPaneIds(view.components);
     if (dupes.length > 0) {
       useEditorStore.getState().removeComponentsBulk(dupes);
-      logger.warn("studioBook", "duplicate studio panes removed", { viewId, removed: dupes.length });
+      logger.warn('studioBook', 'duplicate studio panes removed', { viewId, removed: dupes.length });
     }
     const cfg = (existing.config ?? {}) as Record<string, unknown>;
     if (cfg.pane !== pane || cfg.filePath !== filePath) {
       useEditorStore.getState().updateComponentConfig(existing.id, { pane, filePath });
-      logger.info("studioBook", "studio pane config reconciled", { viewId, pane });
+      logger.info('studioBook', 'studio pane config reconciled', { viewId, pane });
     }
     return;
   }
   if (!bookId) {
-    logger.warn("studioBook", "reconcileStudioPaneView skipped: no book id", { viewId });
+    logger.warn('studioBook', 'reconcileStudioPaneView skipped: no book id', { viewId });
     return;
   }
 
@@ -517,25 +517,34 @@ export function reconcileStudioPaneView(viewId: string): void {
  * 其余 L2 kind（catalog / characters / worldview / timeline）已改由
  * reconcileStudioPaneView 铺可编辑编辑面，不再走这里。
  */
-function seedTypedView(kind: "stats", viewId: string): void {
+function seedTypedView(kind: 'stats', viewId: string): void {
   const key = `${viewId}:${kind}`;
   if (pendingSeeds.has(key)) {
-    logger.info("studioBook", "seedTypedView skipped (already in flight)", { kind, viewId });
+    logger.info('studioBook', 'seedTypedView skipped (already in flight)', { kind, viewId });
     return;
   }
   pendingSeeds.add(key);
   void Promise.resolve().then(async () => {
     try {
       const files = useProjectStore.getState().files;
-      let cards: { type: string; name: string; x: number; y: number; width: number; height: number; locked: boolean; config: Record<string, unknown> }[] = [];
+      let cards: {
+        type: string;
+        name: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        locked: boolean;
+        config: Record<string, unknown>;
+      }[] = [];
       try {
         cards = buildStatsBoard(files).cards;
       } catch (err) {
-        logger.warn("studioBook", "seedTypedView build failed", { kind, error: String(err) });
+        logger.warn('studioBook', 'seedTypedView build failed', { kind, error: String(err) });
         return;
       }
       if (cards.length === 0) {
-        logger.info("studioBook", "seedTypedView skipped (no files/empty book)", { kind, viewId });
+        logger.info('studioBook', 'seedTypedView skipped (no files/empty book)', { kind, viewId });
         return;
       }
       const es = useEditorStore.getState();
@@ -543,11 +552,11 @@ function seedTypedView(kind: "stats", viewId: string): void {
       // 加固：实时复核激活视图 —— 快照可能过期（dev 热更新/快速切换窗口），
       // 任何情况下绝不把统计板卡铺进非统计视图；宁可放弃本次刷新也不污染别视图。
       if (useEditorStore.getState().activeViewId !== viewId) {
-        logger.warn("studioBook", "seedTypedView aborted: active view mismatch", { kind, viewId });
+        logger.warn('studioBook', 'seedTypedView aborted: active view mismatch', { kind, viewId });
         return;
       }
       useEditorStore.getState().addComponentsBulk(cards);
-      logger.info("studioBook", "typed view seeded", { kind, viewId, cards: cards.length });
+      logger.info('studioBook', 'typed view seeded', { kind, viewId, cards: cards.length });
     } finally {
       pendingSeeds.delete(key);
     }
@@ -559,16 +568,18 @@ function seedTypedView(kind: "stats", viewId: string): void {
  * config.kind 签名，不动用户自己拖的便签），再跑一次 seedTypedView 拿最新数据，
  * 实现「返回即刷新」——数据变了，统计回到该视图立刻反映。
  */
-export function reseedTypedView(viewId: string, kind: "stats"): void {
+export function reseedTypedView(viewId: string, kind: 'stats'): void {
   const es = useEditorStore.getState();
   const view = es.views.find((v) => v.id === viewId);
   if (!view) return;
   const stale = view.components
-    .filter((c) => c.type === "writing-outline" && String((c.config as Record<string, unknown> | undefined)?.kind) === "stat")
+    .filter(
+      (c) => c.type === 'writing-outline' && String((c.config as Record<string, unknown> | undefined)?.kind) === 'stat',
+    )
     .map((c) => c.id);
   if (stale.length > 0) {
     es.removeComponentsBulk(stale);
-    logger.info("studioBook", "typed view reseed: stale board cards removed", { viewId, kind, removed: stale.length });
+    logger.info('studioBook', 'typed view reseed: stale board cards removed', { viewId, kind, removed: stale.length });
   }
   seedTypedView(kind, viewId);
 }
@@ -582,17 +593,17 @@ export function reseedTypedView(viewId: string, kind: "stats"): void {
  * reconcile 的无条件清场会按 isLegacyBoardCard 签名清掉历史 stat 卡，用户内容不动。
  */
 export type WritingViewKind =
-  | "catalog"
-  | "characters"
-  | "worldview"
-  | "timeline"
-  | "storylines"
-  | "foreshadowing"
-  | "inspiration"
-  | "proofread"
-  | "stats"
-  | "writing"
-  | "overview";
+  | 'catalog'
+  | 'characters'
+  | 'worldview'
+  | 'timeline'
+  | 'storylines'
+  | 'foreshadowing'
+  | 'inspiration'
+  | 'proofread'
+  | 'stats'
+  | 'writing'
+  | 'overview';
 
 export function openTypedCarrierView(genre: string, kind: WritingViewKind): void {
   const es = useEditorStore.getState();
@@ -603,7 +614,7 @@ export function openTypedCarrierView(genre: string, kind: WritingViewKind): void
     reconcileStudioPaneView(hit.id);
     return;
   }
-  if (kind === "writing") {
+  if (kind === 'writing') {
     ensureCarrierContainer(genre, parseBookIdFromScene());
     return;
   }
@@ -632,9 +643,9 @@ export function closeCarrierCard(componentId: string): void {
   const st = useEditorStore.getState();
   if (st.activeViewId !== viewId) return; // 防御：移除过程中 activeView 被外力切换
   const view = st.views.find((v) => v.id === viewId);
-  if (!view || view.id === "default" || st.views.length <= 1) return;
+  if (!view || view.id === 'default' || st.views.length <= 1) return;
   if (view.components.length === 0) {
     es.removeView(viewId);
-    logger.info("studioBook", "closeCarrierCard recycled empty view", { viewId });
+    logger.info('studioBook', 'closeCarrierCard recycled empty view', { viewId });
   }
 }

@@ -14,6 +14,7 @@ import {
   beatImported,
   pureInt,
   buildStorylineChapterMatrix,
+  compareByAt,
 } from '../writingTimeline';
 import type { WritingChapter, WritingTimelineEvent } from '../../services/tauri';
 
@@ -32,7 +33,7 @@ const ev = (id: string, over: Partial<WritingTimelineEvent> = {}): WritingTimeli
     ...over,
   }) as WritingTimelineEvent;
 
-const ch = (id: string, sortOrder = 0, kind = '章'): WritingChapter =>
+const ch = (id: string, sortOrder = 0, kind = '章', volume = ''): WritingChapter =>
   ({
     id,
     bookId: 'b1',
@@ -41,7 +42,7 @@ const ch = (id: string, sortOrder = 0, kind = '章'): WritingChapter =>
     sortOrder,
     wordCount: 0,
     status: 'draft',
-    volume: '',
+    volume,
     parentId: null,
     kind,
     extra: '{}',
@@ -97,7 +98,7 @@ describe('buildChapterLanes —— 章节级轨道', () => {
       ev('e2', { chapterId: 'c1', at: '1' }),
       ev('e3', { chapterId: null }),
     ];
-    const lanes = buildChapterLanes(chapters, events, { unbound: '未绑章', untitled: '未命名' });
+    const lanes = buildChapterLanes(chapters, events, { unbound: '未绑章', untitled: '未命名' }, undefined);
     expect(lanes.map((l) => l.id)).toEqual(['c2', 'c1', '__unbound__']);
     expect(lanes[0].events.map((e) => e.id)).toEqual(['e1']);
     expect(lanes[2].events.map((e) => e.id)).toEqual(['e3']);
@@ -109,6 +110,48 @@ describe('buildChapterLanes —— 章节级轨道', () => {
       untitled: '未命名',
     });
     expect(lanes.map((l) => l.id)).toEqual(['c1']);
+  });
+
+  it('groupByVolume=true：按卷聚合为折叠节点，默认收拢；展开后可见内部章节轨道', () => {
+    const chapters = [ch('c1', 1, '章', '卷一'), ch('c2', 2, '章', '卷一'), ch('c3', 3, '章', '卷二')];
+    const events = [
+      ev('e1', { chapterId: 'c1', at: '1' }),
+      ev('e2', { chapterId: 'c2', at: '2' }),
+      ev('e3', { chapterId: 'c3', at: '3' }),
+      ev('e4', { chapterId: null }),
+    ];
+    const lanes = buildChapterLanes(
+      chapters,
+      events,
+      { unbound: '未绑章', untitled: '未命名' },
+      { groupByVolume: true },
+    );
+    // 卷一、卷二、未绑章
+    expect(lanes.map((l) => l.id)).toEqual(['__vol__卷一', '__vol__卷二', '__unbound__']);
+    // 卷一聚合事件 = c1 + c2
+    const vol1 = lanes.find((l) => l.id === '__vol__卷一');
+    expect(vol1?.events.map((e) => e.id)).toEqual(['e1', 'e2']);
+    expect(vol1?.group?.chapters.map((c) => c.id)).toEqual(['c1', 'c2']);
+    // 卷二聚合事件 = c3
+    const vol2 = lanes.find((l) => l.id === '__vol__卷二');
+    expect(vol2?.events.map((e) => e.id)).toEqual(['e3']);
+    // 未绑章在末尾
+    expect(lanes[lanes.length - 1].id).toBe('__unbound__');
+  });
+
+  it('groupByVolume=true：未分卷章节归入「未分类」卷', () => {
+    const chapters = [ch('c1', 1, '章', ''), ch('c2', 2, '章', '卷一')];
+    const events = [ev('e1', { chapterId: 'c1', at: '1' }), ev('e2', { chapterId: 'c2', at: '2' })];
+    const lanes = buildChapterLanes(
+      chapters,
+      events,
+      { unbound: '未绑章', untitled: '未命名' },
+      { groupByVolume: true },
+    );
+    expect(lanes.map((l) => l.id)).toEqual(['__vol____none__', '__vol__卷一']);
+    const uncategorized = lanes.find((l) => l.id === '__vol____none__');
+    expect(uncategorized?.name).toBe('未命名'); // labels.untitled
+    expect(uncategorized?.group?.chapters.map((c) => c.id)).toEqual(['c1']);
   });
 });
 
@@ -184,7 +227,11 @@ describe('buildStorylineChapterMatrix —— 剧情 P2 线×章交织矩阵', ()
   it('章列按 sortOrder 排序；每线一行，格 = 该线绑章完整事件数', () => {
     const m = buildStorylineChapterMatrix(
       lines,
-      [ev('e1', { storylineId: 'L1', chapterId: 'c1' }), ev('e2', { storylineId: 'L1', chapterId: 'c1' }), ev('e3', { storylineId: 'L2', chapterId: 'c3' })],
+      [
+        ev('e1', { storylineId: 'L1', chapterId: 'c1' }),
+        ev('e2', { storylineId: 'L1', chapterId: 'c1' }),
+        ev('e3', { storylineId: 'L2', chapterId: 'c3' }),
+      ],
       chapters,
     );
     expect(m.columns.map((c) => c.id)).toEqual(['c1', 'c2', 'c3']); // sortOrder 1,2,3
@@ -198,7 +245,11 @@ describe('buildStorylineChapterMatrix —— 剧情 P2 线×章交织矩阵', ()
   it('未绑章事件不进格只计数；未挂线事件归 null 行置尾（非空才生成）', () => {
     const m = buildStorylineChapterMatrix(
       lines,
-      [ev('e1', { storylineId: 'L1' }), ev('e2', { storylineId: null, chapterId: 'c1' }), ev('e3', { storylineId: 'L1', chapterId: 'c2' })],
+      [
+        ev('e1', { storylineId: 'L1' }),
+        ev('e2', { storylineId: null, chapterId: 'c1' }),
+        ev('e3', { storylineId: 'L1', chapterId: 'c2' }),
+      ],
       chapters,
     );
     expect(m.rows.map((r) => r.storylineId)).toEqual(['L1', 'L2', null]);
@@ -208,13 +259,27 @@ describe('buildStorylineChapterMatrix —— 剧情 P2 线×章交织矩阵', ()
   });
 
   it('草稿（at/event 不全）不进矩阵；空线也出列（规划空缺提示）', () => {
-    const m = buildStorylineChapterMatrix(
-      lines,
-      [ev('e1', { storylineId: 'L1', at: '', event: '' })],
-      chapters,
-    );
+    const m = buildStorylineChapterMatrix(lines, [ev('e1', { storylineId: 'L1', at: '', event: '' })], chapters);
     expect(m.rows.map((r) => r.storylineId)).toEqual(['L1', 'L2']); // 空线 L2 也出列
     expect(m.rows[0].total).toBe(0); // 草稿被 isComplete 口径排除
     expect(m.rows.some((r) => r.storylineId === null)).toBe(false); // 无未挂线事件 → 不生成 null 行
+  });
+});
+
+describe('compareByAt —— 事件 at 排序唯一口径', () => {
+  it('纯数字 at 用数值感知排序（"3" < "10"，不等长前缀正确归位）', () => {
+    const list = ['10', '3', '1', '2'];
+    expect([...list].sort(compareByAt)).toEqual(['1', '2', '3', '10']);
+  });
+
+  it('空 at 排后（与「待补全殿后」分组语义一致）', () => {
+    const list = ['', '3', '  ', null, '1'];
+    expect([...list].sort(compareByAt)).toEqual(['1', '3', '', '  ', null]);
+    expect(compareByAt(undefined, undefined)).toBe(0);
+  });
+
+  it('trim 后参与比较（前后空白不改变排序）', () => {
+    expect(compareByAt(' 2 ', '1')).toBeGreaterThan(0);
+    expect(compareByAt(' 2 ', null)).toBeLessThan(0);
   });
 });
