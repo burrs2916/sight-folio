@@ -24,7 +24,9 @@
     "delete": "删除",
     "wordCount": "{n} 字",
     "toggleSidebar": "切换侧边栏",
-    "clearSearch": "清除搜索"
+    "clearSearch": "清除搜索",
+    "writing": "创作",
+    "workbench": "工作台"
   },
   "search": {
     "placeholder": "搜索作品、分析、文件…",

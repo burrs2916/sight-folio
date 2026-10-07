@@ -24,7 +24,9 @@
     "delete": "Delete",
     "wordCount": "{n} words",
     "toggleSidebar": "Toggle sidebar",
-    "clearSearch": "Clear search"
+    "clearSearch": "Clear search",
+    "writing": "Writing",
+    "workbench": "Workbench"
   },
   "search": {
     "placeholder": "Search books, analyses, files…",

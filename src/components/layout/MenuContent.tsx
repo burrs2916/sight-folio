@@ -34,15 +34,21 @@ interface NavGroupDef {
 function getNavGroups(): NavGroupDef[] {
   return [
     {
-      id: 'main',
-      label: t('nav.main'),
+      // 创作主线：书架 / 语料库 / AI 助手 / 完结作品 是日常创作闭环的入口
+      id: 'writing',
+      label: t('nav.writing'),
       items: [
         { text: t('nav.dashboard'), icon: <DashboardRoundedIcon sx={{ fontSize: 19 }} />, path: '/' },
-        { text: t('nav.analyzer'), icon: <LayersRoundedIcon sx={{ fontSize: 19 }} />, path: '/analyzer' },
-        { text: t('nav.published'), icon: <BookIcon sx={{ fontSize: 19 }} />, path: '/published' },
         { text: t('nav.library'), icon: <LocalLibraryRoundedIcon sx={{ fontSize: 19 }} />, path: '/library' },
         { text: t('nav.ai'), icon: <SmartToyIcon sx={{ fontSize: 19 }} />, path: '/ai' },
+        { text: t('nav.published'), icon: <BookIcon sx={{ fontSize: 19 }} />, path: '/published' },
       ],
+    },
+    {
+      // 工作台（次级）：工作室 = 场景画布 + 代码分析工作台，属进阶工具而非创作主入口
+      id: 'workbench',
+      label: t('nav.workbench'),
+      items: [{ text: t('nav.analyzer'), icon: <LayersRoundedIcon sx={{ fontSize: 19 }} />, path: '/analyzer' }],
     },
   ];
 }
