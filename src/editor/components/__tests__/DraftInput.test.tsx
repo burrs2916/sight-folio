@@ -46,17 +46,21 @@ function Harness({ delayMs = 40, as = 'input', entityKey = 'e1' }: HarnessProps)
         commits.push(v);
         const delay = writeQueue.length > 0 ? writeQueue.shift()! : writeMs;
         return new Promise<void>((resolve) => {
-          window.setTimeout(() => {
+          const timer = window.setTimeout(() => {
             storeValue = v;
             force();
             resolve();
           }, delay);
+          pendingTimers.push(timer);
         });
       }}
       aria-label="field"
     />
   );
 }
+
+/** 记录 onCommit 里创建的落库定时器，teardown 时清理，避免测试结束后挂起 */
+const pendingTimers: number[] = [];
 
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -116,6 +120,9 @@ afterEach(() => {
   root = null;
   host = null;
   document.body.innerHTML = '';
+  while (pendingTimers.length > 0) {
+    window.clearTimeout(pendingTimers.pop()!);
+  }
 });
 
 describe('DraftInput：受控输入 × 异步回写', () => {
