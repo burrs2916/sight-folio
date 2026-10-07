@@ -1,10 +1,13 @@
 //! 写作域应用服务层（T4 领域下沉）。
 //!
 //! 职责：承载写作域的中重逻辑——EPUB 导出、全书扫描（分析器融合）、
-//! 作品导入。commands/writing.rs 只保留 `#[tauri::command]` 薄壳透传，
-//! 前端命令名与签名不变（零感知迁移）。
+//! 作品导入、DOCX/PDF 导出、全书备份恢复。commands/writing.rs 只保留
+//! `#[tauri::command]` 薄壳透传，前端命令名与签名不变（零感知迁移）。
 //!
 //! 分层对齐：application/auth、application/icons 的既有模式。
+
+pub mod docx_export;
+pub mod pdf_export;
 
 use crate::domain::analysis::Analysis;
 use crate::domain::project_files::ProjectFile;
@@ -506,6 +509,17 @@ pub struct WritingScanSummary {
 /// 并产出写作审查发现（对标死代码 / 技术债语义）。
 ///
 /// 跨仓编排入口：由 commands/writing.rs 薄壳注入四个仓储 State 后调用。
+/// 软删章节判定：extra.deletedAt 为真数（>0）即视为已进回收站。
+/// 前端软删把时间戳写进 extra JSON（零迁移），读取侧（扫描/统计）据此排除；
+/// 坏数据/缺字段一律视为未删除（保守，不丢内容）。
+fn is_chapter_soft_deleted(extra: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(extra)
+        .ok()
+        .and_then(|v| v.get("deletedAt").and_then(|d| d.as_i64()))
+        .map(|t| t > 0)
+        .unwrap_or(false)
+}
+
 pub fn scan_book(
     book_id: &str,
     writing_repo: &Arc<SqliteWritingRepository>,
@@ -516,7 +530,12 @@ pub fn scan_book(
     let book = writing_repo
         .get_book(book_id)?
         .ok_or_else(|| AppError::NotFound(format!("书籍不存在: {}", book_id)))?;
-    let chapters = writing_repo.list_chapters(book_id)?;
+    // 软删章（回收站）不参与全书解析：内容已从用户视角删除，不进 analyses/语料/统计
+    let chapters = writing_repo
+        .list_chapters(book_id)?
+        .into_iter()
+        .filter(|c| !is_chapter_soft_deleted(&c.extra))
+        .collect::<Vec<_>>();
     let analysis_id = writing_analysis_id(book_id);
     let now = chrono::Utc::now().timestamp();
     let total_words: i64 = chapters.iter().map(|c| c.word_count).sum();
@@ -662,12 +681,12 @@ pub fn scan_book(
         }
         findings.push(ReviewFinding {
             analysis_id: analysis_id.clone(),
-            rule_id: Some("writing-unbound-beat".to_string()),
+            rule_id: Some("writing-unbound-outline".to_string()),
             target_id: o.id.clone(),
             target_type: "writing-outline".to_string(),
             severity: "info".to_string(),
-            message: format!("大纲节拍「{}」尚未落地到任何章节", o.title),
-            suggestion: Some("在写作台大纲面板绑定章节，或将其纳入后续卷规划".to_string()),
+            message: format!("灵感条目「{}」尚未挂接到任何章节", o.title),
+            suggestion: Some("在章节详情中挂接该条目，或将其纳入后续卷规划".to_string()),
             metadata: serde_json::json!({ "bookId": book_id }).to_string(),
             ..Default::default()
         });
@@ -817,6 +836,7 @@ pub fn import_book(
         status: "draft".to_string(),
         cover_color: "#4A338F".to_string(),
         daily_goal: 0,
+        extra: "{}".to_string(),
         created_at: now,
         updated_at: now,
     };
@@ -837,6 +857,7 @@ pub fn import_book(
             volume: String::new(),
             parent_id: None,
             kind: "章".to_string(),
+            storyline_id: None,
             extra: "{}".to_string(),
             created_at: now,
             updated_at: now,
@@ -850,4 +871,99 @@ pub fn import_book(
         total_words,
         strategy,
     })
+}
+#[cfg(test)]
+mod export_smoke_tests {
+    use super::*;
+
+    fn sample_chapters(with_img: bool) -> Vec<EpubChapter> {
+        let mut img = String::new();
+        if with_img {
+            // 生成一张临时 PNG，用绝对路径（collect_images 对相对 resolve 失败时会按字面路径尝试）
+            let dir = std::env::temp_dir().join("sightfolio_export_test");
+            std::fs::create_dir_all(&dir).unwrap();
+            let png_path = dir.join("smoke.png");
+            if !png_path.exists() {
+                let img = image::RgbImage::from_fn(64, 40, |x, y| {
+                    image::Rgb([
+                        (x * 3) as u8,
+                        (y * 5) as u8,
+                        ((x + y) * 2) as u8,
+                    ])
+                });
+                img.save(&png_path).unwrap();
+            }
+            img = format!(r#"<p><img data-asset="{}" alt="t"></p>"#, png_path.display());
+        }
+        vec![
+            EpubChapter {
+                title: "第一章 缘起".into(),
+                content: format!(
+                    r#"<h1>开篇</h1><p>这是一个用于验证中文 PDF 离线导出的长段落。没有空格的连续中文应当按字形宽度自动换行，而不能被截断。{}"#,
+                    "这是一个很长的中文句子，用来验证自动换行逻辑是否正确，句子足够长到会跨行显示。".repeat(8)
+                ) + &img,
+                cover: None,
+            },
+            EpubChapter {
+                title: "第二章 发展".into(),
+                content: r#"<p>English text with some words to wrap across lines correctly as well.</p><ul><li>要点一</li><li>要点二</li></ul><table><tr><td>甲</td><td>乙</td></tr><tr><td>1</td><td>2</td></tr></table>"#.into(),
+                cover: None,
+            },
+        ]
+    }
+
+    #[test]
+    fn export_pdf_produces_valid_pdf_with_embedded_cjk_font() {
+        let out = std::env::temp_dir().join("sightfolio_export_test").join("smoke.pdf");
+        let _ = std::fs::remove_file(&out);
+        let r = crate::application::writing::pdf_export::export_pdf(
+            "测试之书".into(),
+            Some("一本验证导出的书".into()),
+            sample_chapters(true),
+            out.to_string_lossy().to_string(),
+        );
+        assert!(r.is_ok(), "export failed: {:?}", r.err());
+        assert!(out.exists(), "pdf not created");
+
+        // 字节级结构校验（lopdf 0.26 default-features=false 无读取器，改手验）
+        let bytes = std::fs::read(&out).expect("read pdf");
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(bytes.starts_with(b"%PDF"), "missing %PDF header");
+        assert!(text.ends_with("%%EOF") || text.contains("%%EOF"), "missing %%EOF trailer");
+        assert!(text.contains("Subtype/Type0") || text.contains("/Type0"), "Type0 font missing");
+        assert!(text.contains("FontFile2"), "FontFile2 missing");
+        assert!(text.contains("FlateDecode"), "compressed stream missing");
+        assert!(text.contains("/Type/Page") || text.contains("/Type /Page"), "Page objects missing");
+        // 页对象计数（粗糙统计，>=3 页应有至少 3 个 /Type /Page）：
+        let page_count = text.matches("/Type/Page").count() + text.matches("/Type /Page").count();
+        assert!(page_count >= 3, "expected >=3 pages, got {page_count}");
+
+        // 文件大小：字体已嵌入（压缩后应明显大于 500KB，且包含压缩字体流）
+        let size = std::fs::metadata(&out).unwrap().len();
+        assert!(size > 200_000, "embedding likely missing, size={size}");
+        println!("[smoke] pdf ok: {page_count} pages, {size} bytes -> {}", out.display());
+    }
+
+    #[test]
+    fn export_docx_produces_valid_docx() {
+        let out = std::env::temp_dir().join("sightfolio_export_test").join("smoke.docx");
+        let _ = std::fs::remove_file(&out);
+        let r = crate::application::writing::docx_export::export_docx(
+            "测试之书".into(),
+            None,
+            sample_chapters(true),
+            out.to_string_lossy().to_string(),
+        );
+        assert!(r.is_ok(), "export failed: {:?}", r.err());
+        assert!(out.exists());
+
+        // 用 zip 读取验证结构
+        let f = std::fs::File::open(&out).unwrap();
+        let mut zip = zip::ZipArchive::new(f).unwrap();
+        let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
+        assert!(names.contains(&"[Content_Types].xml".to_string())); // zip 层可能去掉前缀
+        assert!(names.iter().any(|n| n.contains("word/document.xml")), "missing document.xml: {names:?}");
+        assert!(names.iter().any(|n| n.contains("word/media/")), "image not embedded: {names:?}");
+        println!("[smoke] docx ok: {} entries -> {}", names.len(), out.display());
+    }
 }

@@ -19,7 +19,9 @@ use crate::commands::call_graph::{compute_call_reachability, CallReachabilityRes
 use crate::infrastructure::Database;
 use crate::infrastructure::database::ai_repository::*;
 use crate::infrastructure::database::project_call_edge_repository::ProjectCallEdgeRepository;
+use crate::infrastructure::database::writing_repository::WritingRepository;
 use crate::infrastructure::database::SqliteProjectCallEdgeRepository;
+use crate::infrastructure::database::SqliteWritingRepository;
 
 /// 各工具**自我设界**的输出预算。
 ///
@@ -3015,6 +3017,321 @@ impl AgentTool for RunCommandTool {
     }
 }
 
+// ─── 写作域工具：read_chapter / list_chapters / read_character_card ───
+// 这三个工具是「AI 助手与写作业务契合」改造的 P1 专用工具集：让 /ai 全页助手在写作
+// 场景下能按需拿到章节全文 / 章节目录 / 人设卡，而不是被代码分析工具牵引着去读「项目」。
+// 数据统一走 WritingRepository（与 Tauri command 层同源，口径零第二份）。
+
+/// read_chapter 单次返回正文的最大字符数（对标 file_read 的预算自设界：长章截断并给出提示，
+/// 不让模型用一次调用把整本书灌进上下文；需要更长时收窄到单章场景再读）。
+const WRITING_CHAPTER_MAX_CHARS: usize = 24_000;
+
+/// 轻量 HTML→纯文本：章节正文是 TipTap 富文本（<p>/<strong>/<em>/<br> 等），
+/// 直接扔给 LLM 会把标签当成噪声；strip 掉标签并解码常见实体，压缩多余空行。
+/// 不追求逐位还原富文本（LLM 只需要正文），保持无第三方依赖。
+fn html_to_plain_text(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '<' {
+            // 跳过整个标签（含属性，直到 >）
+            for n in chars.by_ref() {
+                if n == '>' {
+                    break;
+                }
+            }
+            out.push('\n');
+        } else {
+            out.push(c);
+        }
+    }
+    out.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+        .replace("&nbsp;", " ")
+        .lines()
+        .map(str::trim_end)
+        .filter(|l| !l.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// list_chapters: 列出某本书的章节（id+标题+字数+状态），不含正文——让模型先知道结构再按需读正文。
+pub struct ListChaptersTool {
+    db: Arc<Database>,
+}
+
+impl ListChaptersTool {
+    pub fn new(db: Arc<Database>) -> Self {
+        Self { db }
+    }
+}
+
+#[async_trait]
+impl AgentTool for ListChaptersTool {
+    fn name(&self) -> &str {
+        "list_chapters"
+    }
+
+    fn description(&self) -> &str {
+        "List all chapters of a book in writing order (id, title, word count, status, volume). \
+         Returns the skeleton only — no chapter text. Use read_chapter to fetch a chapter's full text. \
+         Scope by book_id (get it from the attached [Current Book] / [Current Chapter] context)."
+    }
+
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "book_id": {
+                    "type": "string",
+                    "description": "The book to list chapters for."
+                }
+            },
+            "required": ["book_id"]
+        })
+    }
+
+    async fn execute(&self, params: Value) -> Result<ToolOutput, String> {
+        let book_id = params["book_id"].as_str().ok_or("book_id is required")?;
+        let repo = SqliteWritingRepository::new(self.db.clone());
+        let book = repo.get_book(book_id).map_err(|e| e.to_string())?;
+        let Some(book) = book else {
+            return Ok(ToolOutput {
+                success: false,
+                result: format!("[list_chapters] Book {book_id} not found"),
+                metadata: json!({ "bookId": book_id }),
+            });
+        };
+        let chapters = repo.list_chapters(book_id).map_err(|e| e.to_string())?;
+        let rows: Vec<String> = chapters
+            .iter()
+            .map(|c| {
+                format!(
+                    "- id={} | {} | {} 字 | {} | {}",
+                    c.id,
+                    c.title,
+                    c.word_count,
+                    if c.status.is_empty() { "草稿" } else { &c.status },
+                    if c.volume.is_empty() { "未分卷" } else { &c.volume }
+                )
+            })
+            .collect();
+        Ok(ToolOutput {
+            success: true,
+            result: format!(
+                "[list_chapters] 《{}》共 {} 章\n{}",
+                book.title,
+                chapters.len(),
+                if rows.is_empty() { "(还没有章节)".to_string() } else { rows.join("\n") }
+            ),
+            metadata: json!({ "bookId": book_id, "chapterCount": chapters.len() }),
+        })
+    }
+}
+
+/// read_chapter: 读取某章全文（富文本转纯文本），带字符预算自设界。
+pub struct ReadChapterTool {
+    db: Arc<Database>,
+}
+
+impl ReadChapterTool {
+    pub fn new(db: Arc<Database>) -> Self {
+        Self { db }
+    }
+}
+
+#[async_trait]
+impl AgentTool for ReadChapterTool {
+    fn name(&self) -> &str {
+        "read_chapter"
+    }
+
+    fn description(&self) -> &str {
+        "Read one chapter's full text (rich text flattened to plain prose). \
+         Returns title, word count, status and the chapter body. \
+         Long chapters are truncated at ~24000 chars with an explicit notice. \
+         Pass chapter_id from list_chapters output or from the attached [Current Chapter] context."
+    }
+
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "chapter_id": {
+                    "type": "string",
+                    "description": "The chapter to read."
+                }
+            },
+            "required": ["chapter_id"]
+        })
+    }
+
+    async fn execute(&self, params: Value) -> Result<ToolOutput, String> {
+        let chapter_id = params["chapter_id"].as_str().ok_or("chapter_id is required")?;
+        let repo = SqliteWritingRepository::new(self.db.clone());
+        let chapter = repo.get_chapter(chapter_id).map_err(|e| e.to_string())?;
+        let Some(chapter) = chapter else {
+            return Ok(ToolOutput {
+                success: false,
+                result: format!("[read_chapter] Chapter {chapter_id} not found"),
+                metadata: json!({ "chapterId": chapter_id }),
+            });
+        };
+        let text = html_to_plain_text(&chapter.content);
+        let length = text.chars().count();
+        let truncated = length > WRITING_CHAPTER_MAX_CHARS;
+        let body: String = if truncated {
+            let mut s: String = text.chars().take(WRITING_CHAPTER_MAX_CHARS).collect();
+            s.push_str(&format!(
+                "\n\n[正文已截断：共 {length} 字，仅展示前 {WRITING_CHAPTER_MAX_CHARS} 字。]"
+            ));
+            s
+        } else {
+            text
+        };
+        Ok(ToolOutput {
+            success: true,
+            result: format!(
+                "[read_chapter] 《{}》 | {} 字 | {} | 所属书 id={}\n\n{}",
+                chapter.title,
+                chapter.word_count,
+                if chapter.status.is_empty() { "草稿" } else { &chapter.status },
+                chapter.book_id,
+                body
+            ),
+            metadata: json!({
+                "chapterId": chapter.id,
+                "bookId": chapter.book_id,
+                "title": chapter.title,
+                "wordCount": chapter.word_count,
+                "truncated": truncated
+            }),
+        })
+    }
+}
+
+/// read_character_card: 读取某本书的人设卡（姓名+身份+描述+结构化档案字段）。
+/// 返回全部人物卡，不做截断——人物卡总量受写作台限定（非正文，单张卡体积很小）。
+pub struct ReadCharacterCardTool {
+    db: Arc<Database>,
+}
+
+impl ReadCharacterCardTool {
+    pub fn new(db: Arc<Database>) -> Self {
+        Self { db }
+    }
+}
+
+#[async_trait]
+impl AgentTool for ReadCharacterCardTool {
+    fn name(&self) -> &str {
+        "read_character_card"
+    }
+
+    fn description(&self) -> &str {
+        "List all character cards of a book (name, subtitle, description, and structured profile \
+         fields like appearance / personality / motivation / catchphrase when present). \
+         Use it before answering questions about a character, instead of guessing from chapter text. \
+         Pass book_id from the attached [Current Book] context."
+    }
+
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "book_id": {
+                    "type": "string",
+                    "description": "The book whose character cards to read."
+                }
+            },
+            "required": ["book_id"]
+        })
+    }
+
+    async fn execute(&self, params: Value) -> Result<ToolOutput, String> {
+        let book_id = params["book_id"].as_str().ok_or("book_id is required")?;
+        let repo = SqliteWritingRepository::new(self.db.clone());
+        let book = repo.get_book(book_id).map_err(|e| e.to_string())?;
+        let Some(book) = book else {
+            return Ok(ToolOutput {
+                success: false,
+                result: format!("[read_character_card] Book {book_id} not found"),
+                metadata: json!({ "bookId": book_id }),
+            });
+        };
+        let cards = repo.list_settings(book_id, "character").map_err(|e| e.to_string())?;
+        if cards.is_empty() {
+            return Ok(ToolOutput {
+                success: true,
+                result: format!(
+                    "[read_character_card] 《{}》还没有人设卡。请基于已有正文推理人物，不要凭空设定新的人物关系。",
+                    book.title
+                ),
+                metadata: json!({ "bookId": book_id, "count": 0 }),
+            });
+        }
+        let rows: Vec<String> = cards
+            .iter()
+            .map(|c| {
+                let mut lines = vec![format!(
+                    "## {}（{}）",
+                    c.name,
+                    if c.subtitle.is_empty() { "人物" } else { &c.subtitle }
+                )];
+                if !c.description.is_empty() {
+                    lines.push(c.description.clone());
+                }
+                // 结构化档案字段（extra.profile），与前端 parseSettingExtra 同口径
+                if let Ok(extra) = serde_json::from_str::<Value>(&c.extra) {
+                    if let Some(profile) = extra.get("profile").and_then(Value::as_object) {
+                        let parts: Vec<String> = profile
+                            .iter()
+                            .filter(|(_, v)| v.is_string() && !v.as_str().unwrap_or("").is_empty())
+                            .map(|(k, v)| format!("{k}: {}", v.as_str().unwrap_or("")))
+                            .collect();
+                        if !parts.is_empty() {
+                            lines.push(parts.join("；"));
+                        }
+                    }
+                    if let Some(rels) = extra.get("relations").and_then(Value::as_array) {
+                        if !rels.is_empty() {
+                            let rels_str: Vec<String> = rels
+                                .iter()
+                                .filter_map(|r| {
+                                    let t = r.get("target").and_then(Value::as_str);
+                                    let ty = r.get("type").and_then(Value::as_str);
+                                    match (t, ty) {
+                                        (Some(t), Some(ty)) => Some(format!("{t}（{ty}）")),
+                                        (Some(t), None) => Some(t.to_string()),
+                                        _ => None,
+                                    }
+                                })
+                                .collect();
+                            if !rels_str.is_empty() {
+                                lines.push(format!("关系：{}", rels_str.join("、")));
+                            }
+                        }
+                    }
+                }
+                lines.join("\n")
+            })
+            .collect();
+        Ok(ToolOutput {
+            success: true,
+            result: format!(
+                "[read_character_card] 《{}》共 {} 张人设卡\n\n{}",
+                book.title,
+                cards.len(),
+                rows.join("\n\n")
+            ),
+            metadata: json!({ "bookId": book_id, "count": cards.len() }),
+        })
+    }
+}
+
 pub fn create_project_sight_tools(
     db: Arc<Database>,
     enabled_tool_ids: &[String],
@@ -3055,6 +3372,15 @@ pub fn create_project_sight_tools(
             }
             "run_command" => {
                 registry.register(std::sync::Arc::new(RunCommandTool::new(db.clone())));
+            }
+            "list_chapters" => {
+                registry.register(std::sync::Arc::new(ListChaptersTool::new(db.clone())));
+            }
+            "read_chapter" => {
+                registry.register(std::sync::Arc::new(ReadChapterTool::new(db.clone())));
+            }
+            "read_character_card" => {
+                registry.register(std::sync::Arc::new(ReadCharacterCardTool::new(db.clone())));
             }
             _ => {}
         }

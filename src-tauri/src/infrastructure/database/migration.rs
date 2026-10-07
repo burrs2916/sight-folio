@@ -1345,6 +1345,7 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             genre TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'draft',
             cover_color TEXT NOT NULL DEFAULT '#4A338F',
+            extra TEXT NOT NULL DEFAULT '{}',
             created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
             updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         )",
@@ -1361,6 +1362,7 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             status TEXT NOT NULL DEFAULT 'draft',
             parent_id TEXT,
             kind TEXT NOT NULL DEFAULT '',
+            storyline_id TEXT,
             created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
             updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         )",
@@ -1502,6 +1504,18 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
          ON writing_foreshadowings(book_id, sort_order)",
         [],
     )?;
+    // 旧库升级：writing_foreshadowings 加 storyline_id 列（只 ALTER 不 DROP；新库建表已含，PRAGMA 检查幂等）。
+    let foreshadowing_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(writing_foreshadowings)")?
+        .query_map([], |row| row.get(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    if !foreshadowing_cols.is_empty() && !foreshadowing_cols.contains(&"storyline_id".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_foreshadowings ADD COLUMN storyline_id TEXT",
+            [],
+        )?;
+    }
     // 章节版本快照（批次④）：切章/手动时对正文存档，origin = auto | manual。
     // 每章只保留最近 N 份（仓储层 save_chapter_snapshot 事务内裁剪）。
     conn.execute(
@@ -1521,6 +1535,79 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
          ON writing_chapter_snapshots(chapter_id, created_at)",
         [],
     )?;
+    // 章内批注（批次② T4）：正文只存引用 id，批注内容独立表持久化。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_annotations (
+            id TEXT PRIMARY KEY,
+            chapter_id TEXT NOT NULL,
+            book_id TEXT NOT NULL,
+            text TEXT NOT NULL DEFAULT '',
+            excerpt TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_annotations_chapter \
+         ON writing_annotations(chapter_id, created_at)",
+        [],
+    )?;
+    // 灵感/快速笔记（T4）：全局级跨章笔记。chapter_id 可空（'' = 全书级）。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_notes (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            chapter_id TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL DEFAULT '',
+            tags TEXT NOT NULL DEFAULT '',
+            pin INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_notes_book \
+         ON writing_notes(book_id, pin DESC, updated_at DESC)",
+        [],
+    )?;
+    // 完结作品记录（Phase 2）：写作台导出/备份成功后在页面上落一条「完结作品」。
+    // 只存元数据（作品名/格式/路径/规格/时间），不动本源文件——删除记录 ≠ 删除源文件
+    // （页面「仅从列表移除记录，源文件不会被删除」语义由前端确认文案承载）。
+    // created_at 为导出完成时间（Unix 秒）；按 (book_id, created_at DESC) 检索作品时间线。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS completed_works (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL,
+            book_title TEXT NOT NULL,
+            format TEXT NOT NULL DEFAULT '',
+            file_path TEXT NOT NULL DEFAULT '',
+            file_size INTEGER NOT NULL DEFAULT 0,
+            word_count INTEGER NOT NULL DEFAULT 0,
+            chapter_count INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_completed_works_book \
+         ON completed_works(book_id, created_at DESC)",
+        [],
+    )?;
+    // T3：文件存在性标记。源文件被移动/删除后列表显示「找不到文件」而非裸空。
+    // 新库建表即含列，老库幂等 ALTER 补列（migrate 每次启动都会跑，缺列才补）。
+    let cw_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(completed_works)")?
+        .query_map([], |row| row.get(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    if !cw_cols.is_empty() && !cw_cols.contains(&"is_file_missing".to_string()) {
+        conn.execute(
+            "ALTER TABLE completed_works ADD COLUMN is_file_missing INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
     // P6：章节卷分组（volume='' = 未分卷）与书级日更目标。幂等 ALTER（migrate 每次启动都会跑）。
     let chapter_cols: Vec<String> = conn
         .prepare("PRAGMA table_info(writing_chapters)")?
@@ -1541,6 +1628,14 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             [],
         )?;
     }
+    // 章节主剧情线（G1 结构性补强）：章→线直连，补平「经事件间接推断」的空白。
+    // 幂等 ALTER；旧库无此列，新库建表已有（与 timeline_events.storyline_id 同范式）。
+    if !chapter_cols.is_empty() && !chapter_cols.contains(&"storyline_id".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_chapters ADD COLUMN storyline_id TEXT",
+            [],
+        )?;
+    }
 
     let book_cols: Vec<String> = conn
         .prepare("PRAGMA table_info(writing_books)")?
@@ -1558,6 +1653,14 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     if !book_cols.is_empty() && !book_cols.contains(&"medium".to_string()) {
         conn.execute(
             "ALTER TABLE writing_books ADD COLUMN medium TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+    // 全书目标（T2 写作目标）：targetWords / targetChapters / deadline 走 extra JSON 透传，
+    // 加字段零迁移（与 settings/outlines 同范式）。幂等 ALTER；旧库无此列，新库建表已有。
+    if !book_cols.is_empty() && !book_cols.contains(&"extra".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_books ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'",
             [],
         )?;
     }

@@ -46,7 +46,14 @@ fn fnv1a_64(bytes: &[u8], basis: u64) -> u64 {
 
 /// 内容精确指纹：归一化文本的 128 位 FNV-1a（两路不同 basis），输出 32 位小写十六进制。
 pub fn content_fingerprint(text: &str) -> String {
-    let norm = normalize_for_hash(text);
+    content_fingerprint_normalized(&normalize_for_hash(text))
+}
+
+/// **已归一化**文本的内容精确指纹（跳过内部 normalize，供批量路径复用一次归一化结果）。
+///
+/// 大书导入时全书文本会被扫描多次（content 指纹 + SimHash 各扫一遍）；调用方先
+/// [`normalize_for_hash`] 一次，再同时喂给本函数与 [`simhash64_normalized`]，全程只归一化一次。
+pub(crate) fn content_fingerprint_normalized(norm: &str) -> String {
     let lo = fnv1a_64(norm.as_bytes(), FNV_OFFSET_BASIS_64);
     let hi = fnv1a_64(norm.as_bytes(), FNV_ALT_BASIS_64);
     format!("{lo:016x}{hi:016x}")
@@ -62,7 +69,11 @@ pub fn chunk_fingerprint(content: &str) -> i64 {
 /// 特性：只反映词元的**多重集**，对局部增删改稳健（改一句话只翻转少数位）——
 /// 正是「同一本书不同版本/排版」需要的行为。
 pub fn simhash64(text: &str) -> i64 {
-    let norm = normalize_for_hash(text);
+    simhash64_normalized(&normalize_for_hash(text))
+}
+
+/// **已归一化**文本的 SimHash（跳过内部 normalize，供批量路径复用一次归一化结果）。
+pub(crate) fn simhash64_normalized(norm: &str) -> i64 {
     let chars: Vec<char> = norm.chars().collect();
     if chars.is_empty() {
         return 0;

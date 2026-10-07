@@ -1,5 +1,5 @@
 use rusqlite::Connection;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 /// 语料库独立数据库（corpus.db）。
@@ -10,7 +10,13 @@ pub struct CorpusDatabase(pub Mutex<Connection>);
 
 impl CorpusDatabase {
     pub fn new() -> Result<Self, rusqlite::Error> {
-        let mut conn = Connection::open(Self::db_path())?;
+        Self::open_at(Self::db_path())
+    }
+
+    /// 指定路径打开（测试与迁移工具用）：PRAGMA + init_schema 与 `new` 完全一致，
+    /// 唯一差异是数据库文件位置——便于对旧库副本（如升级前快照）预演升级与回收。
+    pub fn open_at(path: impl AsRef<Path>) -> Result<Self, rusqlite::Error> {
+        let mut conn = Connection::open(path)?;
         Self::apply_pragmas(&mut conn)?;
         Self::init_schema(&conn)?;
         Ok(CorpusDatabase(Mutex::new(conn)))
@@ -34,7 +40,9 @@ impl CorpusDatabase {
             "PRAGMA journal_mode=WAL;
              PRAGMA synchronous=NORMAL;
              PRAGMA busy_timeout=5000;
-             PRAGMA cache_size=-8000;",
+             -- 页缓存 64MB（-KiB）：单书导入可一次承载数万句 + trigram 倒排，
+             -- 避免大书入库时频繁页交换。WAL 下写事务受益明显，代价是常驻内存上限提升。
+             PRAGMA cache_size=-65536;",
         )?;
         Ok(())
     }
@@ -45,6 +53,14 @@ impl CorpusDatabase {
     /// 索引不重复存正文，删句/改句由触发器自动维护倒排。
     /// tokenizer 用 trigram：中英双语子串检索（搜「孤独」命中「孤独感」），无需分词器。
     fn init_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
+        // 书 FTS 表是否已存在：新建时才需回填存量书行（rebuild 从 content 表重建，成本与书量级正比）。
+        let books_fts_exists: bool = {
+            let mut stmt = conn.prepare(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='corpus_books_fts'",
+            )?;
+            let n: i64 = stmt.query_row([], |r| r.get(0))?;
+            n > 0
+        };
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS corpus_books (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,6 +85,20 @@ impl CorpusDatabase {
                 norm_hash INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_corpus_chunks_book ON corpus_chunks(book_id, seq);
+            CREATE TABLE IF NOT EXISTS corpus_book_sources (
+                book_id INTEGER PRIMARY KEY REFERENCES corpus_books(id) ON DELETE CASCADE,
+                source TEXT NOT NULL DEFAULT 'txt',
+                raw_text TEXT NOT NULL,
+                stored_at INTEGER NOT NULL DEFAULT 0
+            );
+            -- 标签体系（P0-3）：一书可打多标签，一对多；与 corpus_books.category 单值列兼容——
+            -- category 列保留（检索 LIKE 仍可命中旧值），标签写读走本表，读时标签表优先。
+            CREATE TABLE IF NOT EXISTS corpus_book_tags (
+                book_id INTEGER NOT NULL REFERENCES corpus_books(id) ON DELETE CASCADE,
+                tag TEXT NOT NULL,
+                PRIMARY KEY (book_id, tag)
+            );
+            CREATE INDEX IF NOT EXISTS idx_corpus_book_tags_tag ON corpus_book_tags(tag);
             CREATE VIRTUAL TABLE IF NOT EXISTS corpus_fts USING fts5(
                 content,
                 content='corpus_chunks',
@@ -84,7 +114,17 @@ impl CorpusDatabase {
             CREATE TRIGGER IF NOT EXISTS corpus_chunks_au AFTER UPDATE OF content ON corpus_chunks BEGIN
                 INSERT INTO corpus_fts(corpus_fts, rowid, content) VALUES ('delete', old.id, old.content);
                 INSERT INTO corpus_fts(rowid, content) VALUES (new.id, new.content);
-            END;",
+            END;
+            -- 书检索 FTS（P3：书量增长后避免书名/作者/分类 LIKE 全表扫）。
+            -- trigram 与句子分支同 tokenizer：≥3 字符子串检索，与 old `%q%` LIKE 子串命中口径一致，
+            -- <3 字符仍走 LIKE 回退（trigram 对 2 字符无法建索引词）。
+            -- 触发器与存量回填排在下部 ALTER 之后（category 是后加列，触发器引用 new/old.category）。
+            CREATE VIRTUAL TABLE IF NOT EXISTS corpus_books_fts USING fts5(
+                title, author, category,
+                content='corpus_books',
+                content_rowid='id',
+                tokenize='trigram'
+            );",
         )?;
         // 旧库升级：新增列（只 ALTER 不 DROP）。新库建表已含这些列，
         // ALTER 报 duplicate column 属预期，`let _ =` 吞掉。
@@ -110,6 +150,28 @@ impl CorpusDatabase {
             "CREATE INDEX IF NOT EXISTS idx_corpus_chunks_norm ON corpus_chunks(norm_hash)",
             [],
         );
+        // 书 FTS 触发器（引用 category 列，故排 ALTER 之后。「只 CREATE」铁律：IF NOT EXISTS 幂等）。
+        // external content 表由触发器同步增删改；存量书行在表首次创建时用 rebuild 一次性回填。
+        conn.execute_batch(
+            "CREATE TRIGGER IF NOT EXISTS corpus_books_fts_ai AFTER INSERT ON corpus_books BEGIN
+                INSERT INTO corpus_books_fts(rowid, title, author, category)
+                VALUES (new.id, new.title, new.author, new.category);
+            END;
+            CREATE TRIGGER IF NOT EXISTS corpus_books_fts_ad AFTER DELETE ON corpus_books BEGIN
+                INSERT INTO corpus_books_fts(corpus_books_fts, rowid, title, author, category)
+                VALUES ('delete', old.id, old.title, old.author, old.category);
+            END;
+            CREATE TRIGGER IF NOT EXISTS corpus_books_fts_au AFTER UPDATE OF title, author, category ON corpus_books BEGIN
+                INSERT INTO corpus_books_fts(corpus_books_fts, rowid, title, author, category)
+                VALUES ('delete', old.id, old.title, old.author, old.category);
+                INSERT INTO corpus_books_fts(rowid, title, author, category)
+                VALUES (new.id, new.title, new.author, new.category);
+            END;",
+        )?;
+        if !books_fts_exists {
+            // 首次建表：把既有书行一次性灌入书 FTS（external content 的 'rebuild' 会重读 content 表）。
+            conn.execute("INSERT INTO corpus_books_fts(corpus_books_fts) VALUES ('rebuild')", [])?;
+        }
         Ok(())
     }
 }
@@ -209,6 +271,24 @@ mod tests {
             )
             .unwrap();
         assert_eq!(idx, 1, "idx_corpus_chunks_norm should exist after upgrade");
+        // 书 FTS 表（external content）与三触发器升级后存在，引用 category 的触发器不失败
+        let fts: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='corpus_books_fts'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(fts, 1, "corpus_books_fts should exist after upgrade");
+        let trigs: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type='trigger' AND name LIKE 'corpus_books_fts_%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(trigs, 3, "book fts triggers should exist after upgrade");
     }
 
     /// 幂等：新库上重复 init_schema 不报错、不重复建对象。

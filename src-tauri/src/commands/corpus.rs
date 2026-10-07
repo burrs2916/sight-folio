@@ -1,6 +1,6 @@
 use crate::domain::corpus::{
-    fingerprint, CorpusBook, CorpusSearchResult, DuplicateBookGroup, DuplicateBookRef,
-    DuplicateHit, DuplicateReport, RebuildItem, RebuildReport,
+    fingerprint, schema, CorpusBook, CorpusSearchResult, CorpusStorageReport, DuplicateBookGroup,
+    DuplicateBookRef, DuplicateHit, DuplicateReport, RebuildItem, RebuildReport,
 };
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::corpus_repository::CorpusRepository;
@@ -8,8 +8,9 @@ use crate::infrastructure::database::SqliteCorpusRepository;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use std::path::Path;
-use std::sync::Arc;
-use tauri::State;
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
+use tauri::{Emitter, State};
 use zip::ZipArchive;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
@@ -42,16 +43,66 @@ pub struct CorpusState {
     repo: Option<Arc<SqliteCorpusRepository>>,
     /// 初始化失败原因（就绪时为 None）。
     error: Option<String>,
+    /// 维护操作互斥锁（P1-4 并发互斥）：导入 / 重建 / 删除 / 空间回收共用一把锁，
+    /// 任一操作进行中时其它维护命令立即返回明确错误，避免并发写索引/删库造成的竞争。
+    /// 互斥放在命令入口（而非 SQLite 层）：SQLite 已有连接级串行化，业务互斥需要的是
+    /// 「整个读文件→抽取→切分→入库」事务不被并发打断。
+    /// 锁内同时记录持有者（操作名 + 开始时间），供错误信息与 `corpus_maintenance_status`
+    /// 查询——让用户知道是哪个维护操作在跑、已运行多久，而不是只能看到一句晦涩英文。
+    maintenance_holder: Arc<Mutex<Option<MaintenanceHolder>>>,
+    /// 导入前查重指纹缓存（P2-1）：以 (source_path, size, mtime) 为键缓存最近一次抽取的指纹，
+    /// 命中直接走比对，避免换文件/重复选择时全量重抽；mtime 变化自动失效。
+    /// 单槽即可——查重是「当前选中文件」的即时校验，旧文件指纹无保留价值。
+    fingerprint_cache: Arc<Mutex<Option<FingerprintCacheEntry>>>,
+}
+
+/// 查重指纹缓存条目：键 = 文件身份三元组，值 = 抽取指纹（同 `compute_file_fingerprint` 语义，
+/// 计算失败为 None 同样缓存，避免对同一坏文件反复重抽）。
+struct FingerprintCacheEntry {
+    path: String,
+    len: u64,
+    modified: SystemTime,
+    fp: Option<(String, i64)>,
+}
+
+/// 维护互斥守卫：`try_begin_maintenance` 成功拿到锁后返回本守卫，
+/// Drop 时自动复位 in-flight 标志（含持有者记录），保证任何提前返回路径都能释放锁。
+#[derive(Debug)]
+struct MaintenanceGuard(Arc<Mutex<Option<MaintenanceHolder>>>);
+impl Drop for MaintenanceGuard {
+    fn drop(&mut self) {
+        if let Ok(mut holder) = self.0.lock() {
+            *holder = None;
+        }
+    }
+}
+
+/// 当前维护操作持有者（互斥锁被占用时记录）：操作名 + 开始时间。
+/// 用于错误信息（“是哪个操作在跑、跑了多久”）与 `corpus_maintenance_status` 查询。
+#[derive(Debug)]
+struct MaintenanceHolder {
+    op: &'static str,
+    started_at: SystemTime,
 }
 
 impl CorpusState {
     /// 就绪：仓储可用。
     pub fn ready(repo: Arc<SqliteCorpusRepository>) -> Self {
-        Self { repo: Some(repo), error: None }
+        Self {
+            repo: Some(repo),
+            error: None,
+            maintenance_holder: Arc::new(Mutex::new(None)),
+            fingerprint_cache: Arc::new(Mutex::new(None)),
+        }
     }
     /// 不可用：记录失败原因（供命令层错误与前端展示）。
     pub fn unavailable(reason: impl Into<String>) -> Self {
-        Self { repo: None, error: Some(reason.into()) }
+        Self {
+            repo: None,
+            error: Some(reason.into()),
+            maintenance_holder: Arc::new(Mutex::new(None)),
+            fingerprint_cache: Arc::new(Mutex::new(None)),
+        }
     }
     pub fn is_available(&self) -> bool {
         self.repo.is_some()
@@ -73,6 +124,31 @@ impl CorpusState {
             })
         })
     }
+    /// 尝试获取维护互斥（导入 / 重建 / 删除 / 压缩互斥）。
+    /// `op` 为发起方操作名（import / rebuild / delete / optimize），占用成功后写入持有者记录。
+    /// 已有维护操作进行中时返回明确错误，并指明是哪个操作、已运行多久（P1-4 并发互斥）。
+    pub fn try_begin_maintenance(&self, op: &'static str) -> AppResult<MaintenanceGuard> {
+        let mut holder = self.maintenance_holder.lock().map_err(|e| {
+            AppError::Internal(format!("maintenance lock poisoned: {e}"))
+        })?;
+        if holder.is_some() {
+            let (holder_op, elapsed) = holder
+                .as_ref()
+                .map(|h| {
+                    let secs = h.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
+                    (h.op, secs)
+                })
+                .unwrap_or(("maintenance", 0));
+            return Err(AppError::Validation(format!(
+                "another corpus maintenance operation ({holder_op}) is in progress, started {elapsed}s ago (import / rebuild / delete / optimize are mutually exclusive); retry after it finishes"
+            )));
+        }
+        *holder = Some(MaintenanceHolder {
+            op,
+            started_at: SystemTime::now(),
+        });
+        Ok(MaintenanceGuard(self.maintenance_holder.clone()))
+    }
 }
 
 /// 语料库可用性（前端据此决定是否显示「不可用」横幅并禁用入口）。
@@ -81,6 +157,45 @@ pub struct CorpusStatus {
     pub available: bool,
     /// 不可用原因（可用时为空串）。
     pub error: String,
+}
+
+/// 维护操作当前状态（前端轮询/加载时对账用）：空闲时 busy=false, 其余字段为 null。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CorpusMaintenanceStatus {
+    pub busy: bool,
+    /// 占用维护入口的操作名（import / rebuild / delete / optimize，空闲为 null）。
+    pub op: Option<String>,
+    /// 占用开始时间（unix 秒，空闲为 null）。
+    pub started_at: Option<u64>,
+    /// 已运行秒数（空闲为 null）。
+    pub elapsed_secs: Option<u64>,
+}
+
+#[tauri::command]
+pub fn corpus_maintenance_status(state: State<'_, CorpusState>) -> CorpusMaintenanceStatus {
+    let holder = state.maintenance_holder.lock().ok();
+    match holder.as_ref().and_then(|h| h.as_ref()) {
+        Some(h) => {
+            let started = h
+                .started_at
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let elapsed = h.started_at.elapsed().map(|d| d.as_secs()).unwrap_or(0);
+            CorpusMaintenanceStatus {
+                busy: true,
+                op: Some(h.op.to_string()),
+                started_at: Some(started),
+                elapsed_secs: Some(elapsed),
+            }
+        }
+        None => CorpusMaintenanceStatus {
+            busy: false,
+            op: None,
+            started_at: None,
+            elapsed_secs: None,
+        },
+    }
 }
 
 #[tauri::command]
@@ -95,7 +210,7 @@ pub fn corpus_status(state: State<'_, CorpusState>) -> CorpusStatus {
     }
 }
 
-/// 检索置顶返回的书命中上限（书量级小，LIKE 顺序扫即可，无需倒排）。
+/// 检索置顶返回的书命中上限。书量级小，FTS 命中后按导入时间倒序截断即可。
 const BOOK_MATCH_LIMIT: i64 = 10;
 
 #[tauri::command]
@@ -112,6 +227,8 @@ pub async fn delete_corpus_book(
 ) -> AppResult<()> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        // P1-4 并发互斥：删除与导入/重建/压缩互斥
+        let _guard = state.try_begin_maintenance("delete")?;
         let repo = state.repo()?;
         repo.delete_book(book_id)
     })
@@ -126,9 +243,84 @@ pub fn update_corpus_book(
     author: String,
     language: String,
     category: String,
+    tags: Vec<String>,
     state: State<'_, CorpusState>,
 ) -> AppResult<CorpusBook> {
+    // 枚举白名单校验：分类 / 标签超集值直接拒绝（枚举值即存储值，不静默改写）。
+    schema::validate_category(&category)?;
+    schema::validate_tags(&tags)?;
+    let category = schema::merge_category_tags(&category, &tags);
     state.repo()?.update_book_meta(book_id, &title, &author, &language, &category)
+}
+
+/// 标签体系（P0-3）：以多标签集合幂等替换某书标签（先清后插，trim 去空去重）。
+/// 双写同步：category 列回写为顿号连接串，保证旧检索 LIKE / 旧前端展示路径仍能命中。
+#[tauri::command]
+pub fn set_corpus_book_tags(
+    book_id: i64,
+    tags: Vec<String>,
+    state: State<'_, CorpusState>,
+) -> AppResult<CorpusBook> {
+    // 标签白名单校验：超集值直接拒绝（枚举值即存储值，不静默改写）。
+    schema::validate_tags(&tags)?;
+    state.repo()?.set_book_tags(book_id, &tags)
+}
+
+/// 标签体系（P0-3）：按标签精确筛选书籍（书量级几十本，EXISTS 无倒排依赖）。
+#[tauri::command]
+pub fn search_corpus_books_by_tag(
+    tag: String,
+    state: State<'_, CorpusState>,
+) -> AppResult<Vec<CorpusBook>> {
+    state.repo()?.search_books_by_tag(&tag)
+}
+
+/// 标签维护（P2-2）：全库重命名标签 from → to。事务内原子完成：
+/// 先以 INSERT OR IGNORE 把新标签写入受影响书（与既有 to 自然归并去重），
+/// 再删除旧标签，最后同步受影响书 category 镜像。返回受影响书数。
+#[tauri::command]
+pub fn rename_corpus_tag(
+    from: String,
+    to: String,
+    state: State<'_, CorpusState>,
+) -> AppResult<i64> {
+    // 标签白名单校验：from/to 均须为枚举值（维护命令同样不接受自定义标签）。
+    schema::validate_tags(std::slice::from_ref(&from))?;
+    schema::validate_tags(std::slice::from_ref(&to))?;
+    state.repo()?.rename_tag(&from, &to)
+}
+
+/// 标签维护（P2-2）：多个源标签归并到目标标签（重复标签去重收敛）。
+/// 事务内为每本书 INSERT OR IGNORE 目标 + DELETE 全部源标签，并同步 category 镜像。
+/// 返回受影响书数。
+#[tauri::command]
+pub fn merge_corpus_tags(
+    sources: Vec<String>,
+    into: String,
+    state: State<'_, CorpusState>,
+) -> AppResult<i64> {
+    // 标签白名单校验：sources 与 into 均须为枚举值（归并不得引入自定义标签）。
+    schema::validate_tags(&sources)?;
+    schema::validate_tags(std::slice::from_ref(&into))?;
+    state.repo()?.merge_tags(&sources, &into)
+}
+
+/// 标签维护（P2-2）：解除所有书的指定标签并同步 category 镜像；标签不存在时幂等返回 0。
+#[tauri::command]
+pub fn delete_corpus_tag(
+    tag: String,
+    state: State<'_, CorpusState>,
+) -> AppResult<i64> {
+    state.repo()?.delete_tag(&tag)
+}
+
+/// 标签维护（P2-2）：全库标签书目计数列表（计数降序、同计数按标签名升序），
+/// 供前端标签筛选栏展示各标签书目数与超限折叠。
+#[tauri::command]
+pub fn list_corpus_tag_counts(
+    state: State<'_, CorpusState>,
+) -> AppResult<Vec<(String, i64)>> {
+    state.repo()?.list_tag_counts()
 }
 
 #[tauri::command]
@@ -144,12 +336,8 @@ pub fn search_corpus(
     if q.is_empty() {
         return Ok(CorpusSearchResult { books: Vec::new(), hits: Vec::new() });
     }
-    // 书命中：与句子 LIKE 分支同口径转义（% _ \）
-    let like = format!(
-        "%{}%",
-        q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
-    );
-    let books = repo.search_books(&like, BOOK_MATCH_LIMIT)?;
+    // 书命中：repo 内部 ≥3 字符走书 FTS、<3 字符 LIKE 回退（转义/短语包装在实现内完成）
+    let books = repo.search_books(q, BOOK_MATCH_LIMIT)?;
     let hits = repo.search(
         &query,
         book_id,
@@ -160,34 +348,96 @@ pub fn search_corpus(
 }
 
 /// 导入本地书籍：读文件 → 按扩展名分流解码/抽取 → 切分 → 建索引。返回新书籍行（含统计）。
+/// `category` 为导入分类（单选，可空）：空串 = 未分类；`tags` 为多选标签（0~N 项，
+/// 必须命中统一枚举）。命令层做白名单校验后合并为顿号串传入仓储层（双写路径不变）。
 #[tauri::command]
 pub async fn import_corpus_file(
     file_path: String,
     title: String,
     author: String,
     language: String,
+    category: String,
+    tags: Vec<String>,
+    app: tauri::AppHandle,
     state: State<'_, CorpusState>,
 ) -> AppResult<CorpusBook> {
+    // 枚举白名单校验：分类 / 标签超集值直接拒绝（枚举值即存储值，不静默改写）。
+    schema::validate_category(&category)?;
+    schema::validate_tags(&tags)?;
+    let category = schema::merge_category_tags(&category, &tags);
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        import_blocking(&state, file_path, title, author, language)
+        // P1-4 并发互斥：导入与重建/删除/压缩互斥
+        let _guard = state.try_begin_maintenance("import")?;
+        import_blocking(&state, file_path, title, author, language, category, &app)
     })
     .await
     .map_err(|e| AppError::Internal(format!("import task failed: {e}")))?
 }
 
+/// 导入文件大小上限（字节）。超限直接拒绝，避免超大文件拖垮整条导入管线。
+/// 报告建议值 200MB；纯文本语料正常远小于此，epub/docx 也在该量级内。
+const MAX_IMPORT_FILE_BYTES: u64 = 200 * 1024 * 1024;
+
+/// zip 单条目解压字节上限：防御 zip bomb（压缩比极端的畸形/恶意档案让解压内存失控）。
+/// 正文每章/每 XML 64MB 已远超语料实际需要。
+const MAX_ZIP_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
+/// epub 全书累计解压字节上限：防多章节合计膨胀。
+const MAX_ZIP_TOTAL_BYTES: u64 = 256 * 1024 * 1024;
+
 /// 导入阻塞体（跑在阻塞线程池）：读文件 → 抽取 → 切分 → 入库。
+/// 进度透出：经 `corpus-import-progress` 事件下发阶段（reading/extracting/parsing/indexing/done）
+/// 与 percent（0→100），FTS 建索引阶段按 chunk 逐句上报；前端据此渲染导入进度。
 fn import_blocking(
     state: &CorpusState,
     file_path: String,
     title: String,
     author: String,
     language: String,
+    category: String,
+    app: &tauri::AppHandle,
 ) -> AppResult<CorpusBook> {
     let repo = state.repo()?;
+    // 书名 fallback 提前结算：emit 闭包此后只借用 title，不再与后续 move 冲突
+    let fallback_title = Path::new(&file_path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Untitled")
+        .to_string();
+    let title = if title.trim().is_empty() { fallback_title } else { title };
+    let emit_phase = |phase: &str, percent: u32, done: Option<usize>, total: Option<usize>| {
+        let mut payload = serde_json::json!({
+            "phase": phase,
+            "percent": percent,
+            "title": title,
+        });
+        if let Some(d) = done {
+            payload["done"] = serde_json::json!(d);
+        }
+        if let Some(t) = total {
+            payload["total"] = serde_json::json!(t);
+        }
+        let _ = app.emit("corpus-import-progress", payload);
+    };
+    emit_phase("reading", 5, None, None);
+    // P1-2 导入防护：文件大小上限。读取前先 stat，避免把超大文件整体读进内存。
+    let meta = std::fs::metadata(&file_path)
+        .map_err(|e| AppError::Internal(format!("stat file failed: {e}")))?;
+    if meta.len() > MAX_IMPORT_FILE_BYTES {
+        return Err(AppError::Validation(format!(
+            "file too large: {len} bytes (limit {limit} bytes)",
+            len = meta.len(),
+            limit = MAX_IMPORT_FILE_BYTES,
+        )));
+    }
     let bytes = std::fs::read(&file_path)
         .map_err(|e| AppError::Internal(format!("read file failed: {e}")))?;
+    emit_phase("extracting", 25, None, None);
     let (text, source) = extract_text_by_path(&file_path, &bytes)?;
+    // 抽取已产出独立的 String：此刻释放原始文件字节，
+    // 降低「大文件读入(≤200MB) + 抽取正文 + 切分」全阶段的内存峰值。
+    drop(bytes);
+    emit_phase("parsing", 50, None, None);
     let chunks = crate::domain::corpus::pipeline::parse_text(&text);
     if chunks.is_empty() {
         return Err(AppError::Validation(
@@ -195,14 +445,28 @@ fn import_blocking(
         ));
     }
     let parsed = to_chunk_tuples(chunks);
-    let fallback_title = Path::new(&file_path)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("Untitled")
-        .to_string();
-    let title = if title.trim().is_empty() { fallback_title } else { title };
-    // 记录 source_path：后续「重建索引」据此重读原文件重新切分
-    repo.import_book(&title, &author, &language, source, &file_path, &parsed)
+    let total_chunks = parsed.len();
+    // 记录 source_path + 归档抽取后的全文镜像：重建索引优先用镜像，源文件移动/删除仍可重建。
+    // 旧数据（无镜像）回退读外部源文件；镜像与源文件都在时以镜像为准（消除孤儿书风险）。
+    emit_phase("indexing", 55, Some(0), Some(total_chunks));
+    let mut progress = |done: usize, total: usize| {
+        // FTS 建索引是耗时主体：55% → 95% 按 chunk 平滑推进
+        let percent = 55 + (done as u64 * 40 / total.max(1) as u64) as u32;
+        emit_phase("indexing", percent.min(95), Some(done), Some(total_chunks));
+    };
+    let book = repo.import_book_with_progress(
+        &title,
+        &author,
+        &language,
+        &category,
+        source,
+        &file_path,
+        &text,
+        &parsed,
+        Some(&mut progress),
+    )?;
+    emit_phase("done", 100, Some(total_chunks), Some(total_chunks));
+    Ok(book)
 }
 
 /// 按扩展名分流抽取纯文本，返回 (正文, 来源格式标签)。导入与重建索引共用同一分流。
@@ -213,7 +477,14 @@ fn extract_text_by_path(file_path: &str, bytes: &[u8]) -> AppResult<(String, &'s
         Some("fb2") => (extract_fb2_text(bytes)?, "fb2"),
         Some("html") | Some("htm") => (extract_html_text(bytes)?, "html"),
         Some("mobi") | Some("azw3") => (extract_mobi_text(bytes)?, "mobi"),
-        _ => (decode_text(bytes), "txt"),
+        // 纯文本白名单：txt / text / md 显式走解码；未知扩展名不再静默落 txt（P1-2）
+        Some("txt") | Some("text") | Some("md") => (decode_text(bytes)?, "txt"),
+        other => {
+            return Err(AppError::Validation(format!(
+                "unsupported file format: {ext} (supported: txt, md, epub, docx, fb2, html, mobi, azw3)",
+                ext = other.unwrap_or("(none)")
+            )));
+        }
     })
 }
 
@@ -232,31 +503,44 @@ fn to_chunk_tuples(
 /// 前提：导入时记录了源文件路径（source_path）。无路径或文件缺失的书记为 skipped，
 /// 抽取/切分失败记为 failed——**不清空**该书已有索引（避免"重建失败反把数据搞没"）。
 /// `book_id` 为空时重建全部书。
+/// 进度透出（P1-3）：逐本完成即经 `corpus-rebuild-progress` 事件下发（current/total/title/status），
+/// 前端按事件更新进度条与 per-book 结果矩阵；命令返回 [`RebuildReport.items`] 兜底全量明细。
 #[tauri::command]
 pub async fn rebuild_corpus_index(
     book_id: Option<i64>,
+    app: tauri::AppHandle,
     state: State<'_, CorpusState>,
 ) -> AppResult<RebuildReport> {
     let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || rebuild_blocking(&state, book_id))
-        .await
-        .map_err(|e| AppError::Internal(format!("rebuild task failed: {e}")))?
+    tauri::async_runtime::spawn_blocking(move || {
+        // P1-4 并发互斥：重建与导入/删除/压缩互斥
+        let _guard = state.try_begin_maintenance("rebuild")?;
+        rebuild_blocking(&state, book_id, &app)
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("rebuild task failed: {e}")))?
 }
 
-/// 重建阻塞体（跑在阻塞线程池）。
-fn rebuild_blocking(state: &CorpusState, book_id: Option<i64>) -> AppResult<RebuildReport> {
+/// 重建阻塞体（跑在阻塞线程池）。逐本完成后 emit 进度事件。
+fn rebuild_blocking(
+    state: &CorpusState,
+    book_id: Option<i64>,
+    app: &tauri::AppHandle,
+) -> AppResult<RebuildReport> {
     let repo = state.repo()?;
     let targets: Vec<CorpusBook> = match book_id {
         Some(id) => vec![repo.get_book(id)?],
         None => repo.list_books()?,
     };
+    let total = targets.len();
     let mut report = RebuildReport {
         rebuilt: 0,
+        unchanged: 0,
         skipped: 0,
         failed: 0,
         items: Vec::new(),
     };
-    for book in targets {
+    for book in &targets {
         let mut item = RebuildItem {
             book_id: book.id,
             title: book.title.clone(),
@@ -264,10 +548,15 @@ fn rebuild_blocking(state: &CorpusState, book_id: Option<i64>) -> AppResult<Rebu
             reason: String::new(),
             chunk_count: 0,
         };
-        match rebuild_one(repo, &book) {
-            Ok(n) => {
+        match rebuild_one(repo, book) {
+            Ok(RebuildOutcome::Rebuilt(n)) => {
                 item.chunk_count = n;
                 report.rebuilt += 1;
+            }
+            Ok(RebuildOutcome::Unchanged) => {
+                item.status = "unchanged".to_string();
+                item.reason = "content unchanged; index kept as-is".to_string();
+                report.unchanged += 1;
             }
             Err((status, reason)) => {
                 item.status = status;
@@ -279,14 +568,48 @@ fn rebuild_blocking(state: &CorpusState, book_id: Option<i64>) -> AppResult<Rebu
                 }
             }
         }
+        let done = report.rebuilt + report.unchanged + report.skipped + report.failed;
         report.items.push(item);
+        // P1-3 进度事件：current 为已处理完的本数（含本次），前端据此渲染进度条
+        let _ = app.emit(
+            "corpus-rebuild-progress",
+            serde_json::json!({
+                "current": done,
+                "total": total,
+                "title": book.title,
+                "status": report.items.last().map(|i| i.status.as_str()).unwrap_or(""),
+                "bookId": book.id,
+            }),
+        );
     }
     Ok(report)
 }
 
-/// 单本重建：读源文件 → 抽取 → 切分 → 替换索引。返回新的句子总数。
-/// Err((status, reason))：status ∈ {"skipped"（源文件缺失）, "failed"（抽取/切分失败）}。
-fn rebuild_one(repo: &SqliteCorpusRepository, book: &CorpusBook) -> Result<i64, (String, String)> {
+/// 单本重建结果：`Rebuilt(n)`（整体替换完成，n = 新句子数）/ `Unchanged`（内容未变，跳过整个 replace）。
+#[derive(Debug)]
+enum RebuildOutcome {
+    Rebuilt(i64),
+    Unchanged,
+}
+
+/// 单本重建。三级回退（P0-1 维护优化）：
+/// ① **库内全文镜像**（导入时归档，优先）：直接重切分，不依赖原文件——
+///    源文件被移动/删除后仍可重建，从根本上消除"孤儿书"；
+/// ② 无镜像（旧数据）→ 读外部源文件重抽取；
+/// ③ 源文件也不可用 → skipped（不动既有索引）。
+/// Err((status, reason))：status ∈ {"skipped", "failed"}。
+fn rebuild_one(
+    repo: &SqliteCorpusRepository,
+    book: &CorpusBook,
+) -> Result<RebuildOutcome, (String, String)> {
+    // ① 镜像优先：抽取后的全文已在库内，直接重切分
+    let mirrored = repo
+        .get_book_source(book.id)
+        .map_err(|e| ("failed".to_string(), e.to_string()))?;
+    if let Some(src) = mirrored {
+        return resegment_and_replace(repo, book.id, &book.content_hash, &src.source, &src.raw_text);
+    }
+    // ② 无镜像（旧数据）：回退读外部源文件
     if book.source_path.trim().is_empty() {
         return Err((
             "skipped".to_string(),
@@ -301,7 +624,22 @@ fn rebuild_one(repo: &SqliteCorpusRepository, book: &CorpusBook) -> Result<i64, 
     })?;
     let (text, source) =
         extract_text_by_path(&book.source_path, &bytes).map_err(|e| ("failed".to_string(), e.to_string()))?;
-    let chunks = crate::domain::corpus::pipeline::parse_text(&text);
+    resegment_and_replace(repo, book.id, &book.content_hash, source, &text)
+}
+
+/// 用抽取后的全文重新切分并整体替换索引，同时刷新归档镜像。
+///
+/// 增量重建（P2-5）：切分完成后先用 [`corpus_repository::book_fingerprints`] 与库内 `content_hash` 比对——
+/// 一致说明重切分结果与落库索引同源，跳过整个 replace（DELETE/INSERT chunks、刷新统计/指纹/镜像全免），
+/// 返回 [`RebuildOutcome::Unchanged`]；`content_hash` 为空（旧数据）时不比对，保守整体重建。
+fn resegment_and_replace(
+    repo: &SqliteCorpusRepository,
+    book_id: i64,
+    content_hash: &str,
+    source: &str,
+    text: &str,
+) -> Result<RebuildOutcome, (String, String)> {
+    let chunks = crate::domain::corpus::pipeline::parse_text(text);
     if chunks.is_empty() {
         return Err((
             "failed".to_string(),
@@ -309,10 +647,18 @@ fn rebuild_one(repo: &SqliteCorpusRepository, book: &CorpusBook) -> Result<i64, 
         ));
     }
     let parsed = to_chunk_tuples(chunks);
+    // 增量重建：重切分结果指纹与库内 content_hash 一致 → 内容未变，跳过整个 replace
+    if !content_hash.is_empty() {
+        let (hash_now, _) =
+            crate::infrastructure::database::corpus_repository::book_fingerprints(&parsed);
+        if hash_now == content_hash {
+            return Ok(RebuildOutcome::Unchanged);
+        }
+    }
     let n = parsed.len() as i64;
-    repo.replace_book_chunks(book.id, source, &parsed)
+    repo.replace_book_chunks(book_id, source, text, &parsed)
         .map_err(|e| ("failed".to_string(), e.to_string()))?;
-    Ok(n)
+    Ok(RebuildOutcome::Rebuilt(n))
 }
 
 /// 元数据规范化（书名/作者）：去空白 + 小写，用于「同名同作者」弱信号比对。
@@ -367,7 +713,8 @@ fn check_duplicate_blocking(
 ) -> AppResult<Vec<DuplicateHit>> {
     let repo = state.repo()?;
     let books = repo.list_books()?;
-    let fp = compute_file_fingerprint(&file_path);
+    // P2-1：指纹缓存感知——同路径同大小同 mtime 不重抽，直接复用上次抽取结果。
+    let fp = compute_file_fingerprint_cached(state, &file_path);
     Ok(duplicate_hits(&books, &file_path, &title, &author, fp))
 }
 
@@ -379,6 +726,43 @@ fn compute_file_fingerprint(file_path: &str) -> Option<(String, i64)> {
         fingerprint::content_fingerprint(&text),
         fingerprint::simhash64(&text),
     ))
+}
+
+/// 导入前查重指纹的缓存感知入口（P2-1）：
+/// 以 (path, size, mtime) 为键——同路径同大小同修改时间直接复用缓存，避免换文件/重复选择时
+/// 全量重抽；mtime/size 变化自动失效。缓存单槽：只服务「当前选中文件」的即时查重。
+fn compute_file_fingerprint_cached(
+    state: &CorpusState,
+    file_path: &str,
+) -> Option<(String, i64)> {
+    // ① 读键信息（len/mtime）与缓存；锁异常时按旧路径直接计算（不阻断功能）。
+    let Ok(cache) = state.fingerprint_cache.lock() else {
+        return compute_file_fingerprint(file_path);
+    };
+    let len = std::fs::metadata(file_path).map(|m| m.len()).ok();
+    let modified = std::fs::metadata(file_path).and_then(|m| m.modified()).ok();
+    // ② 命中：同路径 + 同大小 + 同 mtime → 复用，不重抽。
+    let (Some(len), Some(modified)) = (len, modified) else {
+        drop(cache);
+        return compute_file_fingerprint(file_path);
+    };
+    if let Some(entry) = cache.as_ref() {
+        if entry.path == file_path && entry.len == len && entry.modified == modified {
+            return entry.fp.clone();
+        }
+    }
+    // ③ 未命中：释放锁再计算（避免计算期间长时间持锁），随后写回。
+    drop(cache);
+    let fp = compute_file_fingerprint(file_path);
+    if let Ok(mut cache) = state.fingerprint_cache.lock() {
+        *cache = Some(FingerprintCacheEntry {
+            path: file_path.to_string(),
+            len,
+            modified,
+            fp: fp.clone(),
+        });
+    }
+    fp
 }
 
 /// 查重比对核心（纯函数，便于测试）：每本书只取**最强**的一级命中。
@@ -465,6 +849,18 @@ pub fn scan_corpus_duplicates(
         sentence_group_total,
         book_total: books.len() as i64,
     })
+}
+
+/// 空间回收（P0 迁移）：FTS5 rebuild + VACUUM，回收删除残留的倒排与文件空洞。
+///
+/// 维护用命令：旧库升级前没有 FTS 触发器，删除后倒排残留不回收（实测 50MB 级），
+/// 单纯 VACUUM 压不掉索引段内部残留。本命令两步走（rebuild → VACUUM）把空间
+/// 还给文件，返回前后体积与 FTS 行数供前端展示。幂等，可随时重复执行。
+#[tauri::command]
+pub fn optimize_corpus_storage(state: State<'_, CorpusState>) -> AppResult<CorpusStorageReport> {
+    // P1-4 并发互斥：压缩与导入/重建/删除互斥（VACUUM 期间写会话会阻塞/竞争）
+    let _guard = state.try_begin_maintenance("optimize")?;
+    state.repo()?.optimize_storage()
 }
 
 /// 书本级查重核心（纯函数，便于测试）：返回 (精确组, 近似组)。
@@ -559,54 +955,98 @@ fn ext_of(path: &str) -> Option<String> {
 }
 
 /// 文本解码：UTF-8 有效则直接用；否则回退 GBK（GB18030 超集，覆盖绝大多数中文 txt）。
-fn decode_text(bytes: &[u8]) -> String {
+/// P1-2 导入防护：GBK 解码仍报错时，若 lossy 替换字符（U+FFFD）占比过高，
+/// 判定为「不可解码」返回 Validation 错误，而非静默产出乱码索引。
+fn decode_text(bytes: &[u8]) -> AppResult<String> {
     match std::str::from_utf8(bytes) {
-        Ok(s) => s.to_string(),
+        Ok(s) => Ok(s.to_string()),
         Err(_) => {
             use encoding_rs::Encoding;
             let (decoded, _, had_errors) = Encoding::for_label(b"gbk")
                 .unwrap_or(encoding_rs::UTF_8)
                 .decode(bytes);
             if had_errors {
-                String::from_utf8_lossy(bytes).to_string()
+                let lossy = String::from_utf8_lossy(bytes);
+                let total = lossy.chars().count();
+                let replaced = lossy.chars().filter(|&c| c == '\u{FFFD}').count();
+                if total > 0 && replaced * 100 / total > 10 {
+                    return Err(AppError::Validation(
+                        "file content is not decodable as text (neither UTF-8 nor GBK); maybe binary or corrupted".to_string(),
+                    ));
+                }
+                Ok(lossy.to_string())
             } else {
-                decoded.to_string()
+                Ok(decoded.to_string())
             }
         }
     }
 }
 
-/// 从 zip 中按名读取为字符串（不存在/读失败返回 None）。
-fn read_zip_str(zip: &mut ZipArchive<Cursor<Vec<u8>>>, name: &str) -> Option<String> {
-    let mut f = zip.by_name(name).ok()?;
+/// 从 zip 中按名读取为字符串。
+/// 泛型 `Z`：借用 `&[u8]`（导入路径避免 `bytes.to_vec()` 整文件拷贝）或自有 `Vec<u8>`（测试夹具）皆可。
+/// 返回值：`Ok(None)` = 条目不存在/读取失败（保持旧语义，非 UTF-8 正文跳过）；
+/// `Err(Validation)` = 条目解压超过 `max_bytes`（zip bomb 防护，明显报错而非静默跳过）。
+fn read_zip_str<Z: Read + std::io::Seek>(
+    zip: &mut ZipArchive<Z>,
+    name: &str,
+    max_bytes: u64,
+) -> AppResult<Option<String>> {
+    let Ok(mut f) = zip.by_name(name) else {
+        return Ok(None);
+    };
+    // 预检未压缩大小：zip 元数据即可判断，避免先分配再超限
+    if f.size() > max_bytes {
+        return Err(AppError::Validation(format!(
+            "zip entry `{name}` expands to {size} bytes (limit {limit} bytes)",
+            size = f.size(),
+            limit = max_bytes,
+        )));
+    }
     let mut s = String::new();
-    f.read_to_string(&mut s).ok()?;
-    Some(s)
+    // take(max+1) 兜底：即使 size 元数据被伪造，读取也会被截断在限内
+    let Ok(n) = f.take(max_bytes + 1).read_to_string(&mut s) else {
+        return Ok(None);
+    };
+    if n as u64 > max_bytes {
+        return Err(AppError::Validation(format!(
+            "zip entry `{name}` exceeded {max_bytes} bytes while reading"
+        )));
+    }
+    Ok(Some(s))
 }
 
 /// 抽取 epub 正文：按阅读顺序排列，章节清晰。
 fn extract_epub_text(bytes: &[u8]) -> AppResult<String> {
-    let mut zip = ZipArchive::new(Cursor::new(bytes.to_vec()))
+    let mut zip = ZipArchive::new(Cursor::new(bytes))
         .map_err(|e| AppError::Validation(format!("epub open failed: {e}")))?;
     // 1. META-INF/container.xml → OPF 路径
-    let container = read_zip_str(&mut zip, "META-INF/container.xml")
+    let container = read_zip_str(&mut zip, "META-INF/container.xml", MAX_ZIP_ENTRY_BYTES)?
         .ok_or_else(|| AppError::Validation("epub missing META-INF/container.xml".into()))?;
     let opf_path = parse_rootfile_path(&container)
         .ok_or_else(|| AppError::Validation("epub: cannot locate OPF path".into()))?;
     // 2. OPF → spine 顺序的 href 列表
-    let opf = read_zip_str(&mut zip, &opf_path)
+    let opf = read_zip_str(&mut zip, &opf_path, MAX_ZIP_ENTRY_BYTES)?
         .ok_or_else(|| AppError::Validation(format!("epub missing OPF: {opf_path}")))?;
     let opf_dir = opf_path.rfind('/').map(|i| &opf_path[..=i]).unwrap_or("");
     let hrefs = parse_spine_hrefs(&opf);
     // 3. 按阅读顺序抽取每个 XHTML 正文（去标签）
     let mut out = String::new();
+    let mut total_expanded: u64 = 0;
     for href in hrefs {
         let full = resolve_href(opf_dir, &href);
-        if let Some(xml) = read_zip_str(&mut zip, &full) {
-            // 块感知剥离：<h1>/<p> 等块级标签边界补换行，使 epub 章标题可被识别
-            out.push_str(&html_to_text(&xml));
-            out.push('\n');
+        let Some(xml) = read_zip_str(&mut zip, &full, MAX_ZIP_ENTRY_BYTES)? else {
+            continue;
+        };
+        // zip bomb 防护：全书解压累计上限
+        total_expanded += xml.len() as u64;
+        if total_expanded > MAX_ZIP_TOTAL_BYTES {
+            return Err(AppError::Validation(format!(
+                "epub total expanded size exceeds {MAX_ZIP_TOTAL_BYTES} bytes"
+            )));
         }
+        // 块感知剥离：<h1>/<p> 等块级标签边界补换行，使 epub 章标题可被识别
+        out.push_str(&html_to_text(&xml));
+        out.push('\n');
     }
     if out.trim().is_empty() {
         return Err(AppError::Validation("epub: no extractable text found".into()));
@@ -616,9 +1056,9 @@ fn extract_epub_text(bytes: &[u8]) -> AppResult<String> {
 
 /// 抽取 docx 正文：读 word/document.xml，按段落（<w:p>）分段，收集 <w:t> 文本块。
 fn extract_docx_text(bytes: &[u8]) -> AppResult<String> {
-    let mut zip = ZipArchive::new(Cursor::new(bytes.to_vec()))
+    let mut zip = ZipArchive::new(Cursor::new(bytes))
         .map_err(|e| AppError::Validation(format!("docx open failed: {e}")))?;
-    let xml = read_zip_str(&mut zip, "word/document.xml")
+    let xml = read_zip_str(&mut zip, "word/document.xml", MAX_ZIP_ENTRY_BYTES)?
         .ok_or_else(|| AppError::Validation("docx missing word/document.xml".into()))?;
     let mut reader = Reader::from_str(&xml);
     let mut out = String::new();
@@ -660,7 +1100,7 @@ fn extract_docx_text(bytes: &[u8]) -> AppResult<String> {
 /// 抽取 FB2（FictionBook 2.0）正文：纯 XML，按块元素收集文本。
 /// 跳过 <description>（元数据）、<binary>（内嵌图片 base64）、<style>/<stylesheet>，避免噪声与超大 base64。
 fn extract_fb2_text(bytes: &[u8]) -> AppResult<String> {
-    let xml = decode_text(bytes);
+    let xml = decode_text(bytes)?;
     let mut reader = Reader::from_str(&xml);
     let mut out = String::new();
     let mut skip_depth: usize = 0; // 处于需跳过的元素内
@@ -733,7 +1173,7 @@ fn is_fb2_block(name: &[u8]) -> bool {
 
 /// 抽取 HTML/HTM 正文：容错剥离标签 + 反转义常见 HTML 实体。零依赖。
 fn extract_html_text(bytes: &[u8]) -> AppResult<String> {
-    let text = html_to_text(&decode_text(bytes));
+    let text = html_to_text(&decode_text(bytes)?);
     if text.trim().is_empty() {
         return Err(AppError::Validation("html: no extractable text found".into()));
     }
@@ -1057,9 +1497,128 @@ mod tests {
     #[test]
     fn decode_utf8_and_gbk() {
         let utf8 = "山风很大。".as_bytes().to_vec();
-        assert_eq!(decode_text(&utf8), "山风很大。");
+        assert_eq!(decode_text(&utf8).unwrap(), "山风很大。");
         let gbk = encoding_rs::GBK.encode("孤独是宿命").0.to_vec();
-        assert_eq!(decode_text(&gbk), "孤独是宿命");
+        assert_eq!(decode_text(&gbk).unwrap(), "孤独是宿命");
+    }
+
+    #[test]
+    fn decode_rejects_undecodable_bytes() {
+        // 0xFF 既非 UTF-8 也非 GBK 的合法字节：lossy 后 U+FFFD 占比超阈值 → Validation 错误
+        let junk = vec![0xFFu8; 64];
+        let err = decode_text(&junk).unwrap_err();
+        assert!(err.to_string().contains("not decodable"));
+    }
+
+    #[test]
+    fn maintenance_lock_serializes_operations() {
+        use crate::infrastructure::database::CorpusDatabase;
+        let repo = Arc::new(SqliteCorpusRepository::new(Arc::new(
+            CorpusDatabase::open_in_memory().unwrap(),
+        )));
+        let state = CorpusState::ready(repo);
+        let g1 = state.try_begin_maintenance("rebuild").unwrap();
+        // 第二次获取必须失败（互斥生效），且错误信息带持有者操作名
+        let err = state.try_begin_maintenance("import").unwrap_err();
+        assert!(err.to_string().contains("rebuild"), "error should name holder: {err}");
+        drop(g1);
+        // 释放后可再次获取
+        let g2 = state.try_begin_maintenance("delete").unwrap();
+        drop(g2);
+        assert!(state.try_begin_maintenance("optimize").is_ok());
+    }
+
+    #[test]
+    fn maintenance_status_reports_holder_and_resets_after_release() {
+        use crate::infrastructure::database::CorpusDatabase;
+        let repo = Arc::new(SqliteCorpusRepository::new(Arc::new(
+            CorpusDatabase::open_in_memory().unwrap(),
+        )));
+        let state = CorpusState::ready(repo);
+        // 空闲态：锁内无持有者，busy=false
+        {
+            let holder = state.maintenance_holder.lock().unwrap();
+            assert!(holder.is_none(), "idle state must have no holder");
+        }
+        // 占用态：持有者操作名写入
+        let guard = state.try_begin_maintenance("import").unwrap();
+        {
+            let holder = state.maintenance_holder.lock().unwrap();
+            let h = holder.as_ref().expect("holder recorded while busy");
+            assert_eq!(h.op, "import");
+            assert!(h.started_at > SystemTime::UNIX_EPOCH);
+        }
+        // 查看错误信息明确点出持有者与已运行秒数
+        let err = state.try_begin_maintenance("delete").unwrap_err();
+        assert!(err.to_string().contains("import"), "error should name holder: {err}");
+        assert!(err.to_string().contains("s ago"), "error should include elapsed: {err}");
+        // 释放后复位为空闲
+        drop(guard);
+        let holder = state.maintenance_holder.lock().unwrap();
+        assert!(holder.is_none(), "holder cleared after guard release");
+    }
+
+    #[test]
+    fn fingerprint_cache_hits_on_unchanged_file() {
+        use crate::infrastructure::database::CorpusDatabase;
+        use std::time::{Duration, SystemTime};
+        let dir = std::env::temp_dir().join("sight_folio_corpus_cache_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("unchanged.txt");
+        std::fs::write(&path, "第一章\n\n山风很大。他回头看了一眼。\n\n孤独是宿命。").unwrap();
+        let repo = Arc::new(SqliteCorpusRepository::new(Arc::new(
+            CorpusDatabase::open_in_memory().unwrap(),
+        )));
+        let state = CorpusState::ready(repo);
+        let p = path.to_str().unwrap();
+        // 首次：未命中缓存 → 计算并写回
+        let fp1 = compute_file_fingerprint_cached(&state, p).unwrap();
+        assert_eq!(fp1, compute_file_fingerprint(p).unwrap());
+        // 命中路径可直接观测缓存状态：entry 已记录键与指纹
+        let entry = state.fingerprint_cache.lock().unwrap();
+        let e = entry.as_ref().expect("cache written after first call");
+        assert_eq!(e.path, p);
+        assert_eq!(e.len, std::fs::metadata(p).unwrap().len());
+        assert!(e.modified > SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000));
+        drop(entry);
+        // 同文件再次调用 → 命中缓存，结果与首次一致
+        let fp2 = compute_file_fingerprint_cached(&state, p).unwrap();
+        assert_eq!(fp1, fp2);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn fingerprint_cache_invalidates_on_file_change() {
+        use crate::infrastructure::database::CorpusDatabase;
+        let dir = std::env::temp_dir().join("sight_folio_corpus_cache_test2");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("changing.txt");
+        std::fs::write(&path, "版本一：山风很大。").unwrap();
+        // 记录写入时刻：确保改写后 mtime 必然前进（macOS 高精度，睡眠 20ms 足够区分）。
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let repo = Arc::new(SqliteCorpusRepository::new(Arc::new(
+            CorpusDatabase::open_in_memory().unwrap(),
+        )));
+        let state = CorpusState::ready(repo);
+        let p = path.to_str().unwrap();
+        let fp1 = compute_file_fingerprint_cached(&state, p).unwrap();
+        assert!(state.fingerprint_cache.lock().unwrap().is_some());
+        // 改写内容（大小、mtime 均变化）：旧缓存必须失效
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(
+            &path,
+            "版本二：这是完全不同的第二版内容，孤独是宿命。山风很大，但他坚定地回头。",
+        )
+        .unwrap();
+        let fp2 = compute_file_fingerprint_cached(&state, p).unwrap();
+        assert_ne!(fp1, fp2, "stale fingerprint must be invalidated after file change");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn unsupported_extension_rejected() {
+        let err = extract_text_by_path("/tmp/book.xyz", b"hello").unwrap_err();
+        assert!(err.to_string().contains("unsupported file format"));
     }
 
     /// 在内存构造一个最小 zip（用于 epub/docx 测试夹具）。
@@ -1072,6 +1631,24 @@ mod tests {
         }
         let cursor = z.finish().unwrap();
         cursor.into_inner()
+    }
+
+    #[test]
+    fn read_zip_str_rejects_oversized_entry() {
+        // 200KB 条目（压缩后远小于此）：max_bytes=100 时必须拒绝而非静默截断
+        let big = "a".repeat(200 * 1024);
+        let bytes = build_zip(&[("big.txt", &big)]);
+        let mut zip = ZipArchive::new(Cursor::new(bytes)).unwrap();
+        let err = read_zip_str(&mut zip, "big.txt", 100).unwrap_err();
+        assert!(
+            err.to_string().contains("expands to"),
+            "expected size pre-check rejection, got: {err}"
+        );
+        // 正常条目按限通过、缺失条目为 Ok(None)
+        let bytes2 = build_zip(&[("ok.txt", "山风很大。")]);
+        let mut zip2 = ZipArchive::new(Cursor::new(bytes2)).unwrap();
+        assert_eq!(read_zip_str(&mut zip2, "ok.txt", 100).unwrap().as_deref(), Some("山风很大。"));
+        assert!(read_zip_str(&mut zip2, "missing.txt", 100).unwrap().is_none());
     }
 
     #[test]
@@ -1235,11 +1812,12 @@ mod tests {
         std::fs::write(&path, "第一章 出山\n山风很大。\n第二章 入世\n老者说。").unwrap();
         let path_str = path.to_string_lossy().to_string();
         // 以空 chunks 导入（模拟"索引已陈旧"），rebuild 后应切出章 + 句
+        // 镜像为抽取后的全文：rebuild 走镜像重切分，不依赖源文件此刻是否还在
         let book = repo
-            .import_book("临时书", "", "zh", "txt", &path_str, &[])
+            .import_book("临时书", "", "zh", "", "txt", &path_str, "第一章 出山\n山风很大。\n第二章 入世\n老者说。", &[])
             .unwrap();
         assert_eq!(book.chunk_count, 0);
-        let n = rebuild_one(&repo, &book).unwrap();
+        let n = expect_rebuilt(rebuild_one(&repo, &book));
         assert!(n >= 4, "expected chapter+sentence chunks, got {n}");
         let after = repo.get_book(book.id).unwrap();
         assert_eq!(after.chunk_count, n);
@@ -1251,21 +1829,181 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// 重建索引的跳过/失败分类：无路径、文件缺失记 skipped；坏内容记 failed。
+    /// 重建索引的跳过/失败分类（三级回退）：
+    /// ① 有镜像（导入即归档）→ 即使源文件不存在也 rebuilt（P0-1 核心：消除孤儿书）；
+    /// ② 无镜像（旧数据）且无路径/文件缺失 → skipped；③ 不 panic、不动既有索引。
     #[test]
-    fn rebuild_one_reports_skip_and_fail() {
+    fn rebuild_one_uses_mirror_fallback_to_external_then_skip() {
         use crate::infrastructure::database::{corpus_repository::CorpusRepository, CorpusDatabase};
         let repo = SqliteCorpusRepository::new(std::sync::Arc::new(
             CorpusDatabase::open_in_memory().unwrap(),
         ));
-        // ① 无 source_path → skipped
-        let no_path = repo.import_book("无路径", "", "zh", "txt", "", &[]).unwrap();
-        assert_eq!(rebuild_one(&repo, &no_path).unwrap_err().0, "skipped");
-        // ② 路径存在但文件已不在 → skipped（不 panic、不清空已有索引）
+        // ① 有镜像 + 源文件不存在 → rebuilt（镜像兜底，不 panic、不清空既有索引）
         let missing = repo
-            .import_book("已丢失", "", "zh", "txt", "/tmp/definitely_missing_book_xyz.txt", &[])
+            .import_book(
+                "已丢失",
+                "",
+                "zh",
+                "",
+                "txt",
+                "/tmp/definitely_missing_book_xyz.txt",
+                "第一章\n\n山风很大。他回头看了一眼。",
+                &[],
+            )
             .unwrap();
-        assert_eq!(rebuild_one(&repo, &missing).unwrap_err().0, "skipped");
+        let n = expect_rebuilt(rebuild_one(&repo, &missing));
+        assert!(n >= 2, "mirror must resegment, got {n}");
+        let after = repo.get_book(missing.id).unwrap();
+        assert_eq!(after.chunk_count, n);
+        assert!(!repo.search("山风很大", None, 20, 0).unwrap().is_empty());
+        // ② 无镜像（旧数据，P0-1 之前导入的行没有归档表记录）且无 source_path → skipped
+        let legacy_db = std::sync::Arc::new(CorpusDatabase::open_in_memory().unwrap());
+        {
+            let conn = legacy_db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO corpus_books (id, title, source_path) VALUES (1, '旧库无路径', '')",
+                [],
+            )
+            .unwrap();
+        }
+        let legacy_repo = SqliteCorpusRepository::new(legacy_db);
+        let legacy_book = legacy_repo.get_book(1).unwrap();
+        assert_eq!(rebuild_one(&legacy_repo, &legacy_book).unwrap_err().0, "skipped");
+        // ③ 无镜像（旧数据）且路径记录在但文件已不在 → skipped（不误判 failed、不清索引）
+        let legacy_db2 = std::sync::Arc::new(CorpusDatabase::open_in_memory().unwrap());
+        {
+            let conn = legacy_db2.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO corpus_books (id, title, source_path)
+                 VALUES (2, '旧库丢失', '/tmp/definitely_missing_book_xyz.txt')",
+                [],
+            )
+            .unwrap();
+        }
+        let legacy_repo2 = SqliteCorpusRepository::new(legacy_db2);
+        let legacy_book2 = legacy_repo2.get_book(2).unwrap();
+        assert_eq!(rebuild_one(&legacy_repo2, &legacy_book2).unwrap_err().0, "skipped");
+    }
+
+    /// 断言单本重建为「整体替换」，返回新句子数（增量重建后结果为 [`RebuildOutcome`]）。
+    fn expect_rebuilt(outcome: Result<RebuildOutcome, (String, String)>) -> i64 {
+        match outcome {
+            Ok(RebuildOutcome::Rebuilt(n)) => n,
+            Ok(RebuildOutcome::Unchanged) => panic!("expected rebuilt, got unchanged"),
+            Err((status, reason)) => panic!("expected rebuilt, got {status}: {reason}"),
+        }
+    }
+
+    /// 增量重建（P2-5）——内容未变跳过：正常导入（chunks 与镜像同源）后重建，
+    /// 重切分结果与库内 content_hash 一致 → `unchanged`，索引/指纹/镜像均不重写，检索仍可用。
+    #[test]
+    fn rebuild_one_skips_when_content_unchanged() {
+        use crate::domain::corpus::pipeline::parse_text;
+        use crate::infrastructure::database::{corpus_repository::CorpusRepository, CorpusDatabase};
+        let repo = SqliteCorpusRepository::new(std::sync::Arc::new(
+            CorpusDatabase::open_in_memory().unwrap(),
+        ));
+        let text = "第一章 出山\n山风很大。他回头看了一眼。\n第二章 入世\n老者说。";
+        let parsed: Vec<(String, String, String)> = parse_text(text)
+            .iter()
+            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .collect();
+        assert!(!parsed.is_empty());
+        let book = repo
+            .import_book("静书", "", "zh", "", "txt", "", text, &parsed)
+            .unwrap();
+        let before = repo.get_book(book.id).unwrap();
+        // 内容未变：重建应跳过整个 replace
+        match rebuild_one(&repo, &repo.get_book(book.id).unwrap()) {
+            Ok(RebuildOutcome::Unchanged) => {}
+            other => panic!("unchanged book must be skipped, got {other:?}"),
+        }
+        let after = repo.get_book(book.id).unwrap();
+        assert_eq!(after.content_hash, before.content_hash, "指纹不应被刷新");
+        assert_eq!(after.chunk_count, before.chunk_count, "索引不应被重写");
+        let src = repo.get_book_source(book.id).unwrap().unwrap();
+        assert_eq!(src.raw_text, text, "镜像不应被改写");
+        assert!(
+            !repo.search("山风很大", None, 20, 0).unwrap().is_empty(),
+            "既有索引仍可检索"
+        );
+    }
+
+    /// 增量重建——内容变更需整体替换：旧数据（无镜像）且外部源文件内容已改，
+    /// 重切分指纹与库内 content_hash 不一致 → `rebuilt`，索引按新文本重建、指纹刷新。
+    #[test]
+    fn rebuild_one_rebuilds_when_external_source_changed() {
+        use crate::domain::corpus::pipeline::parse_text;
+        use crate::infrastructure::database::{
+            corpus_repository::{book_fingerprints, CorpusRepository},
+            CorpusDatabase,
+        };
+        let db = std::sync::Arc::new(CorpusDatabase::open_in_memory().unwrap());
+        let repo = SqliteCorpusRepository::new(db.clone());
+        let dir = std::env::temp_dir().join(format!("sf_corpus_changed_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("changed.txt");
+        let text_a = "第一章 出山\n山风很大。\n第二章 入世\n老者说。";
+        std::fs::write(&path, text_a).unwrap();
+        let parsed_a: Vec<(String, String, String)> = parse_text(text_a)
+            .iter()
+            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .collect();
+        let hash_a = book_fingerprints(&parsed_a).0;
+        // 无镜像的旧数据：只有 source_path + 指纹记录，没有 corpus_book_sources 行
+        {
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO corpus_books (id, title, source_path, content_hash, simhash, chunk_count)
+                 VALUES (1, '变书', ?1, ?2, 0, 3)",
+                rusqlite::params![path.to_string_lossy().to_string(), hash_a],
+            )
+            .unwrap();
+        }
+        // 外部源文件内容已改（文本 B 比 A 多两句）
+        let text_b = "第一章 出山\n山风很大。他回头看了一眼。\n第二章 入世\n老者说。停步。";
+        std::fs::write(&path, text_b).unwrap();
+        let n = expect_rebuilt(rebuild_one(&repo, &repo.get_book(1).unwrap()));
+        assert!(n >= 2, "变更书应按新文本重建，got {n}");
+        let after = repo.get_book(1).unwrap();
+        assert_eq!(after.chunk_count, n);
+        assert_ne!(after.content_hash, hash_a, "指纹应按新文本刷新");
+        assert!(
+            !repo.search("停步", None, 20, 0).unwrap().is_empty(),
+            "新文本已可检索"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 增量重建——旧数据无指纹（content_hash 为空）不比对，保守整体重建并回填指纹。
+    #[test]
+    fn rebuild_one_rebuilds_when_content_hash_missing() {
+        use crate::domain::corpus::pipeline::parse_text;
+        use crate::infrastructure::database::{corpus_repository::CorpusRepository, CorpusDatabase};
+        let db = std::sync::Arc::new(CorpusDatabase::open_in_memory().unwrap());
+        let repo = SqliteCorpusRepository::new(db.clone());
+        let text = "第一章 出山\n山风很大。";
+        let parsed: Vec<(String, String, String)> = parse_text(text)
+            .iter()
+            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .collect();
+        let book = repo
+            .import_book("旧号", "", "zh", "", "txt", "", text, &parsed)
+            .unwrap();
+        assert!(!repo.get_book(book.id).unwrap().content_hash.is_empty());
+        // 置空指纹（模拟 P0-1 之前落库的行未计算指纹）
+        {
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "UPDATE corpus_books SET content_hash = '' WHERE id = ?1",
+                [book.id],
+            )
+            .unwrap();
+        }
+        let n = expect_rebuilt(rebuild_one(&repo, &repo.get_book(book.id).unwrap()));
+        assert!(n >= 2, "空指纹不跳过，应整体重建，got {n}");
+        let after = repo.get_book(book.id).unwrap();
+        assert!(!after.content_hash.is_empty(), "重建后应回填内容指纹");
     }
 
     /// 构造测试用 CorpusBook（simhash 传 0 表示"未计算"）。
@@ -1277,6 +2015,7 @@ mod tests {
             language: "zh".to_string(),
             source: "txt".to_string(),
             category: String::new(),
+            tags: Vec::new(),
             source_path: path.to_string(),
             content_hash: hash.to_string(),
             simhash: sim,
@@ -1403,4 +2142,73 @@ mod tests {
         assert_eq!(ok.unavailable_message(), "");
         assert!(ok.repo().is_ok());
     }
+
+    /// P2-4 端到端维护冒烟：真实临时文件走通「导入 → 单本重建 → 全库扫描查重 → 删除」全链路。
+    /// 断言数据层每一步的实质效果：镜像归档、陈旧索引重建恢复、content_hash 精确分组、删除级联清索引。
+    #[test]
+    fn maintenance_smoke_import_rebuild_scan_delete() {
+        use crate::domain::corpus::pipeline::parse_text;
+        use crate::infrastructure::database::{
+            corpus_repository::CorpusRepository, CorpusDatabase,
+        };
+        let repo = SqliteCorpusRepository::new(std::sync::Arc::new(
+            CorpusDatabase::open_in_memory().unwrap(),
+        ));
+        let dir = std::env::temp_dir().join(format!("sf_corpus_smoke_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_a = dir.join("正本.txt");
+        let file_b = dir.join("副本.txt");
+        let text = "第一章 出山\n\n山风很大。他回头看见了孤独的山谷！\n\n第二章 入世\n\n孤独是宿命……";
+        std::fs::write(&file_a, text).unwrap();
+        std::fs::write(&file_b, text).unwrap();
+        let path_a = file_a.to_string_lossy().to_string();
+        let path_b = file_b.to_string_lossy().to_string();
+
+        // ① 导入（读真实文件 → 抽取 → 切分 → 入库 + 镜像归档）
+        let (raw_a, src_a) = extract_text_by_path(&path_a, &std::fs::read(&file_a).unwrap()).unwrap();
+        let parsed_a: Vec<(String, String, String)> = parse_text(&raw_a)
+            .iter()
+            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .collect();
+        assert!(!parsed_a.is_empty());
+        let book_a = repo
+            .import_book("正本", "作者", "zh", "", src_a, &path_a, &raw_a, &parsed_a)
+            .unwrap();
+        assert!(repo.get_book_source(book_a.id).unwrap().is_some(), "镜像已归档");
+        assert!(!repo.search("山风很大", None, 20, 0).unwrap().is_empty());
+
+        // ② 单本重建：先以空 chunks 模拟陈旧索引，rebuild 后恢复章句切分
+        repo.replace_book_chunks(book_a.id, src_a, &raw_a, &[])
+            .unwrap();
+        assert_eq!(repo.get_book(book_a.id).unwrap().chunk_count, 0);
+        let n = expect_rebuilt(rebuild_one(&repo, &repo.get_book(book_a.id).unwrap()));
+        assert!(n >= 4, "重建后应有章+句，got {n}");
+        assert_eq!(repo.get_book(book_a.id).unwrap().chunk_count, n);
+
+        // ③ 全库查重：单本无重复；两次导入同内容后出现 content_hash 精确组
+        let (exact, _) = scan_book_duplicates(&repo.list_books().unwrap());
+        assert!(exact.is_empty(), "单本不应有重复组");
+        let (raw_b, src_b) = extract_text_by_path(&path_b, &std::fs::read(&file_b).unwrap()).unwrap();
+        let parsed_b: Vec<(String, String, String)> = parse_text(&raw_b)
+            .iter()
+            .map(|c| (c.kind.to_string(), c.content.clone(), c.chapter_title.clone()))
+            .collect();
+        let book_b = repo
+            .import_book("副本", "作者", "zh", "", src_b, &path_b, &raw_b, &parsed_b)
+            .unwrap();
+        let (exact2, _) = scan_book_duplicates(&repo.list_books().unwrap());
+        assert_eq!(exact2.len(), 1);
+        assert_eq!(exact2[0].reason, "content_hash");
+
+        // ④ 删除副本：索引/镜像级联清除，查重组消失，只剩正本
+        repo.delete_book(book_b.id).unwrap();
+        let (exact3, _) = scan_book_duplicates(&repo.list_books().unwrap());
+        assert!(exact3.is_empty());
+        let remaining = repo.list_books().unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, book_a.id);
+        assert!(repo.get_book_source(book_b.id).unwrap().is_none(), "副本镜像已随书删除");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
 }

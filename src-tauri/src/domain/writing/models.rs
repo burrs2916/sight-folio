@@ -21,6 +21,10 @@ pub struct WritingBook {
     /// 日更目标（字数/天，0 = 未设）。写作统计面板展示今日进度用。
     #[serde(default)]
     pub daily_goal: i64,
+    /// extra JSON 透传：全书目标（targetWords 目标总字数 / targetChapters 目标章节数 /
+    /// deadline 截止日期 Unix 秒，0 = 未设）。加字段零迁移范式（与 settings/outlines 一致）。
+    #[serde(default)]
+    pub extra: String,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -89,6 +93,10 @@ pub struct WritingChapter {
     /// 章头图引用存 `coverImage`：`assets/writing/illustrations/<name>`（与正文插图同一相对引用模型）。
     #[serde(default)]
     pub extra: String,
+    /// 章节所属剧情线（主剧情线）：规划归属，与事件级 storyline_id 互补。
+    /// 事件可挂不同线，但章本身有且仅有一条主归属线（NULL = 未规划）。
+    #[serde(default)]
+    pub storyline_id: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -112,6 +120,41 @@ pub struct WritingChapterSnapshot {
 
 fn default_snapshot_origin() -> String {
     "auto".to_string()
+}
+
+/// 章内批注/便签（批次② T4）：正文选区上的批注内容，独立表持久化。
+///
+/// 正文 HTML 只存 `<span data-annotation-id>` 引用，批注正文（text）与选区
+/// 文本快照（excerpt）都存这里——不污染正文字符流、字数统计与导出文本。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WritingAnnotation {
+    pub id: String,
+    pub chapter_id: String,
+    pub book_id: String,
+    pub text: String,
+    #[serde(default)]
+    pub excerpt: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// 灵感/快速笔记（T4）：全局级、跨章、作者心流暂存。
+/// chapter_id 可空（'' = 未分类/全书级）；tags 为 JSON 数组串（前端管）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WritingNote {
+    pub id: String,
+    pub book_id: String,
+    #[serde(default)]
+    pub chapter_id: String,
+    pub content: String,
+    #[serde(default)]
+    pub tags: String,
+    #[serde(default)]
+    pub pin: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 /// 大纲节点（结构规划，与章节可双向关联）
@@ -214,4 +257,36 @@ pub struct WritingForeshadowing {
 
 fn default_foreshadow_status() -> String {
     "pending".to_string()
+}
+
+/// 完结作品记录（写作台导出/备份成功后落库一条，供「完结作品」页统一管理）。
+///
+/// format: epub | pdf | docx | html | md | txt | backup
+/// file_path 为用户选定的导出路径（不改写原文）；file_size 为用户可见规格。
+/// 只存元数据、不持有源文件（原生导出写盘即完成）；删除记录不删除源文件。
+/// id / created_at 由前端生成后整对象落库（INSERT OR REPLACE），后端不做构造。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletedWork {
+    pub id: String,
+    pub book_id: String,
+    pub book_title: String,
+    /// epub | pdf | docx | html | md | txt | backup
+    #[serde(default)]
+    pub format: String,
+    /// 导出产物的绝对路径
+    #[serde(default)]
+    pub file_path: String,
+    /// 产物字节数（导出成功后由命令层 stat 回填，前端不负责计算）
+    #[serde(default)]
+    pub file_size: i64,
+    /// 源文件是否存在（列表加载时由命令层顺带检测并回写）。true = 用户已移动/删除源文件。
+    #[serde(default)]
+    pub is_file_missing: bool,
+    #[serde(default)]
+    pub word_count: i64,
+    #[serde(default)]
+    pub chapter_count: i64,
+    /// 导出完成时间（Unix 秒）
+    pub created_at: i64,
 }

@@ -21,8 +21,14 @@ pub struct CorpusBook {
     #[serde(default = "default_source")]
     pub source: String,
     /// 分类标签（导入后可编辑；检索时与书名/作者一并匹配）。空串 = 未分类。
+    /// 兼容旧数据：P0-3 升级后标签真源为 `corpus_book_tags` 表（一书多标签），
+    /// 本列保留为「顿号连接」镜像（写路径双写同步），读路径以 `tags` 为准。
     #[serde(default)]
     pub category: String,
+    /// 多值标签（P0-3）：真源为 `corpus_book_tags` 表；空 = 未打标签。
+    /// 旧数据（仅有 category 列）读路径会合并进此字段，前端一律用 tags 展示。
+    #[serde(default)]
+    pub tags: Vec<String>,
     /// 导入时的本地源文件路径（重建索引时据此重读原文件；旧数据为空串）。
     #[serde(default)]
     pub source_path: String,
@@ -116,15 +122,35 @@ pub struct CorpusSearchResult {
     pub hits: Vec<CorpusSearchHit>,
 }
 
+/// 入库归档的源文本镜像（P0-1 维护优化）。
+///
+/// 导入时把**抽取后的全文**随书归档进独立库（corpus.db），重建索引优先用镜像重切分，
+/// 源文件移动/删除不再导致该书变孤儿（镜像 → 外部文件 → skipped 三级回退）。
+/// `raw_text` 是抽取后的纯文本（非原始二进制），体积与索引相当、可控；
+/// 旧数据无镜像行 → `get_book_source` 返回 None，自动回退读外部源文件。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CorpusBookSource {
+    pub book_id: i64,
+    /// 镜像对应的来源格式标签（txt / epub / docx / fb2 / html / mobi）。
+    #[serde(default = "default_source")]
+    pub source: String,
+    /// 抽取后的全文镜像（重建索引的直接输入，无需重读/重解原文件）。
+    pub raw_text: String,
+    /// 镜像写入时间（导入或上次重建时刷新）。
+    #[serde(default)]
+    pub stored_at: i64,
+}
+
 /// 重建索引的单本结果。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RebuildItem {
     pub book_id: i64,
     pub title: String,
-    /// rebuilt | skipped | failed
+    /// rebuilt | unchanged（内容未变跳过）| skipped（无源）| failed
     pub status: String,
-    /// 跳过/失败原因（rebuilt 时为空）。
+    /// 跳过/失败原因（rebuilt/unchanged 时为空）。
     #[serde(default)]
     pub reason: String,
     /// 重建后的句子总数（仅 rebuilt 有值）。
@@ -137,6 +163,9 @@ pub struct RebuildItem {
 #[serde(rename_all = "camelCase")]
 pub struct RebuildReport {
     pub rebuilt: i64,
+    /// 内容未变、跳过整体替换的书数（增量重建，P2-5）。
+    #[serde(default)]
+    pub unchanged: i64,
     pub skipped: i64,
     pub failed: i64,
     pub items: Vec<RebuildItem>,
@@ -210,4 +239,28 @@ pub struct DuplicateReport {
     pub sentence_group_total: i64,
     /// 参与查重的书总数。
     pub book_total: i64,
+}
+
+/// 空间回收报告（P0：VACUUM + FTS5 rebuild 迁移的实测结果）。
+///
+/// 背景：corpus.db 采用 FTS5 external content 索引 + 触发器同步倒排，
+/// 但**升级前的旧库**没有这套触发器——删除书籍/句子只清了业务表，倒排残留
+/// 全部留在 corpus_fts_data（实测 50MB 级）。单纯 `VACUUM` 压不掉这类残留
+/// （freelist 只收"页"不收"内部索引段"），必须先 `INSERT INTO corpus_fts
+/// (corpus_fts) VALUES('rebuild')` 重建倒排，再 VACUUM 才能把空间还给文件。
+/// 体积口径：`page_count × page_size`（回收前先 `wal_checkpoint(TRUNCATE)`
+/// 合并 WAL，使页数与真实文件字节一致）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CorpusStorageReport {
+    /// 回收前数据库逻辑体积（字节）。
+    pub size_before: i64,
+    /// 回收后数据库逻辑体积（字节）。
+    pub size_after: i64,
+    /// 回收的字节数（size_before - size_after）。
+    pub reclaimed_bytes: i64,
+    /// 回收前 FTS5 倒排残留行数（corpus_fts_data）。
+    pub fts_rows_before: i64,
+    /// 回收后 FTS5 倒排行数。
+    pub fts_rows_after: i64,
 }

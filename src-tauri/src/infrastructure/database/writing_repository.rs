@@ -1,9 +1,11 @@
 use crate::domain::writing::{
-    WritingBook, WritingChapter, WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing,
-    WritingOutline, WritingSetting, WritingStoryline, WritingTimelineEvent,
+    CompletedWork, WritingAnnotation, WritingBook, WritingChapter, WritingChapterSnapshot,
+    WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline, WritingSetting, WritingStoryline,
+    WritingTimelineEvent,
 };
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::Database;
+use rusqlite::OptionalExtension;
 use std::sync::Arc;
 
 /// 写作域仓储（Sight Folio）
@@ -26,6 +28,10 @@ pub trait WritingRepository: Send + Sync {
     /// 正文保存只更新 content/word_count（content-only）：自动保存高频走这里，
     /// 绝不带 title/kind/status 等内存副本整行落库（与 rename_chapter 同一防回滚原则）。
     fn save_chapter_content(&self, id: &str, content: &str, word_count: i64, updated_at: i64) -> AppResult<()>;
+    /// 章节挂线只更新 storyline_id（storyline-only，G1）：章↔线归属是低频率元数据更新，
+    /// 走独立 UPDATE 不整行覆写，防旧 content 回滚（与 rename/save_content 同一原则）。
+    /// storyline_id=None 表示解绑（去线）。updated_at 由调用方传入。
+    fn set_chapter_storyline(&self, id: &str, storyline_id: Option<&str>, updated_at: i64) -> AppResult<()>;
     /// 章节版本快照（批次④）：追加一条，并裁剪到每章最近 N 份（事务内）。
     fn save_chapter_snapshot(&self, snapshot: &WritingChapterSnapshot, keep_per_chapter: i64) -> AppResult<()>;
     /// 按章列出快照（created_at 倒序）。
@@ -59,6 +65,31 @@ pub trait WritingRepository: Send + Sync {
     fn list_foreshadowings(&self, book_id: &str) -> AppResult<Vec<WritingForeshadowing>>;
     fn save_foreshadowing(&self, item: &WritingForeshadowing) -> AppResult<()>;
     fn delete_foreshadowing(&self, id: &str) -> AppResult<()>;
+    /// 章内批注（批次② T4）：按章列出（created_at 倒序）。
+    fn list_annotations(&self, chapter_id: &str) -> AppResult<Vec<WritingAnnotation>>;
+    fn save_annotation(&self, item: &WritingAnnotation) -> AppResult<()>;
+    fn delete_annotation(&self, id: &str) -> AppResult<()>;
+    /// 完结作品记录（Phase 2）：按导出时间倒序列出全部。
+    fn list_completed_works(&self) -> AppResult<Vec<CompletedWork>>;
+    /// 落一条完结作品记录（INSERT OR REPLACE，前端持完整对象）。
+    fn save_completed_work(&self, work: &CompletedWork) -> AppResult<()>;
+    /// 灵感/快速笔记（T4）：按书列出（pin DESC → updated_at DESC → created_at DESC）。
+    fn list_notes(&self, book_id: &str) -> AppResult<Vec<WritingNote>>;
+    fn save_note(&self, item: &WritingNote) -> AppResult<()>;
+    fn delete_note(&self, id: &str) -> AppResult<()>;
+    /// 解绑笔记上的章节引用（删章时把该章的 notes 置 chapter_id=''，不删笔记本身）。
+    fn unbind_notes_from_chapter(&self, chapter_id: &str) -> AppResult<()>;
+    /// 删除完结作品记录（只删元数据行，不删源文件——语义由前端文案明确）。
+    fn delete_completed_work(&self, id: &str) -> AppResult<()>;
+    /// 按 file_path 精确查一条完结作品记录（导入去重用：同路径不重复生成）。
+    fn find_completed_work_by_path(&self, file_path: &str) -> AppResult<Option<CompletedWork>>;
+    /// 更新完结作品记录的 file_path（改名/改目录/重新定位后记录与磁盘对齐），
+    /// file_size 由命令层 stat 新路径后传入。
+    fn update_completed_work_path(&self, id: &str, new_path: &str, file_size: i64) -> AppResult<()>;
+    /// 统计某书某格式的完结作品数量（format 为空串 = 该书全部格式）。
+    fn count_completed_works(&self, book_id: &str, format: &str) -> AppResult<i64>;
+    /// 回写源文件缺失标记（列表加载时顺带检测磁盘后落库，未来可作为定时探测的落点）。
+    fn set_completed_work_missing(&self, id: &str, is_missing: bool) -> AppResult<()>;
 }
 
 pub struct SqliteWritingRepository {
@@ -87,6 +118,7 @@ fn row_to_book(row: &rusqlite::Row) -> rusqlite::Result<WritingBook> {
         status: row.get("status")?,
         cover_color: row.get("cover_color")?,
         daily_goal: row.get("daily_goal")?,
+        extra: row.get("extra")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
     })
@@ -104,6 +136,7 @@ fn row_to_chapter(row: &rusqlite::Row) -> rusqlite::Result<WritingChapter> {
         volume: row.get("volume")?,
         parent_id: row.get::<_, Option<String>>("parent_id")?,
         kind: row.get::<_, String>("kind")?,
+        storyline_id: row.get::<_, Option<String>>("storyline_id")?,
         extra: row.get("extra")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
@@ -132,9 +165,9 @@ fn row_to_setting(row: &rusqlite::Row) -> rusqlite::Result<WritingSetting> {
 /// books 恒为空 → 工作室 L1 作品栏整条空白。
 /// 加列时的顺序：migration ALTER → 模型字段 → INSERT 列+值 → **本清单** → row mapper。
 const BOOK_COLS: &str =
-    "id, title, description, genre, medium, status, cover_color, daily_goal, created_at, updated_at";
+    "id, title, description, genre, medium, status, cover_color, daily_goal, extra, created_at, updated_at";
 const CHAPTER_COLS: &str =
-    "id, book_id, title, content, sort_order, word_count, status, volume, parent_id, kind, extra, created_at, updated_at";
+    "id, book_id, title, content, sort_order, word_count, status, volume, parent_id, kind, storyline_id, extra, created_at, updated_at";
 const SETTING_COLS: &str =
     "id, book_id, kind, name, subtitle, description, extra, sort_order, created_at, updated_at";
 const OUTLINE_COLS: &str =
@@ -146,6 +179,53 @@ const STORYLINE_COLS: &str =
 const FORESHADOWING_COLS: &str =
     "id, book_id, title, description, plant_chapter_id, payoff_chapter_id, status, storyline_id, sort_order, created_at, updated_at";
 const SNAPSHOT_COLS: &str = "id, chapter_id, book_id, content, word_count, origin, created_at";
+
+const ANNOTATION_COLS: &str = "id, chapter_id, book_id, text, excerpt, created_at, updated_at";
+
+const NOTE_COLS: &str = "id, book_id, chapter_id, content, tags, pin, created_at, updated_at";
+
+const COMPLETED_WORK_COLS: &str =
+    "id, book_id, book_title, format, file_path, file_size, is_file_missing, word_count, chapter_count, created_at";
+
+fn row_to_completed_work(row: &rusqlite::Row) -> rusqlite::Result<CompletedWork> {
+    Ok(CompletedWork {
+        id: row.get("id")?,
+        book_id: row.get("book_id")?,
+        book_title: row.get("book_title")?,
+        format: row.get("format")?,
+        file_path: row.get("file_path")?,
+        file_size: row.get("file_size")?,
+        is_file_missing: row.get::<_, i64>("is_file_missing")? != 0,
+        word_count: row.get("word_count")?,
+        chapter_count: row.get("chapter_count")?,
+        created_at: row.get("created_at")?,
+    })
+}
+
+fn row_to_annotation(row: &rusqlite::Row) -> rusqlite::Result<WritingAnnotation> {
+    Ok(WritingAnnotation {
+        id: row.get("id")?,
+        chapter_id: row.get("chapter_id")?,
+        book_id: row.get("book_id")?,
+        text: row.get("text")?,
+        excerpt: row.get("excerpt")?,
+        created_at: row.get("created_at")?,
+        updated_at: row.get("updated_at")?,
+    })
+}
+
+fn row_to_note(row: &rusqlite::Row) -> rusqlite::Result<WritingNote> {
+    Ok(WritingNote {
+        id: row.get("id")?,
+        book_id: row.get("book_id")?,
+        chapter_id: row.get("chapter_id")?,
+        content: row.get("content")?,
+        tags: row.get("tags")?,
+        pin: row.get("pin")?,
+        created_at: row.get("created_at")?,
+        updated_at: row.get("updated_at")?,
+    })
+}
 
 fn row_to_snapshot(row: &rusqlite::Row) -> rusqlite::Result<WritingChapterSnapshot> {
     Ok(WritingChapterSnapshot {
@@ -245,8 +325,8 @@ impl WritingRepository for SqliteWritingRepository {
         let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_books
-             (id, title, description, genre, medium, status, cover_color, daily_goal, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+             (id, title, description, genre, medium, status, cover_color, daily_goal, extra, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
             rusqlite::params![
                 book.id,
                 book.title,
@@ -256,6 +336,7 @@ impl WritingRepository for SqliteWritingRepository {
                 book.status,
                 book.cover_color,
                 book.daily_goal,
+                book.extra,
                 book.created_at,
                 book.updated_at,
             ],
@@ -277,6 +358,7 @@ impl WritingRepository for SqliteWritingRepository {
             "writing_daily_stats",
             "writing_outlines",
             "writing_chapters",
+            "writing_annotations",
         ] {
             tx.execute(&format!("DELETE FROM {table} WHERE book_id = ?1"), [id])?;
         }
@@ -312,8 +394,8 @@ impl WritingRepository for SqliteWritingRepository {
         let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_chapters
-             (id, book_id, title, content, sort_order, word_count, status, volume, parent_id, kind, extra, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+             (id, book_id, title, content, sort_order, word_count, status, volume, parent_id, kind, extra, storyline_id, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
             rusqlite::params![
                 chapter.id,
                 chapter.book_id,
@@ -326,6 +408,7 @@ impl WritingRepository for SqliteWritingRepository {
                 chapter.parent_id,
                 chapter.kind,
                 chapter.extra,
+                chapter.storyline_id,
                 chapter.created_at,
                 chapter.updated_at,
             ],
@@ -347,6 +430,15 @@ impl WritingRepository for SqliteWritingRepository {
         conn.execute(
             "UPDATE writing_chapters SET content = ?2, word_count = ?3, updated_at = ?4 WHERE id = ?1",
             rusqlite::params![id, content, word_count, updated_at],
+        )?;
+        Ok(())
+    }
+
+    fn set_chapter_storyline(&self, id: &str, storyline_id: Option<&str>, updated_at: i64) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "UPDATE writing_chapters SET storyline_id = ?2, updated_at = ?3 WHERE id = ?1",
+            rusqlite::params![id, storyline_id, updated_at],
         )?;
         Ok(())
     }
@@ -412,8 +504,60 @@ impl WritingRepository for SqliteWritingRepository {
             "UPDATE writing_outlines SET chapter_id = NULL WHERE chapter_id = ?1",
             [id],
         )?;
+        tx.execute("DELETE FROM writing_annotations WHERE chapter_id = ?1", [id])?;
+        tx.execute(
+            "UPDATE writing_notes SET chapter_id = '' WHERE chapter_id = ?1",
+            [id],
+        )?;
         tx.execute("DELETE FROM writing_chapters WHERE id = ?1", [id])?;
         tx.commit()?;
+        Ok(())
+    }
+
+    fn list_notes(&self, book_id: &str) -> AppResult<Vec<WritingNote>> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {NOTE_COLS} FROM writing_notes WHERE book_id = ?1 \
+             ORDER BY pin DESC, updated_at DESC, created_at DESC"
+        ))?;
+        let rows = stmt
+            .query_map([book_id], row_to_note)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    fn save_note(&self, item: &WritingNote) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "INSERT OR REPLACE INTO writing_notes
+             (id, book_id, chapter_id, content, tags, pin, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            rusqlite::params![
+                item.id,
+                item.book_id,
+                item.chapter_id,
+                item.content,
+                item.tags,
+                item.pin,
+                item.created_at,
+                item.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    fn delete_note(&self, id: &str) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute("DELETE FROM writing_notes WHERE id = ?1", [id])?;
+        Ok(())
+    }
+
+    fn unbind_notes_from_chapter(&self, chapter_id: &str) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "UPDATE writing_notes SET chapter_id = '' WHERE chapter_id = ?1",
+            [chapter_id],
+        )?;
         Ok(())
     }
 
@@ -468,7 +612,8 @@ impl WritingRepository for SqliteWritingRepository {
     fn record_daily_snapshot(&self, book_id: &str, day: &str) -> AppResult<i64> {
         let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
         let total: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(word_count), 0) FROM writing_chapters WHERE book_id = ?1",
+            "SELECT COALESCE(SUM(word_count), 0) FROM writing_chapters \
+             WHERE book_id = ?1 AND COALESCE(json_extract(extra, '$.deletedAt'), 0) <= 0",
             [book_id],
             |row| row.get(0),
         )?;
@@ -622,6 +767,11 @@ impl WritingRepository for SqliteWritingRepository {
             "UPDATE writing_foreshadowings SET storyline_id = NULL WHERE storyline_id = ?1",
             [id],
         )?;
+        // 删线不删章节（零强制）：挂线章节回到「未挂线」（G1 章→线直连后同步解绑）。
+        conn.execute(
+            "UPDATE writing_chapters SET storyline_id = NULL WHERE storyline_id = ?1",
+            [id],
+        )?;
         Ok(())
     }
 
@@ -664,6 +814,131 @@ impl WritingRepository for SqliteWritingRepository {
         conn.execute("DELETE FROM writing_foreshadowings WHERE id = ?1", [id])?;
         Ok(())
     }
+
+    fn list_annotations(&self, chapter_id: &str) -> AppResult<Vec<WritingAnnotation>> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {ANNOTATION_COLS} FROM writing_annotations WHERE chapter_id = ?1 \
+             ORDER BY created_at DESC, id DESC"
+        ))?;
+        let rows = stmt
+            .query_map([chapter_id], row_to_annotation)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    fn save_annotation(&self, item: &WritingAnnotation) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "INSERT OR REPLACE INTO writing_annotations
+             (id, chapter_id, book_id, text, excerpt, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            rusqlite::params![
+                item.id,
+                item.chapter_id,
+                item.book_id,
+                item.text,
+                item.excerpt,
+                item.created_at,
+                item.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    fn delete_annotation(&self, id: &str) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute("DELETE FROM writing_annotations WHERE id = ?1", [id])?;
+        Ok(())
+    }
+
+    fn list_completed_works(&self) -> AppResult<Vec<CompletedWork>> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {COMPLETED_WORK_COLS} FROM completed_works ORDER BY created_at DESC, id DESC"
+        ))?;
+        let works = stmt
+            .query_map([], row_to_completed_work)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(works)
+    }
+
+    fn save_completed_work(&self, work: &CompletedWork) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "INSERT OR REPLACE INTO completed_works
+             (id, book_id, book_title, format, file_path, file_size, is_file_missing, word_count, chapter_count, created_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            rusqlite::params![
+                work.id,
+                work.book_id,
+                work.book_title,
+                work.format,
+                work.file_path,
+                work.file_size,
+                work.is_file_missing,
+                work.word_count,
+                work.chapter_count,
+                work.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    fn delete_completed_work(&self, id: &str) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute("DELETE FROM completed_works WHERE id = ?1", [id])?;
+        Ok(())
+    }
+
+    fn find_completed_work_by_path(&self, file_path: &str) -> AppResult<Option<CompletedWork>> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {COMPLETED_WORK_COLS} FROM completed_works WHERE file_path = ?1 LIMIT 1"
+        ))?;
+        let mut rows = stmt.query_map([file_path], row_to_completed_work)?;
+        match rows.next() {
+            Some(Ok(work)) => Ok(Some(work)),
+            Some(Err(e)) => Err(AppError::Internal(e.to_string())),
+            None => Ok(None),
+        }
+    }
+
+    fn update_completed_work_path(&self, id: &str, new_path: &str, file_size: i64) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "UPDATE completed_works SET file_path = ?2, file_size = ?3 WHERE id = ?1",
+            rusqlite::params![id, new_path, file_size],
+        )?;
+        Ok(())
+    }
+
+    fn count_completed_works(&self, book_id: &str, format: &str) -> AppResult<i64> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let count = if format.is_empty() {
+            conn.query_row(
+                "SELECT COUNT(*) FROM completed_works WHERE book_id = ?1",
+                [book_id],
+                |r| r.get(0),
+            )?
+        } else {
+            conn.query_row(
+                "SELECT COUNT(*) FROM completed_works WHERE book_id = ?1 AND format = ?2",
+                rusqlite::params![book_id, format],
+                |r| r.get(0),
+            )?
+        };
+        Ok(count)
+    }
+
+    fn set_completed_work_missing(&self, id: &str, is_missing: bool) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "UPDATE completed_works SET is_file_missing = ?2 WHERE id = ?1",
+            rusqlite::params![id, is_missing as i64],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -692,6 +967,7 @@ mod tests {
             status: "draft".into(),
             cover_color: "#4A338F".into(),
             daily_goal: 0,
+            extra: "{}".into(),
             created_at: 1_700_000_000,
             updated_at: 1_700_000_000,
         }
@@ -727,6 +1003,9 @@ mod tests {
             ("writing_storylines", STORYLINE_COLS),
             ("writing_foreshadowings", FORESHADOWING_COLS),
             ("writing_chapter_snapshots", SNAPSHOT_COLS),
+            ("writing_annotations", ANNOTATION_COLS),
+            ("writing_notes", NOTE_COLS),
+            ("completed_works", COMPLETED_WORK_COLS),
         ] {
             let listed: Vec<String> = cols.split(',').map(|c| c.trim().to_string()).collect();
             let real = table_cols(&conn, table);
@@ -799,6 +1078,7 @@ mod tests {
             volume: String::new(),
             parent_id: None,
             kind: "章".into(),
+            storyline_id: None,
             extra: "{}".into(),
             created_at: 1_700_000_000,
             updated_at: 1_700_000_000,
@@ -924,6 +1204,142 @@ mod tests {
         assert_eq!(repo.list_chapters("book_ch_legacy").unwrap().len(), 1);
     }
 
+    /// 完结作品记录（Phase 2）：save→list 往返 + delete 删除（已先经
+    /// `cols_lists_cover_every_column_of_each_table` 锁列清单一致性，这里锁行为）。
+    fn sample_completed_work(id: &str) -> CompletedWork {
+        CompletedWork {
+            id: id.into(),
+            book_id: "book_cw".into(),
+            book_title: "长夜".into(),
+            format: "epub".into(),
+            file_path: "/tmp/长夜.epub".into(),
+            file_size: 2_097_152,
+            is_file_missing: false,
+            word_count: 120_000,
+            chapter_count: 8,
+            created_at: 1_700_000_000,
+        }
+    }
+
+    #[test]
+    fn completed_work_roundtrip_and_delete() {
+        let repo = make_repo();
+        let book = sample_book("book_cw");
+        repo.save_book(&book).unwrap();
+
+        let mut epub = sample_completed_work("cw_epub");
+        repo.save_completed_work(&epub).unwrap();
+        let mut pdf = sample_completed_work("cw_pdf");
+        pdf.format = "pdf".into();
+        pdf.file_size = 8_589_934;
+        pdf.created_at = 1_700_000_100;
+        repo.save_completed_work(&pdf).unwrap();
+
+        let listed = repo.list_completed_works().unwrap();
+        assert_eq!(listed.len(), 2, "list 应返回刚存进去的两条");
+        // created_at DESC：最新在前
+        assert_eq!(listed[0].id, "cw_pdf");
+        assert_eq!(listed[0].file_size, 8_589_934, "file_size 存取往返不丢");
+        assert_eq!(listed[1].format, "epub");
+        assert_eq!(listed[1].book_title, "长夜");
+        assert_eq!(listed[1].chapter_count, 8);
+
+        // 同名 id 覆盖（INSERT OR REPLACE）
+        epub.word_count = 121_000;
+        repo.save_completed_work(&epub).unwrap();
+        let listed = repo.list_completed_works().unwrap();
+        assert_eq!(listed.len(), 2, "同 id 重存是覆盖不是新增");
+        assert_eq!(listed[1].word_count, 121_000);
+
+        // 删除只删记录
+        repo.delete_completed_work("cw_epub").unwrap();
+        let listed = repo.list_completed_works().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, "cw_pdf");
+    }
+
+    #[test]
+    fn completed_work_find_by_path_and_update_path() {
+        let repo = make_repo();
+        let book = sample_book("book_cw");
+        repo.save_book(&book).unwrap();
+        let epub = sample_completed_work("cw_path");
+        repo.save_completed_work(&epub).unwrap();
+
+        // 按路径查重：命中与未命中
+        let hit = repo.find_completed_work_by_path("/tmp/长夜.epub").unwrap();
+        assert!(hit.is_some(), "同路径应查得到");
+        assert_eq!(hit.unwrap().id, "cw_path");
+        let miss = repo
+            .find_completed_work_by_path("/tmp/不存在的书.epub")
+            .unwrap();
+        assert!(miss.is_none(), "不同路径不应命中");
+
+        // 改名/改目录：更新 file_path + file_size，其余字段不动
+        repo.update_completed_work_path("cw_path", "/Documents/长夜_v2.epub", 3_145_728)
+            .unwrap();
+        let listed = repo.list_completed_works().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].file_path, "/Documents/长夜_v2.epub");
+        assert_eq!(listed[0].file_size, 3_145_728);
+        assert_eq!(listed[0].book_id, "book_cw", "未变字段应保持");
+        // 旧路径不再命中，新路径命中
+        let old_hit = repo
+            .find_completed_work_by_path("/tmp/长夜.epub")
+            .unwrap();
+        assert!(old_hit.is_none(), "旧路径更新后不应再命中");
+        let new_hit = repo
+            .find_completed_work_by_path("/Documents/长夜_v2.epub")
+            .unwrap();
+        assert!(new_hit.is_some());
+    }
+
+    /// T3：按 (book_id, format) 统计数量 —— 写作台「已有 n 个 PDF」的数据源。
+    #[test]
+    fn completed_work_count_by_book_and_format() {
+        let repo = make_repo();
+        let book = sample_book("book_cw");
+        repo.save_book(&book).unwrap();
+
+        let mut epub = sample_completed_work("cw_epub");
+        repo.save_completed_work(&epub).unwrap();
+        let mut pdf1 = sample_completed_work("cw_pdf1");
+        pdf1.format = "pdf".into();
+        repo.save_completed_work(&pdf1).unwrap();
+        let mut pdf2 = sample_completed_work("cw_pdf2");
+        pdf2.format = "pdf".into();
+        pdf2.id = "cw_pdf2".into();
+        repo.save_completed_work(&pdf2).unwrap();
+
+        // 空串 format = 该书全部格式
+        assert_eq!(repo.count_completed_works("book_cw", "").unwrap(), 3);
+        assert_eq!(repo.count_completed_works("book_cw", "pdf").unwrap(), 2);
+        assert_eq!(repo.count_completed_works("book_cw", "epub").unwrap(), 1);
+        assert_eq!(repo.count_completed_works("book_cw", "docx").unwrap(), 0);
+        // 其他书不受影响
+        assert_eq!(repo.count_completed_works("book_other", "pdf").unwrap(), 0);
+    }
+
+    /// T3：文件缺失标记往返 + 仅标记位更新、其余字段保持。
+    #[test]
+    fn completed_work_missing_flag_roundtrip() {
+        let repo = make_repo();
+        let book = sample_book("book_cw");
+        repo.save_book(&book).unwrap();
+        let epub = sample_completed_work("cw_missing");
+        repo.save_completed_work(&epub).unwrap();
+
+        assert!(!repo.list_completed_works().unwrap()[0].is_file_missing);
+
+        repo.set_completed_work_missing("cw_missing", true).unwrap();
+        let listed = repo.list_completed_works().unwrap();
+        assert!(listed[0].is_file_missing, "缺失标记应读回 true");
+        assert_eq!(listed[0].file_path, "/tmp/长夜.epub", "标记更新不动其它字段");
+
+        repo.set_completed_work_missing("cw_missing", false).unwrap();
+        assert!(!repo.list_completed_works().unwrap()[0].is_file_missing);
+    }
+
     /// 时间线事件（D）：setting_id 绑定 + NULL 两种，存取往返不丢，list 列清单覆盖。
     fn sample_timeline_event(
         book_id: &str,
@@ -1004,6 +1420,43 @@ mod tests {
         let events = repo.list_timeline_events("book_sl").unwrap();
         assert_eq!(events.len(), 1, "删线不得删事件");
         assert!(events[0].storyline_id.is_none(), "删线后事件应回到「未挂线」");
+    }
+
+    /// G1 章→线直连：章节挂线默认空、set_chapter_storyline 挂线/解绑往返（mentionable-only 更新，
+    /// 不碰 content/title）、删线把挂线章节解绑回「未挂线」（零强制：删线不删章）。
+    #[test]
+    fn chapter_storyline_roundtrip_and_delete_detaches_chapters() {
+        let repo = make_repo();
+        let book = sample_book("book_sl_ch");
+        repo.save_book(&book).unwrap();
+        repo.save_storyline(&sample_storyline("book_sl_ch", "sl_a", "A线")).unwrap();
+
+        // 新章节默认未挂线
+        let mut ch = sample_chapter("book_sl_ch", "ch_sl");
+        ch.content = "<p>必须留在库里</p>".into();
+        ch.title = "孤儿章".into();
+        repo.save_chapter(&ch).unwrap();
+
+        // 挂线
+        repo.set_chapter_storyline("ch_sl", Some("sl_a"), 1_700_000_001).unwrap();
+        let got = repo.get_chapter("ch_sl").unwrap().expect("应当读得回来");
+        assert_eq!(got.storyline_id.as_deref(), Some("sl_a"));
+        // storyline-only 更新不能回滚 content/title（防并发回滚原则）
+        assert_eq!(got.content, "<p>必须留在库里</p>");
+        assert_eq!(got.title, "孤儿章");
+
+        // 解绑
+        repo.set_chapter_storyline("ch_sl", None, 1_700_000_002).unwrap();
+        let got = repo.get_chapter("ch_sl").unwrap().unwrap();
+        assert!(got.storyline_id.is_none(), "显式解绑后应回到「未挂线」");
+
+        // 再挂线，删线只解绑不删章
+        repo.set_chapter_storyline("ch_sl", Some("sl_a"), 1_700_000_003).unwrap();
+        repo.delete_storyline("sl_a").unwrap();
+        let got = repo.get_chapter("ch_sl").unwrap().unwrap();
+        assert!(got.storyline_id.is_none(), "删线后挂线章节应回到「未挂线」");
+        assert_eq!(got.content, "<p>必须留在库里</p>", "删线不得动章节内容");
+        assert_eq!(repo.list_chapters("book_sl_ch").unwrap().len(), 1, "删线不得删章节");
     }
 
     /// 伏笔（「埋设 → 回收」承诺）：CRUD 往返（章绑定/状态/挂线全字段）+ 删线不删伏笔（置 NULL）。
