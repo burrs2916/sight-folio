@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>语料库维护维度优化分析 · Sight Folio</title>
+    <style>
+      :root {
+        --ink: #1f2430;
+        --ink-2: #4a5264;
+        --ink-3: #8891a5;
+        --line: #e2e6ee;
+        --bg: #f6f7fa;
+        --card: #ffffff;
+        --accent: #2f6fed;
+        --accent-soft: #eaf0fe;
+        --p1: #c2410c;
+        --p1-soft: #fff0e6;
+        --p2: #0e7490;
+        --p2-soft: #e6f7fa;
+        --ok: #15803d;
+        --ok-soft: #e9f7ee;
+        --warn: #b45309;
+        --warn-soft: #fdf3e3;
+        --code: #31384a;
+        --code-bg: #f0f2f7;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI',
+          sans-serif;
+        line-height: 1.75;
+        font-size: 15px;
+      }
+      .wrap {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 40px 28px 72px;
+      }
+      header.hero {
+        background: linear-gradient(135deg, #1f2b46 0%, #2f6fed 100%);
+        color: #fff;
+        border-radius: 16px;
+        padding: 36px 40px;
+        margin-bottom: 28px;
+      }
+      header.hero .kicker {
+        font-size: 13px;
+        opacity: 0.85;
+        letter-spacing: 0.12em;
+      }
+      header.hero h1 {
+        margin: 10px 0 6px;
+        font-size: 28px;
+        line-height: 1.35;
+        font-weight: 700;
+      }
+      header.hero p.sub {
+        margin: 0;
+        font-size: 14px;
+        opacity: 0.85;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 24px;
+        margin-top: 14px;
+        font-size: 12.5px;
+        opacity: 0.9;
+      }
+      h2 {
+        font-size: 21px;
+        margin: 44px 0 6px;
+        padding-top: 8px;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      h2 .no {
+        font-size: 13px;
+        color: var(--accent);
+        font-weight: 700;
+        background: var(--accent-soft);
+        border-radius: 6px;
+        padding: 2px 8px;
+      }
+      h2.sec-p1 .no {
+        color: var(--p1);
+        background: var(--p1-soft);
+      }
+      h2.sec-p2 .no {
+        color: var(--p2);
+        background: var(--p2-soft);
+      }
+      h3 {
+        font-size: 16.5px;
+        margin: 26px 0 8px;
+      }
+      p {
+        margin: 8px 0;
+      }
+      .lead {
+        color: var(--ink-2);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin: 14px 0;
+      }
+      .card.warn {
+        border-left: 4px solid var(--warn);
+      }
+      .card.ok {
+        border-left: 4px solid var(--ok);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 760px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 12px 0;
+        font-size: 13.5px;
+      }
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eef1f7;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      tr:nth-child(even) td {
+        background: #fafbfd;
+      }
+      code {
+        font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+        font-size: 12.5px;
+        background: var(--code-bg);
+        color: var(--code);
+        border-radius: 4px;
+        padding: 1px 5px;
+        word-break: break-all;
+      }
+      .loc {
+        color: var(--ink-3);
+        font-size: 12px;
+      }
+      ul,
+      ol {
+        margin: 8px 0;
+        padding-left: 24px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 5px;
+        padding: 1px 8px;
+        margin-right: 6px;
+      }
+      .tag.p1 {
+        color: var(--p1);
+        background: var(--p1-soft);
+      }
+      .tag.p2 {
+        color: var(--p2);
+        background: var(--p2-soft);
+      }
+      .tag.ok {
+        color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tag.gray {
+        color: var(--ink-2);
+        background: #eef0f5;
+      }
+      .effort {
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .note {
+        font-size: 13px;
+        color: var(--ink-2);
+        background: #f2f4f9;
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin: 10px 0;
+      }
+      footer {
+        margin-top: 48px;
+        color: var(--ink-3);
+        font-size: 12.5px;
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <div class="kicker">SIGHT FOLIO · 只读分析报告</div>
+        <h1>语料库维护维度优化分析</h1>
+        <p class="sub">现状核实 · 已知风险与缺口 · 可落地优化点与优先级</p>
+        <div class="meta">
+          <span>分析日期：2026-09-27</span>
+          <span>仓库：/Users/liwenchao/GithubProSpace/sight-folio</span>
+          <span>性质：只读分析，无代码改动</span>
+        </div>
+      </header>
+
+      <h2><span class="no">一</span>分析范围与方法</h2>
+      <p class="lead">
+        本次分析聚焦 Sight Folio 语料库的<strong>维护维度</strong>（导入 · 重建 · 查重 · 标签 · 检索 ·
+        数据生命周期），承接此前
+        《语料库设计方案分析报告》的落地验证与「维护维度优化分析」子线。全部结论基于对本轮工作区源码的只读核查，未做任何修改。
+      </p>
+      <div class="card">
+        <h3 style="margin-top: 0">已核查的代码与文档</h3>
+        <table>
+          <tr>
+            <th>对象</th>
+            <th>角色</th>
+            <th class="loc">位置</th>
+          </tr>
+          <tr>
+            <td>corpus_database.rs</td>
+            <td>独立语料库 schema（corpus.db）、WAL/FTS5 配置、旧库 ALTER 升级</td>
+            <td class="loc">src-tauri/src/infrastructure/database/</td>
+          </tr>
+          <tr>
+            <td>corpus_repository.rs（约 1300 行）</td>
+            <td>导入/检索/重建/删除/标签/查重全部仓储实现</td>
+            <td class="loc">同上</td>
+          </tr>
+          <tr>
+            <td>pipeline.rs（约 770 行）</td>
+            <td>文本切分、短句合并、噪声过滤、语气保留（23 个单测）</td>
+            <td class="loc">src-tauri/src/domain/corpus/</td>
+          </tr>
+          <tr>
+            <td>reference.rs</td>
+            <td>参考价值分层评分（High/Medium/Low，7 个单测）</td>
+            <td class="loc">同上</td>
+          </tr>
+          <tr>
+            <td>fingerprint.rs</td>
+            <td>FNV-1a 128 内容指纹 + SimHash64 近似指纹（5 个单测）</td>
+            <td class="loc">同上</td>
+          </tr>
+          <tr>
+            <td>models.rs</td>
+            <td>域模型（CorpusBook/Chunk/Hit/Rebuild/Duplicate 系列）</td>
+            <td class="loc">同上</td>
+          </tr>
+          <tr>
+            <td>commands/corpus.rs（约 1490 行）</td>
+            <td>11 个 Tauri 命令、6 格式抽取、三级回退重建、可用性降级（18 个单测）</td>
+            <td class="loc">src-tauri/src/commands/</td>
+          </tr>
+          <tr>
+            <td>LibraryPage.tsx（873 行）</td>
+            <td>语料库前端唯一入口（检索/导入/编辑/重建/查重/标签筛选）</td>
+            <td class="loc">src/pages/</td>
+          </tr>
+          <tr>
+            <td>tauri.ts（corpusApi）</td>
+            <td>前端 IPC 封装（11 个方法）</td>
+            <td class="loc">src/services/</td>
+          </tr>
+          <tr>
+            <td>docs/corpus-design.md</td>
+            <td>语料生产规约（四层模型 + 扩展五步 + 维护铁律）</td>
+            <td class="loc">docs/</td>
+          </tr>
+        </table>
+        <p class="note">
+          测试基线：Rust 侧语料库共 <strong>81 个单测</strong>（pipeline 23 + reference 7 + fingerprint 5 + repository
+          26 + database 2 + commands 18）；前端语料 builder 相关 vitest 沿用「第三轮」1280
+          用例基线，本轮未触发改动故未重跑，仅代码级核查。
+        </p>
+      </div>
+
+      <h2><span class="no">二</span>现状核实（维护相关能力盘点）</h2>
+
+      <h3>2.1 存储架构：独立 corpus.db，防崩降级</h3>
+      <div class="card ok">
+        <p><strong>已确认事实：</strong></p>
+        <ul>
+          <li>
+            语料库独立于业务库：<code>corpus.db</code> 与 config.db 完全隔离（索引体积不拖累主库备份/清理）；PRAGMA 为
+            WAL + synchronous=NORMAL + busy_timeout=5000 + cache_size=-8000。
+          </li>
+          <li>
+            FTS5 采用 <code>external content</code> 挂 <code>corpus_chunks</code>，配 3
+            个触发器（INSERT/DELETE/UPDATE）自动同步倒排；tokenizer 为
+            <code>trigram</code>——中英双语子串检索无需分词器，2 字查询可命中。
+          </li>
+          <li>
+            建表铁律「只 CREATE TABLE IF NOT EXISTS」：升级一律走 ALTER ADD COLUMN（source_path / content_hash / simhash
+            / norm_hash / category 均为后加列）；依赖后加列的索引（如 <code>idx_corpus_chunks_norm</code>）严格排在
+            ALTER 批次之后，规避了历史 panic 级踩坑。
+          </li>
+          <li>
+            可用性降级（B2）：<code>CorpusState</code> 提供 ready / unavailable 两态，corpus.db 初始化失败不再 abort
+            应用，前端经 <code>corpus_status</code> 探针显示「语料库不可用」横幅并禁用入口。
+          </li>
+        </ul>
+        <p class="loc">
+          证据：corpus_database.rs（建表/PRAGMA/ALTER 铁律）、commands/corpus.rs
+          L40-96（CorpusState/status）、lib.rs（命令注册与降级注入）、LibraryPage.tsx L128-158（探针+首刷）。
+        </p>
+      </div>
+
+      <h3>2.2 导入管线：六格式 + 三层文本净化</h3>
+      <div class="card ok">
+        <p><strong>已确认事实：</strong></p>
+        <ul>
+          <li>
+            格式分流：txt（UTF-8 优先、GBK 回退）/ epub（container → OPF spine 阅读顺序）/ docx（<code>w:t</code> 按
+            <code>w:p</code> 分段）/ fb2（跳过 description/binary/style） / html（零依赖容错剥离 + 块级标签补换行 +
+            实体反转义）/ mobi-azw3（mobi crate，DRM 明确拒绝）。
+          </li>
+          <li>
+            切分参数：单句上限 400 字符（超长从软标点回退硬切，窗口 120）、短句合并下限 8
+            字符、语种感知的软换行拼接（英文补空格、中文直连）。
+          </li>
+          <li>
+            三层净化：格式/站点噪声过滤（纯标点/拟声/求票/水印 → 不入库）→
+            短语气应答行例外保留（「嗯。」「啊？」作新段起点并入后续句）→
+            参考价值分层（reference.rs：对话/叙事动词/意象/修辞 → High；有效字符 ≥4 → Medium；碎片 → Low 不入库）。
+          </li>
+          <li>
+            导入即归档：<code>import_book</code> 在单事务内写入书行 +
+            抽取后全文镜像（<code>corpus_book_sources</code>）+ 全部句子，并一次性算出 content_hash / simhash /
+            word_count / chunk_count。
+          </li>
+        </ul>
+        <p class="loc">
+          证据：commands/corpus.rs（extract_text_by_path 及六个抽取器）、pipeline.rs L22-129（常量与净化）与
+          L241-449（parse_text/切句）、repository.rs import_book。
+        </p>
+      </div>
+
+      <h3>2.3 索引重建：三级回退，失败不清空</h3>
+      <div class="card ok">
+        <p><strong>已确认事实：</strong></p>
+        <ul>
+          <li>
+            重建优先级：① 库内全文镜像重切分（源文件移动/删除仍可重建，消除孤儿书）→ ② 无镜像则重读外部源文件抽取 → ③
+            都不可用则记为 skipped，<strong>不清空既有索引</strong>。
+          </li>
+          <li>
+            重建后事务内整体替换 chunks、刷新统计/指纹，并以新抽取文本 upsert 刷新镜像。<code
+              >rebuild_corpus_index</code
+            >
+            支持全量或单本（book_id）。
+          </li>
+          <li>失败分类细粒度：rebuilt / skipped / failed 逐本返回到 <code>RebuildReport</code>（含每本原因）。</li>
+        </ul>
+        <p class="loc">
+          证据：commands/corpus.rs rebuild_one 三级回退与 resegment_and_replace、repository.rs
+          replace_book_chunks；单测覆盖「镜像兜底」与「跳过/失败分类」两个场景。
+        </p>
+      </div>
+
+      <h3>2.4 查重体系：导入前提示 + 全库扫描</h3>
+      <div class="card ok">
+        <p><strong>已确认事实：</strong></p>
+        <ul>
+          <li>
+            导入前查重：文件指纹与库内比对，命中分级 exact_path（同一文件）&gt; exact_content（去空白全文一致）&gt;
+            similar（SimHash 近似，带相似度%）&gt;
+            same_meta（同名同作者）；<strong>只提示不阻断</strong>，文件不可读时自动降级为弱信号比对。
+          </li>
+          <li>
+            全库查重（维护用）：书本级精确组（content_hash / source_path）+ SimHash
+            近邻贪心聚类（组内取最低相似度，精确组内书不重复列出）+ 重复语句 Top50（norm_hash
+            分组、跨书聚合、噪声行整组过滤、MAX_GROUP_SCAN=20000 触顶时总数记为下界）。
+          </li>
+          <li>
+            检索合并：句中重复（同 norm_hash）在检索时<strong>非破坏合并</strong>（库里不删行），只出代表条 +
+            出现位置列表（上限 20）+ 范围内次数统计。
+          </li>
+        </ul>
+        <p class="loc">
+          证据：commands/corpus.rs duplicate_hits / scan_book_duplicates、repository.rs sentence_dup_groups /
+          merge_duplicate_hits、fingerprint.rs（SIMHASH_NEAR_DUP_MAX_DISTANCE=16）。
+        </p>
+      </div>
+
+      <h3>2.5 标签体系（P0-3）：已完整落地</h3>
+      <div class="card ok">
+        <p>
+          <strong>已确认事实：</strong>此前记忆中的「子线二 P0-3
+          标签体系升级」经本轮源码核查<strong>已在代码层完整落地</strong>：
+        </p>
+        <ul>
+          <li>
+            <code>corpus_book_tags</code> 表（一对多，PK(book_id, tag)，tag 列有索引）已在建表批次中创建；<code
+              >corpus_books.category</code
+            >
+            列保留为「顿号连接」镜像并双写同步。
+          </li>
+          <li>
+            写路径：<code>set_corpus_book_tags</code>（先清后插、trim 去空去重）+ <code>update_book_meta</code> 对
+            category 的切分双写（逗号/顿号/分号/斜杠均可作为分隔符）。
+          </li>
+          <li>
+            读路径：标签表优先，表空且 category 非空时回退为单值（兼容 P0-3 前旧数据）；list/search 批量装配一次查询避免
+            N+1。
+          </li>
+          <li>
+            检索：<code>search_corpus_books_by_tag</code>（EXISTS 精确匹配）；<code>search_books</code> 的 LIKE 仍覆盖
+            category 镜像列，旧检索语义不丢。
+          </li>
+          <li>前端：编辑对话框标签输入、书架顶部标签筛选栏（全量聚合去重）、书卡标签展示；删除书级联清标签行。</li>
+        </ul>
+        <p class="loc">
+          证据：corpus_database.rs 建表、repository.rs sync_tags_inner / set_book_tags / attach_tags_one /
+          load_tags_map、commands/corpus.rs 两个标签命令、LibraryPage.tsx 标签交互（L487-505）。
+        </p>
+      </div>
+
+      <h3>2.6 检索：双通道 + 防呆</h3>
+      <div class="card ok">
+        <p>
+          <strong>已确认事实：</strong>≥3 字符走 FTS5 MATCH（trigram 短语 + BM25 排序），&lt;3 字符自动降级 LIKE（ESCAPE
+          转义 % _ \）；书命中（书名/作者/分类 LIKE）置顶、上限 10；搜索防抖
+          300ms；重复句合并按检索范围统计（按书过滤时不跨书合并）。
+        </p>
+        <p class="loc">
+          证据：repository.rs search 双通道、commands/corpus.rs search_corpus、LibraryPage.tsx 检索 effect。
+        </p>
+      </div>
+
+      <h2><span class="no">三</span>维护维度已知风险与缺口</h2>
+      <p class="lead">
+        基于源码核查，语料库核心链路（导入/重建/查重/删除）的<strong>正确性防护已较完备</strong>（事务包裹、失败不清索引、删除级联、镜像兜底、降级不崩）。以下为维护/规模维度仍存在的真实缺口，按影响面分级。
+      </p>
+
+      <div class="card warn">
+        <h3 style="margin-top: 0">缺口 A · corpus.db 体积只增不减，无回收手段 <span class="tag p1">P1</span></h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：镜像表保存每本书的完整抽取全文（正文字数 ×2 层冗余）；trigram 对中文为 3-gram
+            子串索引，索引体积可观；删除书只删行不回收页；全程无 VACUUM / wal_checkpoint 调用，无任何压缩维护命令。
+          </li>
+          <li>
+            <strong>影响</strong>：长期导入 + 反复重建 + 多次删除后，corpus.db
+            持续膨胀无法回收；对磁盘受限用户是实打实的维护痛点。
+          </li>
+        </ul>
+      </div>
+
+      <div class="card warn">
+        <h3 style="margin-top: 0">缺口 B · 超大文件导入无防护，未知格式静默当 txt <span class="tag p1">P1</span></h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：<code>import_blocking</code> 用
+            <code>std::fs::read</code> 一次性整读文件（内存峰值可超文件 2 倍：读取 + 镜像），epub/docx
+            亦整读入内存；扩展名不在白名单时落入 txt 分支，二进制内容经 GBK 尝试失败后 <code>from_utf8_lossy</code> 以
+            U+FFFD 乱码进库。
+          </li>
+          <li>
+            <strong>影响</strong>：超大文本导入内存/索引时间失控；误选 PDF
+            等格式会污染语料检索质量，且用户难以定位乱码来源。
+          </li>
+        </ul>
+      </div>
+
+      <div class="card warn">
+        <h3 style="margin-top: 0">
+          缺口 C · 全量重建无进度反馈、无逐本明细展示、前端无单本入口 <span class="tag p1">P1</span>
+        </h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：重建一次性串行跑完（后端已有 per-book 明细与原因，但前端只用 rebuilt/skipped/failed
+            三个计数 toast 汇总）；后端支持 book_id 单本重建，前端只有全量入口——换源文件更新内容只能「删除 →
+            重新导入」。
+          </li>
+          <li>
+            <strong>影响</strong
+            >：书多句多时重建无可见进度；失败/跳过原因不可见，用户无法定位「为什么这本没重建」；单本重建路径缺失降低了维护摩擦。
+          </li>
+        </ul>
+      </div>
+
+      <div class="card warn">
+        <h3 style="margin-top: 0">缺口 D · 维护操作无并发互斥 <span class="tag p1">P1</span></h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：import / rebuild / delete / check_duplicate 均在阻塞线程池执行、共享同一 SQLite
+            连接（Mutex 串行化保证不损坏），但业务层无 in-flight 互斥；前端 importing / rebuilding
+            标志相互独立，可同时触发导入 + 重建。
+          </li>
+          <li>
+            <strong>影响</strong>：重建快照
+            <code>list_books</code>
+            先于并发导入取书，混跑时序下新书不在重建目标内；重复点击造成重复执行排队；弱一致性场景无提示。
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">缺口 E · 导入前查重对选定文件重复全量抽取 <span class="tag p2">P2</span></h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：<code>check_corpus_duplicate</code> 每次读文件 + 抽取 + 算指纹；前端在 draftPath
+            变化后 300ms 即触发一次，用户改动书名/作者不会重算（有 ref 优化），但每换一次大文件就要整文件抽取一遍。
+          </li>
+          <li><strong>影响</strong>：超大文件下选文件后有明显等待；换文件反复触发时浪费 IO/CPU。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">缺口 F · 标签维护能力边界（无重命名/合并/统计） <span class="tag p2">P2</span></h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：P0-3 提供设标签与按标签筛选，但无标签重命名/合并/删除、无每个标签的书目计数；前端
+            allTags 无限增长无折叠。
+          </li>
+          <li><strong>影响</strong>：「仙侠」与「仙侠类」这类近义标签只能逐书手工重设；标签多了之后筛选栏失控。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">缺口 G · 检索书命中硬编码顺序扫（规模性退化） <span class="tag p2">P2</span></h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：书名/作者/分类检索为 LIKE 全表顺序扫 + 上限
+            10，代码注释明确依赖「书量级小」。句子检索另有 64 位 norm_hash 碰撞与 FTS trigram
+            的极端低频词场景，属可接受近似。
+          </li>
+          <li><strong>影响</strong>：书量上百小时后书名检索退化明显；当前几十本量级无感。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">缺口 H · 语料库存储/维护规约未纳入设计文档 <span class="tag p2">P2</span></h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：docs/corpus-design.md 覆盖的是「前端 AI
+            上下文语料」的生产规约（四层模型/五步流程/预算/铁律），未覆盖语料库存储层（本报告 2.1-2.6
+            涉及）的建表/重建/查重/标签/体积维护约定。
+          </li>
+          <li><strong>影响</strong>：新增语料库能力时缺少「唯一约定」可查，容易再出现实现与文档漂移。</li>
+        </ul>
+      </div>
+
+      <h2><span class="no">四</span>可落地优化点与优先级</h2>
+      <p class="lead">
+        按「影响/成本」排序：P1 为维护体感与规模风险优先处理项，P2 为按需完善项。每项均给出当前代码证据与最小改动路径。
+      </p>
+
+      <div class="card">
+        <h3 style="margin-top: 0">
+          <span class="tag p1">P1-1</span> 提供数据库空间回收命令（VACUUM + checkpoint）
+          <span class="effort">工作量：低</span>
+        </h3>
+        <p>
+          新增维护命令（如 <code>vacuum_corpus_db</code>）：<code>PRAGMA wal_checkpoint(TRUNCATE)</code> +
+          <code>VACUUM</code>，前端在语料库页加「压缩数据库」入口并展示当前库体积；删除书后提示可回收。落点：<code
+            >CorpusDatabase</code
+          >
+          增加方法 + commands/corpus.rs 注册 + LibraryPage 维护区。成功后 schema 不变、铁律不破。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">
+          <span class="tag p1">P1-2</span> 导入防护：文件大小上限 + 未知格式显式拒绝
+          <span class="effort">工作量：低</span>
+        </h3>
+        <p>
+          〈缺口 B〉：导入前校验文件大小（如上限 200MB，超限返回明确 Validation
+          错误）；扩展名不在白名单时拒绝并提示支持格式，不再静默落 txt；对 GBK/UTF-8 均解码失败或 U+FFFD
+          占比过高时判定「不可解码」放弃导入，防乱码污染。落点：<code>import_blocking</code> /
+          <code>extract_text_by_path</code>。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">
+          <span class="tag p1">P1-3</span> 重建体验：进度事件 + 逐本明细 + 单本重建入口
+          <span class="effort">工作量：中</span>
+        </h3>
+        <p>
+          〈缺口 C〉：rebuild_blocking 逐本完成时经 Tauri event（或分批通道）回传进度与单本状态，前端出进度条与 per-book
+          结果矩阵（已实现字段 items 直接可用）；书卡操作菜单加「重建索引」（后端已支持 book_id）。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">
+          <span class="tag p1">P1-4</span> 维护操作 in-flight 互斥 <span class="effort">工作量：低-中</span>
+        </h3>
+        <p>
+          〈缺口 D〉：CorpusState 增加 in-flight 原子标志（import/rebuild/delete
+          互斥，或统一串行队列），冲突时返回明确错误；前端按钮按该状态禁用，杜绝「重建中又导入」的弱一致与重复排队。注意与既有
+          Mutex 线程模型的结合位置：互斥放在命令入口而非 SQLite 层。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">
+          <span class="tag p2">P2-1</span> 查重指纹缓存（path + size + mtime） <span class="effort">工作量：低</span>
+        </h3>
+        <p>
+          〈缺口 E〉：以 (source_path, 文件大小, mtime)
+          为键缓存最近一次抽取的指纹，命中直接走比对，避免换文件/重复选择时全量重抽；mtime 变化自动失效。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">
+          <span class="tag p2">P2-2</span> 标签维护：重命名/合并/删除 + 计数 <span class="effort">工作量：中</span>
+        </h3>
+        <p>
+          〈缺口 F〉：新增标签管理命令（rename：事务内更新 corpus_book_tags 并同步 category
+          镜像；merge：重复标签归并与去重；delete：解除所有书该标签）；前端标签筛选栏显示各标签书目计数、超限折叠「更多」。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">
+          <span class="tag p2">P2-3</span> 书检索退化防护与口径说明 <span class="effort">工作量：低</span>
+        </h3>
+        <p>
+          〈缺口 G〉：保留当前实现的前提下，在 docs/corpus-design.md
+          增加「语料库存储与维护」章节，固化建表铁律、重建三级回退、标签双写、查重口径、规模适用边界（书量级建议 &lt;200
+          本），并把「书命中上限 10 + LIKE 顺序扫」标注为已知边界；书量增长预警可后续加 64 位前缀索引或 FTS 书名列。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">
+          <span class="tag p2">P2-4</span> 文档补齐 + 端到端维护冒烟测试 <span class="effort">工作量：低-中</span>
+        </h3>
+        <p>
+          〈缺口 H〉：P2-3 的文档章节即为补口；另可加一条 Rust 集成冒烟测试（真实临时文件：「导入 → 单本重建 →
+          全库扫描查重 → 删除」全链路 in-memory 断言），覆盖维护操作组合回归，防止后续改动破坏回退链。
+        </p>
+      </div>
+
+      <h2 class="sec-p1"><span class="no">五</span>优先级矩阵与建议路线</h2>
+      <table>
+        <tr>
+          <th>优先级</th>
+          <th>项</th>
+          <th>解决缺口</th>
+          <th>成本</th>
+          <th>收益</th>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td>空间回收命令</td>
+          <td>A 库膨胀</td>
+          <td>低</td>
+          <td>高（长期维护刚需）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td>导入防护（大小/格式/解码）</td>
+          <td>B 大文件与乱码</td>
+          <td>低</td>
+          <td>高（防污染+防失控）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td>重建进度/明细/单本入口</td>
+          <td>C 重建体验</td>
+          <td>中</td>
+          <td>中高（维护摩擦下降）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td>维护操作互斥</td>
+          <td>D 并发弱一致</td>
+          <td>低-中</td>
+          <td>中（正确性边界收口）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p2">P2</span></td>
+          <td>查重指纹缓存</td>
+          <td>E 重复抽取</td>
+          <td>低</td>
+          <td>中（大文件体感）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p2">P2</span></td>
+          <td>标签维护与计数</td>
+          <td>F 标签治理</td>
+          <td>中</td>
+          <td>中（P0-3 功能闭环）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p2">P2</span></td>
+          <td>边界文档 + 冒烟测试</td>
+          <td>G/H 规模边界与文档</td>
+          <td>低-中</td>
+          <td>中（防漂移/防退化）</td>
+        </tr>
+      </table>
+      <p>
+        建议路线：P1-1 与 P1-2 可先行（改动面小、风险低、收益直接）；P1-3 与 P1-4
+        一并排期（都动命令层与前端维护区，可同批实现与回归）；P2 各项按下一轮需求按需并入。全部改动须守住既有铁律：只
+        CREATE 建表、ALTER 升级、81 个 Rust 单测 + 前端 vitest 全绿后再交付。
+      </p>
+
+      <div class="card ok">
+        <h3 style="margin-top: 0">与历史任务的关系</h3>
+        <ul>
+          <li>
+            第三轮 T1-T6（前端 AI 语料 builder 重构：resolveRefs / 预算集中 / 章节索引 /
+            corpus-design.md）此前已闭环，本轮与其<strong>无交集、无冲突</strong>——存储层分析不触碰 L2-L4
+            语料生产链路（writingCorpus.ts 等逻辑未改）。
+          </li>
+          <li>
+            P0-1 镜像归档（corpus_book_sources + 三级回退）确认已落地并随 rebuild
+            刷新，为本次「重建体验」优化提供了数据底座。
+          </li>
+          <li>
+            P0-3 标签体系（corpus_book_tags + category
+            双写）确认已完整落地（此前记忆标注「刚启动未产出改动」属过期状态，本轮代码核查为准）——建议后续在记忆文档中同步该状态，避免再次按未完成接续。
+          </li>
+        </ul>
+      </div>
+
+      <footer>本报告为只读分析产物 · Sight Folio 语料库模块 · 2026-09-27</footer>
+    </div>
+  </body>
+</html>

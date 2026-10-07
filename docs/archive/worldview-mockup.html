@@ -1,0 +1,244 @@
+<style>
+  .wb-mock {
+    font-family: var(--font-sans);
+    color: var(--color-text-primary);
+    padding: 1rem 0;
+  }
+  .wb-mock .sec-label {
+    font-size: var(--font-text-sm-size);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    margin: 1.25rem 0 0.5rem;
+  }
+  .wb-mock .sec-label:first-child {
+    margin-top: 0;
+  }
+
+  /* 1. 视图切换 pill */
+  .wb-tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .wb-tab {
+    border: 0.5px solid var(--color-border-secondary);
+    border-radius: var(--border-radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: var(--font-text-xs-size);
+    padding: 3px 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .wb-tab.wb-active {
+    border-color: var(--color-border-info);
+    background: var(--color-background-info);
+    color: var(--color-text-inverse);
+  }
+
+  /* 2. 列表卡片 */
+  .wb-card {
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg);
+    padding: 0.75rem 1rem;
+    background: var(--color-background-primary);
+  }
+  .wb-card-hd {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0.5rem;
+  }
+  .wb-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-text-info);
+    flex-shrink: 0;
+  }
+  .wb-name {
+    font-size: var(--font-text-sm-size);
+    font-weight: 500;
+  }
+  .wb-tag {
+    font-size: var(--font-text-xs-size);
+    color: var(--color-text-tertiary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-sm);
+    padding: 1px 6px;
+    margin-left: auto;
+  }
+  .wb-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 0.5rem;
+  }
+  .wb-chip {
+    font-size: var(--font-text-xs-size);
+    color: var(--color-text-secondary);
+    background: var(--color-background-secondary);
+    border-radius: var(--border-radius-sm);
+    padding: 2px 7px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .wb-chip .x {
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+  }
+  .wb-expand {
+    font-size: var(--font-text-xs-size);
+    color: var(--color-text-info);
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+  .wb-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .wb-input {
+    font-size: var(--font-text-sm-size);
+    padding: 5px 10px;
+    border: 0.5px solid var(--color-border-secondary);
+    border-radius: var(--border-radius-md);
+    background: var(--color-background-primary);
+    color: var(--color-text-primary);
+    outline: none;
+  }
+  .wb-hint {
+    font-size: var(--font-text-xs-size);
+    color: var(--color-text-tertiary);
+    padding-left: 4px;
+  }
+
+  /* 3. 矩阵 */
+  .wb-matrix {
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg);
+    overflow: hidden;
+    background: var(--color-background-primary);
+  }
+  .wb-stats {
+    font-size: var(--font-text-xs-size);
+    color: var(--color-text-secondary);
+    padding: 6px 12px;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .wb-h-row {
+    display: flex;
+    padding: 4px 12px;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+    background: var(--color-background-secondary);
+    font-size: var(--font-text-xs-size);
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+  }
+  .wb-h-row > span {
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .wb-group {
+    font-size: var(--font-text-xs-size);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: var(--color-background-secondary);
+    padding: 3px 12px;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+  }
+  .wb-d-row {
+    display: flex;
+    padding: 5px 12px;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
+    font-size: var(--font-text-xs-size);
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+  .wb-d-row:hover {
+    background: var(--color-background-secondary);
+  }
+  .wb-d-row > span {
+    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>
+
+<div class="wb-mock" data-title="世界观页签章节规模化改造效果">
+  <div class="sec-label">1. 视图切换</div>
+  <div class="wb-tabs">
+    <button class="wb-tab wb-active">列表</button>
+    <button class="wb-tab">世界观矩阵</button>
+  </div>
+
+  <div class="sec-label">2. 列表视图：章节折叠 + 搜索绑定</div>
+  <div class="wb-card">
+    <div class="wb-card-hd">
+      <span class="wb-dot"></span>
+      <span class="wb-name">霜语山脉</span>
+      <span class="wb-tag">地点/地理</span>
+    </div>
+    <div class="wb-chips">
+      <span class="wb-chip">第1章 启程 <span class="x">×</span></span>
+      <span class="wb-chip">第3章 遗迹 <span class="x">×</span></span>
+      <span class="wb-chip">第5章 冰封 <span class="x">×</span></span>
+      <span class="wb-chip">第7章 试炼 <span class="x">×</span></span>
+      <span class="wb-chip">第8章 突围 <span class="x">×</span></span>
+      <span class="wb-chip">第12章 真相 <span class="x">×</span></span>
+      <span class="wb-chip">第15章 决战 <span class="x">×</span></span>
+      <span class="wb-expand">+5 展开</span>
+    </div>
+    <div class="wb-picker">
+      <input class="wb-input" placeholder="搜索章节（支持卷/阶段过滤）" />
+      <span class="wb-hint">↓ 霜语遗迹 · 卷二</span>
+    </div>
+  </div>
+
+  <div class="sec-label">3. 矩阵视图：按类型分组总览</div>
+  <div class="wb-matrix">
+    <div class="wb-stats">世界设定 12 项 / 覆盖 24 章</div>
+    <div class="wb-h-row">
+      <span style="width: 160px">名称</span>
+      <span style="width: 80px">分类</span>
+      <span style="width: 60px">出场</span>
+      <span style="width: 70px">末次出场</span>
+    </div>
+    <div class="wb-group">地点/地理</div>
+    <div class="wb-d-row">
+      <span style="width: 160px">霜语山脉</span>
+      <span style="width: 80px">地点/地理</span>
+      <span style="width: 60px">7</span>
+      <span style="width: 70px">第15章</span>
+    </div>
+    <div class="wb-d-row">
+      <span style="width: 160px">翡翠海</span>
+      <span style="width: 80px">地点/地理</span>
+      <span style="width: 60px">3</span>
+      <span style="width: 70px">第8章</span>
+    </div>
+    <div class="wb-group">阵营/势力</div>
+    <div class="wb-d-row">
+      <span style="width: 160px">银霜骑士团</span>
+      <span style="width: 80px">阵营/势力</span>
+      <span style="width: 60px">5</span>
+      <span style="width: 70px">第12章</span>
+    </div>
+    <div class="wb-d-row">
+      <span style="width: 160px">黑焰教廷</span>
+      <span style="width: 80px">阵营/势力</span>
+      <span style="width: 60px">2</span>
+      <span style="width: 70px">第5章</span>
+    </div>
+    <div class="wb-group">魔法/超自然</div>
+    <div class="wb-d-row">
+      <span style="width: 160px">冰霜符文体系</span>
+      <span style="width: 80px">魔法/超自然</span>
+      <span style="width: 60px">4</span>
+      <span style="width: 70px">第12章</span>
+    </div>
+  </div>
+</div>

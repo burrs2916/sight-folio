@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>语料库短句检索与导入期过滤分析 · Sight Folio</title>
+    <style>
+      :root {
+        --ink: #1f2430;
+        --ink-2: #4a5264;
+        --ink-3: #8891a5;
+        --line: #e2e6ee;
+        --bg: #f6f7fa;
+        --card: #ffffff;
+        --accent: #2f6fed;
+        --accent-soft: #eaf0fe;
+        --p1: #c2410c;
+        --p1-soft: #fff0e6;
+        --p2: #0e7490;
+        --p2-soft: #e6f7fa;
+        --ok: #15803d;
+        --ok-soft: #e9f7ee;
+        --warn: #b45309;
+        --warn-soft: #fdf3e3;
+        --code: #31384a;
+        --code-bg: #f0f2f7;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI',
+          sans-serif;
+        line-height: 1.75;
+        font-size: 15px;
+      }
+      .wrap {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 40px 28px 72px;
+      }
+      header.hero {
+        background: linear-gradient(135deg, #1f2b46 0%, #2f6fed 100%);
+        color: #fff;
+        border-radius: 16px;
+        padding: 36px 40px;
+        margin-bottom: 28px;
+      }
+      header.hero .kicker {
+        font-size: 13px;
+        opacity: 0.85;
+        letter-spacing: 0.12em;
+      }
+      header.hero h1 {
+        margin: 10px 0 6px;
+        font-size: 28px;
+        line-height: 1.35;
+        font-weight: 700;
+      }
+      header.hero p.sub {
+        margin: 0;
+        font-size: 14px;
+        opacity: 0.85;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 24px;
+        margin-top: 14px;
+        font-size: 12.5px;
+        opacity: 0.9;
+      }
+      .meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      h2 {
+        font-size: 21px;
+        margin: 44px 0 6px;
+        padding-top: 8px;
+      }
+      h2 .no {
+        color: var(--accent);
+        font-size: 14px;
+        margin-right: 8px;
+        vertical-align: 2px;
+      }
+      h3 {
+        font-size: 16.5px;
+        margin: 26px 0 8px;
+        color: var(--ink);
+      }
+      p {
+        margin: 8px 0;
+        color: var(--ink-2);
+      }
+      .lead {
+        font-size: 15.5px;
+        color: var(--ink);
+        background: var(--accent-soft);
+        border-left: 4px solid var(--accent);
+        border-radius: 0 10px 10px 0;
+        padding: 14px 18px;
+        margin: 14px 0;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin: 14px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0;
+        font-size: 13.5px;
+        background: var(--card);
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        background: #f1f4fa;
+        color: var(--ink);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      code {
+        font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        background: var(--code-bg);
+        color: var(--code);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+      pre {
+        background: #222838;
+        color: #e6ebf5;
+        border-radius: 10px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-size: 12.5px;
+        line-height: 1.6;
+        margin: 12px 0;
+      }
+      pre code {
+        background: none;
+        color: inherit;
+        padding: 0;
+        font-size: inherit;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 12px;
+        border-radius: 999px;
+        padding: 1px 10px;
+        margin-right: 6px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .tag.hi {
+        background: var(--ok-soft);
+        color: var(--ok);
+      }
+      .tag.med {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .tag.low {
+        background: #f0e9f5;
+        color: #7c3aed;
+      }
+      .tag.drop {
+        background: var(--p1-soft);
+        color: var(--p1);
+      }
+      .tag.keep {
+        background: var(--ok-soft);
+        color: var(--ok);
+      }
+      .tag.warn {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .flex {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .mini {
+        flex: 1 1 220px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: var(--card);
+      }
+      .mini b {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--ink);
+        font-size: 13.5px;
+      }
+      .mini span {
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .path {
+        font-size: 12px;
+        color: var(--ink-3);
+        font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+      }
+      .q {
+        border-left: 4px solid var(--warn);
+        background: var(--warn-soft);
+        border-radius: 0 10px 10px 0;
+        padding: 12px 16px;
+        margin: 14px 0;
+        color: var(--ink);
+      }
+      .q b {
+        color: var(--warn);
+      }
+      footer {
+        margin-top: 48px;
+        color: var(--ink-3);
+        font-size: 12.5px;
+        text-align: center;
+      }
+      ul,
+      ol {
+        margin: 8px 0;
+        padding-left: 22px;
+        color: var(--ink-2);
+      }
+      li {
+        margin: 4px 0;
+      }
+      .note {
+        font-size: 12.5px;
+        color: var(--ink-3);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <div class="kicker">SIGHT FOLIO · 语料库只读分析</div>
+        <h1>语料库短句检索与导入期过滤分析</h1>
+        <p class="sub">现状核实：单字/两字句子为什么能进索引 · 实施前方案：导入书籍时按最小有效字符门槛过滤</p>
+        <div class="meta">
+          <span>📅 2026-09-27</span>
+          <span>📁 范围：导入管线（pipeline / reference）＋ 检索链路（FTS / LIKE）</span>
+          <span>🔒 性质：只读分析，不含代码改动</span>
+        </div>
+      </header>
+
+      <h2><span class="no">01</span>结论摘要</h2>
+      <div class="lead">
+        现象成立：搜索 1–2 字词语时，结果会混入「单个文字的句子」与「两个字组成的句子」（如
+        <code>“好。”</code
+        >、<code>走吧。</code>、<code>嗯。</code>）。根因不在搜索端，而在<strong>导入期</strong>：现有过滤只判
+        「内容样式（噪声）」和「叙事信号（参考价值）」，<strong>没有最小索引长度门槛</strong>。凡携带对话、叙事动词或意象
+        信号的 1–2 字短句，导入时被当作 High 参考价值保留。
+      </div>
+      <div class="card">
+        <p><strong>短句入库的三个出口</strong>（详见第 02 节）：</p>
+        <ul>
+          <li>
+            <span class="tag drop">出口A</span>带引号的单字对话：<code>“好。”</code> 含对话引号对 →
+            <code>tier_of</code> 判 High → 入库；
+          </li>
+          <li>
+            <span class="tag drop">出口B</span>含叙事动词 / 意象词的 1–2
+            字短语：<code>走吧。</code>（“走”∈叙事动词）、<code>风大。</code>（“风”∈意象词）→ High → 入库；
+          </li>
+          <li>
+            <span class="tag drop">出口C</span>独立语气行在文件末尾 / 章节标题前落库：<code>嗯。</code> 走 pipeline
+            的直推分支，tier<strong>恒为 High</strong>，绕过 <code>tier_of</code> 的长度兜底 → 入库。
+          </li>
+        </ul>
+        <p>
+          <strong>搜索命中原因</strong>（详见第 03 节）：查询字符 &lt; 3（中文单字/双字词最常见）时检索走
+          <code>LIKE %q%</code> 直扫 <code>corpus_chunks.content</code>——该路径<strong
+            >无长度过滤、无 kind 过滤、无 tier 过滤</strong
+          >，库里所有含该子串的短句 chunk 全部命中。
+        </p>
+        <p>
+          <strong>方案一句话</strong>：在导入期对「合并后的索引单元」加最小有效字符门槛（推荐
+          <span class="tag keep">有效字符 &lt; 3 → 不入索引</span>）， 共两处小改（<code>tier_of</code> 顶部加长度规则
+          ＋ 语气行落库改走 <code>tier_of</code> 判定）。搜索侧、库表结构、FTS 倒排、章节标题索引均不动；
+          存量书重建一次即清除旧短句（重建指纹比对会自动触发 replace，无需迁移脚本）。
+        </p>
+      </div>
+
+      <h2><span class="no">02</span>现状核实：单字/两字句子为什么能进索引</h2>
+
+      <h3>2.1 导入管线现有四道关卡</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 22%">关卡</th>
+            <th style="width: 30%">位置</th>
+            <th>规则</th>
+            <th style="width: 22%">对短句的作用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>切句收录 <code>push_sentence</code></td>
+            <td class="path">domain/corpus/pipeline.rs L451-458</td>
+            <td>非空白字符 ≥ 2 即收录</td>
+            <td><strong>1 个汉字＋句号（“好。”）即放行</strong>，不设长度门槛</td>
+          </tr>
+          <tr>
+            <td>段内短句合并 <code>MIN_MERGED_CHARS = 8</code></td>
+            <td class="path">pipeline.rs L24-25 / L355-371</td>
+            <td>切出的句子 &lt; 8 字并入下一句</td>
+            <td>只在<b>同一段落内向后合并</b>；段末残留、独立段、落库旁路不受保护</td>
+          </tr>
+          <tr>
+            <td>噪声过滤 <code>is_noise_text</code></td>
+            <td class="path">pipeline.rs L72-114</td>
+            <td>纯标点/纯数字、纯拟声/语气、作者更新注、站点水印</td>
+            <td>只挡<b>样式噪声</b>，不挡内容词短句（“好。”不含噪声特征）</td>
+          </tr>
+          <tr>
+            <td>参考价值过滤 <code>tier_of</code></td>
+            <td class="path">domain/corpus/reference.rs L66-81</td>
+            <td>对话/叙事/意象/修辞信号 → High；无信号且有效字符 &lt; 4 → Low</td>
+            <td>兜底只判<b>信号与信息量</b>，<b>有信号即放行，无论多短</b></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">
+        ※ 有效字符口径：`is_alphanumeric()` 计数（汉字/字母/数字，剔除空白与标点），见 reference.rs L56-58。
+      </p>
+
+      <h3>2.2 短句漏网的三个出口</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 14%">出口</th>
+            <th style="width: 34%">示例（有效字符）</th>
+            <th style="width: 28%">放行依据</th>
+            <th style="width: 24%">tier 结论</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tag drop">A · 引号对话</span></td>
+            <td><code>“好。”</code>（1 字）</td>
+            <td>含<code>“”</code>引号对 → 对话信号</td>
+            <td><span class="tag hi">High → 入库</span></td>
+          </tr>
+          <tr>
+            <td><span class="tag drop">B · 叙事/意象词</span></td>
+            <td><code>走吧。</code>（2 字）· <code>风大。</code>（2 字）</td>
+            <td>“走”∈叙事动词、“风”∈意象词</td>
+            <td><span class="tag hi">High → 入库</span></td>
+          </tr>
+          <tr>
+            <td><span class="tag drop">C · 语气行落库旁路</span></td>
+            <td><code>嗯。</code>（1 字，文件末尾/章标题前）</td>
+            <td>pipeline.rs L265 / L292 / L326 直接 push，<code>tier</code> 写死 High</td>
+            <td><span class="tag hi">High → 入库</span>（绕过 tier_of）</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="card">
+        <p>
+          <strong>结论</strong>：能入库的 ≤ 2 字短句全部携带「设计保留」的信号——不是漏检，而是现行规则
+          <strong>只有样式维度和信号维度、没有长度维度</strong>的必然结果。无信号的 1–2
+          字句（如裸<code>好。</code>）实际已被
+          <code>tier_of → Low</code> 挡住；用户搜到的短句，是上面三类「带信号」的。
+        </p>
+      </div>
+
+      <h3>2.3 搜索命中链路（为什么短句能搜到）</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 20%">查询场景</th>
+            <th style="width: 36%">SQL 行为</th>
+            <th style="width: 44%">对短句 chunk 的影响</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>查询字符 ≥ 3<br /><span class="note">corpus_repository.rs L833-855</span></td>
+            <td>FTS5 <code>MATCH</code>（trigram tokenizer ＋ BM25 排序）</td>
+            <td>
+              trigram 对 <strong>&lt; 3 字符的 chunk 不生成索引 token</strong>，MATCH 基本命中不了纯短句 → 不是主要来源
+            </td>
+          </tr>
+          <tr>
+            <td>查询字符 &lt; 3<br /><span class="note">corpus_repository.rs L856-877</span></td>
+            <td><code>WHERE c.content LIKE '%q%' ESCAPE '\'</code> 直扫 <code>corpus_chunks.content</code></td>
+            <td>
+              <strong>无长度过滤、无 kind 过滤、无 tier 过滤</strong> → 库中所有 1–2 字短句 chunk
+              全部可命中（含章节标题）
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        命令层 <code>search_corpus</code>（commands/corpus.rs
+        L251-272）仅做空查询拦截，无额外过滤；既有测试也印证了设计： <code>import_then_search_match</code> 注明「2
+        字查询走 LIKE 回退，但两个命中都应找到」。
+      </p>
+
+      <h3>2.4 复现示例</h3>
+      <pre><code>搜「好」（1 字，&lt;3 字符）  → LIKE '%好%'      → 命中库中 High tier 的短句 chunk “好。”
+搜「谢谢」（2 字，&lt;3 字符） → LIKE '%谢谢%'    → 命中库中短句 chunk 谢谢。
+搜「走吧」（2 字，&lt;3 字符） → LIKE '%走吧%'    → 命中库中 High tier 的短句 chunk 走吧。</code></pre>
+      <p class="note">
+        触发前提：库里确实存在这些短句 chunk（由 2.2 的三类出口在导入时写入）。本机开发库
+        <code>data/corpus.db</code> 当前不存在（未运行调试版导入），结论由代码事实与既有单测支撑。
+      </p>
+
+      <h2><span class="no">03</span>方案设计：导入期过滤（实施前）</h2>
+
+      <h3>3.1 目标与原则</h3>
+      <div class="flex">
+        <div class="mini">
+          <b>目标</b
+          ><span
+            >索引中不再出现有效字符 &lt; 3 的句子单元；搜索侧行为、库表结构、FTS 倒排、章节标题索引全部保持现状。</span
+          >
+        </div>
+        <div class="mini">
+          <b>原则① 只挡最终索引单元</b
+          ><span>过滤放在短句合并之后、入库之前——合并优先，完整句（“嗯。”＋他点点头…）不受影响。</span>
+        </div>
+        <div class="mini">
+          <b>原则② 不丢原文</b><span>仅挡索引单元；抽取全文镜像（source_text）原样保留，重建可完整恢复。</span>
+        </div>
+        <div class="mini">
+          <b>原则③ 不动检索语义</b
+          ><span
+            >&lt; 3 字 LIKE 子串命中的能力保留（搜“好”仍命中“好的很”），只是不再有“好。”这种短句本体出现在结果里。</span
+          >
+        </div>
+      </div>
+
+      <h3>3.2 推荐规则：有效字符 &lt; 3 → 不入索引</h3>
+      <div class="card">
+        <p><strong>新增常量</strong>（reference.rs，与 <code>effective_chars</code> 同处）：</p>
+        <pre><code>/// 最小索引单元长度（有效字符数）。短于该值的句子（1–2 字碎片）无索引价值，导入即不入库。
+const MIN_INDEX_CHARS: usize = 3;</code></pre>
+        <p>
+          <strong>规则 ①</strong>：<code>tier_of</code> 最前加一条：<code
+            >effective_chars &lt; MIN_INDEX_CHARS → Low</code
+          >（不进入索引）， 无论是否含对话/叙事/意象/修辞信号。此时 Low
+          的语义从「无信号且信息量不足」扩展为「无信号且不足，或长度不足」——长度是充分条件。
+        </p>
+        <p>
+          <strong>规则 ②</strong>：pipeline.rs 三处语气行落库（L265 / L292 / L326）的 <code>tier</code> 由「恒
+          High」改为
+          <code>tier_of(&amp;tone)</code>
+          判定——独立语气行落库时同样经过长度门槛；若该语气行已并入后续正文句（合并单元有效字符充足），照常保留。
+        </p>
+      </div>
+
+      <h3>3.3 效果对照</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 34%">输入样例</th>
+            <th style="width: 16%">有效字符</th>
+            <th style="width: 18%">现行</th>
+            <th style="width: 18%">改后</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>“好。”</code>（孤立对话）</td>
+            <td>1</td>
+            <td><span class="tag hi">入库</span></td>
+            <td><span class="tag drop">不入库</span></td>
+            <td>单字对话不再单独成索引单元</td>
+          </tr>
+          <tr>
+            <td><code>“好。”你终于来了。</code>（并入后句）</td>
+            <td>6</td>
+            <td><span class="tag hi">入库</span></td>
+            <td><span class="tag keep">入库</span></td>
+            <td>合并单元完整，不误伤对话上下文</td>
+          </tr>
+          <tr>
+            <td><code>嗯。</code>（EOF/章标题前落库）</td>
+            <td>1</td>
+            <td><span class="tag hi">入库</span></td>
+            <td><span class="tag drop">不入库</span></td>
+            <td>语气行落库旁路被长度规则覆盖</td>
+          </tr>
+          <tr>
+            <td><code>走吧。</code> / <code>风大。</code></td>
+            <td>2</td>
+            <td><span class="tag hi">入库</span></td>
+            <td><span class="tag drop">不入库</span></td>
+            <td>叙事/意象信号不再豁免长度</td>
+          </tr>
+          <tr>
+            <td><code>他走了。</code> / <code>Yes.</code></td>
+            <td>3</td>
+            <td>High/Medium</td>
+            <td><span class="tag keep">入库</span></td>
+            <td>3 字完整短句仍保留（为何选 3，见 3.4）</td>
+          </tr>
+          <tr>
+            <td><code>第一章 出山</code>（章节标题）</td>
+            <td>—</td>
+            <td><span class="tag hi">入库</span></td>
+            <td><span class="tag keep">入库</span></td>
+            <td>kind=chapter 不经 tier_of，始终保留导航结构</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>3.4 阈值讨论：为什么选 3</h3>
+      <ul>
+        <li>
+          <strong>对齐用户诉求</strong>：要拦的是「单个文字」「两个字组成」的句子——有效字符 &lt; 3 恰好只拦 1–2 字；
+        </li>
+        <li><strong>不误伤完整短句</strong>：<code>他走了。</code>（3 字）是常见且值得参考的完整句，保留；</li>
+        <li><strong>英文等价</strong>：<code>OK.</code>（2 字）拦、<code>Yes.</code>（3 字）留，口径一致；</li>
+        <li>
+          <strong>与现有门槛并存</strong>：<code>tier_of</code> 已有「无信号且有效字符 &lt; 4 →
+          Low」，新增长度门槛只收紧「带信号短句」，两者互补不冲突；
+        </li>
+        <li>
+          <span class="tag warn">备选 4</span> 若嫌 3 字句（如<code>他走了。</code>）也碎，阈值可提至
+          4——同一常量一处改动即生效，无需另设计。
+        </li>
+      </ul>
+
+      <h3>3.5 插入点与改动面（最小改动）</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 26%">改动</th>
+            <th style="width: 38%">位置</th>
+            <th>改什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tag keep">①</span> 长度规则</td>
+            <td class="path">domain/corpus/reference.rs tier_of</td>
+            <td>顶部加 `effective_chars &lt; MIN_INDEX_CHARS → Low`；新增常量 1 个</td>
+          </tr>
+          <tr>
+            <td><span class="tag keep">②</span> 语气行落库判级</td>
+            <td class="path">domain/corpus/pipeline.rs L265/L292/L326</td>
+            <td>3 处 `tier: High` → `tier: tier_of(&amp;tone)`</td>
+          </tr>
+          <tr>
+            <td><span class="tag keep">不改</span> 其余全部</td>
+            <td class="path">is_noise_text / 短句合并 / flush_paragraph<br />import_book・SQL・FTS 表・搜索查询</td>
+            <td>保持不变——过滤只发生在切分管线出口，索引形态之外零接触</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">
+        对比插入点方案（不推荐）：在 <code>push_sentence</code> 直接丢弃短句会破坏「短句在线合并」机制
+        （“好。”被删后<code>你终于来了。</code>失去引号上下文）；在 SQL 入库层过滤会绕过 tier 语义且不利于测试。
+        统一放在 <code>tier_of</code>（合并之后）是语义与最小改动的交点。
+      </p>
+
+      <h3>3.6 存量书如何生效：重建即清除，无需迁移</h3>
+      <div class="card">
+        <p>
+          重建链路 <code>rebuild_one</code> 的机制是「镜像重切分 → <code>book_fingerprints</code> 与库内比对 → 不一致则
+          <code>resegment_and_replace</code> 替换」。parse_text 输出少了短句 → 该书的指纹集合变化 →
+          <strong>自动触发 replace</strong>， 短句 chunk 连同 FTS 倒排一并清除。
+        </p>
+        <p>
+          因此实施后的存量清理动作就是：<strong>对既有书目跑一次重建索引</strong>（现有功能入口即可，全量跑一次全库生效）。
+          <span class="tag warn">注意</span>
+          不做重建则已入库短句仍留在库里——这是「导入期方案」语义上的必然后续，实施时应顺带引导用户重建。
+        </p>
+      </div>
+
+      <h3>3.7 一致性影响对照</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 18%">维度</th>
+            <th style="width: 44%">影响</th>
+            <th>处理</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>查重报告（sentence_dup_groups）</td>
+            <td>
+              SQL 直接聚合库内已有 chunks，不经过 parse_text →
+              现有报告逻辑不受影响；新导入短句不入库后，新增重复短句组自然消失
+            </td>
+            <td>无需代码改动</td>
+          </tr>
+          <tr>
+            <td>书统计（chunk_count / 字数）</td>
+            <td>入库集合变小 → 数字略降；导入时统计随入库自然计算</td>
+            <td>无需代码改动，数字变化属预期</td>
+          </tr>
+          <tr>
+            <td>FTS 倒排</td>
+            <td>不入库即无倒排；存量书重建时 replace 经触发器同步清理旧倒排</td>
+            <td>无需额外操作</td>
+          </tr>
+          <tr>
+            <td>前端 / i18n</td>
+            <td>搜索结果展示的是 chunk content，短句消失后无需改动任何展示逻辑</td>
+            <td>无需代码改动</td>
+          </tr>
+          <tr>
+            <td>章节标题</td>
+            <td>kind=chapter 不经过滤，1–2 字标题仍可被 &lt; 3 字 LIKE 命中——保持导航语义</td>
+            <td>有意保留；如需连标题也过滤，另行决策（不推荐）</td>
+          </tr>
+          <tr>
+            <td>短词子串检索</td>
+            <td>搜“好”仍命中长句内“好的很”等子串——这是 LIKE 子串匹配的预期能力，不是短句本体</td>
+            <td>符合预期，不在本次范围内</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>3.8 实施时需同步的测试与文档更新点</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 26%">对象</th>
+            <th>更新内容</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="path">reference.rs 单测</td>
+            <td>
+              <code>quoted_tone_word_is_high</code>（““嗯。””→ High）改造为长度门槛语义（改为 Low）；新增
+              <code>short_with_signal_is_low</code>（““好。””“走吧。”“风大。”→ Low）；既有
+              <code>fragment_without_signal_is_low</code> 保留
+            </td>
+          </tr>
+          <tr>
+            <td class="path">pipeline.rs 单测</td>
+            <td>
+              新增「EOF /
+              章标题前语气行落库被过滤」用例；保留并验证「“嗯。”他点点头，转身离开。」合并单元仍入库（证明不误伤）
+            </td>
+          </tr>
+          <tr>
+            <td class="path">corpus_repository.rs 单测</td>
+            <td>新增 roundtrip：导入含““好。””“走吧。”的样本 → search("好" / "走") 不再返回短句 chunk 本体</td>
+          </tr>
+          <tr>
+            <td class="path">docs/corpus-design.md</td>
+            <td>
+              参考价值过滤一节补「最小索引字符门槛」：与 tier_of Low 的关系、先合并后裁判的顺序、存量书重建生效方式
+            </td>
+          </tr>
+          <tr>
+            <td>验收标准</td>
+            <td>沿用既有铁律：Rust 全量单测 ＋ 前端 vitest 全绿后再交付（仅 CREATE/ALTER 升级）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2><span class="no">04</span>待确认决策项（实施前）</h2>
+      <div class="q">
+        <b>1｜阈值</b>　选「有效字符 &lt; 3」（推荐，只拦 1–2 字，保留“他走了。”类 3 字完整句）还是「&lt; 4」（连 3
+        字短句一并拦）？
+      </div>
+      <div class="q"><b>2｜存量书</b>　实施后是否顺带提供/执行一次「全量重建索引」，让既有书目中的短句一并清除？</div>
+      <div class="q">
+        <b>3｜章节标题</b>　1–2 字标题（如“序”）目前保留可检索；是否需要一并过滤？（方案默认保留，标题属导航结构）
+      </div>
+
+      <footer>
+        Sight Folio 语料库 · 只读分析报告 · 代码位置引用均取自当前仓库工作区版本（src-tauri/src/domain/corpus/ 与
+        src-tauri/src/infrastructure/database/corpus_repository.rs）
+      </footer>
+    </div>
+  </body>
+</html>

@@ -16,6 +16,10 @@ target/
 *.swo
 *~
 
+# Agent working directories (AI 助手会话与临时产物，不入库)
+.dumate/
+.tmp/
+
 # Runtime data
 data/
 logs/
@@ -69,9 +73,6 @@ deliverables/
 TEST_REPORT-*.md
 cad_*_report.md
 cad_*_analysis.md
-
-# All documentation
-docs/
 
 # Temporary i18n verification build output
 dist-i18n/

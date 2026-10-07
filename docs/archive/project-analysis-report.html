@@ -1,0 +1,383 @@
+<style>
+  .sf-report {
+    font-family: var(--font-sans);
+    color: var(--color-text-primary);
+    padding: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* 项目概览卡片 */
+  .sf-report .hero {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+  }
+  .sf-report .hero-card {
+    background: var(--color-background-secondary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg);
+    padding: 1rem;
+    text-align: center;
+  }
+  .sf-report .hero-card .number {
+    font-size: var(--font-heading-lg-size);
+    font-weight: 500;
+    color: var(--color-text-primary);
+    line-height: 1.2;
+  }
+  .sf-report .hero-card .label {
+    font-size: var(--font-text-sm-size);
+    color: var(--color-text-secondary);
+    margin-top: 0.25rem;
+  }
+
+  /* 技术栈分层 */
+  .sf-report .section-title {
+    font-size: var(--font-heading-sm-size);
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin-bottom: 0.75rem;
+  }
+  .sf-report .stack-tier {
+    background: var(--color-background-secondary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg);
+    padding: 0.875rem;
+    margin-bottom: 0.5rem;
+  }
+  .sf-report .tier-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .sf-report .tier-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .sf-report .tech-pill {
+    background: var(--color-background-primary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-md);
+    padding: 0.375rem 0.625rem;
+    font-size: 12px;
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+  }
+  .sf-report .tech-pill.primary {
+    background: var(--color-background-info);
+    border-color: var(--color-border-info);
+    color: var(--color-text-info);
+  }
+  .sf-report .stack-arrow {
+    text-align: center;
+    color: var(--color-text-tertiary);
+    font-size: 14px;
+    margin: 0.25rem 0;
+  }
+
+  /* 功能时间线 */
+  .sf-report .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .sf-report .timeline-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.625rem 0;
+  }
+  .sf-report .timeline-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-border-success);
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+  .sf-report .timeline-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .sf-report .timeline-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  .sf-report .timeline-desc {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-top: 0.125rem;
+  }
+
+  /* 风险矩阵 */
+  .sf-report .risk-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 0.75rem;
+  }
+  .sf-report .risk-card {
+    background: var(--color-background-secondary);
+    border: 0.5px solid var(--color-border-tertiary);
+    border-radius: var(--border-radius-lg);
+    padding: 0.875rem;
+    border-left: 3px solid var(--color-border-warning);
+  }
+  .sf-report .risk-card.critical {
+    border-left-color: var(--color-border-danger);
+  }
+  .sf-report .risk-card.info {
+    border-left-color: var(--color-border-info);
+  }
+  .sf-report .risk-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    margin-bottom: 0.375rem;
+  }
+  .sf-report .risk-desc {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+  }
+  .sf-report .risk-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--border-radius-xs);
+    margin-top: 0.5rem;
+    font-weight: 500;
+  }
+  .sf-report .risk-tag.high {
+    background: var(--color-background-danger);
+    color: var(--color-text-danger);
+  }
+  .sf-report .risk-tag.medium {
+    background: var(--color-background-warning);
+    color: var(--color-text-warning);
+  }
+  .sf-report .risk-tag.low {
+    background: var(--color-background-info);
+    color: var(--color-text-info);
+  }
+
+  /* 架构亮点 */
+  .sf-report .highlight-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .sf-report .highlight-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    background: var(--color-background-secondary);
+    border-radius: var(--border-radius-md);
+    border: 0.5px solid var(--color-border-tertiary);
+  }
+  .sf-report .highlight-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--border-radius-sm);
+    background: var(--color-background-success);
+    color: var(--color-text-success);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .sf-report .highlight-text {
+    font-size: 13px;
+    color: var(--color-text-primary);
+    line-height: 1.5;
+  }
+</style>
+
+<div class="sf-report" data-title="Sight Folio 项目架构与功能分析报告">
+  <!-- 项目概览 -->
+  <div class="hero">
+    <div class="hero-card">
+      <div class="number">575</div>
+      <div class="label">前端文件</div>
+    </div>
+    <div class="hero-card">
+      <div class="number">156</div>
+      <div class="label">Rust 源文件</div>
+    </div>
+    <div class="hero-card">
+      <div class="number">7/7</div>
+      <div class="label">功能批次完成</div>
+    </div>
+    <div class="hero-card">
+      <div class="number">20+</div>
+      <div class="label">数据表</div>
+    </div>
+    <div class="hero-card">
+      <div class="number">16</div>
+      <div class="label">测试通过</div>
+    </div>
+  </div>
+
+  <!-- 技术栈分层 -->
+  <div>
+    <div class="section-title">技术栈架构</div>
+    <div class="stack-tier">
+      <div class="tier-label">前端层</div>
+      <div class="tier-row">
+        <span class="tech-pill primary">React 18</span>
+        <span class="tech-pill primary">TypeScript</span>
+        <span class="tech-pill">MUI v9</span>
+        <span class="tech-pill">TipTap</span>
+        <span class="tech-pill">Zustand</span>
+        <span class="tech-pill">Vite</span>
+      </div>
+    </div>
+    <div class="stack-arrow">↓</div>
+    <div class="stack-tier">
+      <div class="tier-label">桥接层</div>
+      <div class="tier-row">
+        <span class="tech-pill primary">Tauri 2</span>
+        <span class="tech-pill">IPC Commands</span>
+        <span class="tech-pill">WebSocket</span>
+      </div>
+    </div>
+    <div class="stack-arrow">↓</div>
+    <div class="stack-tier">
+      <div class="tier-label">后端层</div>
+      <div class="tier-row">
+        <span class="tech-pill primary">Rust</span>
+        <span class="tech-pill primary">SQLite + FTS5</span>
+        <span class="tech-pill">rusqlite</span>
+        <span class="tech-pill">tokio</span>
+        <span class="tech-pill">lopdf</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 功能完成时间线 -->
+  <div>
+    <div class="section-title">功能完成时间线</div>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">T1 软删除与回收站</div>
+          <div class="timeline-desc">deletedAt 标记机制，UI 面板支持查看、恢复、永久删除</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">T2 全书查找替换</div>
+          <div class="timeline-desc">逐条确认式查找替换，上下文展示，支持撤销</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">T3 章节快照与 Diff</div>
+          <div class="timeline-desc">自动/手动快照，diff 对比预览，自定义命名</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">T4 编辑器扩展与批注</div>
+          <div class="timeline-desc">高亮、下划线、超链接、表格，批注层持久化到 SQLite</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">T5 智能校对</div>
+          <div class="timeline-desc">错别字、重复词、敏感词检测，逐条定位高亮</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">T6 写作目标可视化</div>
+          <div class="timeline-desc">当前字数 vs dailyGoal 差距与百分比进度展示</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">T7 导出与备份恢复</div>
+          <div class="timeline-desc">原生 PDF（CJK 嵌入）、DOCX、EPUB 3、整库 VACUUM 备份</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 架构亮点 -->
+  <div>
+    <div class="section-title">架构亮点</div>
+    <div class="highlight-list">
+      <div class="highlight-item">
+        <div class="highlight-icon">✓</div>
+        <div class="highlight-text">
+          <strong>分层架构</strong>：domain → application → infrastructure → commands，职责清晰，测试隔离
+        </div>
+      </div>
+      <div class="highlight-item">
+        <div class="highlight-icon">✓</div>
+        <div class="highlight-text">
+          <strong>PDF 原生生成</strong>：离线生成 Type0/CIDFont 中文字体链，不依赖浏览器打印，FlateDecode 压缩
+        </div>
+      </div>
+      <div class="highlight-item">
+        <div class="highlight-icon">✓</div>
+        <div class="highlight-text">
+          <strong>WAL 安全备份</strong>：VACUUM INTO 产出完整快照 + rusqlite::backup 整库恢复 + integrity_check
+        </div>
+      </div>
+      <div class="highlight-item">
+        <div class="highlight-icon">✓</div>
+        <div class="highlight-text">
+          <strong>跨窗口同步</strong>：写作台独立 webview 与主窗口通过 content-saved 事件实时同步正文
+        </div>
+      </div>
+      <div class="highlight-item">
+        <div class="highlight-icon">✓</div>
+        <div class="highlight-text">
+          <strong>语料库独立</strong>：corpus.db 与业务库隔离，初始化失败 graceful degradation，不阻塞应用启动
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 风险矩阵 -->
+  <div>
+    <div class="section-title">潜在风险与建议</div>
+    <div class="risk-grid">
+      <div class="risk-card critical">
+        <div class="risk-title">WritingPage.tsx 巨石组件</div>
+        <div class="risk-desc">4659 行的前端页面组件承载过多职责，维护成本高，建议按功能面板拆分为独立子组件</div>
+        <span class="risk-tag high">高优先级</span>
+      </div>
+      <div class="risk-card">
+        <div class="risk-title">PDF 字体体积</div>
+        <div class="risk-desc">全量嵌入 Arial Unicode.ttf 导致 PDF 15MB+，需子集化优化（仅提取使用字形）</div>
+        <span class="risk-tag medium">中优先级</span>
+      </div>
+      <div class="risk-card info">
+        <div class="risk-title">双域耦合</div>
+        <div class="risk-desc">项目同时包含写作工具与代码分析工具两个域，20+ 表中部分与写作无关，长期建议拆分</div>
+        <span class="risk-tag low">低优先级</span>
+      </div>
+      <div class="risk-card">
+        <div class="risk-title">缺失 README</div>
+        <div class="risk-desc">项目根目录无 README.md，新贡献者难以快速了解项目结构与启动方式</div>
+        <span class="risk-tag medium">中优先级</span>
+      </div>
+    </div>
+  </div>
+</div>

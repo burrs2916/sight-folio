@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>存储架构优化分析 · Sight Folio</title>
+    <style>
+      :root {
+        --ink: #1f2430;
+        --ink-2: #4a5264;
+        --ink-3: #8891a5;
+        --line: #e2e6ee;
+        --bg: #f6f7fa;
+        --card: #ffffff;
+        --accent: #2f6fed;
+        --accent-soft: #eaf0fe;
+        --p0: #b91c1c;
+        --p0-soft: #fdecec;
+        --p1: #c2410c;
+        --p1-soft: #fff0e6;
+        --p2: #0e7490;
+        --p2-soft: #e6f7fa;
+        --ok: #15803d;
+        --ok-soft: #e9f7ee;
+        --code: #31384a;
+        --code-bg: #f0f2f7;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI',
+          sans-serif;
+        line-height: 1.75;
+        font-size: 15px;
+      }
+      .wrap {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 40px 28px 72px;
+      }
+      header.hero {
+        background: linear-gradient(135deg, #13203a 0%, #1f4fb8 60%, #2f6fed 100%);
+        color: #fff;
+        border-radius: 16px;
+        padding: 36px 40px;
+        margin-bottom: 28px;
+      }
+      header.hero .kicker {
+        font-size: 13px;
+        opacity: 0.85;
+        letter-spacing: 0.12em;
+      }
+      header.hero h1 {
+        margin: 10px 0 6px;
+        font-size: 28px;
+        line-height: 1.35;
+        font-weight: 700;
+      }
+      header.hero p.sub {
+        margin: 0;
+        font-size: 14px;
+        opacity: 0.85;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 24px;
+        margin-top: 14px;
+        font-size: 12.5px;
+        opacity: 0.9;
+      }
+      h2 {
+        font-size: 21px;
+        margin: 44px 0 6px;
+        padding-top: 8px;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      h2 .no {
+        font-size: 13px;
+        font-weight: 700;
+        border-radius: 6px;
+        padding: 2px 8px;
+      }
+      h2.sec-def .no {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+      h2.sec-find .no {
+        color: var(--p0);
+        background: var(--p0-soft);
+      }
+      h2.sec-trade .no {
+        color: var(--p1);
+        background: var(--p1-soft);
+      }
+      h2.sec-road .no {
+        color: var(--p2);
+        background: var(--p2-soft);
+      }
+      h3 {
+        font-size: 16.5px;
+        margin: 26px 0 8px;
+      }
+      p {
+        margin: 8px 0;
+      }
+      .lead {
+        color: var(--ink-2);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin: 14px 0;
+      }
+      .card.warn {
+        border-left: 4px solid var(--warn, #b45309);
+        background: #fffdf8;
+      }
+      .card.crit {
+        border-left: 4px solid var(--p0);
+      }
+      .card.ok {
+        border-left: 4px solid var(--ok);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 760px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 12px 0;
+        font-size: 13.5px;
+      }
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #eef1f7;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      tr:nth-child(even) td {
+        background: #fafbfd;
+      }
+      code {
+        font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+        font-size: 12.5px;
+        background: var(--code-bg);
+        color: var(--code);
+        border-radius: 4px;
+        padding: 1px 5px;
+        word-break: break-all;
+      }
+      .loc {
+        color: var(--ink-3);
+        font-size: 12px;
+      }
+      ul,
+      ol {
+        margin: 8px 0;
+        padding-left: 24px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 5px;
+        padding: 1px 8px;
+        margin-right: 6px;
+      }
+      .tag.p0 {
+        color: var(--p0);
+        background: var(--p0-soft);
+      }
+      .tag.p1 {
+        color: var(--p1);
+        background: var(--p1-soft);
+      }
+      .tag.p2 {
+        color: var(--p2);
+        background: var(--p2-soft);
+      }
+      .tag.ok {
+        color: var(--ok);
+        background: var(--ok-soft);
+      }
+      .tag.gray {
+        color: var(--ink-2);
+        background: #eef0f5;
+      }
+      .effort {
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .note {
+        font-size: 13px;
+        color: var(--ink-2);
+        background: #f2f4f9;
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin: 10px 0;
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+      footer {
+        margin-top: 48px;
+        color: var(--ink-3);
+        font-size: 12.5px;
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <div class="kicker">SIGHT FOLIO · 只读存储架构分析</div>
+        <h1>存储架构优化分析</h1>
+        <p class="sub">
+          数据存储全貌（SQLite / 文件系统 / 浏览器存储）· 磁盘实测关键发现 · 三条优化观察线取舍 · 推荐路线
+        </p>
+        <div class="meta">
+          <span>分析日期：2026-09-27</span>
+          <span>仓库：/Users/liwenchao/GithubProSpace/sight-folio</span>
+          <span>性质：只读分析，无代码改动</span>
+        </div>
+      </header>
+
+      <h2 class="sec-def"><span class="no">一</span>分析范围与方法</h2>
+      <p class="lead">
+        本轮除源码静态核查外，<strong>直接打开并实测了磁盘上的真实数据库</strong>（sqlite3
+        直查表结构、行数、页级体积），因此发现了几处仅靠读代码无法看到的真实状态。结论按「已实测 / 源码确认」区分标注。
+      </p>
+      <div class="card">
+        <h3 style="margin-top: 0">已核实的对象</h3>
+        <ul>
+          <li>
+            <strong>磁盘数据实测</strong>：<code>data/config.db</code>（40+ 表）、<code>data/corpus.db</code>（61MB
+            文件）、<code>data/assets/writing/</code>、<code>data/scan_snapshots/</code>、<code>logs/</code>——逐表查行数与页级体积（dbstat）、schema
+            全文。
+          </li>
+          <li>
+            <strong>落点逻辑</strong>：<code>connection.rs</code>（app_data_dir 双态：debug→项目根
+            data/，release→可执行文件同级）、<code>corpus_database.rs</code> 建表/迁移铁律。
+          </li>
+          <li>
+            <strong>文件型数据写入点</strong
+            >：<code>asset.rs</code>（素材）、<code>icons.rs</code>、<code>logger.rs</code>（日志）、<code>project_scan.rs</code>（扫描快照）、<code>writing.rs</code>（导出）、<code>ai_agent/tools.rs</code>（备份与写文件）。
+          </li>
+          <li>
+            <strong>前端浏览器存储</strong>：<code>cacheWhitelist.ts</code>
+            白名单、authStore/themeStore/i18n/typography/codeWorkbenchStore/acpHostStore 等 localStorage 读写点。
+          </li>
+        </ul>
+      </div>
+
+      <h2 class="sec-def"><span class="no">二</span>数据存储全貌（三层）</h2>
+      <p>
+        <strong>先直接回答上一个问题：不是所有数据都在 SQLite。</strong>核心业务数据确实以两个 SQLite
+        库为主存储，但还有文件系统（素材/日志/快照）与浏览器 localStorage（认证态/UI 偏好/AI
+        配置）两类旁路。实测全貌如下：
+      </p>
+
+      <h3>2.1 第一层：SQLite 双库（核心业务数据的主存储）</h3>
+      <table>
+        <tr>
+          <th>库</th>
+          <th>实测文件大小</th>
+          <th>承载域</th>
+          <th>关键表</th>
+        </tr>
+        <tr>
+          <td><code>data/config.db</code></td>
+          <td>2.4MB + WAL 5.5MB</td>
+          <td>写作 · AI · 代码分析 · 设置</td>
+          <td>
+            写作：<code>writing_books / writing_chapters</code>（正文在 content 列）<code
+              >writing_chapter_snapshots / writing_outlines / writing_foreshadowings / writing_daily_stats /
+              writing_settings</code
+            ><br />
+            AI：<code
+              >ai_agents / ai_conversations / ai_messages / ai_providers / ai_endpoints / ai_context_packs /
+              ai_entity_snapshots</code
+            ><br />
+            代码分析：<code
+              >project_files / project_symbols / project_modules / project_dependencies / project_call_edges /
+              project_data_flow / project_code_index / project_code_fts（FTS 在库内）/ scan_jobs / analyses</code
+            ><br />
+            通用：<code
+              >user_settings / data_sources / review_rules / auth_config / system_icons / component_plugins</code
+            >
+          </td>
+        </tr>
+        <tr>
+          <td><code>data/corpus.db</code></td>
+          <td class="num">61.2MB 文件（数据页 51.3MB）</td>
+          <td>语料库</td>
+          <td>
+            <code
+              >corpus_books / corpus_chunks / corpus_fts（FTS5 external content + trigram）/ corpus_fts_data /
+              corpus_fts_idx</code
+            >
+          </td>
+        </tr>
+      </table>
+
+      <h3>2.2 第二层：文件系统</h3>
+      <table>
+        <tr>
+          <th>位置</th>
+          <th>内容</th>
+          <th>实测</th>
+          <th>写入入口</th>
+        </tr>
+        <tr>
+          <td><code>data/assets/writing/</code></td>
+          <td>封面图、插画（二进制媒体，不入库）</td>
+          <td class="num">3 个文件，共 3.3MB</td>
+          <td><code>commands/asset.rs</code>（app_data_dir 基座下）</td>
+        </tr>
+        <tr>
+          <td><code>logs/</code></td>
+          <td>按日滚动的 info/warn 日志</td>
+          <td>31 个日文件</td>
+          <td><code>commands/logger.rs</code></td>
+        </tr>
+        <tr>
+          <td><code>data/scan_snapshots/</code></td>
+          <td>项目扫描指纹快照 JSON（{analysis_id}.json）</td>
+          <td>目录为空（尚无数据）</td>
+          <td><code>commands/project_scan.rs</code></td>
+        </tr>
+        <tr>
+          <td><code>data/*.bak.*</code></td>
+          <td>数据库手工备份（corpus/config 各 3 份轮换）</td>
+          <td>共 6 份</td>
+          <td>运维手动备份</td>
+        </tr>
+      </table>
+
+      <h3>2.3 第三层：浏览器 localStorage</h3>
+      <table>
+        <tr>
+          <th>类别</th>
+          <th>键</th>
+          <th>用途</th>
+        </tr>
+        <tr>
+          <td>认证态</td>
+          <td>
+            <code
+              >auth_token / accessToken / accessToken_refresh / refreshToken / expiresIn / userId / username / nickname
+              / email / avatar / tenantId / tenantName / roles / permissions</code
+            >
+          </td>
+          <td>登录会话（authStore）</td>
+        </tr>
+        <tr>
+          <td>UI 偏好</td>
+          <td>theme 配置、语言、每本书排版（按 bookId 键控）、工作台布局（按 analysisId 键控）</td>
+          <td>主题/语言/排版/布局</td>
+        </tr>
+        <tr>
+          <td>AI 配置</td>
+          <td>ACP host 设置、Agent presets（P1 多代理预设）</td>
+          <td>AI 端配置与创作预设</td>
+        </tr>
+        <tr>
+          <td>杂项</td>
+          <td><code>icon-settings</code>（白名单允许）</td>
+          <td>图标设置</td>
+        </tr>
+      </table>
+      <p class="note">
+        前端存在 <code>cacheWhitelist.ts</code>：白名单默认只放行 <code>icon-settings</code> 与认证键族，其余键需经
+        <code>registerDynamicKey</code> 动态登记，并提供清理函数——有一定治理但未覆盖全部业务键。
+      </p>
+
+      <h2 class="sec-find"><span class="no">三</span>磁盘实测三大关键发现</h2>
+      <p class="lead">
+        这三条都是本轮打开真实数据库后才确认的事实，其中第一条对上一轮《维护维度分析》的部分结论构成<strong>修正</strong>。
+      </p>
+
+      <div class="card crit">
+        <h3 style="margin-top: 0">
+          发现一 · 磁盘上的 corpus.db 还是「旧 schema」：镜像表与标签表根本不存在
+          <span class="tag p0">修正上轮结论</span>
+        </h3>
+        <ul>
+          <li>
+            <strong>实测</strong>：真实 <code>corpus.db</code> 的 business schema 只有
+            <code>corpus_books / corpus_chunks / corpus_fts</code> 及两个索引；<strong
+              >没有 <code>corpus_book_sources</code>（镜像表）、也没有 <code>corpus_book_tags</code>（标签表）</strong
+            >，且 <code>corpus_books</code> 表没有 <code>tags</code> 语义列之外的镜像相关列（<code
+              >source_path / content_hash / simhash / category</code
+            >
+            等后加列已存在，说明经历了部分 ALTER 升级）。
+          </li>
+          <li>
+            而当前工作区源码 <code>corpus_database.rs</code>（L72-85）明确含这两张表的
+            <code>CREATE TABLE IF NOT EXISTS</code
+            >——<strong>说明含镜像/标签建表的最新代码从未在这份磁盘库上真正运行过</strong>。git 状态佐证：corpus 域 7 个
+            Rust 文件全部处于未提交（M/??）状态，最近一次提交（09-23）早于这些改动。
+          </li>
+          <li>
+            <strong>影响</strong>：上轮报告「P0-3 标签体系已完整落地」应修正为——<em
+              >代码层已就绪（含 legacy 升级回归测试），但运行时/磁盘层尚未落地</em
+            >；用户实际运行的是旧二进制或未重编译的开发构建。真实库升级路径（老库补表补列）只被内存库单测覆盖，从未在真实大库上验证。
+          </li>
+        </ul>
+        <p class="loc">
+          证据：sqlite3 直查 sqlite_master / PRAGMA table_info；corpus_database.rs L49-101（建表）、L105-126（ALTER
+          迁移）；git status（corpus 域 7 文件未提交）。
+        </p>
+      </div>
+
+      <div class="card crit">
+        <h3 style="margin-top: 0">
+          发现二 · corpus.db 61MB 里业务数据 0 行，FTS 残留 50MB——「删除不回收空间」已被实锤
+          <span class="tag p0">验证上轮 P1-1</span>
+        </h3>
+        <ul>
+          <li>
+            <strong>实测</strong>：<code>corpus_books = 0 行</code>、<code>corpus_chunks = 0 行</code>、<code
+              >corpus_fts = 0 行</code
+            >；但 <code>dbstat</code> 显示 <code>corpus_fts_data</code> 占用 <span class="num">50.1MB</span>、<code
+              >corpus_fts_idx</code
+            >
+            264KB、freelist（空闲页）<span class="num">2108 页 ≈ 8.6MB</span>，合计数据页 51.3MB。
+          </li>
+          <li>
+            <strong>成因</strong>：该库历史上导入过大量书籍并生成了巨型 trigram 倒排索引，之后书籍被删除；而 FTS5 的
+            external content 删除通过
+            <code>INSERT INTO corpus_fts(corpus_fts,rowid,content) VALUES('delete',...)</code>
+            只是<strong>标记删除，不会回收段空间</strong>；SQLite 删除行也只标记空闲页不归还文件。于是出现「文件
+            61MB、业务数据 0 行」的空洞库。
+          </li>
+          <li>
+            <strong>影响</strong>：上轮
+            P1-1「库体积只增不减」不是理论风险，而是<strong>已经发生的现状</strong>；当前这个库可通过
+            <code>VACUUM + FTS rebuild</code> 直接回收约 50MB（约
+            82%）。这也是「语料镜像外置」讨论的参照系——真正的体积大头是 FTS 倒排残留，而不是镜像正文。
+          </li>
+        </ul>
+        <p class="loc">
+          证据：sqlite3 SELECT COUNT(*) 三表全 0；dbstat 按对象聚合；PRAGMA freelist_count=2108 / page_count=14945 /
+          page_size=4096。
+        </p>
+      </div>
+
+      <div class="card ok">
+        <h3 style="margin-top: 0">
+          发现三 · config.db 当前近乎空壳，写作域为发育早期 <span class="tag ok">澄清规模认知</span>
+        </h3>
+        <ul>
+          <li>
+            <strong>实测</strong>：写作域仅 <strong>1 本书（「新建作品 1」）、7 章、正文合计 7 字符</strong>，章节快照 0
+            条，daily_stats 15 条；全库最大的表 <code>analyses</code> 也仅 28KB；其余 AI/代码分析/设置表大多
+            4KB（空表）。
+          </li>
+          <li>
+            <strong>影响</strong>：当前 config.db 2.4MB 无法代表真实规模；「写作正文存 TEXT
+            列」的膨胀风险尚未被数据量压测。做增长预估时必须按「每本书 × 章节数 × 平均章字数 +
+            每日快照」建模，而不是拿现在 7 字符推算。
+          </li>
+        </ul>
+        <p class="loc">证据：writing_books=1、writing_chapters=7 且 SUM(LENGTH(content))=7；dbstat 全表页数。</p>
+      </div>
+
+      <h2 class="sec-trade"><span class="no">四</span>三条优化观察线的取舍分析</h2>
+
+      <h3>4.1 观察线 A · 语料镜像是否应外置为文件？ <span class="tag p2">结论：保持入库，不做外置</span></h3>
+      <div class="card">
+        <ul>
+          <li>
+            <strong>现状</strong>：源码设计将全文镜像存
+            <code>corpus_book_sources.raw_text</code>（入库），重建时三级回退「①库内镜像 → ②外部源文件 →
+            ③skip」依赖它兜底（源文件丢失后仍可重建）。磁盘实测该表尚未真正建出（见发现一），属「待落地」状态。
+          </li>
+          <li><strong>外置的好处</strong>：正文少存一份（chunks.content + 镜像双份 → 只存文件），语料库文件更小。</li>
+          <li>
+            <strong>外置的代价（更重）</strong>：①
+            破坏三级回退的第一级兜底——源文件被移动/删除后无法重建，这正是镜像设计的核心价值；② 备份从「单文件
+            corpus.db」变成「库 + 目录」两处，易漏；③ 路径搬迁、跨设备同步都要处理相对路径。
+          </li>
+          <li>
+            <strong>取舍结论</strong>：真正的体积大头（实测 50MB）是 FTS
+            倒排索引残留，不是镜像正文；镜像入库对重建可靠性的收益远大于那点体积成本。<strong>推荐保持镜像入库</strong>，把精力放在「回收
+            FTS 空间」上（见 4.2）。
+          </li>
+        </ul>
+      </div>
+
+      <h3>
+        4.2 观察线 B · config / corpus 双库增长预估与回收手段
+        <span class="tag p1">结论：需要回收命令 + 分库容量认知</span>
+      </h3>
+      <div class="card">
+        <p><strong>增长模型（按源码字段与表设计推导）：</strong></p>
+        <ul>
+          <li>
+            <strong>config.db</strong>：写作正文（content TEXT）× 章节数 + 每章快照 + daily_stats 按天累积 +
+            代码分析四算表。当前空壳不可作参照；按单书 60 万字、20 章、每章 3 万字估算，正文列首个文本数量级约数
+            MB，快照若每次保存全章会成倍放大——<strong>快照策略是 config.db 增长的隐藏变量</strong>。
+          </li>
+          <li>
+            <strong>corpus.db</strong>：正文（chunks.content）+ 镜像（raw_text，双份）+ FTS trigram 倒排。trigram 对中文
+            3-gram 子串的倒排膨胀系数高，实测曾经的书量级即留下 50MB FTS。增长大头是 FTS 而非正文。
+          </li>
+          <li>
+            <strong>回收能力（当前缺失）</strong>：库内无任何 checkpoint / VACUUM / FTS rebuild
+            命令；删除书、重建索引都只标记不回收。上轮 P1-1 建议的「压缩数据库」命令即为本题答案，且应包含
+            <strong>FTS rebuild</strong>（单纯 VACUUM 不压缩 FTS 残留段，必须
+            <code>INSERT INTO corpus_fts(corpus_fts) VALUES('rebuild')</code> 重写倒排）。
+          </li>
+        </ul>
+        <p><strong>推荐（并入上轮 P1-1 一并实现）：</strong></p>
+        <ol>
+          <li>
+            新增维护命令：<code>wal_checkpoint(TRUNCATE)</code> + FTS rebuild +
+            <code>VACUUM</code>；前端「语料库」页展示库体积与可回收空间。
+          </li>
+          <li>导入/重建后自动轻量回收或在删除书后提示「空间待回收」（避免每次导入都全量 VACUUM 的性能代价）。</li>
+          <li>config.db 快照策略纳入容量预估：确认章节快照是否全量存正文，若是，考虑增量/阈值化。</li>
+        </ol>
+      </div>
+
+      <h3>4.3 观察线 C · localStorage 设置是否归并入库？ <span class="tag p2">结论：分级处理，不整体归并</span></h3>
+      <div class="card">
+        <table>
+          <tr>
+            <th>层级</th>
+            <th>现有存储</th>
+            <th>取舍</th>
+            <th>推荐</th>
+          </tr>
+          <tr>
+            <td>UI 偏好（主题 / 语言 / 排版 / 布局）</td>
+            <td>localStorage</td>
+            <td>高频写、低价值、换机重建成本低；入库需走 IPC 且换设备还要另做同步才有意义</td>
+            <td>
+              <span class="tag ok">维持 localStorage</span>，仅统一键 schema 版本与清理钩子（在 cacheWhitelist
+              基础上补齐）
+            </td>
+          </tr>
+          <tr>
+            <td>AI 配置与创作预设（ACP host / Agent presets）</td>
+            <td>localStorage</td>
+            <td>属「创作资产」，随库备份可迁移、可版本化；localStorage 无法进入 config.db 备份体系</td>
+            <td>
+              <span class="tag p1">建议迁入 config.db</span>（ai_* 表或 user_settings JSON），本地仍缓存一份做首屏加速
+            </td>
+          </tr>
+          <tr>
+            <td>认证态（token 族）</td>
+            <td>localStorage</td>
+            <td>明文写 SQLite 有安全顾虑（桌面应用更应走系统凭据库）；现状已能支撑登录态</td>
+            <td><span class="tag ok">绝不入 SQLite</span>；长期可评估迁移到 macOS Keychain / 系统凭据 API</td>
+          </tr>
+        </table>
+        <p class="note">
+          这里需要用户决策的子问题只有一个：「Agent 预设」等 AI
+          创作配置是否入库——它将决定后续做「设置统一备份/迁移」时的范围。其余两级维持现状即可。
+        </p>
+      </div>
+
+      <h2 class="sec-road"><span class="no">五</span>推荐路线与优先级</h2>
+      <table>
+        <tr>
+          <th>优先级</th>
+          <th>项</th>
+          <th>解决</th>
+          <th>成本</th>
+          <th>收益</th>
+        </tr>
+        <tr>
+          <td><span class="tag p0">P0</span></td>
+          <td>
+            真实库升级验证：在现有 corpus.db 上跑一次新代码 init_schema，确认补表/补列成功，并补一条「真实库 → VACUUM +
+            FTS rebuild」迁移
+          </td>
+          <td>发现一（schema 未落地）+ 发现二（50MB 空洞）</td>
+          <td>低</td>
+          <td>高（消除「代码与运行态分叉」与 82% 体积浪费）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td>空间回收维护命令（checkpoint + FTS rebuild + VACUUM）+ 前端体积/可回收展示</td>
+          <td>发现二 / 观察线 B</td>
+          <td>低-中</td>
+          <td>高（已可回收 ~50MB）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td>导入防护（文件大小上限 / 未知格式拒绝 / 解码失败放弃）——沿用上轮 P1-2</td>
+          <td>污染与内存失控</td>
+          <td>低</td>
+          <td>高</td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td>重建/删除与导入的操作互斥 + 重建进度与逐本明细</td>
+          <td>维护并发弱一致</td>
+          <td>中</td>
+          <td>中高</td>
+        </tr>
+        <tr>
+          <td><span class="tag p2">P2</span></td>
+          <td>AI 配置/Agent 预设迁入 config.db（待用户决策）</td>
+          <td>观察线 C</td>
+          <td>中</td>
+          <td>中（备份统一）</td>
+        </tr>
+        <tr>
+          <td><span class="tag p2">P2</span></td>
+          <td>localStorage 键治理：schema 版本 + 清理钩子补齐（扩展现有 cacheWhitelist）</td>
+          <td>观察线 C</td>
+          <td>低</td>
+          <td>中</td>
+        </tr>
+        <tr>
+          <td><span class="tag gray">不推荐</span></td>
+          <td>语料镜像外置为文件；认证 token 入库</td>
+          <td>—</td>
+          <td>—</td>
+          <td>破坏重建兜底 / 安全降级，明确排除</td>
+        </tr>
+      </table>
+      <div class="card ok">
+        <h3 style="margin-top: 0">与历史报告的关系</h3>
+        <ul>
+          <li>
+            本报告修正《语料库维护维度优化分析》中「P0-3
+            标签体系已完整落地」的表述：<strong>代码层就绪、运行时未落地</strong>，并新增 P0 项推动真实库升级验证。
+          </li>
+          <li>
+            上轮 P1-1「库体积无回收手段」从代码推断升级为<strong>磁盘实证</strong>（61MB 空洞库），并补上 FTS rebuild
+            这一关键手段。
+          </li>
+          <li>
+            「是否所有数据都在 SQLite」的结论：主存储是双 SQLite 库，但素材/日志/快照在文件系统、认证与偏好/AI 配置在
+            localStorage——三层共存是当前事实，优化目标不是「全部入 SQLite」，而是「分库分层的容量治理与可靠性」。
+          </li>
+        </ul>
+      </div>
+
+      <footer>
+        本报告为只读分析产物 · Sight Folio · 2026-09-27 · 磁盘实测数据来自 sqlite3 直查（dbstat / PRAGMA /
+        SELECT），非估算
+      </footer>
+    </div>
+  </body>
+</html>

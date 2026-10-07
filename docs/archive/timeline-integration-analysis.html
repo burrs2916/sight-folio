@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sight Folio 时间线与写作台联动分析报告</title>
+    <style>
+      :root {
+        --bg: #f8f9fa;
+        --card: #fff;
+        --text: #212529;
+        --muted: #6c757d;
+        --accent: #4a338f;
+        --warn: #b45309;
+        --danger: #dc2626;
+        --success: #10b981;
+        --border: #dee2e6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px 24px;
+      }
+      h1 {
+        font-size: 28px;
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-size: 14px;
+        margin-bottom: 32px;
+      }
+      h2 {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 32px 0 16px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid var(--accent);
+      }
+      h3 {
+        font-size: 16px;
+        font-weight: 700;
+        margin: 24px 0 12px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 8px;
+        padding: 20px 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+      }
+      .badge-success {
+        background: rgba(16, 185, 129, 0.12);
+        color: var(--success);
+      }
+      .badge-warn {
+        background: rgba(180, 83, 9, 0.12);
+        color: var(--warn);
+      }
+      .badge-danger {
+        background: rgba(220, 38, 38, 0.12);
+        color: var(--danger);
+      }
+      .badge-info {
+        background: rgba(74, 51, 143, 0.12);
+        color: var(--accent);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        margin: 12px 0;
+      }
+      th,
+      td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+      th {
+        font-weight: 700;
+        background: #f1f3f5;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: var(--muted);
+      }
+      tr:hover td {
+        background: #f8f9fa;
+      }
+      .code {
+        font-family: 'SF Mono', Monaco, Inconsolata, monospace;
+        font-size: 12px;
+        background: #f1f3f5;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .risk-high {
+        color: var(--danger);
+        font-weight: 700;
+      }
+      .risk-medium {
+        color: var(--warn);
+        font-weight: 700;
+      }
+      .risk-low {
+        color: var(--success);
+      }
+      ul {
+        margin: 8px 0;
+        padding-left: 20px;
+      }
+      li {
+        margin: 4px 0;
+      }
+      .highlight {
+        background: rgba(74, 51, 143, 0.08);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 600;
+      }
+      .quote {
+        border-left: 3px solid var(--accent);
+        padding-left: 16px;
+        margin: 12px 0;
+        color: var(--muted);
+        font-style: italic;
+      }
+      .section-intro {
+        color: var(--muted);
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>⏱️ Sight Folio 时间线 ↔ 写作台联动分析报告</h1>
+      <p class="subtitle">
+        生成时间：2026-10-04 · 覆盖范围：时间线 pane / 剧情线 pane / 伏笔 pane / 灵感 pane ↔
+        写作台（大纲/章节/设定/正文）全部联动链路
+      </p>
+
+      <h2>📋 执行摘要</h2>
+      <div class="card">
+        <p><strong>整体评估：数据层联动坚实，状态层联动完善，但存在一处关键语义断层。</strong></p>
+        <ul>
+          <li>
+            <span class="badge badge-success">已实现</span> 所有核心写作实体（章节、设定、大纲
+            Beat、时间线事件、伏笔、剧情线）共用同一 <code class="code">useWritingStore</code>，落库即全局可见。
+          </li>
+          <li>
+            <span class="badge badge-success">已实现</span>
+            跨实体引用（伏笔挂章、灵感挂章、事件挂线、伏笔挂线）全部通过外键关联，双向可达。
+          </li>
+          <li>
+            <span class="badge badge-success">已实现</span> 右栏选中态互斥机制保证「一次只编辑一个实体」，避免状态冲突。
+          </li>
+          <li>
+            <span class="badge badge-danger">断层</span>
+            <strong
+              >最核心缺失：写作台「正文/摘要」字段 ↔ 时间线事件
+              <code class="code">event</code> 字段之间没有自动同步。</strong
+            >
+            用户在写作台写的内容不会自动进入时间线卡片，反之亦然——这是「时间线 tab 与其他 tabs 不能联动」的真因。
+          </li>
+        </ul>
+      </div>
+
+      <h2>🔗 联动完整度矩阵</h2>
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 22%">功能 / 实体</th>
+              <th style="width: 18%">数据同步</th>
+              <th style="width: 18%">状态联动</th>
+              <th style="width: 22%">跨实体引用</th>
+              <th style="width: 20%">风险等级</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>章节 (Chapter)</strong></td>
+              <td><span class="badge badge-success">双向</span> 时间线/伏笔/灵感挂章后，写作台实时可见</td>
+              <td><span class="badge badge-success">单向</span> 跳章跳转正确</td>
+              <td><span class="badge badge-success">完整</span> chapterId 外键全链路打通</td>
+              <td class="risk-low">低</td>
+            </tr>
+            <tr>
+              <td><strong>设定 (Setting)</strong></td>
+              <td><span class="badge badge-success">双向</span> 时间线事件挂设定后，写作台设定面板实时更新</td>
+              <td><span class="badge badge-success">单向</span> 点设定卡跳要素检查器</td>
+              <td><span class="badge badge-success">完整</span> settingId 外键全链路打通</td>
+              <td class="risk-low">低</td>
+            </tr>
+            <tr>
+              <td><strong>大纲 Beat</strong></td>
+              <td><span class="badge badge-success">双向</span> 灵感/伏笔均读同一份 outlines</td>
+              <td><span class="badge badge-info">有限</span> 节拍绑章后时间线可消费</td>
+              <td><span class="badge badge-success">完整</span> chapterId/extra.cast/extra.scenes</td>
+              <td class="risk-low">低</td>
+            </tr>
+            <tr>
+              <td><strong>时间线事件</strong></td>
+              <td><span class="badge badge-success">双向</span> 写作台与时间线共用同表</td>
+              <td><span class="badge badge-success">单向</span> 选中态互斥 + 右栏编辑联动</td>
+              <td><span class="badge badge-warn">缺失</span> <strong>event 字段未与写作台正文字段同步</strong></td>
+              <td class="risk-high">高（核心断层）</td>
+            </tr>
+            <tr>
+              <td><strong>剧情线 (Storyline)</strong></td>
+              <td><span class="badge badge-success">双向</span> 时间线与剧情线 pane 共用 storylines 表</td>
+              <td><span class="badge badge-success">单向</span> 选中态互斥 + 右栏编辑</td>
+              <td><span class="badge badge-success">完整</span> storylineId 外键 + 事件挂线</td>
+              <td class="risk-low">低</td>
+            </tr>
+            <tr>
+              <td><strong>伏笔 (Foreshadowing)</strong></td>
+              <td><span class="badge badge-success">双向</span> 伏笔 pane 与写作台共用 foreshadowings 表</td>
+              <td><span class="badge badge-success">单向</span> 选中态互斥 + 右栏编辑</td>
+              <td><span class="badge badge-success">完整</span> plantChapterId/payoffChapterId/storylineId</td>
+              <td class="risk-medium">中（语义联动可加强）</td>
+            </tr>
+            <tr>
+              <td><strong>灵感 (Inspiration)</strong></td>
+              <td><span class="badge badge-success">双向</span> 灵感 pane 与写作台共用 outlines（loose beats）</td>
+              <td><span class="badge badge-success">单向</span> 分发后状态实时可见</td>
+              <td><span class="badge badge-warn">缺失</span> <strong>分发后与原灵感缺乏反向追踪</strong></td>
+              <td class="risk-medium">中</td>
+            </tr>
+            <tr>
+              <td><strong>跳章 / 跳设定</strong></td>
+              <td><span class="badge badge-success">已实现</span> openChapterCarrierView / openTypedCarrierView</td>
+              <td><span class="badge badge-success">已实现</span> 时间线事件点"跳章"直达章节编辑</td>
+              <td><span class="badge badge-success">完整</span> 跨 pane 导航链路已打通</td>
+              <td class="risk-low">低</td>
+            </tr>
+            <tr>
+              <td><strong>时间线视图口径</strong></td>
+              <td><span class="badge badge-success">已实现</span> timelineViewMode 在 editorStore 共享</td>
+              <td><span class="badge badge-success">已实现</span> 右栏总览卡冲突点选切换口径</td>
+              <td><span class="badge badge-success">完整</span> 主 pane 与右栏同步</td>
+              <td class="risk-low">低</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>✅ 已实现的数据级联动（双向）</h2>
+      <div class="card">
+        <p class="section-intro">
+          所有核心写作实体共用 <code class="code">useWritingStore</code>（Zustand +
+          Immer），落库后即时全局可见，不依赖手动刷新。
+        </p>
+
+        <h3>1. 章节 (WritingChapter)</h3>
+        <ul>
+          <li>
+            <strong>时间线 pane</strong>：事件挂章（<code class="code">chapterId</code
+            >）后，写作台章节列表实时可见该事件归属。
+          </li>
+          <li>
+            <strong>伏笔 pane</strong>：埋设/回收章（<code class="code">plantChapterId / payoffChapterId</code
+            >）后，写作台章视图可反向查看伏笔列表。
+          </li>
+          <li>
+            <strong>灵感 pane</strong>：灵感挂章转正后，<code class="code">outline.chapterId</code>
+            非空，写作台大纲视图该 Beat 从"念头池"消失。
+          </li>
+          <li>
+            <strong>跳章导航</strong>：时间线 EventChip「跳章」按钮调用
+            <code class="code">openChapterCarrierView(chapterId)</code>，直达写作台对应章节编辑面。
+          </li>
+        </ul>
+
+        <h3>2. 设定 (WritingSetting)</h3>
+        <ul>
+          <li>
+            <strong>时间线 pane</strong>：事件按 <code class="code">settingId</code> 分轨，设定 pane
+            编辑设定名/描述后，时间线轨道标签即时更新。
+          </li>
+          <li>
+            <strong>伏笔/灵感 pane</strong>：伏笔挂设定、灵感挂载出场人物/场景均通过
+            <code class="code">settingId</code> 关联，设定 pane 编辑后所有引用处实时刷新。
+          </li>
+          <li>
+            <strong>要素检查器联动</strong>：时间线/伏笔/灵感中点设定 chip →
+            <code class="code">selectSetting(settingId)</code> → 右栏切到设定详情。
+          </li>
+        </ul>
+
+        <h3>3. 大纲 Beat (WritingOutline)</h3>
+        <ul>
+          <li>
+            <strong>灵感池</strong>：未挂章的 Beat（<code class="code">looseBeats</code>）即「灵感念头」，灵感 pane
+            与写作台大纲 pane 读同一份数据。
+          </li>
+          <li>
+            <strong>节拍绑章</strong>：写作台大纲 pane 把 Beat 拖入章节后，<code class="code">outline.chapterId</code>
+            写入，灵感 pane 该念头自动消失（已转正）。
+          </li>
+          <li>
+            <strong>出场人物/场景</strong>：Beat 的
+            <code class="code">extra.cast / extra.scenes</code> 同时驱动写作台大纲视图、时间线事件编辑（EventChip
+            读取同字段）。
+          </li>
+        </ul>
+
+        <h3>4. 时间线事件 (WritingTimelineEvent)</h3>
+        <ul>
+          <li>
+            <strong>数据共享</strong>：时间线 pane 与写作台共用 <code class="code">timelineEvents</code> 数组，任意 pane
+            增删改后全局即时刷新。
+          </li>
+          <li>
+            <strong>右栏编辑联动</strong>：点 EventChip → <code class="code">selectTimelineEvent(id)</code> →
+            TimelineSidePanels 右侧「详情」tab 出现编辑卡（at/event/绑章/挂线）。
+          </li>
+          <li>
+            <strong>冲突检测联动</strong>：同轨 at 碰撞 / 跨章时间倒挂在计算后即时标红，右栏总览卡可点冲突行切口径。
+          </li>
+        </ul>
+
+        <h3>5. 剧情线 (WritingStoryline)</h3>
+        <ul>
+          <li>
+            <strong>数据共享</strong>：时间线 pane（挂线）、剧情线 pane（管理/叙事/矩阵三视图）、写作台设定 pane 共用
+            <code class="code">storylines</code>。
+          </li>
+          <li>
+            <strong>双向引用</strong>：事件 <code class="code">storylineId</code> 挂线后，剧情线 pane
+            的叙事/矩阵视图即时显示该事件；剧情线 pane 改名/改色后时间线轨道标签同步。
+          </li>
+        </ul>
+
+        <h3>6. 伏笔 (WritingForeshadowing)</h3>
+        <ul>
+          <li>
+            <strong>数据共享</strong>：伏笔 pane 与写作台共用
+            <code class="code">foreshadowings</code>，状态/描述/埋设回收章改后即时全局可见。
+          </li>
+          <li><strong>跨章预警联动</strong>：埋设章→回收章跨度计算后，时间线 pane 右栏总览卡显示跨章预警数。</li>
+        </ul>
+      </div>
+
+      <h2>✅ 已实现的状态级联动（单向/有限双向）</h2>
+      <div class="card">
+        <h3>右栏选中态互斥机制</h3>
+        <p class="section-intro">
+          以下六个选中态在 <code class="code">editorStore</code> 中严格互斥，保证「一次只编辑一个实体」：
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>选中态</th>
+              <th>驱动方</th>
+              <th>清空项</th>
+              <th>互斥场景</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code class="code">selectedSettingId</code></td>
+              <td>CastPane 点"查看要素"</td>
+              <td>事件/剧情线/伏笔/灵感/章/画布</td>
+              <td>设定详情 ↔ 其他所有</td>
+            </tr>
+            <tr>
+              <td><code class="code">selectedTimelineEventId</code></td>
+              <td>EventChip 点卡片</td>
+              <td>设定/剧情线/伏笔/灵感/章/画布</td>
+              <td>事件编辑 ↔ 其他所有</td>
+            </tr>
+            <tr>
+              <td><code class="code">selectedStorylineId</code></td>
+              <td>StorylineSection 点行</td>
+              <td>事件/设定/伏笔/灵感/章/画布</td>
+              <td>剧情线编辑 ↔ 其他所有</td>
+            </tr>
+            <tr>
+              <td><code class="code">selectedForeshadowingId</code></td>
+              <td>伏笔列表点行</td>
+              <td>事件/设定/剧情线/灵感/章/画布</td>
+              <td>伏笔编辑 ↔ 其他所有</td>
+            </tr>
+            <tr>
+              <td><code class="code">selectedInspirationId</code></td>
+              <td>灵感列表点行</td>
+              <td>事件/设定/剧情线/伏笔/章/画布</td>
+              <td>灵感编辑 ↔ 其他所有</td>
+            </tr>
+            <tr>
+              <td><code class="code">selectedChapterId</code></td>
+              <td>StorylinePane 点章行</td>
+              <td>事件/设定/剧情线/伏笔/灵感/画布</td>
+              <td>章详情 ↔ 其他所有</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>时间线视图口径共享</h3>
+        <ul>
+          <li>
+            <code class="code">timelineViewMode: 'book' | 'chapter' | 'storyline'</code> 放在
+            <code class="code">editorStore</code>（非 pane 本地 state）。
+          </li>
+          <li>
+            <strong>联动场景</strong>：右栏总览卡显示「跨章时间倒挂」冲突时，点冲突行自动切到
+            <code class="code">'chapter'</code> 口径——主 pane 与右栏共享同一份状态，口径始终一致。
+          </li>
+        </ul>
+
+        <h3>跨窗口正文同步</h3>
+        <ul>
+          <li>
+            <code class="code">WRITING_CONTENT_SAVED_EVENT</code>：写作台独立窗口保存正文后广播
+            <code class="code">content + wordCount</code>。
+          </li>
+          <li>
+            主窗口 <code class="code">applyExternalChapterContent</code> 接收后，就地更新
+            <code class="code">chapters</code> 数组中对应章的 content/wordCount，无需整表 reload。
+          </li>
+        </ul>
+      </div>
+
+      <h2>✅ 已实现的跨实体联动</h2>
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>联动方向</th>
+              <th>触发方式</th>
+              <th>数据路径</th>
+              <th>反向可达</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>伏笔 → 章</td>
+              <td>伏笔编辑卡选「埋设章/回收章」</td>
+              <td><code class="code">foreshadowing.plantChapterId → chapter.id</code></td>
+              <td>章视图不直接显示伏笔列表（可加强）</td>
+            </tr>
+            <tr>
+              <td>灵感 → 章</td>
+              <td>灵感分发「挂章转正」</td>
+              <td><code class="code">outline.chapterId = chapterId</code></td>
+              <td>是（大纲视图可见该 Beat）</td>
+            </tr>
+            <tr>
+              <td>时间线事件 → 章</td>
+              <td>EventChip 选章 / 新建事件时 chapterId</td>
+              <td><code class="code">timelineEvent.chapterId → chapter.id</code></td>
+              <td>是（跳章按钮直达）</td>
+            </tr>
+            <tr>
+              <td>时间线事件 → 剧情线</td>
+              <td>EventChip 选线 / 新建事件时 storylineId</td>
+              <td><code class="code">timelineEvent.storylineId → storyline.id</code></td>
+              <td>是（剧情线叙事视图可见该事件）</td>
+            </tr>
+            <tr>
+              <td>伏笔 → 剧情线</td>
+              <td>伏笔编辑卡选「挂线」</td>
+              <td><code class="code">foreshadowing.storylineId → storyline.id</code></td>
+              <td>是（剧情线详情显示关联伏笔）</td>
+            </tr>
+            <tr>
+              <td>灵感 → 时间线</td>
+              <td>灵感分发「转时间线草稿」</td>
+              <td>新建 <code class="code">timelineEvent</code>，原 beat 保留</td>
+              <td>时间线可见；原灵感标记为"已转化"（可加强）</td>
+            </tr>
+            <tr>
+              <td>灵感 → 伏笔</td>
+              <td>灵感分发「转伏笔草稿」</td>
+              <td>新建 <code class="code">foreshadowing</code>，原 beat 保留</td>
+              <td>伏笔 pane 可见；反向追踪可加强</td>
+            </tr>
+            <tr>
+              <td>节拍 → 时间线</td>
+              <td>BeatRow 点击「同步到时间线」</td>
+              <td><code class="code">outline.id → timelineEvent.settingId + at + event</code></td>
+              <td>是（时间线显示该节拍为事件）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>❌ 关键断层点</h2>
+      <div class="card">
+        <h3>
+          <span class="badge badge-danger">核心断层</span> 写作台「正文/摘要」↔ 时间线事件
+          <code class="code">event</code> 字段：零联动
+        </h3>
+        <div class="quote">这是用户反馈「时间线 tab 与其他 tabs 不能联动」的最核心原因。</div>
+        <ul>
+          <li>
+            <strong>现状</strong>：写作台（WorkbenchEditorPane）编辑的是
+            <code class="code">WritingOutline.summary</code> 或正文字段；时间线 EventChip 显示的是
+            <code class="code">WritingTimelineEvent.event</code>。
+          </li>
+          <li>
+            <strong>问题</strong
+            >：两个字段之间没有任何自动同步机制。用户在写作台写了"主角发现密室"，时间线卡片上该事件仍然是空的（或只显示旧值）。
+          </li>
+          <li>
+            <strong>影响</strong>：用户必须在两个地方分别维护同一份内容，违背 DRY 原则，导致时间线成为"重复录入区"。
+          </li>
+          <li>
+            <strong>代码证据</strong>：
+            <ul>
+              <li>
+                TimelineSidePanels.tsx 第 496 行：<code class="code"
+                  >DraftInput value={event.event} onCommit=...updateTimelineEvent</code
+                >
+                —— 只写 timelineEvents 表。
+              </li>
+              <li>
+                写作台编辑器：通过 <code class="code">saveChapterContent</code> 或
+                <code class="code">updateOutline</code> 写 chapters/outlines 表 —— 不碰 timelineEvents。
+              </li>
+              <li>两个表之间没有触发器、没有监听、没有同步函数。</li>
+            </ul>
+          </li>
+        </ul>
+
+        <h3><span class="badge badge-warn">语义断层</span> 写作台 ↔ 伏笔/灵感：只感知实体存在，不感知语义关联</h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：写作台大纲 pane 能看到 Beat（含 extra.cast / extra.scenes），但看不到「这个 Beat
+            是某条伏笔的回收点」或「这个 Beat 源自某个灵感念头」。
+          </li>
+          <li>
+            <strong>问题</strong>：用户在写作台写正文时，无法直观看到「此处埋设了伏笔 A，需要在后文回收伏笔 B」的提示。
+          </li>
+          <li>
+            <strong>具体表现</strong>：伏笔的 <code class="code">plantChapterId / payoffChapterId</code> 只存了章
+            ID，没有精确到段落/句子级别；灵感的 <code class="code">chapterId</code> 也是整章关联。
+          </li>
+        </ul>
+
+        <h3><span class="badge badge-warn">追踪断层</span> 灵感分发后的反向链路</h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：灵感分发「转时间线草稿」后，新建一个
+            <code class="code">timelineEvent</code>，但原灵感 beat 的
+            <code class="code">extra</code> 中没有记录「已转化为时间线事件 ID xxx」。
+          </li>
+          <li>
+            <strong>问题</strong>：用户在时间线 pane 看到一个事件，无法一键回溯「这个事件最初来自哪个灵感念头」。灵感
+            pane 也不知道「这个念头已经被用掉了」。
+          </li>
+          <li><strong>类似问题</strong>：灵感「转伏笔草稿」后，原灵感与新建伏笔之间同样缺乏反向追踪。</li>
+        </ul>
+
+        <h3><span class="badge badge-info">可加强</span> 时间线 ↔ 正文编辑器的深度嵌入</h3>
+        <ul>
+          <li>
+            <strong>现状</strong>：时间线 EventChip 的「发生了什么」是纯文本输入框（DraftInput），不是富文本编辑器。
+          </li>
+          <li>
+            <strong>可加强</strong>：如果用户希望在时间线 pane
+            直接写正文（而非仅写摘要），当前输入框能力不足。可以考虑在 EventChip
+            增加「展开正文编辑器」入口，或直接联动写作台的富文本编辑器。
+          </li>
+        </ul>
+      </div>
+
+      <h2>🛠️ 具体改进建议</h2>
+      <div class="card">
+        <h3>优先级 P0：修复核心断层（正文字段联动）</h3>
+        <p><strong>方案 A（推荐）：摘要单向同步</strong></p>
+        <ul>
+          <li>
+            在 <code class="code">WritingTimelineEvent</code> 中新增
+            <code class="code">outlineId</code> 字段（或复用已有关联）。
+          </li>
+          <li>
+            当 Beat 同步到时间线时（BeatRow「同步到时间线」），把 <code class="code">outline.summary</code> 写入
+            <code class="code">timelineEvent.event</code>。
+          </li>
+          <li>
+            后续用户在写作台修改 <code class="code">outline.summary</code> 时，通过 store 监听自动同步到关联的
+            <code class="code">timelineEvent.event</code>（单向：写作台 → 时间线）。
+          </li>
+        </ul>
+        <p><strong>方案 B：双向绑定</strong></p>
+        <ul>
+          <li>
+            在 TimelineSidePanels 的事件编辑卡中，把 <code class="code">DraftInput</code> 的
+            <code class="code">onCommit</code> 同时写回 <code class="code">outline.summary</code>（如果该事件由 Beat
+            同步而来）。
+          </li>
+          <li>
+            风险提示：如果用户在时间线把 "主角发现密室" 改成 "主角发现暗门"，写作台的正文是否同步？需要确认业务语义。
+          </li>
+        </ul>
+
+        <h3>优先级 P1：增强语义关联</h3>
+        <ul>
+          <li>
+            <strong>伏笔上下文标记</strong>：在写作台编辑器内联显示「🚩 伏笔 A 埋设点」/「✅ 伏笔 B 回收点」标记（类似
+            Word 批注），点击可跳转到伏笔 pane。
+          </li>
+          <li>
+            <strong>灵感溯源</strong>：在灵感 pane 的「已分发」念头增加「查看去向」按钮，显示已转化的时间线事件 ID /
+            伏笔 ID，点击可跳转。
+          </li>
+        </ul>
+
+        <h3>优先级 P2：时间线事件富文本能力</h3>
+        <ul>
+          <li>
+            在 EventChip 的 textarea 中增加「展开编辑器」按钮，调用
+            <code class="code">openWritingDesk</code> 打开该事件关联章的正文编辑（如果已挂章）。
+          </li>
+          <li>未挂章事件：允许在时间线 pane 内直接写长文本（当前 textarea 只有 2 行，不适合写正文）。</li>
+        </ul>
+
+        <h3>优先级 P3：跨 pane 导航优化</h3>
+        <ul>
+          <li>在时间线 pane 的 EventChip 中增加「在写作台打开」按钮（除了已有的「跳章」）。</li>
+          <li>在伏笔/灵感 pane 的详情卡中增加「在写作台打开关联章」按钮。</li>
+        </ul>
+      </div>
+
+      <h2>📊 联动链路技术图解</h2>
+      <div class="card">
+        <pre
+          style="
+            font-size: 12px;
+            line-height: 1.7;
+            overflow-x: auto;
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 6px;
+          "
+        >
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         useWritingStore（全局数据层）                          │
+├─────────────┬─────────────┬─────────────┬─────────────┬─────────────────────┤
+│  chapters   │  settings   │  outlines   │  timelineEvents  │  storylines       │
+│  (章节)     │  (设定)     │  (大纲Beat) │  (时间线事件)    │  (剧情线)          │
+├─────────────┴─────────────┴─────────────┴─────────────┴─────────────────────┤
+│                         useEditorStore（全局状态层）                           │
+│  selectedSettingId / selectedTimelineEventId / selectedStorylineId / ...     │
+│  timelineViewMode: 'book' | 'chapter' | 'storyline'                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │                    │                    │                    │
+         ▼                    ▼                    ▼                    ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ 写作台        │  │ 时间线 pane   │  │ 剧情线 pane   │  │ 伏笔/灵感 pane│
+│ (Workbench)  │  │ (Timeline)   │  │ (Storylines) │  │ (Foreshadow/  │
+│              │  │              │  │              │  │  Inspiration) │
+│ 编辑正文      │  │ 编辑 event   │  │ 编辑线实体    │  │ 编辑伏笔/灵感  │
+│ 编辑 summary │  │ 编辑 at      │  │ 编辑事件链    │  │ 编辑埋设/回收  │
+└──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘
+         │                    │                    │                    │
+         │                    │                    │                    │
+         └────────────────────┴────────────────────┴────────────────────┘
+                                    │
+                                    ▼
+                    ┌───────────────────────────────┐
+                    │     关键断层（红色虚线）        │
+                    │  写作台.summary / 正文         │
+                    │        ↕️ ❌ 无同步            │
+                    │  时间线.event                  │
+                    └───────────────────────────────┘
+                                    │
+                                    ▼
+                    ┌───────────────────────────────┐
+                    │      已打通联动（绿色实线）      │
+                    │  chapterId / settingId /        │
+                    │  storylineId / plantChapterId   │
+                    │  全部通过外键双向可达            │
+                    └───────────────────────────────┘
+    </pre
+        >
+      </div>
+
+      <h2>📌 结论</h2>
+      <div class="card">
+        <p><strong>Sight Folio 时间线与写作台的联动骨架已经非常完善。</strong></p>
+        <ul>
+          <li>
+            <span class="badge badge-success">扎实</span>：数据层共用 store、状态层互斥管理、跨实体外键引用全部到位。
+          </li>
+          <li>
+            <span class="badge badge-danger">急需</span>：唯一核心断层是<strong
+              >写作台正文字段与时间线事件 event 字段之间没有自动同步</strong
+            >，导致用户在两个地方维护同一份内容。
+          </li>
+          <li>
+            <span class="badge badge-warn">可加强</span
+            >：语义关联（伏笔上下文标记、灵感溯源）和富文本能力可以进一步提升体验，但不影响基础功能。
+          </li>
+        </ul>
+        <p>
+          <strong>下一步建议</strong>：优先实施「P0 摘要单向同步」（方案 A），在
+          <code class="code">WritingTimelineEvent</code> 中建立与
+          <code class="code">WritingOutline</code> 的关联，并通过 store 监听实现写作台 →
+          时间线的自动同步。这是解决「时间线不能与其他 tabs 联动」问题的最直接路径。
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

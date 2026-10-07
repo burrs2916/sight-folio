@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Sight Folio 全局 UI 质量审计报告</title>
+<style>
+  :root {
+    --brand: #4a338f; --brand-2: #3a286f; --bg: #fbf7ef; --paper: #ffffff;
+    --text: #1f2937; --muted: #4b5563; --line: #e5e7eb;
+    --p0: #b91c1c; --p1: #c2410c; --p2: #a16207; --p3: #64748b;
+    --ok: #047857; --warn-bg: #fef3c7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.7 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: var(--text); background: var(--bg); }
+  header { background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%); color: #fff; padding: 40px 48px 32px; }
+  header h1 { margin: 0 0 6px; font-size: 26px; }
+  header p { margin: 0; opacity: .92; font-size: 13.5px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 48px 64px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 20px 0 8px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+  .card b { display: block; font-size: 20px; }
+  .card span { font-size: 12px; color: var(--muted); }
+  h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--line); }
+  h3 { font-size: 15.5px; margin: 22px 0 8px; }
+  .verdict { display: inline-block; font-weight: 700; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; }
+  .cond { background: #fef3c7; color: #92400e; }
+  .pass { background: #d1fae5; color: #065f46; }
+  table { width: 100%; border-collapse: collapse; background: var(--paper); font-size: 13px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; font-weight: 600; white-space: nowrap; }
+  tr td:first-child { white-space: nowrap; font-weight: 600; }
+  .issue { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--p1); border-radius: 8px; padding: 12px 16px; margin: 10px 0; }
+  .issue.p1 { border-left-color: var(--p1); }
+  .issue.p2 { border-left-color: var(--p2); }
+  .issue.p3 { border-left-color: var(--p3); }
+  .issue .tag { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; }
+  .issue.p1 .tag { color: var(--p1); } .issue.p2 .tag { color: var(--p2); } .issue.p3 .tag { color: var(--p3); }
+  .issue h4 { margin: 4px 0 8px; font-size: 14.5px; }
+  .issue dl { margin: 0; display: grid; grid-template-columns: 56px 1fr; gap: 4px 10px; font-size: 13px; }
+  .issue dt { color: var(--muted); font-weight: 600; }
+  .issue dd { margin: 0; }
+  code { background: #f3f4f6; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .bar { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 6px 16px; margin: 6px 0; font-size: 13px; }
+  .bar b { color: var(--brand); }
+  footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
+  @media (max-width: 720px) { .wrap { padding: 20px; } header { padding: 24px 20px; } th, td { white-space: normal; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sight Folio · 全局 UI 质量审计报告</h1>
+  <p>审计方式：design-suite review 通道（design-constraints）｜范围：全站视觉质量、主题一致性、可访问性、窗口尺寸适配与实现完整性</p>
+</header>
+
+<div class="wrap">
+
+  <div class="cards">
+    <div class="card"><b>0</b><span>P0 阻断问题</span></div>
+    <div class="card"><b>4</b><span>P1 主要问题</span></div>
+    <div class="card"><b>6</b><span>P2 次要问题</span></div>
+    <div class="card"><b>4</b><span>P3 打磨项</span></div>
+    <div class="card"><b>0</b><span>eslint error / tsc 通过</span></div>
+  </div>
+
+  <p style="margin-top:12px"><span class="verdict cond">总体结论：有条件通过 —— 构建与核心流程健康，无阻断项；但存在全局性 WCAG AA 对比度失败与图标无障碍缺口，建议按 P1 顺序修复后合入。</span></p>
+
+  <h2>范围（Scope）</h2>
+  <table>
+    <tr><th>项目</th><td>Sight Folio —— Tauri 2 + React 18 + TypeScript + MUI（@mui/material 9）+ Vite 桌面写作应用</td></tr>
+    <tr><th>页面</th><td>Bookshelf / SceneEditor / PublishedScenes / ScenePreview / AiAgent / Writing / Library / Settings</td></tr>
+    <tr><th>审计维度</th><td>Accessibility · Performance · Theming · Responsive · Implementation integrity（design-constraints 五维）</td></tr>
+    <tr><th>证据类型</th><td>源码行号、对比度计算（WCAG 2.1 公式）、eslint/tsc 静态检查、全站 grep 扫描；未做运行时渲染走查（见「未验证」）</td></tr>
+    <tr><th>窗口约束</th><td>tauri.conf.json：主窗口 1200×800，minWidth 960 / minHeight 640</td></tr>
+  </table>
+
+  <h2>结论（Conclusion）</h2>
+  <div class="bar">✅ <b>实现完整性</b>：TypeScript 类型检查通过（<code>npx tsc --noEmit</code>，2 GB heap 下 0 错误）；eslint 0 error / 560 warnings（未用变量与 hooks 反模式为主，无致命错误）。</div>
+  <div class="bar">✅ <b>浅色主题对比度基线良好</b>：brand700 主色 9.09:1、text.secondary 7.56:1、secondary gray500 4.52:1，均达 AA。</div>
+  <div class="bar">❌ <b>暗色主题与语义色存在全局对比度缺陷</b>：dark primary 仅 1.97:1；success/warning/error/info 四组语义色白字全部低于 4.5:1，且全站 58 处组件在使用。</div>
+  <div class="bar">❌ <b>图标无障碍缺口</b>：210 个 IconButton 中 204 个无 aria-label；全项目无任何 <code>prefers-reduced-motion</code> 支持。</div>
+  <div class="bar">⚠️ <b>主题一致性风险</b>：LibraryPage 整页靛蓝主题覆盖全局品牌紫；pages 下 74 处硬编码色。</div>
+
+  <h2>问题清单（Findings）</h2>
+
+  <div class="issue p1">
+    <span class="tag">P1 · THEMING / ACCESSIBILITY</span>
+    <h4>暗色主题 primary.main 与背景对比度仅 1.97:1（WCAG AA 失败）</h4>
+    <dl>
+      <dt>影响</dt><dd>暗色模式下所有 primary 主色文本、图标与描边控件不可辨读，属全局性障碍。</dd>
+      <dt>证据</dt><dd><code>src/theme/AppTheme.tsx:97-102</code> dark primary.main = brand[600] <code>#68409f</code>，on gray800/paper <code>#1f2937</code> 实测 <b>1.97:1</b>（普通文本需 4.5:1、图形/大文本需 3:1）。</dd>
+      <dt>最小修复</dt><dd>dark primary.main 提升 1–2 档（如 brand[500] <code>#8158be</code>，对 #1f2937 约 3.4:1）或为暗色单独指定加亮主色、避免直接复用 600 档。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p1">
+    <span class="tag">P1 · ACCESSIBILITY / THEMING</span>
+    <h4>语义色 contrastText 全为纯白，与 success/warning/error/info 主色全部低于 4.5:1</h4>
+    <dl>
+      <dt>影响</dt><dd>全站 58 处 <code>color="success|warning|error|info"</code> 的 Button / Chip / Badge 文字对比度不达标（见对比度矩阵），错误提示、保存成功、删除确认等关键状态文字低可读性。</dd>
+      <dt>证据</dt><dd><code>AppTheme.tsx:112-137</code> 四组语义色 contrastText 均为 <code>#ffffff</code>；实测：white on success green500 2.54:1、warning orange500 <b>2.12:1</b>、error red500 3.76:1、info blue500 3.68:1。使用点：LibraryPage:1925 删除按钮、SceneTabBar:886/899/1078、WorkbenchAiPanel:871、InlineChat:415 等。</dd>
+      <dt>最小修复</dt><dd>① 语义色 main 改用更深档（如 success green600 / warning orange600 / error red600 / info blue600）保持白字；或 ② 为 warning/success 这类浅色 main 换深色文字（gray900）。优先方案 ①，改动集中在 theme 一处即可全站生效。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p1">
+    <span class="tag">P1 · ACCESSIBILITY</span>
+    <h4>204/210 个 IconButton 缺少 aria-label，屏幕阅读器无法读出按钮含义</h4>
+    <dl>
+      <dt>影响</dt><dd>依赖读屏的用户几乎无法操作所有纯图标按钮（删除、关闭、下载、返回等），是不可访问路径。</dd>
+      <dt>证据</dt><dd>全站扫描：IconButton 共 210 处，仅 6 处带 aria-label；高发文件 WritingPage 38、SceneEditorPage 14、AiAgentPage 11、CodeWorkbench 9。项目内 <code>aria-label</code> 总出现数仅 23 处。</dd>
+      <dt>最小修复</dt><dd>为纯图标 IconButton 统一补 <code>aria-label</code>（有 Tooltip 的按钮也应显式标注，Tooltip 不替代名称）；可约定无标题 IconButton 一律要求 aria-label 作为 lint 规则。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p1">
+    <span class="tag">P1 · ACCESSIBILITY</span>
+    <h4>全项目无 prefers-reduced-motion 支持</h4>
+    <dl>
+      <dt>影响</dt><dd>对「减少动态效果」系统偏好敏感的用户（前庭障碍、注意力障碍）会暴露于所有动效：渐变过渡、hover 位移、抽屉展开等。</dd>
+      <dt>证据</dt><dd>全站 grep <code>prefers-reduced-motion</code> / <code>@media (prefers-</code> 0 命中；MUI 组件动画依赖 theme.transitions 默认开启。</dd>
+      <dt>最小修复</dt><dd>在 <code>AppTheme.tsx</code> 或全局 CSS 增加 <code>@media (prefers-reduced-motion: reduce)</code> 关闭非必要 transition/animation；MUI 可经 <code>createTheme({ transitions: { ... } })</code> 或在 <code>useMediaQuery('(prefers-reduced-motion: reduce)')</code> 下切换禁用。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p2">
+    <span class="tag">P2 · THEMING</span>
+    <h4>LibraryPage 整页覆盖靛蓝主题，与全局品牌紫冲突</h4>
+    <dl>
+      <dt>影响</dt><dd>侧边栏/顶栏保持品牌紫，页面内容切换为靛蓝系，主题跳变破坏全站一致性；且绕过全局 token（圆角 10 也独立于全局 6/12 体系）。</dd>
+      <dt>证据</dt><dd><code>src/pages/LibraryPage.tsx:900-937</code> 全新构造 <code>createTheme({ cssVariables:false, ... })</code>：primary <code>#4f46e5</code>、secondary <code>#6b5ce0</code>、独立 background/text/divider 色板；注释自述系绕开 appTheme.cssVariables 的实测决策。</dd>
+      <dt>最小修复</dt><dd>将「现代工作台靛蓝」收敛为全局主题 preset（AppTheme.tsx 已有 preset 机制 blue/green/orange/purple），LibraryPage 只声明 preset 名，不再内联整段主题；圆角并入全局 BORDER_RADIUS_MAP。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p2">
+    <span class="tag">P2 · THEMING</span>
+    <h4>pages 下 74 处硬编码色，体裁/画像/状态色未走 token</h4>
+    <dl>
+      <dt>影响</dt><dd>主题切换（暗色/品牌 preset）无法覆盖这些颜色，且与 palette 两层口径并存，长期维护成本高。</dd>
+      <dt>证据</dt><dd>grep <code>#[0-9a-fA-F]{3,8}</code>：LibraryPage 908-932（局部主题段）、WritingPage 1030-1035（阅读排版 #1a1a1a/#666/#4A338F）、WritingPage 2368-2376（#b25e12/#d9822b）、SceneEditorPage 133-400（体裁/画像色）、writingSchema.ts:23-26（novel #4A338F / essay #0ea5e9 / poetry #f59e0b / script #10b981）。</dd>
+      <dt>最小修复</dt><dd>体裁与状态色并入 themePrimitives ramp（绿色系已有 green/orange/blue），组件经 <code>palette.*</code> 引用；页内排版色（1011-1044 导出 HTML）属导出文件可保留但建议注释来源。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p2">
+    <span class="tag">P2 · ACCESSIBILITY</span>
+    <h4>体裁色对比度不达标：poetry #f59e0b 2.05:1、script #10b981 约 2.1:1</h4>
+    <dl>
+      <dt>影响</dt><dd>诗歌/剧本体裁标签文字在浅色背景上低对比，状态信息不可辨。</dd>
+      <dt>证据</dt><dd><code>writingSchema.ts:25-26</code>；实测 f59e0b on #f8fafc = 2.05:1、10b981 on #f8fafc ≈ 2.1:1（均 &lt; 4.5:1）。</dd>
+      <dt>最小修复</dt><dd>改用深档（poetry → orange700 #a87221 约 5:1；script → green700 #047857 约 5.6:1）或置为图标/描边 + 文字另用深色。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p2">
+    <span class="tag">P2 · ACCESSIBILITY</span>
+    <h4>AI 品牌渐变局部对比度不足：三色渐变段 2.72:1、渐变文字 4.23-4.47:1</h4>
+    <dl>
+      <dt>影响</dt><dd>AI 标识/头像内白图标在渐变浅色段（#a78bfa）低于 3:1 图形门槛；渐变描边文字低于 4.5:1 文字门槛。</dd>
+      <dt>证据</dt><dd><code>AiAgentPage.tsx:397</code> 渐变 <code>#6366f1→#8b5cf6→#a78bfa</code> 上白 SmartToyIcon：white on #a78bfa = 2.72:1；<code>AiAgentPage.tsx:410</code> 渐变文字 #6366f1/#8b5cf6 白字 4.47/4.23:1。aiBrand.ts AI_GRADIENT 同源。</dd>
+      <dt>最小修复</dt><dd>渐变收窄到 500/600 档区间（去掉 #a78bfa 这类 >500 亮端），或渐变文字改用深色 rgba overlay 后再上白字。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p2">
+    <span class="tag">P2 · IMPLEMENTATION INTEGRITY</span>
+    <h4>MainGrid 仪表盘 statData 硬编码 value '0' 占位</h4>
+    <dl>
+      <dt>影响</dt><dd>仪表盘统计卡显示固定 0，用户会误读为真实统计，属误导性 UI。</dd>
+      <dt>证据</dt><dd><code>src/components/MainGrid.tsx</code> statData 中 value 均为字符串 <code>'0'</code>，无真实数据接线。</dd>
+      <dt>最小修复</dt><dd>接真实计数（books/scenes/agents 等 store 数据）或标注「统计功能建设中」；合入前至少避免渲染成数值 0。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p2">
+    <span class="tag">P2 · PERFORMANCE / IMPLEMENTATION</span>
+    <h4>eslint 560 warnings：setState-in-effect 反模式与大量未用变量/导入</h4>
+    <dl>
+      <dt>影响</dt><dd>WritingStatsDialog 等组件在 effect 中 setState 可能触发多余渲染；未用变量指示死代码与漏删分支，增加维护噪音。</dd>
+      <dt>证据</dt><dd>eslint 0 error / 560 warnings；react-hooks/set-state-in-effect 命中 WritingStatsDialog.tsx:48 等；未用变量：codeWorkbenchStore.ts:961、componentStore.ts:30、reportGenerator.ts、studioBook.ts:248、writingBoards.ts:11。</dd>
+      <dt>最小修复</dt><dd>将 setState 移到事件/派生数据路径；分批清理未用导入（可先加 <code>no-unused-vars</code> 为 error 逐步清零）。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p3">
+    <span class="tag">P3 · RESPONSIVE</span>
+    <h4>LibraryPage 多处 noWrap + fixed flex+flexShrink，长标题截断无提示</h4>
+    <dl>
+      <dt>影响</dt><dd>超长书名/作者在窄窗下被截断且无 ellipsis 溢出提示。</dd>
+      <dt>证据</dt><dd>LibraryPage.tsx:809/842/1008/1149/1304 等 <code>noWrap</code> 组合；1008 行 <code>flexShrink: 0</code> 可能把周边挤压出容器。</dd>
+      <dt>最小修复</dt><dd>对标题统一 <code>textOverflow:'ellipsis'</code> + 非零 <code>minWidth</code>；工具提示或 title 属性承接完整文本。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p3">
+    <span class="tag">P3 · RESPONSIVE / IMPLEMENTATION</span>
+    <h4>SceneEditor 图标模式策略仅注释约定，960px 下限布局未验证</h4>
+    <dl>
+      <dt>影响</dt><dd>≤1280 窗口切换图标模式的策略有设计意图（SceneEditorPage.tsx:468 注释），但未被代码量化执行，960 极窄窗口下的面板挤压风险未知。</dd>
+      <dt>证据</dt><dd><code>SceneEditorPage.tsx:468</code> 注释：「配合 tauri.conf.json 的 minWidth=960（≤1280 一律图标模式），窗口永远缩不到文字会换行的宽度」；未发现对应媒体查询实现。</dd>
+      <dt>最小修复</dt><dd>将图标模式阈值落实为 <code>useMediaQuery</code> 断点或在 Layout 层设置；运行时抽查 960×640 各主要面板。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p3">
+    <span class="tag">P3 · ACCESSIBILITY</span>
+    <h4>WritingPage 完成提示小字对比度 4.36:1</h4>
+    <dl>
+      <dt>影响</dt><dd>11.5px 提示文字略低于 4.5:1，弱视用户可读性边际。</dd>
+      <dt>证据</dt><dd>WritingPage.tsx:2368-2376 文字 <code>#b25e12</code> on rgba(217,130,43,0.12) —— 对浅底近似 4.36:1。</dd>
+      <dt>最小修复</dt><dd>文字切为 orange800 <code>#875b1c</code> 或加深底透明度组合，即可过 4.5:1。</dd>
+    </dl>
+  </div>
+
+  <div class="issue p3">
+    <span class="tag">P3 · IMPLEMENTATION / I18N</span>
+    <h4>LibraryPage 语言名 '中文'/'English' 硬编码绕过 i18n</h4>
+    <dl>
+      <dt>影响</dt><dd>语言标签展示值与 i18n 体系脱节；新增语言需同步改判断分支。</dd>
+      <dt>证据</dt><dd>LibraryPage.tsx:1792-1796 <code>detailTarget.language === 'zh' ? '中文' : 'English'</code>。</dd>
+      <dt>最小修复</dt><dd>纳入 i18n key 或复用语言 self-name 映射常量表。</dd>
+    </dl>
+  </div>
+
+  <h2>对比度矩阵（证据）</h2>
+  <table>
+    <tr><th>场景</th><th>前景 / 背景</th><th>实测</th><th>门槛</th><th>判定</th></tr>
+    <tr><td>LIGHT primary 主色</td><td>#4a338f / #FBF7EF</td><td>9.09:1</td><td>4.5</td><td style="color:var(--ok)">通过</td></tr>
+    <tr><td>LIGHT text.secondary</td><td>#4b5563 / #ffffff</td><td>7.56:1</td><td>4.5</td><td style="color:var(--ok)">通过</td></tr>
+    <tr><td>LIGHT secondary gray500</td><td>#6b7280 / 浅底</td><td>4.52:1</td><td>4.5</td><td style="color:var(--ok)">通过</td></tr>
+    <tr><td>DARK text.secondary</td><td>#9ca3af / 深底</td><td>6.99:1</td><td>4.5</td><td style="color:var(--ok)">通过</td></tr>
+    <tr><td><b>DARK primary.main</b></td><td><b>#68409f / #1f2937</b></td><td><b>1.97:1</b></td><td><b>4.5 / 3.0</b></td><td style="color:var(--p1)"><b>失败</b></td></tr>
+    <tr><td>DARK primary（另档 #8158be）</td><td>#8158be / #1f2937</td><td>3.40:1</td><td>3.0 图形</td><td style="color:var(--p1)">图形可 / 文字否</td></tr>
+    <tr><td>SEMANTIC success 按钮</td><td>#fff / green500 #10b981</td><td>2.54:1</td><td>4.5</td><td style="color:var(--p1)">失败</td></tr>
+    <tr><td>SEMANTIC warning 按钮</td><td>#fff / orange500 #e0a93b</td><td>2.12:1</td><td>4.5</td><td style="color:var(--p1)">失败</td></tr>
+    <tr><td>SEMANTIC error 按钮</td><td>#fff / red500 #ef4444</td><td>3.76:1</td><td>4.5</td><td style="color:var(--p1)">失败</td></tr>
+    <tr><td>SEMANTIC info 按钮</td><td>#fff / blue500 #3b82f6</td><td>3.68:1</td><td>4.5</td><td style="color:var(--p1)">失败</td></tr>
+    <tr><td>AI 渐变文字</td><td>#fff / #6366f1</td><td>4.47:1</td><td>4.5</td><td style="color:var(--p2)">边际失败</td></tr>
+    <tr><td>AI 渐变文字</td><td>#fff / #8b5cf6</td><td>4.23:1</td><td>4.5</td><td style="color:var(--p2)">边际失败</td></tr>
+    <tr><td>AI 三色渐变头像</td><td>#fff / #a78bfa</td><td>2.72:1</td><td>3.0 图形</td><td style="color:var(--p2)">失败</td></tr>
+    <tr><td>体裁 poetry</td><td>#f59e0b / #f8fafc</td><td>2.05:1</td><td>4.5</td><td style="color:var(--p2)">失败</td></tr>
+    <tr><td>体裁 script</td><td>#10b981 / #f8fafc</td><td>≈2.1:1</td><td>4.5</td><td style="color:var(--p2)">失败</td></tr>
+    <tr><td>LIBRARY 靛蓝 main（局部主题）</td><td>#4f46e5 / #ffffff</td><td>6.29:1</td><td>4.5</td><td style="color:var(--ok)">通过</td></tr>
+    <tr><td>LIBRARY dark 深字 / 亮靛蓝</td><td>#0f172a / #818cf8</td><td>5.98:1</td><td>4.5</td><td style="color:var(--ok)">通过</td></tr>
+    <tr><td>Writing 完成提示</td><td>#b25e12 / 浅底</td><td>4.36:1</td><td>4.5</td><td style="color:var(--p3)">边际失败</td></tr>
+  </table>
+
+  <h2>未验证（Not Verified）</h2>
+  <table>
+    <tr><th>项</th><th>原因 / 影响</th></tr>
+    <tr><td>真实运行时渲染走查（三档窗口、暗色、长文案）</td><td>本审计基于源码 + 静态计算；MUI 实际 computed style、字体渲染未截图取证</td></tr>
+    <tr><td>键盘导航全流程 / 焦点环</td><td>未做浏览器级逐 Tab 走查；建议合入前跑一次 axe/Playwright 快照</td></tr>
+    <tr><td>触摸目标尺寸（桌面为主，触屏设备）</td><td>设备为桌面 App，未覆盖触控场景</td></tr>
+    <tr><td>PublishedScenes 渐变封面</td><td>渐变仅作装饰背景（CardContent 上白底文字），未发现文字压在渐变上，故不判失败；未运行时复核</td></tr>
+    <tr><td>导出 HTML/打印样式</td><td>WritingPage 导出 HTML 内联色 #1a1a1a/#666/#4A338F 为导出文件样式，非 UI 面，未纳入缺陷</td></tr>
+  </table>
+
+  <h2>保留项（Preserved）</h2>
+  <ul>
+    <li><b>品牌色事实</b>：品牌紫（brand700 #4a338F / brand800 #3a286F）与品牌金（orange 金 accent ramp）是产品识别资产，修复语义色对比度不能动品牌色本身，只能调整组件用色档位。</li>
+    <li><b>LibraryPage 靛蓝风格</b>：若「现代工作台靛蓝」是产品有意设计，则保留风格但应收敛为全局 preset，而非页面内硬编码。</li>
+    <li><b>体裁/画像多色体系</b>：novel/essay/poetry/script 颜色是业务语义（poetry/script 为预留域），仅修对比度档位、不换语义。</li>
+    <li><b>窗口下限</b>：minWidth 960 是产品对「全功能桌面编辑器」的取舍（保证 SceneEditor 图标模式可用），不以小窗横向溢出为由放宽。</li>
+  </ul>
+
+  <h2>建议修复顺序</h2>
+  <table>
+    <tr><th>批次</th><th>内容</th><th>改动面</th></tr>
+    <tr><td>批次 1（对比度）</td><td>AppTheme 语义色换深档 + dark primary 提亮；体裁色切深档</td><td><code>AppTheme.tsx / themePrimitives.ts / writingSchema.ts</code> 约 3 文件，全站生效</td></tr>
+    <tr><td>批次 2（无障碍）</td><td>IconButton 补 aria-label（204 处）+ prefers-reduced-motion 兜底</td><td>各页面 + AppTheme / index.css</td></tr>
+    <tr><td>批次 3（一致性）</td><td>LibraryPage 靛蓝收敛为 preset；pages 硬编码色抽 token</td><td>AppTheme.tsx + LibraryPage.tsx + 分类色文件</td></tr>
+    <tr><td>批次 4（卫生）</td><td>MainGrid 数据接线或隐藏占位；eslint warnings 分批清零</td><td>MainGrid.tsx、store/组件</td></tr>
+  </table>
+
+  <footer>审计生成：design-suite review 通道（design-constraints）· 源码行号证据截至本轮取证 · 修复建议为最小改动，未对代码实施任何修改（审计仅至 findings-ready）</footer>
+</div>
+</body>
+</html>
