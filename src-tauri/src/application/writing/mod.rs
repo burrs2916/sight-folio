@@ -214,7 +214,10 @@ fn collect_asset(
     if rel_to_href.contains_key(rel) {
         return Ok(()); // 同一张图在多处引用，只打包一次
     }
+    // 与 DOCX/PDF 导出一致：相对引用优先经 resolve_asset_ref 解析到应用数据目录；
+    // 解析失败（如外部绝对路径 / URL 风格引用）则按字面路径直接读取。
     let abs = crate::commands::asset::resolve_asset_ref(rel.to_string())
+        .or_else(|_| Ok::<String, String>(rel.to_string()))
         .map_err(|e| AppError::Internal(format!("resolve asset {rel}: {e}")))?;
     let bytes = std::fs::read(&abs)
         .map_err(|e| AppError::Internal(format!("read asset {abs}: {e}")))?;
@@ -965,5 +968,160 @@ mod export_smoke_tests {
         assert!(names.iter().any(|n| n.contains("word/document.xml")), "missing document.xml: {names:?}");
         assert!(names.iter().any(|n| n.contains("word/media/")), "image not embedded: {names:?}");
         println!("[smoke] docx ok: {} entries -> {}", names.len(), out.display());
+    }
+}
+
+#[cfg(test)]
+mod epub_export_smoke_tests {
+    use super::*;
+    use std::path::Path;
+
+    /// 读取 zip 中某条目为字符串（ZipFile 有 Drop，独立作用域避免借用冲突）。
+    fn read_entry(zip: &mut zip::ZipArchive<std::fs::File>, name: &str) -> String {
+        let mut buf = String::new();
+        {
+            let mut f = zip.by_name(name).expect(name);
+            use std::io::Read;
+            f.read_to_string(&mut buf).unwrap();
+        }
+        buf
+    }
+
+    fn smoke_chapters(with_cover: bool) -> Vec<EpubChapter> {
+        // 一张临时 PNG，绝对路径引用（与 export_smoke_tests 同约定，resolve_asset_ref 直接读）
+        let dir = std::env::temp_dir().join("sightfolio_epub_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let png_path = dir.join("cover_illus.png");
+        if !png_path.exists() {
+            let img = image::RgbImage::from_fn(80, 60, |x, y| {
+                image::Rgb([(x * 2) as u8, (y * 3) as u8, 128u8])
+            });
+            img.save(&png_path).unwrap();
+        }
+        let img_tag = format!(r#"<p><img data-asset="{}" alt="插图"></p>"#, png_path.display());
+        vec![
+            EpubChapter {
+                title: "第一章 风起".into(),
+                content: format!(r#"<h1>第一章 风起</h1><p>长夜漫漫，雨敲窗棂。</p>{img_tag}"#),
+                cover: if with_cover { Some(png_path.to_string_lossy().to_string()) } else { None },
+            },
+            EpubChapter {
+                title: "第二章 灯下".into(),
+                content: r#"<p>她翻开了旧信。</p>"#.into(),
+                cover: None,
+            },
+        ]
+    }
+
+    /// 端到端：真实生成 .epub，解 zip 校验 EPUB3 结构契约
+    /// （mimetype 首条目 / container.xml → content.opf / nav.xhtml / 各章 xhtml / 插画入包）。
+    #[test]
+    fn export_epub_produces_valid_epub3_structure() {
+        let out = std::env::temp_dir()
+            .join("sightfolio_epub_test")
+            .join("smoke.epub");
+        let _ = std::fs::remove_file(&out);
+        let r = crate::application::writing::export_epub(
+            "测试之书".into(),
+            Some("端到端校验用书".into()),
+            smoke_chapters(true),
+            out.to_string_lossy().to_string(),
+        );
+        assert!(r.is_ok(), "export failed: {:?}", r.err());
+        assert!(out.exists());
+
+        let f = std::fs::File::open(&out).unwrap();
+        let mut zip = zip::ZipArchive::new(f).expect("epub must be a valid zip");
+        let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
+
+        // 1. mimetype 首条目、内容精确
+        let buf = read_entry(&mut zip, "mimetype");
+        assert_eq!(buf.as_bytes(), b"application/epub+zip", "mimetype content must be exact");
+        assert_eq!(names[0], "mimetype", "mimetype must be the first zip entry");
+
+        // 2. container.xml 指向 content.opf
+        let cbuf = read_entry(&mut zip, "META-INF/container.xml");
+        assert!(cbuf.contains("OEBPS/content.opf"), "container must point to content.opf");
+
+        // 3. content.opf：元数据 + manifest 含 nav/章节/插画 + spine 章节顺序
+        let obuf = read_entry(&mut zip, "OEBPS/content.opf");
+        assert!(obuf.contains("<dc:title>测试之书</dc:title>"), "missing dc:title");
+        assert!(obuf.contains("<dc:description>端到端校验用书</dc:description>"), "missing description");
+        assert!(obuf.contains("id=\"nav\" href=\"nav.xhtml\""), "missing nav manifest item");
+        assert!(obuf.contains("href=\"chapter_0.xhtml\""), "missing chapter_0 manifest item");
+        assert!(obuf.contains("href=\"chapter_1.xhtml\""), "missing chapter_1 manifest item");
+        assert!(obuf.contains("media-type=\"image/png\""), "missing image manifest item");
+        assert!(obuf.contains("<itemref idref=\"chap_0\"/>"), "spine must order chapter 0 first");
+        assert!(obuf.contains("<itemref idref=\"chap_1\"/>"), "spine must include chapter 1");
+
+        // 4. nav.xhtml（EPUB3 目录含全部章标题）
+        let nbuf = read_entry(&mut zip, "OEBPS/nav.xhtml");
+        assert!(nbuf.contains("epub:type=\"toc\""), "nav must be epub:toc");
+        assert!(nbuf.contains("第一章 风起"), "nav missing chapter 1 title");
+        assert!(nbuf.contains("第二章 灯下"), "nav missing chapter 2 title");
+
+        // 5. 章节 xhtml：正文入包，插图 src 改写为包内路径
+        let x0 = read_entry(&mut zip, "OEBPS/chapter_0.xhtml");
+        assert!(x0.contains("<h1>第一章 风起</h1>"), "chapter body missing in xhtml");
+        assert!(x0.contains("src=\"images/cover_illus.png\""), "img must be rewritten to packaged href");
+        assert!(x0.contains("chapter-cover"), "cover image must be prepended in chapter");
+        assert!(Path::new(&out).exists(), "epub file must exist on disk");
+
+        // 6. 插画实际入包（正文引用 + 章头图同图只打包一次）
+        let img_count = names.iter().filter(|n| n.starts_with("OEBPS/images/")).count();
+        assert_eq!(img_count, 1, "same image referenced twice must be packaged once: {names:?}");
+        println!("[smoke] epub ok: {} entries -> {}", names.len(), out.display());
+    }
+
+    /// 无插画/无描述的最小书：export 仍产出合法结构（无 description 标签、无 images）。
+    #[test]
+    fn export_epub_without_assets_and_description() {
+        let out = std::env::temp_dir()
+            .join("sightfolio_epub_test")
+            .join("minimal.epub");
+        let _ = std::fs::remove_file(&out);
+        let r = crate::application::writing::export_epub(
+            "无图之书".into(),
+            None,
+            vec![
+                EpubChapter { title: "第一章".into(), content: "<p>无图章节一。</p>".into(), cover: None },
+                EpubChapter { title: "第二章".into(), content: "<p>无图章节二。</p>".into(), cover: None },
+            ],
+            out.to_string_lossy().to_string(),
+        );
+        assert!(r.is_ok(), "export failed: {:?}", r.err());
+        let f = std::fs::File::open(&out).unwrap();
+        let mut zip = zip::ZipArchive::new(f).unwrap();
+        let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
+        assert!(!names.iter().any(|n| n.starts_with("OEBPS/images/")), "no images expected");
+        let obuf = read_entry(&mut zip, "OEBPS/content.opf");
+        assert!(!obuf.contains("<dc:description>"), "description must be absent when None");
+        assert!(obuf.contains("<dc:title>无图之书</dc:title>"));
+    }
+
+    /// 章标题含需要 XML 转义的字符（& < >）时，opf/nav/xhtml 全部转义且不破坏结构。
+    #[test]
+    fn export_epub_escapes_xml_in_titles() {
+        let out = std::env::temp_dir()
+            .join("sightfolio_epub_test")
+            .join("escape.epub");
+        let _ = std::fs::remove_file(&out);
+        let r = crate::application::writing::export_epub(
+            "A & B <book>".into(),
+            None,
+            vec![EpubChapter {
+                title: "第1章 <序> & 后记".into(),
+                content: "<p>x</p>".into(),
+                cover: None,
+            }],
+            out.to_string_lossy().to_string(),
+        );
+        assert!(r.is_ok(), "export failed: {:?}", r.err());
+        let f = std::fs::File::open(&out).unwrap();
+        let mut zip = zip::ZipArchive::new(f).unwrap();
+        let obuf = read_entry(&mut zip, "OEBPS/content.opf");
+        assert!(obuf.contains("A &amp; B &lt;book&gt;"), "dc:title must be escaped: {obuf}");
+        let nbuf = read_entry(&mut zip, "OEBPS/nav.xhtml");
+        assert!(nbuf.contains("第1章 &lt;序&gt; &amp; 后记"), "nav title must be escaped: {nbuf}");
     }
 }
