@@ -6,7 +6,6 @@ import { buildCoverageSection } from "../providers/scanCoverage";
 import { buildTrendSection } from "../providers/scanTrend";
 import { buildRegressionSection } from "../providers/scanEntities";
 import { buildEntityRegressionReport } from "../entityRegression";
-import { summarizeChain, buildCIPipelineScript, buildSingleTestCommand } from "../../editor/utils/impactChain";
 import { summarizeFlowPortrait } from "../../editor/utils/dataFlowPortrait";
 import { patternLabel, QUADRANT_META, QUADRANT_HINT, DUPLICATION_LABELS } from "../../editor/utils/fileInsights";
 import type { ScanSnapshot } from "../providers/scanSections";
@@ -119,29 +118,6 @@ describe("AI 正文语言切换验证（第十二轮）", () => {
     expect(reg.note).toContain("No entity boards recorded yet.");
     expect(reg.note).not.toMatch(/[\u4e00-\u9fff]/);
 
-    // 影响链总结 + CI 脚本注释（impactChain.ts）
-    const chainNone = summarizeChain({
-      source: "none",
-      counts: { totalFiles: 0, upstreamFiles: 0, downstreamFiles: 0, symbols: 0 },
-      reachedDepth: 0,
-      pruned: 0,
-      truncated: false,
-    } as never);
-    expect(chainNone).toContain("no cross-file propagation");
-    expect(chainNone).not.toMatch(/[\u4e00-\u9fff]/);
-
-    const script = buildCIPipelineScript({
-      tests: [],
-      impactedNonTestFiles: 1,
-      uncovered: true,
-    } as never);
-    expect(script).toContain("No test files in the impact area");
-    expect(script).not.toMatch(/[\u4e00-\u9fff]/);
-
-    // 规则引擎（ruleEngine.ts）—— 未知运行器命令 L() 化
-    const cmd = buildSingleTestCommand("unknown", "src/hot.py");
-    expect(cmd).toContain("Cannot detect test runner");
-    expect(cmd).not.toMatch(/[\u4e00-\u9fff]/);
 
     // 数据流画像一句话结论（dataFlowPortrait.ts）
     const flow = summarizeFlowPortrait({

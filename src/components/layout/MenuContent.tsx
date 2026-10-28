@@ -44,13 +44,7 @@ function getNavGroups(): NavGroupDef[] {
         { text: t('nav.published'), icon: <BookIcon sx={{ fontSize: 19 }} />, path: '/published' },
       ],
     },
-    {
-      // 工作台（次级）：工作室 = 场景画布 + 代码分析工作台，属进阶工具而非创作主入口
-      id: 'workbench',
-      label: t('nav.workbench'),
-      items: [{ text: t('nav.analyzer'), icon: <LayersRoundedIcon sx={{ fontSize: 19 }} />, path: '/analyzer' }],
-    },
-  ];
+      ];
 }
 
 /** 选中态导航项样式（主色指示条 + 主色 10% 底） */

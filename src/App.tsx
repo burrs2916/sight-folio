@@ -10,10 +10,8 @@ import SettingsDrawer from './components/layout/SettingsDrawer';
 import GlobalToast from './components/ui/GlobalToast';
 import {
   BookshelfPage,
-  SceneEditorPage,
-  PublishedScenesPage,
-  ScenePreviewPage,
   AiAgentPage,
+  PublishedScenesPage,
   WritingPage,
   LibraryPage,
 } from './pages';
@@ -48,7 +46,7 @@ function resolveMode(mode: ThemeMode): 'light' | 'dark' {
 // 独立页面（无侧边栏）：预览 / 组件预览。
 // 写作台不进本表：主窗口 /writing 保持原布局（侧边栏+导航栏）；
 // 仅写作台独立窗口（query 带 desk=1 标记）走下方沉浸分支。
-const STANDALONE_ROUTES = ['/preview'];
+const STANDALONE_ROUTES: string[] = [];
 
 function isStandaloneRoute(pathname: string): boolean {
   return STANDALONE_ROUTES.some((r) => pathname.startsWith(r));
@@ -130,7 +128,6 @@ function AppLayout() {
   // AI 助手页（/ai）同样要求不留边距（用户 2026-10-05 点名）。
   // 这三条路由全出血，其余页面维持原内容壳不动。
   const isFullBleedRoute =
-    location.pathname.startsWith('/analyzer') ||
     location.pathname.startsWith('/library') ||
     location.pathname.startsWith('/ai');
 
@@ -154,7 +151,6 @@ function AppLayout() {
   if (standalone) {
     return (
       <Routes>
-        <Route path="/preview/:sceneId" element={<ScenePreviewPage />} />
         {/* 写作台独立窗口：沉浸无 chrome，消费 query 定位参数（见 WritingPage） */}
         <Route path="/writing" element={<WritingPage />} />
       </Routes>
@@ -198,7 +194,6 @@ function AppLayout() {
           >
             <Routes>
               <Route path="/" element={<BookshelfPage />} />
-              <Route path="/analyzer" element={<SceneEditorPage />} />
               <Route path="/published" element={<PublishedScenesPage />} />
               <Route path="/ai" element={<AiAgentPage />} />
               <Route path="/library" element={<LibraryPage />} />
