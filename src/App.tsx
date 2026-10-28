@@ -20,13 +20,11 @@ import { useSceneStore } from './store/sceneStore';
 import { useI18n } from './i18n';
 import { useLayoutStore } from './store/layoutStore';
 import { useAppearanceStore } from './store/appearanceStore';
-import { useDataSourceStore } from './store/datasourceStore';
 import { useAuthStore } from './store/authStore';
 import { useProjectStore } from './store/projectStore';
 import { useWritingStore, WRITING_CONTENT_SAVED_EVENT, type WritingContentSavedPayload } from './store/writingStore';
 import { DESK_GOTO_VIEW_EVENT, applyDeskGotoView, type ChapterJumpPayload } from './utils/writingDeskJump';
 import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
-import { useCanvasWorkbenchLink, useWorkbenchFocusCanvasListener } from './editor/utils/canvasWorkbenchLink';
 import { startAnalysisScheduler, stopAnalysisScheduler } from './ai/analysisScheduler';
 import type { ThemeMode } from './store/themeStore';
 import { useEffect, useMemo } from 'react';
@@ -61,12 +59,6 @@ function isWritingDeskWindow(pathname: string): boolean {
     new URLSearchParams(window.location.search).has('desk')
   );
 }
-
-// ─── 封存域开关（2026-10-22 产品决策：遗留资产封存降级）───
-// 代码分析工作台 + 数据源集成保留代码、停止投入；应用启动不再初始化这两个域
-// （数据源 loadFromBackend 会对已配置连接真实建连，文件监视挂的是代码分析域监听）。
-// 恢复方式：改回 false 即恢复原启动行为；画布数据绑定等能力代码原样保留。
-const SEAL_LEGACY_DOMAINS = true;
 
 function AppLayout() {
   // 全局语言订阅：切换语言时强制整棵树重渲染。
@@ -221,12 +213,6 @@ export default function App() {
   const layoutInit = useLayoutStore((state) => state.init);
   const appearanceInit = useAppearanceStore((state) => state.init);
   const authInit = useAuthStore((state) => state.init);
-  const loadDataSources = useDataSourceStore((state) => state.loadFromBackend);
-  const initFileWatcher = useProjectStore((state) => state.initFileWatcher);
-
-  // 画布 ↔ 代码工作台 双向联动（主窗口侧：订阅选中态 + 监听工作台反向聚焦）
-  useCanvasWorkbenchLink();
-  useWorkbenchFocusCanvasListener();
 
   const resolvedMode = useMemo(() => resolveMode(themeConfig.mode), [themeConfig.mode]);
 
@@ -235,12 +221,7 @@ export default function App() {
     themeInit();
     appearanceInit();
     authInit();
-    if (!SEAL_LEGACY_DOMAINS) {
-      loadDataSources();
-      // 注册文件变更监视事件监听（幂等）；写作台独立窗口不挂代码分析域的文件监视
-      if (!isWritingDeskWindow(window.location.pathname)) initFileWatcher();
-    }
-  }, [layoutInit, themeInit, appearanceInit, authInit, loadDataSources, initFileWatcher]);
+  }, [layoutInit, themeInit, appearanceInit, authInit]);
 
   // 自动分析调度心跳。
   //
