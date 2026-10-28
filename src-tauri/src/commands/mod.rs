@@ -23,7 +23,6 @@ pub mod design_patterns;
 pub mod file_metrics;
 pub mod file_watcher;
 pub mod git_history;
-pub mod icons;
 pub mod logger;
 /// 操作系统级辅助命令（Reveal in File Manager 等，仅依赖 std）
 pub mod os;
@@ -62,7 +61,6 @@ pub use dead_code::*;
 pub use file_metrics::*;
 pub use file_watcher::*;
 pub use git_history::*;
-pub use icons::*;
 pub use logger::*;
 pub use parser_capabilities::*;
 pub use project_scan::*;
