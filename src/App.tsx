@@ -24,7 +24,6 @@ import { useAuthStore } from './store/authStore';
 import { useProjectStore } from './store/projectStore';
 import { useWritingStore, WRITING_CONTENT_SAVED_EVENT, type WritingContentSavedPayload } from './store/writingStore';
 import { DESK_GOTO_VIEW_EVENT, applyDeskGotoView, type ChapterJumpPayload } from './utils/writingDeskJump';
-import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
 import { startAnalysisScheduler, stopAnalysisScheduler } from './ai/analysisScheduler';
 import type { ThemeMode } from './store/themeStore';
 import { useEffect, useMemo } from 'react';
@@ -258,19 +257,6 @@ export default function App() {
     return <Box sx={{ width: 0, height: 0 }} />;
   }
 
-  // 独立原生代码工作台窗口：URL 带 workbench=1 query 时只渲染工作台，不加载主布局。
-  const isWorkbenchWindow =
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('workbench');
-  if (isWorkbenchWindow) {
-    return (
-      <BrowserRouter>
-        <AppTheme config={themeConfig}>
-          <CssBaseline enableColorScheme />
-          <CodeWorkbenchStandalone />
-        </AppTheme>
-      </BrowserRouter>
-    );
-  }
 
   return (
     <BrowserRouter>

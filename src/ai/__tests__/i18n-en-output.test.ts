@@ -6,7 +6,6 @@ import { buildCoverageSection } from "../providers/scanCoverage";
 import { buildTrendSection } from "../providers/scanTrend";
 import { buildRegressionSection } from "../providers/scanEntities";
 import { buildEntityRegressionReport } from "../entityRegression";
-import { summarizeFlowPortrait } from "../../editor/utils/dataFlowPortrait";
 import { patternLabel, QUADRANT_META, QUADRANT_HINT, DUPLICATION_LABELS } from "../../editor/utils/fileInsights";
 import type { ScanSnapshot } from "../providers/scanSections";
 
@@ -118,13 +117,6 @@ describe("AI 正文语言切换验证（第十二轮）", () => {
     expect(reg.note).toContain("No entity boards recorded yet.");
     expect(reg.note).not.toMatch(/[\u4e00-\u9fff]/);
 
-
-    // 数据流画像一句话结论（dataFlowPortrait.ts）
-    const flow = summarizeFlowPortrait({
-      summary: { totalFunctions: 0, sinks: 0, conduits: 0, blockers: 0, truncated: 0, topSink: null },
-    } as never);
-    expect(flow).toContain("no summary data");
-    expect(flow).not.toMatch(/[\u4e00-\u9fff]/);
 
     // 文件洞察注册数据 key（fileInsights.ts）
     expect(resolveFragments(DUPLICATION_LABELS.extreme)).toBe("Nearly a copy");
