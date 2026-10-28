@@ -7,7 +7,6 @@
 export * from './core';
 export * from './auth';
 export * from './settings';
-export * from './datasource';
 export * from './analysis';
 export * from './projectScan';
 export * from './codeChange';
