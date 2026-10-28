@@ -13,10 +13,12 @@ import {
   chaptersOfSetting,
   chapterPath,
   settingUsage,
+  relatedSettingsOf,
+  relationTargetName,
   subtreeAccount,
   parseChapterCover,
 } from '../writingOutline';
-import type { WritingChapter, WritingOutline } from '../../services/tauri';
+import type { WritingChapter, WritingOutline, WritingSetting, WritingRelation } from '../../services/tauri';
 
 /** 带 extra 的节拍（挂载测试用） */
 function beatEx(id: string, chapterId: string | null, sortOrder: number, extra: unknown): WritingOutline {
@@ -270,5 +272,92 @@ describe('parseChapterCover（章/卷封面唯一口径：宽容解析，绝不�
   it('非字符串 / 空字符串 coverImage 不算封面', () => {
     expect(parseChapterCover('{"coverImage":123}')).toBeUndefined();
     expect(parseChapterCover('{"coverImage":""}')).toBeUndefined();
+  });
+});
+
+describe('relatedSettingsOf（A3：反向引用返回全部而非第一条）', () => {
+  /** 构造带 relations 的设定，extra 直接落 JSON（与真实存储同形态） */
+  function settingWith(id: string, name: string, relations?: WritingRelation[]): WritingSetting {
+    return {
+      id,
+      bookId: 'b1',
+      kind: 'character',
+      name,
+      subtitle: '',
+      description: '',
+      extra: relations ? JSON.stringify({ relations }) : '{}',
+      sortOrder: 0,
+      createdAt: 0,
+      updatedAt: 0,
+    };
+  }
+
+  it('同一引用方挂多条不同 type 的关系行时全部返回（不再只取第一条）', () => {
+    // A 对 X 同时有「朋友」和「战友」两条关系；C 对 X 有「对手」。
+    const settings = [
+      settingWith('a', 'A', [
+        { targetId: 'x', target: 'X', type: '朋友' },
+        { targetId: 'x', target: 'X', type: '战友' },
+      ]),
+      settingWith('x', 'X'),
+      settingWith('c', 'C', [{ targetId: 'x', target: 'X', type: '对手' }]),
+    ];
+    const refs = relatedSettingsOf(settings, 'x');
+    expect(refs).toHaveLength(3);
+    const byId = refs.reduce<Record<string, string[]>>((acc, r) => {
+      (acc[r.setting.id] ??= []).push(r.relationType);
+      return acc;
+    }, {});
+    expect(byId.a.sort()).toEqual(['战友', '朋友']);
+    expect(byId.c).toEqual(['对手']);
+  });
+
+  it('无 targetId 的空关系行 / 指向别处的行不误报', () => {
+    const settings = [
+      settingWith('a', 'A', [
+        { target: '自由文本', type: '旁白' },
+        { targetId: 'y', target: 'Y', type: '敌人' },
+      ]),
+      settingWith('x', 'X'),
+    ];
+    expect(relatedSettingsOf(settings, 'x')).toEqual([]);
+  });
+
+  it('空 targetId 直接返回空数组', () => {
+    expect(relatedSettingsOf([settingWith('a', 'A')], '')).toEqual([]);
+  });
+});
+
+describe('relationTargetName（A2：targetId 命中实时取名，未命中回退快照）', () => {
+  function settingWith(id: string, name: string): WritingSetting {
+    return {
+      id,
+      bookId: 'b1',
+      kind: 'character',
+      name,
+      subtitle: '',
+      description: '',
+      extra: '{}',
+      sortOrder: 0,
+      createdAt: 0,
+      updatedAt: 0,
+    };
+  }
+
+  it('targetId 命中返回设定当前名（改名后正/反向一致），不信任快照', () => {
+    const settings = [settingWith('x', 'X 新名')];
+    const rel: WritingRelation = { targetId: 'x', target: 'X 旧名', type: '师徒' };
+    expect(relationTargetName(settings, rel)).toBe('X 新名');
+  });
+
+  it('targetId 未命中（已删 / 无 targetId 的自由文本旧数据）回退快照', () => {
+    const settings = [settingWith('y', 'Y')];
+    expect(relationTargetName(settings, { targetId: 'x', target: 'X', type: '' })).toBe('X');
+    expect(relationTargetName(settings, { target: '自由文本', type: '' })).toBe('自由文本');
+  });
+
+  it('空关系 / 空 target 返回空串', () => {
+    expect(relationTargetName([], undefined)).toBe('');
+    expect(relationTargetName([], { target: '', type: '' })).toBe('');
   });
 });

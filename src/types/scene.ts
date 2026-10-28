@@ -4,6 +4,7 @@
 
 import type { CRSType, SpatialBoundingBox, CameraConfig, SpatialSourceConfig } from "./spatial";
 import type { SceneComponent, LayerNode, EventBinding, ViewportState } from "./editor";
+import { t } from '../i18n';
 
 // ============ 场景编辑模型（Scene，来自参考实现 biosphere-spatialdata-system）============
 
@@ -265,7 +266,7 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
 export function createDefaultSceneLayer(partial?: Partial<SceneLayer>): SceneLayer {
   return {
     id: `layer_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-    name: "新图层",
+    name: t("scene.newLayer"),
     type: "tile",
     dimension: "2d",
     source: {
@@ -285,7 +286,7 @@ export function createDefaultScene(partial?: Partial<SceneDSL>): SceneDSL {
   const now = Math.floor(Date.now() / 1000);
   return {
     id: `scene_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-    name: "未命名分析",
+    name: t("scene.unnamedAnalysis"),
     coordinateSystem: "EPSG:3857",
     camera: {
       center: { x: 0, y: 0 },
@@ -305,7 +306,7 @@ export function createDefaultScene(partial?: Partial<SceneDSL>): SceneDSL {
     layers:
       partial?.layers && partial.layers.length > 0
         ? partial.layers
-        : [createDefaultSceneLayer({ name: "默认分层", zIndex: 0, metadata: { isDefault: "true" } })],
+        : [createDefaultSceneLayer({ name: t("scene.defaultLayer"), zIndex: 0, metadata: { isDefault: "true" } })],
   };
 }
 

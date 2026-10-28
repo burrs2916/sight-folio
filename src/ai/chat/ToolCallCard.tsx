@@ -13,7 +13,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useTheme } from '@mui/material/styles';
-import { formatToolArguments, toolStatusColor, toolStatusLabel } from '../../utils/toolCallDisplay';
+import { formatToolArguments, toolStatusColor, toolStatusLabel, toolDisplayName } from '../../utils/toolCallDisplay';
 import { highlightCode } from '../../editor/panels/codeHighlight';
 import { t } from '../../i18n';
 import type { ToolCallEvent } from '../../services/tauri';
@@ -68,8 +68,9 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const running = toolCall.status === 'running';
   const failed = toolCall.status === 'error' || toolCall.status === 'denied';
 
-  // running 时默认展开（让用户看到正在执行的入参）；终态默认收起
-  const showBody = expanded || running;
+  // running 时默认展开（让用户看到正在执行的入参）；
+  // 失败/未批准也默认展开 —— 出问题时解释文案必须立刻可见，不能藏在折叠后面
+  const showBody = expanded || running || failed;
 
   return (
     <Box
@@ -103,7 +104,14 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         ) : (
           <BuildIcon sx={{ fontSize: 16, color: failed ? 'error.main' : 'warning.main' }} />
         )}
-        <Typography sx={{ flex: 1, fontSize: 12.5, fontWeight: 600 }}>{toolCall.toolName}</Typography>
+        <Typography sx={{ flex: 1, fontSize: 12.5, fontWeight: 600 }}>
+          {toolDisplayName(toolCall.toolName)}
+          {toolCall.toolName !== toolDisplayName(toolCall.toolName) && (
+            <Box component="span" sx={{ ml: 0.75, fontWeight: 400, fontSize: 10.5, color: 'text.disabled' }}>
+              {toolCall.toolName}
+            </Box>
+          )}
+        </Typography>
         <StatusMeta status={toolCall.status} />
         {showBody ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
       </Box>

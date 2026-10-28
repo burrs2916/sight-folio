@@ -201,12 +201,189 @@ pub async fn db_test_connection(
     }
 }
 
+// ─── SQL 语句级防护 ─────────────────────────────────────────────────────────
+// db_execute_query 面向「外部数据源接入与分析」（画布数据管道、场景绑定默认
+// SELECT 1）。此处执行的是用户在界面里配置的任意连接串，必须有语句级防线，
+// 防止被攻破的前端/注入面借此对外部库做破坏性写入。
+
+const MAX_SQL_LEN: usize = 65_536;
+
+/// 只放行单条只读语句：长度上限 + 注释剥离 + 单语句限制 + 语句头白名单 +
+/// CTE 顶层 DML 检查（WITH t AS (DELETE …) SELECT … 这种藏写也要拦）。
+fn validate_readonly_sql(query: &str) -> Result<(), String> {
+    if query.trim().is_empty() {
+        return Err("SQL 语句为空".to_string());
+    }
+    if query.len() > MAX_SQL_LEN {
+        return Err(format!(
+            "SQL 语句过长（{} KB），上限 64 KB",
+            query.len() / 1024
+        ));
+    }
+    let stripped = strip_sql_comments(query);
+    let statements = split_top_level_statements(&stripped);
+    if statements.len() > 1 {
+        return Err("一次只允许执行一条 SQL 语句".to_string());
+    }
+    let stmt = statements.into_iter().next().unwrap_or_default();
+    let first = stmt
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .trim_start_matches('(')
+        .to_ascii_uppercase();
+    const READ_HEADS: [&str; 8] = [
+        "SELECT", "WITH", "SHOW", "DESC", "DESCRIBE", "EXPLAIN", "PRAGMA", "VALUES",
+    ];
+    if !READ_HEADS.contains(&first.as_str()) {
+        return Err(format!(
+            "数据源查询只支持只读语句（SELECT / WITH / SHOW / EXPLAIN 等），当前语句以「{first}」开头"
+        ));
+    }
+    if first == "WITH" {
+        // CTE 数据修改都藏在括号里（深度 ≥1），只扫括号深度 0 的顶层单词，
+        // 字符串字面量跳过 —— 不会误伤正文里出现 update/delete 等词的查询
+        for w in top_level_keywords(&stmt) {
+            let up = w.to_ascii_uppercase();
+            if matches!(
+                up.as_str(),
+                "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "REPLACE" | "TRUNCATE"
+            ) {
+                return Err(format!("只读查询中不允许包含数据修改关键字（{up}）"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 去掉 SQL 注释（-- 行注释与 /* 块注释 */），字符串字面量原样保留
+fn strip_sql_comments(sql: &str) -> String {
+    let mut out = String::with_capacity(sql.len());
+    let chars: Vec<char> = sql.chars().collect();
+    let mut i = 0;
+    let mut quote: Option<char> = None;
+    while i < chars.len() {
+        let c = chars[i];
+        if let Some(q) = quote {
+            out.push(c);
+            if c == q {
+                quote = None;
+            }
+            i += 1;
+            continue;
+        }
+        if c == '\'' || c == '"' || c == '`' {
+            quote = Some(c);
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        if c == '-' && i + 1 < chars.len() && chars[i + 1] == '-' {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        if c == '/' && i + 1 < chars.len() && chars[i + 1] == '*' {
+            i += 2;
+            while i + 1 < chars.len() && !(chars[i] == '*' && chars[i + 1] == '/') {
+                i += 1;
+            }
+            i = (i + 2).min(chars.len());
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
+/// 按顶层分号切分语句；引号内的分号不切。括号内的分号对多数驱动也非法，同样视为分隔。
+fn split_top_level_statements(sql: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut cur = String::new();
+    let mut quote: Option<char> = None;
+    for c in sql.chars() {
+        if let Some(q) = quote {
+            cur.push(c);
+            if c == q {
+                quote = None;
+            }
+            continue;
+        }
+        match c {
+            '\'' | '"' | '`' => {
+                quote = Some(c);
+                cur.push(c);
+            }
+            ';' => {
+                parts.push(std::mem::take(&mut cur));
+            }
+            _ => cur.push(c),
+        }
+    }
+    let tail = cur.trim().to_string();
+    if !tail.is_empty() {
+        parts.push(tail);
+    }
+    parts.into_iter().filter(|p| !p.trim().is_empty()).collect()
+}
+
+/// 扫描语句中括号深度 0 的独立单词（跳过字符串字面量），供 CTE 藏写检查
+fn top_level_keywords(stmt: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut cur = String::new();
+    let mut depth: i32 = 0;
+    let mut quote: Option<char> = None;
+    for c in stmt.chars() {
+        if let Some(q) = quote {
+            if c == q {
+                quote = None;
+            }
+            continue;
+        }
+        match c {
+            '\'' | '"' | '`' => quote = Some(c),
+            '(' => depth += 1,
+            ')' => depth -= 1,
+            c if c.is_alphanumeric() || c == '_' => {
+                if depth == 0 {
+                    cur.push(c);
+                }
+            }
+            _ => {
+                if !cur.is_empty() {
+                    words.push(std::mem::take(&mut cur));
+                }
+            }
+        }
+    }
+    if !cur.is_empty() {
+        words.push(cur);
+    }
+    words
+}
+
 #[tauri::command]
 pub async fn db_execute_query(
     config: DatabaseConnectionConfig,
     query: String,
 ) -> Result<DbResult, AppError> {
+    if let Err(reason) = validate_readonly_sql(&query) {
+        return Ok(DbResult {
+            success: false,
+            message: format!("已拒绝执行：{reason}"),
+            data: None,
+        });
+    }
+    // 执行留痕：截断到 200 字符，便于排查「哪个管道在打哪个库」
     let db_type_str: String = config.db_type.clone().into();
+    eprintln!(
+        "[datasource] execute query on {} ({} chars): {}",
+        db_type_str,
+        query.len(),
+        &query.chars().take(200).collect::<String>()
+    );
 
     match config.db_type {
         DatabaseType::GreptimeDB => {

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{Emitter, State};
 
+use crate::commands::corpus::CorpusState;
 use crate::infrastructure::database::ai_repository::*;
 use crate::infrastructure::Database;
 
@@ -91,11 +92,25 @@ pub struct MessageDto {
 
 // ─── 转换函数 ───
 
+/// api_key 掩码：接口层只下发 `••••` + 末 4 位，明文只留在后端。
+/// `•` 不是合法密钥字符，保存时据此识别「用户未改动密钥」并沿用库中原值。
+fn mask_api_key(key: &str) -> String {
+    if key.is_empty() {
+        return String::new();
+    }
+    let tail_start = key.char_indices().rev().nth(3).map(|(i, _)| i).unwrap_or(0);
+    format!("••••{}", &key[tail_start..])
+}
+
+fn is_masked_api_key(key: &str) -> bool {
+    key.contains('•')
+}
+
 fn to_provider_dto(p: &AiProviderRow) -> ProviderDto {
     ProviderDto {
         id: p.id.clone(),
         name: p.name.clone(),
-        api_key: p.api_key.clone(),
+        api_key: mask_api_key(&p.api_key),
         color: p.color.clone(),
         enabled: p.enabled,
         created_at: p.created_at,
@@ -187,12 +202,20 @@ pub fn list_providers(db: State<'_, Arc<Database>>) -> Result<Vec<ProviderDto>, 
 
 #[tauri::command]
 pub fn save_provider(db: State<'_, Arc<Database>>, provider: ProviderDto) -> Result<(), String> {
+    let mut api_key = provider.api_key;
+    // 前端回传的仍是掩码值（用户未改动密钥）：沿用库中原值，避免掩码覆盖真实密钥
+    if is_masked_api_key(&api_key) {
+        api_key = match AiProviderRepo::get_by_id(&db, &provider.id) {
+            Ok(Some(existing)) => existing.api_key,
+            _ => String::new(),
+        };
+    }
     AiProviderRepo::save(
         &db,
         &AiProviderRow {
             id: provider.id,
             name: provider.name,
-            api_key: provider.api_key,
+            api_key,
             color: provider.color,
             enabled: provider.enabled,
             created_at: provider.created_at,
@@ -515,6 +538,7 @@ pub async fn run_agent(
     model_id: Option<String>,
     app_handle: tauri::AppHandle,
     db: State<'_, Arc<Database>>,
+    corpus: State<'_, CorpusState>,
 ) -> Result<String, String> {
     // 1. 加载 Agent 配置
     let agents = AiAgentRepo::list(&db)?;
@@ -576,9 +600,44 @@ pub async fn run_agent(
         }
         None => agent.tool_ids.clone(),
     };
+    // 语料仓储可能因初始化失败而不可用：拿不到就传 None，
+    // search_corpus 会干脆不注册，而不是注册一个每次调用都报错的工具。
+    let corpus_repo = corpus.repo().ok().cloned();
     let tool_registry = crate::plugins::ai_agent::tools::create_project_sight_tools(
         db.inner().clone(),
+        corpus_repo,
         &effective_tool_ids,
+        // 写作域写工具（write_chapter / create_chapter）落库后把变更事件推给前端，
+        // WritingPage 据此刷新目录 / 提示当前章节被外部修改。未启用写工具时为 None。
+        {
+            let app = app_handle.clone();
+            Some(
+                std::sync::Arc::new(move |book_id: &str, chapter_id: &str, action: &str| {
+                    use tauri::Emitter;
+                    let _ = app.emit(
+                        "writing-chapter-external-change",
+                        serde_json::json!({
+                            "bookId": book_id,
+                            "chapterId": chapter_id,
+                            "action": action,
+                        }),
+                    );
+                }) as crate::plugins::ai_agent::tools::WritingChangeNotifier,
+            )
+        },
+        // 设定卡写工具（update_character_card）的变更事件。与章节分开：
+        // 卡被改时要刷新的是设定列表，以及"作者正在编辑的这张卡"的冲突提示。
+        {
+            let app = app_handle.clone();
+            Some(std::sync::Arc::new(move |book_id: &str, setting_id: &str| {
+                use tauri::Emitter;
+                let _ = app.emit(
+                    "writing-setting-external-change",
+                    serde_json::json!({ "bookId": book_id, "settingId": setting_id }),
+                );
+            })
+                as crate::plugins::ai_agent::tools::SettingChangeNotifier)
+        },
     );
     let tools = Arc::new(tokio::sync::Mutex::new(tool_registry));
 
@@ -793,17 +852,22 @@ pub fn cancel_agent_run(run_id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// 落定一次待审批的工具调用（当前为 run_command 的 human-in-the-loop 确认）。
+/// 落定一次待审批的工具调用（run_command 逐条确认；写入类工具可勾选本会话不再询问）。
 /// 前端弹确认框，用户点「允许 / 拒绝」后调用；引擎在审批闸门里 await 此结果。
 #[tauri::command]
 pub fn resolve_tool_approval(
     run_id: String,
     tool_call_id: String,
     approved: bool,
+    remember: Option<bool>,
 ) -> Result<bool, String> {
+    let decision = crate::plugins::ai_agent::ApprovalDecision {
+        approved,
+        remember_session: remember.unwrap_or(false),
+    };
     let ok = crate::plugins::ai_agent::resolve_approval(
         &format!("{}:{}", run_id, tool_call_id),
-        approved,
+        decision,
     );
     Ok(ok)
 }

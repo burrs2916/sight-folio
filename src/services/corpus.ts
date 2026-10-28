@@ -26,6 +26,8 @@ export interface CorpusBook {
 export interface CorpusSearchResult {
   books: CorpusBook[];
   hits: CorpusSearchHit[];
+  /** 句子命中总数（重复句合并后；hits 为其中一页）——分页用；旧服务端可能缺失 */
+  total?: number;
 }
 
 /** 语料库可用性（对应 Rust CorpusStatus）：corpus.db 初始化失败时降级为不可用 */
@@ -44,6 +46,14 @@ export interface CorpusHitOccurrence {
   chapterTitle: string;
 }
 
+/** 单句字/词数统计（对应 Rust SentenceAnalysis；保留字数 / 词数展示） */
+export interface CorpusSentenceAnalysis {
+  /** 字数（汉字/标点计 1，连续 ASCII 词计 1） */
+  charCount: number;
+  /** 词数（jieba 切分 token 数，含标点） */
+  tokenCount: number;
+}
+
 /** 检索命中（句子级 KWIC：句子原文 + 书/章归属）。
  *  重复句在**检索时**合并（非破坏，库里不删行）：同句只出一条代表 +
  *  occurrenceCount / occurrences；按书过滤时统计范围限该书（不做跨书合并）。 */
@@ -55,6 +65,11 @@ export interface CorpusSearchHit {
   kind: string;
   chapterTitle: string;
   content: string;
+  /** 字/词数统计（旧服务端无此字段时缺省） */
+  analysis?: CorpusSentenceAnalysis | null;
+  /** 参考价值分层：high（叙事/对话/描写/修辞信号完整）/ medium（普通完整句）/ low（碎片）。
+   *  旧服务端无此字段时缺省。 */
+  referenceTier?: 'high' | 'medium' | 'low' | null;
   /** 该句在本次检索范围内的出现次数（未合并场景为 1） */
   occurrenceCount: number;
   /** 该句的出现位置（上限 20；occurrenceCount === 1 时为空） */

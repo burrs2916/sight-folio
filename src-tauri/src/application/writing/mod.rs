@@ -24,7 +24,8 @@ use crate::infrastructure::database::review_finding_repository::{
     ReviewFindingRepository, SqliteReviewFindingRepository,
 };
 use crate::infrastructure::database::writing_repository::{
-    SqliteWritingRepository, WritingRepository,
+    SqliteWritingRepository, WritingRepository, SETTING_REVISION_KEEP,
+    SETTING_REVISION_ORIGIN_RESTORE,
 };
 
 use std::sync::Arc;
@@ -48,6 +49,76 @@ pub fn list_chapter_snapshots(
     repo.list_chapter_snapshots(chapter_id, SNAPSHOT_KEEP_PER_CHAPTER)
 }
 
+/// 重命名章节快照（只改 name 一列）。`None`/空白 = 清除自定义名。
+pub fn rename_chapter_snapshot(
+    snapshot_id: &str,
+    name: Option<&str>,
+    repo: &Arc<SqliteWritingRepository>,
+) -> AppResult<()> {
+    repo.rename_chapter_snapshot(snapshot_id, name)
+}
+
+/// 某张设定卡的改写历史（倒序）。设定卡被 AI 改写前必定先把旧值存进来，
+/// 这个读出口就是"改错了能找回"的唯一依据——没有它，写入历史只是无人可读的垃圾。
+pub fn list_setting_revisions(
+    setting_id: &str,
+    limit: i64,
+    repo: &Arc<SqliteWritingRepository>,
+) -> AppResult<Vec<crate::domain::writing::WritingSettingRevision>> {
+    repo.list_setting_revisions(setting_id, limit)
+}
+
+/// 把设定卡恢复到某条修订历史的值，返回恢复后的卡。
+///
+/// **恢复本身也是一次改写，所以当前值先入历史**（origin=`restore`）。
+/// 否则"点错一次恢复"就成了不可逆操作——而这正是这张历史表存在的目的。
+/// 有了这一步，恢复可以反复点：每次被顶掉的内容都留得下来。
+pub fn restore_setting_revision(
+    setting_id: &str,
+    revision_id: &str,
+    repo: &Arc<SqliteWritingRepository>,
+) -> AppResult<crate::domain::writing::WritingSetting> {
+    use crate::domain::writing::WritingSettingRevision;
+    use chrono::Utc;
+
+    let current = repo
+        .get_setting(setting_id)?
+        .ok_or_else(|| AppError::NotFound(format!("设定卡不存在: {setting_id}")))?;
+    // revision_id 必须属于这张卡：不校验就能拿 A 卡的历史去覆写 B 卡
+    let revision = repo
+        .get_setting_revision(revision_id, setting_id)?
+        .ok_or_else(|| {
+            AppError::NotFound(format!(
+                "修订记录不存在或不属于该卡: {revision_id} / {setting_id}"
+            ))
+        })?;
+
+    let now = Utc::now().timestamp();
+    repo.save_setting_revision(
+        &WritingSettingRevision {
+            id: format!("srev_{}", uuid::Uuid::new_v4().simple()),
+            setting_id: current.id.clone(),
+            book_id: current.book_id.clone(),
+            name: current.name.clone(),
+            subtitle: current.subtitle.clone(),
+            description: current.description.clone(),
+            extra: current.extra.clone(),
+            origin: SETTING_REVISION_ORIGIN_RESTORE.to_string(),
+            created_at: now,
+        },
+        SETTING_REVISION_KEEP,
+    )?;
+
+    let mut restored = current;
+    restored.name = revision.name;
+    restored.subtitle = revision.subtitle;
+    restored.description = revision.description;
+    restored.extra = revision.extra;
+    restored.updated_at = now;
+    repo.save_setting(&restored)?;
+    Ok(restored)
+}
+
 // ─── EPUB 导出（原 commands/writing.rs L301-666） ───────────────────────
 
 /// EPUB 章节载荷：前端把当前书的章节（标题 + TipTap HTML）传上来，
@@ -62,6 +133,10 @@ pub struct EpubChapter {
     /// 创作者主权：有/无等价合法，导出时仅当存在才接入。
     #[serde(default)]
     pub cover: Option<String>,
+    /// 所属卷/部（批次 2 增强）：前端 WritingChapter.volume 透传，'' = 未分卷。
+    /// 有值时导出（PDF 目录卷层级/DOCX 卷标/EPUB nav 分组）以其为卷标题。
+    #[serde(default)]
+    pub volume: Option<String>,
 }
 
 /// XML 转义（属性/文本两用，最保守的五个实体）。
@@ -331,11 +406,13 @@ pub fn export_epub(
             .map_err(|e| AppError::Internal(e.to_string()))?;
     }
 
-    // 5. content.opf（manifest = nav + 各章 + 各图）
+    // 5. content.opf（manifest = cover + nav + 各章 + 各图 + style.css）
     let mut manifest = String::from(
-        r#"    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>"#,
+        r#"    <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="style" href="style.css" media-type="text/css"/>"#,
     );
-    let mut spine = String::new();
+    let mut spine = String::from("\n    <itemref idref=\"cover\"/>");
     for (i, _ch) in chapters.iter().enumerate() {
         let id = format!("chap_{i}");
         let href = format!("chapter_{i}.xhtml");
@@ -357,6 +434,7 @@ pub fn export_epub(
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="book-id">urn:uuid:{uuid}</dc:identifier>
     <dc:title>{esc_title}</dc:title>
+    <dc:creator>Sight Folio</dc:creator>
     <dc:language>{lang}</dc:language>
     {desc_tag}
   </metadata>
@@ -377,13 +455,34 @@ pub fn export_epub(
     zip.write_all(opf.as_bytes())
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // 6. nav.xhtml（EPUB3 目录）
+    // 6. nav.xhtml（EPUB3 目录；章节按卷分组：卷名作 <span> 组标题，卷内章节嵌套 <ol>）
     let mut nav_lis = String::new();
+    let mut open_volume_li = false;
+    let mut current_volume: Option<String> = None;
     for (i, ch) in chapters.iter().enumerate() {
+        let volume = ch.volume.as_deref().filter(|v| !v.is_empty());
+        if volume != current_volume.as_deref() {
+            // 上一卷组收尾
+            if open_volume_li {
+                nav_lis.push_str("\n      </ol></li>");
+                open_volume_li = false;
+            }
+            current_volume = volume.map(str::to_string);
+            if let Some(v) = volume {
+                nav_lis.push_str(&format!(
+                    "\n      <li><span class=\"nav-volume\">{}</span>\n      <ol>",
+                    xml_escape(v)
+                ));
+                open_volume_li = true;
+            }
+        }
         nav_lis.push_str(&format!(
-            "\n      <li><a href=\"chapter_{i}.xhtml\">{}</a></li>",
+            "\n        <li><a href=\"chapter_{i}.xhtml\">{}</a></li>",
             xml_escape(&ch.title)
         ));
+    }
+    if open_volume_li {
+        nav_lis.push_str("\n      </ol></li>");
     }
     let nav = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -404,7 +503,116 @@ pub fn export_epub(
     zip.write_all(nav.as_bytes())
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // 7. 各章 xhtml（正文 src 改写 + 章头图前置）
+    // 6.5 style.css：统一定制正文（行距/首行缩进）、章标题（居中/加粗/强制新页）、插画自适应。
+    const STYLE_CSS: &str = r#"/* Sight Folio EPUB 排版 */
+body {
+  font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.8;
+  margin: 0 2em;
+  max-width: 30em;
+  margin-left: auto;
+  margin-right: auto;
+}
+p {
+  text-indent: 2em;
+  margin: 0;
+}
+p:first-of-type {
+  text-indent: 0;
+}
+p img, .chapter-cover img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em auto;
+}
+h1 {
+  font-size: 1.5em;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.4;
+  margin: 1em 0 1.2em;
+}
+h1.chapter-title {
+  page-break-before: always;
+  break-before: page;
+}
+h1 + p, h1 + div p:first-child {
+  text-indent: 2em;
+}
+h1:first-child + p {
+  text-indent: 2em;
+}
+.chapter-cover {
+  text-align: center;
+  margin: 1em 0;
+}
+/* 书封面页：整页垂直居中的卡片式封面 */
+.cover-page {
+  margin: 0;
+  max-width: none;
+  height: auto;
+}
+.cover-box {
+  text-align: center;
+  margin-top: 30vh;
+}
+.cover-title {
+  font-size: 2em;
+  font-weight: bold;
+  margin: 0 0 0.6em;
+}
+.cover-desc {
+  color: #555;
+  font-size: 0.95em;
+  text-indent: 0;
+  margin: 0.4em 0;
+}
+.cover-brand {
+  color: #999;
+  font-size: 0.75em;
+  letter-spacing: 0.3em;
+  text-indent: 0;
+  margin-top: 2.5em;
+}
+/* nav 卷组标题 */
+.nav-volume {
+  font-weight: bold;
+}
+"#;
+    zip.start_file("OEBPS/style.css", deflated)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    zip.write_all(STYLE_CSS.as_bytes())
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // 6.75 cover.xhtml：书封面页（书名 + 简介 + 出品署名，居中卡片式封面）
+    let cover_desc = description
+        .as_deref()
+        .map(|d| format!("<p class=\"cover-desc\">{}</p>\n", xml_escape(d)))
+        .unwrap_or_default();
+    let cover_xhtml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>{esc_title}</title>
+<link rel="stylesheet" type="text/css" href="style.css"/>
+</head>
+<body class="cover-page">
+<div class="cover-box">
+<h1 class="cover-title">{esc_title}</h1>
+{cover_desc}
+<p class="cover-brand">Sight Folio 出品</p>
+</div>
+</body>
+</html>"#
+    );
+    zip.start_file("OEBPS/cover.xhtml", deflated)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    zip.write_all(cover_xhtml.as_bytes())
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // 7. 各章 xhtml（正文 src 改写 + 章头图前置 + 章标题 h1 注入 + 引 style.css）
     for (i, ch) in chapters.iter().enumerate() {
         let rewritten = rewrite_img_to_epub(&ch.content, &rel_to_href);
         let body = html_to_xhtml(&rewritten);
@@ -414,17 +622,30 @@ pub fn export_epub(
             }),
             _ => None,
         };
+        // 章标题注入：正文自身已含 <h1>（章节正文结构完整）时不重复注入。
+        let title_tag = if ch.content.trim_start().starts_with("<h1") {
+            String::new()
+        } else {
+            format!(
+                "<h1 class=\"chapter-title\">{}</h1>\n",
+                xml_escape(&ch.title)
+            )
+        };
         let xhtml = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>{}</title></head>
+<head>
+<title>{}</title>
+<link rel="stylesheet" type="text/css" href="style.css"/>
+</head>
 <body>
-{}{}
+{}{}{}
 </body>
 </html>"#,
             xml_escape(&ch.title),
             cover_img.unwrap_or_default(),
+            title_tag,
             body
         );
         zip.start_file(format!("OEBPS/chapter_{i}.xhtml"), deflated)
@@ -916,19 +1137,58 @@ mod export_smoke_tests {
         }
         vec![
             EpubChapter {
+                volume: None,
                 title: "第一章 缘起".into(),
                 content: format!(
-                    r#"<h1>开篇</h1><p>这是一个用于验证中文 PDF 离线导出的长段落。没有空格的连续中文应当按字形宽度自动换行，而不能被截断。{}"#,
+                    r#"<h1>开篇</h1><p>这是一个用于验证中文 PDF 离线导出的长段落。没有空格的连续中文应当按字形宽度自动换行，而不能被截断。{}</p>"#,
                     "这是一个很长的中文句子，用来验证自动换行逻辑是否正确，句子足够长到会跨行显示。".repeat(8)
                 ) + &img,
                 cover: None,
             },
             EpubChapter {
+                volume: None,
                 title: "第二章 发展".into(),
                 content: r#"<p>English text with some words to wrap across lines correctly as well.</p><ul><li>要点一</li><li>要点二</li></ul><table><tr><td>甲</td><td>乙</td></tr><tr><td>1</td><td>2</td></tr></table>"#.into(),
                 cover: None,
             },
         ]
+    }
+
+    /// 扫描 PDF 全部内容流并拼接文本，供正文级排版断言。
+    /// 内容流可能带 FlateDecode（压缩）也可能直接明文；图像/字体流解压后是二进制，
+    /// 拼接进 out 不影响文本断言（只做 contains / 坐标区间匹配）。
+    fn pdf_decompressed_text(path: &std::path::Path) -> String {
+        let bytes = std::fs::read(path).unwrap();
+        let mut out = String::new();
+        let mut pos = 0usize;
+        loop {
+            // 找下一个 stream 起始（兼容 \r\n 与 \n 两种行尾）
+            let crlf = bytes[pos..].windows(8).position(|w| w == b"stream\r\n");
+            let lf = bytes[pos..].windows(7).position(|w| w == b"stream\n");
+            let rel = match (crlf, lf) {
+                (Some(a), Some(b)) => a.min(b),
+                (Some(a), None) => a,
+                (None, Some(b)) => b,
+                _ => break,
+            };
+            let delim_len = if crlf == Some(rel) { 8 } else { 7 };
+            let start = pos + rel + delim_len;
+            let Some(end) = bytes[start..].windows(9).position(|w| w == b"endstream") else {
+                break;
+            };
+            use std::io::Read;
+            let chunk = &bytes[start..start + end];
+            let mut dec = flate2::read::ZlibDecoder::new(chunk);
+            let mut buf = Vec::new();
+            if dec.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                out.push_str(&String::from_utf8_lossy(&buf));
+            } else {
+                // 明文内容流（未压缩）
+                out.push_str(&String::from_utf8_lossy(chunk));
+            }
+            pos = start + end;
+        }
+        out
     }
 
     #[test]
@@ -971,6 +1231,41 @@ mod export_smoke_tests {
         // 文件大小：字体已嵌入（压缩后应明显大于 500KB，且包含压缩字体流）
         let size = std::fs::metadata(&out).unwrap().len();
         assert!(size > 200_000, "embedding likely missing, size={size}");
+
+        // 正文级排版断言（解码全部内容流，验证 T1/T3/T6 修复）：
+        let st = pdf_decompressed_text(&out);
+        assert!(
+            !st.contains("td甲") && !st.contains("td乙"),
+            "table cell tag residue leaked into pdf text"
+        );
+        // T3 正文首行缩进 2 字符：首行 x = MARGIN(50) + BODY_FONT_SIZE(11)*2 = 72
+        assert!(
+            st.contains("1 0 0 1 72 "),
+            "first-line indent missing in content stream"
+        );
+        // T3 页脚页码居中（正文页 "页码 / 总页数" 关于页面水平居中，x≈288.74）
+        assert!(
+            st.contains("288.74"),
+            "footer page number not horizontally centered"
+        );
+        // T3 封面书名居中（x≈245.5）
+        assert!(
+            st.contains("245.5"),
+            "cover title not horizontally centered"
+        );
+        // T6 目录页码右对齐贴右页边（x∈(500, 545]，右页边 = PAGE_W - MARGIN = 545）
+        let toc_right_ok = st.split("Tm").any(|seg| {
+            let head = seg.rsplit("1 0 0 1 ").next().unwrap_or("");
+            let mut it = head.split_whitespace();
+            match (it.next(), it.next()) {
+                (Some(x), Some(_y)) => x
+                    .parse::<f64>()
+                    .map(|xv| xv > 500.0 && xv <= 545.0)
+                    .unwrap_or(false),
+                _ => false,
+            }
+        });
+        assert!(toc_right_ok, "toc page number not right-aligned to margin");
         println!(
             "[smoke] pdf ok: {page_count} pages, {size} bytes -> {}",
             out.display()
@@ -1005,6 +1300,31 @@ mod export_smoke_tests {
             names.iter().any(|n| n.contains("word/media/")),
             "image not embedded: {names:?}"
         );
+        // 表格导出为真实 w:tbl，且单元格内容不再降级为 "甲 | 乙" 纯文本行
+        {
+            let mut buf = String::new();
+            {
+                let mut f = zip.by_name("word/document.xml").unwrap();
+                use std::io::Read;
+                f.read_to_string(&mut buf).unwrap();
+            }
+            assert!(buf.contains("<w:tbl>"), "table not exported as w:tbl");
+            assert!(buf.contains("<w:tc>"), "w:tbl cells missing");
+            assert!(buf.contains("甲"), "table cell text missing");
+            assert!(
+                !buf.contains("甲 | 乙"),
+                "table still degraded to plain-text row"
+            );
+            // 图片按源图 64×40 @96DPI 等比：cx=609600 cy=381000，不再固定 4×3
+            assert!(
+                buf.contains("cx=\"609600\"") && buf.contains("cy=\"381000\""),
+                "image size not derived from source dims"
+            );
+            assert!(
+                !buf.contains("cx=\"4000000\""),
+                "hardcoded 4×3 image size remains"
+            );
+        }
         println!(
             "[smoke] docx ok: {} entries -> {}",
             names.len(),
@@ -1046,6 +1366,7 @@ mod epub_export_smoke_tests {
         );
         vec![
             EpubChapter {
+                volume: None,
                 title: "第一章 风起".into(),
                 content: format!(r#"<h1>第一章 风起</h1><p>长夜漫漫，雨敲窗棂。</p>{img_tag}"#),
                 cover: if with_cover {
@@ -1055,6 +1376,7 @@ mod epub_export_smoke_tests {
                 },
             },
             EpubChapter {
+                volume: None,
                 title: "第二章 灯下".into(),
                 content: r#"<p>她翻开了旧信。</p>"#.into(),
                 cover: None,
@@ -1109,6 +1431,26 @@ mod epub_export_smoke_tests {
             obuf.contains("<dc:description>端到端校验用书</dc:description>"),
             "missing description"
         );
+        // T7 元数据与封面：dc:creator、cover manifest、spine 首位为封面
+        assert!(
+            obuf.contains("<dc:creator>Sight Folio</dc:creator>"),
+            "missing dc:creator"
+        );
+        assert!(
+            obuf.contains("id=\"cover\" href=\"cover.xhtml\""),
+            "missing cover manifest item"
+        );
+        assert!(
+            zip.file_names().any(|n| n == "OEBPS/cover.xhtml"),
+            "cover.xhtml not packaged"
+        );
+        let spine_cover_first = {
+            let spine = obuf.split("<spine").nth(1).unwrap_or("");
+            // spine 标签可能带属性/换行，取 `>` 之后的内容判断首个 itemref
+            let body = spine.split('>').nth(1).unwrap_or("");
+            body.trim_start().starts_with("<itemref idref=\"cover\"")
+        };
+        assert!(spine_cover_first, "spine must put cover first");
         assert!(
             obuf.contains("id=\"nav\" href=\"nav.xhtml\""),
             "missing nav manifest item"
@@ -1154,6 +1496,29 @@ mod epub_export_smoke_tests {
             x0.contains("chapter-cover"),
             "cover image must be prepended in chapter"
         );
+        // T5 样式表：style.css 入包、章节头部引用、正文章标题注入
+        assert!(
+            zip.file_names().any(|n| n == "OEBPS/style.css"),
+            "style.css not packaged"
+        );
+        let sbuf = read_entry(&mut zip, "OEBPS/style.css");
+        assert!(
+            sbuf.contains("page-break-before: always"),
+            "style.css missing chapter page-break"
+        );
+        assert!(
+            sbuf.contains("text-indent: 2em"),
+            "style.css missing first-line indent"
+        );
+        assert!(
+            x0.contains("href=\"style.css\""),
+            "chapter xhtml missing stylesheet link"
+        );
+        let cbuf2 = read_entry(&mut zip, "OEBPS/cover.xhtml");
+        assert!(
+            cbuf2.contains("cover-title") && cbuf2.contains("Sight Folio"),
+            "cover.xhtml missing title/brand structure"
+        );
         assert!(Path::new(&out).exists(), "epub file must exist on disk");
 
         // 6. 插画实际入包（正文引用 + 章头图同图只打包一次）
@@ -1172,6 +1537,76 @@ mod epub_export_smoke_tests {
         );
     }
 
+    /// T6/T7 卷嵌套分组：nav 按卷开 <span class="nav-volume"> + <ol> 分卷嵌套，
+    /// spine 顺序为 cover → 各章；无卷章节平铺回退由 export_epub_escapes_xml_in_titles 覆盖。
+    #[test]
+    fn export_epub_groups_toc_by_volume() {
+        let out = std::env::temp_dir()
+            .join("sightfolio_epub_test")
+            .join("volumes.epub");
+        let _ = std::fs::remove_file(&out);
+        let r = crate::application::writing::export_epub(
+            "卷之书".into(),
+            None,
+            vec![
+                EpubChapter {
+                    volume: Some("第一卷 风起".into()),
+                    title: "第一章 起势".into(),
+                    content: r#"<h1>第一章 起势</h1><p>雨落。</p>"#.into(),
+                    cover: None,
+                },
+                EpubChapter {
+                    volume: Some("第一卷 风起".into()),
+                    title: "第二章 破竹".into(),
+                    content: r#"<h1>第二章 破竹</h1><p>风起。</p>"#.into(),
+                    cover: None,
+                },
+                EpubChapter {
+                    volume: Some("第二卷 云涌".into()),
+                    title: "第三章 合龙".into(),
+                    content: r#"<h1>第三章 合龙</h1><p>云聚。</p>"#.into(),
+                    cover: None,
+                },
+            ],
+            out.to_string_lossy().to_string(),
+        );
+        assert!(r.is_ok(), "export failed: {:?}", r.err());
+
+        let f = std::fs::File::open(&out).unwrap();
+        let mut zip = zip::ZipArchive::new(f).unwrap();
+        let nbuf = read_entry(&mut zip, "OEBPS/nav.xhtml");
+        // 第一卷 名下两条目嵌套在同一 <ol> 内
+        let vol1 = nbuf.find("第一卷 风起").expect("volume 1 in nav");
+        let ch1 = nbuf.find("第一章 起势").expect("chapter 1 in nav");
+        let ch2 = nbuf.find("第二章 破竹").expect("chapter 2 in nav");
+        assert!(
+            vol1 < ch1 && ch1 < ch2,
+            "chapters of volume 1 must nest under volume header"
+        );
+        assert!(
+            nbuf.contains("class=\"nav-volume\""),
+            "nav volume must use nav-volume span"
+        );
+        assert!(
+            nbuf.matches("<ol").count() >= 2,
+            "each volume must open its own <ol>"
+        );
+        // 第二卷跟在第一卷的嵌套 <ol> 之后（平级新卷）
+        let vol2 = nbuf.find("第二卷 云涌").expect("volume 2 in nav");
+        let ch3 = nbuf.find("第三章 合龙").expect("chapter 3 in nav");
+        assert!(
+            vol2 < ch3 && vol2 > ch2,
+            "volume 2 must start after volume 1 chapters"
+        );
+        // 正文以 <h1 开头则不重复注入章标题
+        let x0 = read_entry(&mut zip, "OEBPS/chapter_0.xhtml");
+        assert_eq!(
+            x0.matches("<h1>第一章 起势</h1>").count(),
+            1,
+            "chapter title must not be duplicated when content already has h1"
+        );
+    }
+
     /// 无插画/无描述的最小书：export 仍产出合法结构（无 description 标签、无 images）。
     #[test]
     fn export_epub_without_assets_and_description() {
@@ -1184,11 +1619,13 @@ mod epub_export_smoke_tests {
             None,
             vec![
                 EpubChapter {
+                    volume: None,
                     title: "第一章".into(),
                     content: "<p>无图章节一。</p>".into(),
                     cover: None,
                 },
                 EpubChapter {
+                    volume: None,
                     title: "第二章".into(),
                     content: "<p>无图章节二。</p>".into(),
                     cover: None,
@@ -1223,6 +1660,7 @@ mod epub_export_smoke_tests {
             "A & B <book>".into(),
             None,
             vec![EpubChapter {
+                volume: None,
                 title: "第1章 <序> & 后记".into(),
                 content: "<p>x</p>".into(),
                 cover: None,
@@ -1242,5 +1680,344 @@ mod epub_export_smoke_tests {
             nbuf.contains("第1章 &lt;序&gt; &amp; 后记"),
             "nav title must be escaped: {nbuf}"
         );
+    }
+}
+
+#[cfg(test)]
+mod import_tests {
+    use super::*;
+    use crate::infrastructure::database::connection::Database;
+    use crate::infrastructure::database::migration::{init_tables, migrate};
+    use std::sync::Mutex;
+
+    fn make_repo() -> Arc<SqliteWritingRepository> {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        init_tables(&conn).unwrap();
+        migrate(&conn).unwrap();
+        Arc::new(SqliteWritingRepository::new(Arc::new(Database(
+            Mutex::new(conn),
+        ))))
+    }
+
+    fn write_temp_file(name: &str, content: &str) -> String {
+        let dir = std::env::temp_dir().join("sightfolio_import_test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, content).unwrap();
+        path.to_string_lossy().to_string()
+    }
+
+    /// 按章节标题行切分：标题按出现顺序落库，strategy=heading，字数为非空白字符数。
+    #[test]
+    fn import_splits_by_chapter_headings_in_order() {
+        let repo = make_repo();
+        let text = "序章\n前情提要只言片语\n第一章 初见\n正文一的内容\n第二章 重逢\n正文二的内容\n";
+        let path = write_temp_file("split.txt", text);
+        let summary = import_book(path, Some("测试书".into()), &repo).unwrap();
+
+        assert_eq!(summary.strategy, "heading");
+        assert_eq!(summary.chapter_count, 3);
+        // 序章在首个标题位（index 0），其前无内容 → 无「开篇」
+
+        let chapters = repo.list_chapters(&summary.book_id).unwrap();
+        let titles: Vec<&str> = chapters.iter().map(|c| c.title.as_str()).collect();
+        assert_eq!(titles, vec!["序章", "第一章 初见", "第二章 重逢"]);
+
+        let ch1 = chapters.iter().find(|c| c.title == "第一章 初见").unwrap();
+        assert_eq!(ch1.word_count, "正文一的内容".chars().count() as i64);
+        assert_eq!(ch1.content, "<p>正文一的内容</p>");
+        // 章序稳定：sort_order 按出现顺序
+        let mut orders: Vec<i64> = chapters.iter().map(|c| c.sort_order).collect();
+        orders.sort();
+        assert_eq!(orders, vec![0, 1, 2]);
+    }
+
+    /// 首个标题行之前字数 >50 的零散内容归入「开篇」，且排在所有章节之前。
+    #[test]
+    fn import_preamble_over_fifty_chars_becomes_opener_chapter() {
+        let repo = make_repo();
+        let preamble = "这是一段足够长的书名页与作者语，".repeat(6); // >50 非空白字符
+        let text = format!("{preamble}\n第一章 开始\n正文一\n第二章 继续\n正文二\n");
+        let path = write_temp_file("preamble.txt", &text);
+        let summary = import_book(path, Some("开篇书".into()), &repo).unwrap();
+
+        assert_eq!(summary.strategy, "heading");
+        let chapters = repo.list_chapters(&summary.book_id).unwrap();
+        assert_eq!(chapters.first().unwrap().title, "开篇");
+        assert_eq!(chapters.len(), 3);
+    }
+
+    /// 无章节标题行 → 全书单章，章节名 = 书名。
+    #[test]
+    fn import_without_headings_falls_back_to_single_chapter() {
+        let repo = make_repo();
+        let text = "这是一部没有章节结构的散文集。\n第二行也是正文。\n";
+        let path = write_temp_file("single.txt", text);
+        let summary = import_book(path, Some("散文集".into()), &repo).unwrap();
+
+        assert_eq!(summary.strategy, "single");
+        assert_eq!(summary.chapter_count, 1);
+        let chapters = repo.list_chapters(&summary.book_id).unwrap();
+        assert_eq!(chapters[0].title, "散文集");
+        assert_eq!(summary.total_words, chapters[0].word_count);
+    }
+
+    /// 标题缺省/空白 → 取文件名主干。
+    #[test]
+    fn import_title_falls_back_to_file_stem() {
+        let repo = make_repo();
+        let path = write_temp_file("我的旧稿.txt", "随便一些正文。\n");
+        let summary = import_book(path, None, &repo).unwrap();
+        assert_eq!(summary.title, "我的旧稿");
+
+        let path2 = write_temp_file("另一个主干.txt", "正文。\n");
+        let summary2 = import_book(path2, Some("   ".into()), &repo).unwrap();
+        assert_eq!(summary2.title, "另一个主干");
+    }
+
+    /// 超过 10MB 上限 → 校验错误，不落库。
+    #[test]
+    fn import_rejects_oversize_file_without_writing() {
+        let repo = make_repo();
+        let dir = std::env::temp_dir().join("sightfolio_import_test");
+        let path = dir.join("huge.txt");
+        let big = "a".repeat(10 * 1024 * 1024 + 1);
+        std::fs::write(&path, &big).unwrap();
+
+        let books_before = repo.list_books().unwrap().len();
+        let err = import_book(path.to_string_lossy().to_string(), None, &repo).unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+        assert_eq!(repo.list_books().unwrap().len(), books_before);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// 纯新增导入：既有书籍不受影响，导入书是独立新记录。
+    #[test]
+    fn import_is_pure_insert_and_keeps_existing_books() {
+        let repo = make_repo();
+        let existing = WritingBook {
+            id: "book_existing".into(),
+            title: "既有书".into(),
+            description: None,
+            genre: String::new(),
+            medium: String::new(),
+            status: "draft".into(),
+            cover_color: "#4A338F".into(),
+            daily_goal: 0,
+            extra: "{}".into(),
+            created_at: 1_700_000_000,
+            updated_at: 1_700_000_000,
+        };
+        repo.save_book(&existing).unwrap();
+
+        let path = write_temp_file("newbook.txt", "第一章 新书\n内容\n");
+        let summary = import_book(path, None, &repo).unwrap();
+
+        let books = repo.list_books().unwrap();
+        assert_eq!(books.len(), 2);
+        assert!(books.iter().any(|b| b.id == "book_existing"));
+        assert_ne!(summary.book_id, "book_existing");
+        // 既有书的章节数不变（本来为 0）
+        assert_eq!(repo.list_chapters("book_existing").unwrap().len(), 0);
+        assert_eq!(repo.list_chapters(&summary.book_id).unwrap().len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod setting_revision_restore_tests {
+    use super::*;
+    use crate::domain::writing::{WritingBook, WritingSetting, WritingSettingRevision};
+    use crate::infrastructure::database::connection::Database;
+    use crate::infrastructure::database::migration::{init_tables, migrate};
+    use std::sync::Mutex;
+
+    fn repo() -> Arc<SqliteWritingRepository> {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        init_tables(&conn).unwrap();
+        migrate(&conn).unwrap();
+        Arc::new(SqliteWritingRepository::new(Arc::new(Database(
+            Mutex::new(conn),
+        ))))
+    }
+
+    fn card(id: &str, book_id: &str, desc: &str, extra: &str) -> WritingSetting {
+        WritingSetting {
+            id: id.into(),
+            book_id: book_id.into(),
+            kind: "character".into(),
+            name: "沈砚".into(),
+            subtitle: "青冥剑宗首席弟子".into(),
+            description: desc.into(),
+            extra: extra.into(),
+            sort_order: 0,
+            created_at: 1_700_000_000,
+            updated_at: 1_700_000_000,
+        }
+    }
+
+    fn revision(id: &str, setting_id: &str, desc: &str, origin: &str) -> WritingSettingRevision {
+        WritingSettingRevision {
+            id: id.into(),
+            setting_id: setting_id.into(),
+            book_id: "b1".into(),
+            name: "沈砚".into(),
+            subtitle: "青冥剑宗首席弟子".into(),
+            description: desc.into(),
+            extra: "{}".into(),
+            origin: origin.into(),
+            created_at: 1_700_000_001,
+        }
+    }
+
+    fn seed_book(r: &SqliteWritingRepository, id: &str) {
+        r.save_book(&WritingBook {
+            id: id.into(),
+            title: "长夜将尽".into(),
+            description: None,
+            genre: "novel".into(),
+            medium: "serial".into(),
+            status: "writing".into(),
+            cover_color: "#4A338F".into(),
+            daily_goal: 0,
+            extra: "{}".into(),
+            created_at: 1_700_000_000,
+            updated_at: 1_700_000_000,
+        })
+        .unwrap();
+    }
+
+    /// 恢复的完整语义：卡回到历史值，**被顶掉的当前值同时进历史**（origin=restore）。
+    /// 少了后半句，"点错一次恢复"就变成不可逆操作，而这张表存在的目的正是防止不可逆。
+    #[test]
+    fn restore_rolls_card_back_and_preserves_the_value_it_replaced() {
+        let r = repo();
+        seed_book(&r, "b1");
+        r.save_setting(&card("s1", "b1", "最初的描述", "{}"))
+            .unwrap();
+        // 模拟 AI 改写：先把旧值存进历史，再把卡改成新值
+        r.save_setting_revision(
+            &revision("rev_ai", "s1", "最初的描述", "ai"),
+            SETTING_REVISION_KEEP,
+        )
+        .unwrap();
+        r.save_setting(&card("s1", "b1", "AI 改过的描述", "{}"))
+            .unwrap();
+
+        let restored = restore_setting_revision("s1", "rev_ai", &r).unwrap();
+        assert_eq!(restored.description, "最初的描述", "卡没回到历史值");
+
+        let after = r.get_setting("s1").unwrap().unwrap();
+        assert_eq!(after.description, "最初的描述");
+
+        let revs = r.list_setting_revisions("s1", 10).unwrap();
+        assert_eq!(revs.len(), 2, "恢复应留下一条历史：{revs:?}");
+        let restore_rev = revs
+            .iter()
+            .find(|x| x.origin == "restore")
+            .expect("缺少 origin=restore 的历史");
+        assert_eq!(
+            restore_rev.description, "AI 改过的描述",
+            "存错值：应是被恢复顶掉的那个当前值"
+        );
+    }
+
+    /// 恢复可反复点：恢复回去之后还能再恢复回来，每一步都有留痕。
+    #[test]
+    fn restore_is_repeatable_in_both_directions() {
+        let r = repo();
+        seed_book(&r, "b1");
+        r.save_setting(&card("s1", "b1", "版本A", "{}")).unwrap();
+        r.save_setting_revision(
+            &revision("rev_a", "s1", "版本A", "ai"),
+            SETTING_REVISION_KEEP,
+        )
+        .unwrap();
+        r.save_setting(&card("s1", "b1", "版本B", "{}")).unwrap();
+
+        restore_setting_revision("s1", "rev_a", &r).unwrap();
+        assert_eq!(r.get_setting("s1").unwrap().unwrap().description, "版本A");
+        // 上一步恢复时把"版本B"存进了历史，于是还能恢复回版本B
+        let revs = r.list_setting_revisions("s1", 10).unwrap();
+        let back = revs
+            .iter()
+            .find(|x| x.description == "版本B")
+            .expect("版本B 应留在历史里");
+        restore_setting_revision("s1", &back.id, &r).unwrap();
+        assert_eq!(r.get_setting("s1").unwrap().unwrap().description, "版本B");
+    }
+
+    /// revision_id 必须属于这张卡：不校验就能拿 A 卡的历史去覆写 B 卡。
+    #[test]
+    fn restore_rejects_revision_belonging_to_another_card() {
+        let r = repo();
+        seed_book(&r, "b1");
+        r.save_setting(&card("s1", "b1", "一卡", "{}")).unwrap();
+        r.save_setting(&card("s2", "b1", "二卡", "{}")).unwrap();
+        r.save_setting_revision(
+            &revision("rev_s2", "s2", "二卡的旧值", "ai"),
+            SETTING_REVISION_KEEP,
+        )
+        .unwrap();
+
+        let before = r.get_setting("s1").unwrap().unwrap().description;
+        let err = restore_setting_revision("s1", "rev_s2", &r).unwrap_err();
+        assert!(
+            matches!(err, AppError::NotFound(_)),
+            "应报 NotFound，实际 {err:?}"
+        );
+        assert_eq!(
+            r.get_setting("s1").unwrap().unwrap().description,
+            before,
+            "被越权改写了"
+        );
+    }
+
+    /// 卡不存在 / 历史不存在都要响亮失败，不能静默返回"成功但什么都没做"。
+    #[test]
+    fn restore_fails_loudly_on_unknown_ids() {
+        let r = repo();
+        seed_book(&r, "b1");
+        r.save_setting(&card("s1", "b1", "描述", "{}")).unwrap();
+
+        assert!(matches!(
+            restore_setting_revision("查无此卡", "rev_x", &r).unwrap_err(),
+            AppError::NotFound(_)
+        ));
+        assert!(matches!(
+            restore_setting_revision("s1", "查无此历史", &r).unwrap_err(),
+            AppError::NotFound(_)
+        ));
+        // 失败不该留下任何历史记录
+        assert!(r.list_setting_revisions("s1", 10).unwrap().is_empty());
+    }
+
+    /// 恢复要保住卡的**身份字段**：kind / bookId / sortOrder / createdAt 都不属于历史内容，
+    /// 一旦被历史里的旧值带跑，卡会换书、换类型或丢排序。
+    #[test]
+    fn restore_keeps_identity_fields_untouched() {
+        let r = repo();
+        seed_book(&r, "b1");
+        let mut original = card("s1", "b1", "旧描述", "{}");
+        original.kind = "worldbuilding".into();
+        original.sort_order = 7;
+        original.created_at = 1_600_000_000;
+        r.save_setting(&original).unwrap();
+        r.save_setting_revision(
+            &revision("rev_id", "s1", "旧描述", "ai"),
+            SETTING_REVISION_KEEP,
+        )
+        .unwrap();
+        // 模拟改写必须基于原卡改：`save_setting` 是整行 upsert，
+        // 用默认夹具重新造一张卡会在"改写"这步就把 kind/sortOrder 冲掉，
+        // 那测试就变成在测夹具、而不是测恢复（第一版就栽在这里）。
+        let mut edited = original.clone();
+        edited.description = "新描述".into();
+        r.save_setting(&edited).unwrap();
+
+        let restored = restore_setting_revision("s1", "rev_id", &r).unwrap();
+        assert_eq!(restored.kind, "worldbuilding", "卡的类型被历史值带跑了");
+        assert_eq!(restored.sort_order, 7, "排序被重置");
+        assert_eq!(restored.created_at, 1_600_000_000, "创建时间被改写");
+        assert_eq!(restored.book_id, "b1");
     }
 }

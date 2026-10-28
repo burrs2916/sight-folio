@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useTheme, alpha } from '@mui/material/styles';
+import type { Theme } from '@mui/material/styles';
 import type { SvgIconProps } from '@mui/material/SvgIcon';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -38,7 +40,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import GroupWorkIcon from '@mui/icons-material/GroupWork';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { save as saveDialog, open as openFileDialog } from '@tauri-apps/plugin-dialog';
-import { t } from '../i18n';
+import { t, getLang } from '../i18n';
 import { useToastStore } from '../store/toastStore';
 import { useWritingStore } from '../store/writingStore';
 import { completedWorksApi, type CompletedWork as WorkRecord, type CompletedWorkFormat } from '../services/tauri';
@@ -71,8 +73,11 @@ function formatFileSize(bytes: number): string {
 }
 
 function formatWordCount(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}万字`;
-  return `${n}字`;
+  if (n >= 10000) {
+    const k = (n / 1000).toFixed(1).replace(/\.0$/, '');
+    return getLang() === 'en-US' ? `${k}k words` : `${(n / 10000).toFixed(1)}万字`;
+  }
+  return getLang() === 'en-US' ? `${n} words` : `${n}字`;
 }
 
 function formatDate(ts: number): string {
@@ -90,53 +95,39 @@ const STORAGE_KEY = 'published-search-query';
 //  格式元数据
 // ═══════════════════════════════════════════════════
 
-const FORMAT_META: Record<
-  WorkFormat,
-  { label: string; Icon: React.ComponentType<SvgIconProps>; color: string; bg: string }
-> = {
-  pdf: {
-    label: 'PDF',
-    Icon: PictureAsPdfIcon,
-    color: '#d32f2f',
-    bg: '#ffebee',
-  },
-  epub: {
-    label: 'EPUB',
-    Icon: MenuBookIcon,
-    color: '#1976d2',
-    bg: '#e3f2fd',
-  },
-  docx: {
-    label: 'DOCX',
-    Icon: DescriptionIcon,
-    color: '#2b579a',
-    bg: '#e8eaf6',
-  },
-  html: {
-    label: 'HTML',
-    Icon: LanguageIcon,
-    color: '#e65100',
-    bg: '#fbe9e7',
-  },
-  md: {
-    label: 'MD',
-    Icon: DescriptionIcon,
-    color: '#b71c1c',
-    bg: '#fce4ec',
-  },
-  txt: {
-    label: 'TXT',
-    Icon: DescriptionIcon,
-    color: '#616161',
-    bg: '#f5f5f5',
-  },
-  backup: {
-    label: '备份',
-    Icon: SaveIcon,
-    color: '#2e7d32',
-    bg: '#e8f5e9',
-  },
+const FORMAT_META: Record<WorkFormat, { label: string; Icon: React.ComponentType<SvgIconProps> }> = {
+  pdf: { label: 'PDF', Icon: PictureAsPdfIcon },
+  epub: { label: 'EPUB', Icon: MenuBookIcon },
+  docx: { label: 'DOCX', Icon: DescriptionIcon },
+  html: { label: 'HTML', Icon: LanguageIcon },
+  md: { label: 'MD', Icon: DescriptionIcon },
+  txt: { label: 'TXT', Icon: DescriptionIcon },
+  backup: { label: t('scene.backupLabel'), Icon: SaveIcon },
 };
+
+/**
+ * 格式徽章配色：从主题语义色派生（浅色柔和、深色自适配），替代硬编码 Material 旧色板。
+ * 保持原「一格式一色相」的辨识度：pdf 红 / epub 蓝 / docx 深蓝 / html 橙 / md 紫 / txt 灰 / backup 绿。
+ */
+function formatPalette(theme: Theme, format: WorkFormat): { color: string; bg: string } {
+  const p = theme.palette;
+  switch (format) {
+    case 'pdf':
+      return { color: p.error.main, bg: alpha(p.error.main, 0.1) };
+    case 'epub':
+      return { color: p.info.main, bg: alpha(p.info.main, 0.1) };
+    case 'docx':
+      return { color: '#1a4f9c', bg: alpha(p.info.main, 0.12) };
+    case 'html':
+      return { color: p.warning.dark, bg: alpha(p.warning.dark, 0.1) };
+    case 'md':
+      return { color: '#7b1fa2', bg: alpha('#7b1fa2', 0.1) };
+    case 'txt':
+      return { color: p.text.secondary, bg: alpha(p.text.secondary, 0.09) };
+    case 'backup':
+      return { color: p.success.main, bg: alpha(p.success.main, 0.1) };
+  }
+}
 
 // ═══════════════════════════════════════════════════
 //  主组件
@@ -713,9 +704,9 @@ export default function PublishedScenesPage() {
           <DialogContentText>{t('published.confirmRemoveDesc')}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRemoveDialogOpen(false)}>{t('cancel')}</Button>
+          <Button onClick={() => setRemoveDialogOpen(false)}>{t('ui.cancel')}</Button>
           <Button onClick={confirmRemove} color="error" variant="contained">
-            {t('confirm')}
+            {t('ui.confirm')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -727,9 +718,9 @@ export default function PublishedScenesPage() {
           <DialogContentText>{t('published.confirmBulkRemoveDesc', { count: selectedIds.size })}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setBulkRemoveDialogOpen(false)}>{t('cancel')}</Button>
+          <Button onClick={() => setBulkRemoveDialogOpen(false)}>{t('ui.cancel')}</Button>
           <Button onClick={confirmBulkRemove} color="error" variant="contained">
-            {t('confirm')}
+            {t('ui.confirm')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -782,7 +773,7 @@ export default function PublishedScenesPage() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setImportDialogOpen(false)}>{t('cancel')}</Button>
+          <Button onClick={() => setImportDialogOpen(false)}>{t('ui.cancel')}</Button>
           <Button onClick={confirmImport} variant="contained" disabled={importing}>
             {importing ? t('published.importing') : t('published.import')}
           </Button>
@@ -937,6 +928,7 @@ function BookGroupList({
   onMove: (w: CompletedWork) => void;
   onRemove: (w: CompletedWork) => void;
 }) {
+  const theme = useTheme();
   const selectedInGroup = groups.filter((g) => g.works.some((w) => selectedIds.has(w.id))).length;
 
   // 组内去掉折叠/展开按钮重复占用空间：行首用 Chevron/Expand 指示，整行可点击切换
@@ -972,10 +964,13 @@ function BookGroupList({
             borderRadius: 1.5,
             border: 1,
             borderColor: 'divider',
-            bgcolor: 'action.hover',
+            bgcolor: 'background.paper',
             cursor: 'pointer',
-            transition: 'background-color 0.15s',
-            '&:hover': { bgcolor: 'action.selected' },
+            transition: 'background-color 0.15s, border-color 0.15s',
+            '&:hover': {
+              bgcolor: (th) => alpha(th.palette.primary.main, 0.06),
+              borderColor: (th) => alpha(th.palette.primary.main, 0.3),
+            },
           }}
         >
           <IconButton size="small" sx={{ p: 0.25, flexShrink: 0 }} tabIndex={-1}>
@@ -996,14 +991,17 @@ function BookGroupList({
             </Typography>
           </Tooltip>
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-            {formatChips.map(([f, n]) => (
-              <Chip
-                key={f}
-                size="small"
-                label={n > 1 ? `${FORMAT_META[f].label} ×${n}` : FORMAT_META[f].label}
-                sx={{ fontSize: 11, height: 22, bgcolor: FORMAT_META[f].bg, color: FORMAT_META[f].color }}
-              />
-            ))}
+            {formatChips.map(([f, n]) => {
+              const fmtPal = formatPalette(theme, f);
+              return (
+                <Chip
+                  key={f}
+                  size="small"
+                  label={n > 1 ? `${FORMAT_META[f].label} ×${n}` : FORMAT_META[f].label}
+                  sx={{ fontSize: 11, height: 22, bgcolor: fmtPal.bg, color: fmtPal.color, fontWeight: 600 }}
+                />
+              );
+            })}
           </Box>
           <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
             {groupSelected > 0 && (
@@ -1090,7 +1088,9 @@ function WorkCard({
   onMove: (w: CompletedWork) => void;
   onRemove: (w: CompletedWork) => void;
 }) {
+  const theme = useTheme();
   const meta = FORMAT_META[work.format];
+  const pal = formatPalette(theme, work.format);
   const { Icon } = meta;
 
   return (
@@ -1103,12 +1103,14 @@ function WorkCard({
         display: 'flex',
         flexDirection: 'column',
         gap: 1.5,
-        transition: 'box-shadow 0.2s, transform 0.2s',
+        transition: 'box-shadow 0.2s, transform 0.2s, border-color 0.2s, background-color 0.2s',
         bgcolor: 'background.paper',
         position: 'relative',
         '&:hover': {
           boxShadow: (th) => th.shadows[2],
           transform: 'translateY(-2px)',
+          borderColor: (th) => alpha(th.palette.primary.main, 0.35),
+          bgcolor: (th) => alpha(th.palette.primary.main, 0.03),
         },
       }}
     >
@@ -1129,10 +1131,10 @@ function WorkCard({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: meta.bg,
+            bgcolor: pal.bg,
           }}
         >
-          <Icon sx={{ fontSize: 22, color: meta.color }} />
+          <Icon sx={{ fontSize: 22, color: pal.color }} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography
@@ -1219,7 +1221,9 @@ function WorkRow({
   onMove: (w: CompletedWork) => void;
   onRemove: (w: CompletedWork) => void;
 }) {
+  const theme = useTheme();
   const meta = FORMAT_META[work.format];
+  const pal = formatPalette(theme, work.format);
   const { Icon } = meta;
 
   return (
@@ -1231,10 +1235,13 @@ function WorkRow({
         p: 1.5,
         borderRadius: 1.5,
         border: 1,
-        borderColor: 'divider',
-        bgcolor: isSelected ? (th) => `${th.palette.primary.main}08` : 'background.paper',
-        transition: 'box-shadow 0.15s, background-color 0.2s',
-        '&:hover': { boxShadow: (th) => th.shadows[1] },
+        borderColor: isSelected ? (th) => alpha(th.palette.primary.main, 0.35) : 'divider',
+        bgcolor: isSelected ? (th) => alpha(th.palette.primary.main, 0.06) : 'background.paper',
+        transition: 'box-shadow 0.15s, background-color 0.2s, border-color 0.2s',
+        '&:hover': {
+          boxShadow: (th) => th.shadows[1],
+          borderColor: (th) => alpha(th.palette.primary.main, 0.3),
+        },
       }}
     >
       {/* 复选框（列表行左起） */}
@@ -1252,11 +1259,11 @@ function WorkRow({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          bgcolor: meta.bg,
+          bgcolor: pal.bg,
           flexShrink: 0,
         }}
       >
-        <Icon sx={{ fontSize: 20, color: meta.color }} />
+        <Icon sx={{ fontSize: 20, color: pal.color }} />
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.25 }}>

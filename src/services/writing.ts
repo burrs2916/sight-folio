@@ -102,6 +102,11 @@ export const writingApi = {
     return invoke<WritingChapter[]>('list_writing_chapters', { bookId });
   },
 
+  /** 按 id 取单章最新落库态（含正文）：AI 写工具外部变更后判断编辑器是否需要重载。 */
+  async getChapter(chapterId: string): Promise<WritingChapter | null> {
+    return invoke<WritingChapter | null>('get_writing_chapter', { chapterId });
+  },
+
   async saveChapter(chapter: WritingChapter): Promise<void> {
     return invoke('save_writing_chapter', { chapter });
   },
@@ -189,9 +194,44 @@ export const writingSnapshotsApi = {
     return invoke('save_writing_chapter_snapshot', { snapshot });
   },
 
-  /** 重命名快照（优先后端 API；后端未实现时调用方自行回退到 localStorage） */
+  /**
+   * 重命名快照：落库 name 单列（后端只 UPDATE name，不整行覆写）。
+   * name 传 null/空白 = 清除自定义名，列表回退显示 origin 文案。
+   * 快照已被每章上限裁掉时后端返回 NotFound，调用方须回滚乐观更新并提示。
+   */
   async rename(snapshotId: string, name: string | null): Promise<void> {
     return invoke('rename_writing_chapter_snapshot', { snapshotId, name });
+  },
+};
+
+/**
+ * 设定卡的一次改写历史（存的是**被替换掉的旧值**，新值即当前卡）。
+ * AI 通过 update_character_card 改卡前一定会写一条，这是"改错了能找回"的依据。
+ */
+export interface WritingSettingRevision {
+  id: string;
+  settingId: string;
+  bookId: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  extra: string;
+  /** 'ai' = AI 改写前的旧值；'restore' = 作者恢复历史版本前的当前值 */
+  origin: string;
+  createdAt: number;
+}
+
+export const writingSettingRevisionsApi = {
+  /** 某张卡的改写历史（倒序）。后端把 limit 夹在 1..50。 */
+  async list(settingId: string, limit?: number): Promise<WritingSettingRevision[]> {
+    return invoke<WritingSettingRevision[]>('list_writing_setting_revisions', { settingId, limit });
+  },
+  /**
+   * 把卡恢复到某条历史，返回恢复后的卡（调用方据此重载编辑草稿）。
+   * 恢复本身也是改写：后端会先把**当前值**存进历史，所以恢复可以反复点、不丢内容。
+   */
+  async restore(settingId: string, revisionId: string): Promise<WritingSetting> {
+    return invoke<WritingSetting>('restore_writing_setting_revision', { settingId, revisionId });
   },
 };
 
@@ -291,6 +331,22 @@ export interface WritingStoryline {
   updatedAt: number;
 }
 
+/** 认知权重：角色在关键决策维度上的倾向性，-10 到 +10；零 = 中立 */
+export interface WritingCognitiveWeights {
+  /** 集体 ↔ 个人：-10 极度集体主义，+10 极度个人主义 */
+  collectiveVsIndividual?: number;
+  /** 理想 ↔ 现实：-10 极度理想化，+10 极度务实 */
+  idealVsRealistic?: number;
+  /** 信任 ↔ 怀疑：-10 轻信，+10 极度多疑 */
+  trustVsDoubt?: number;
+  /** 宿命 ↔ 自由：-10 认命服从，+10 反叛抗争 */
+  fateVsFreedom?: number;
+  /** 理性 ↔ 感性：-10 纯逻辑，+10 纯情感 */
+  rationalVsEmotional?: number;
+  /** 冒险 ↔ 谨慎：-10 鲁莽冒进，+10 极度保守 */
+  riskVsCaution?: number;
+}
+
 export interface WritingSettingProfile {
   /** 外貌 */
   appearance?: string;
@@ -302,6 +358,8 @@ export interface WritingSettingProfile {
   catchphrase?: string;
   /** 笔记 */
   notes?: string;
+  /** 认知权重（T12）：角色决策倾向性，影响 AI 续写时的行为推演 */
+  cognitiveWeights?: WritingCognitiveWeights;
 }
 
 /** 世界观档案（结构化字段，零迁移，落 extra.worldbuildingProfile，与人物 profile 并列） */
@@ -443,6 +501,8 @@ export interface WritingAnnotation {
   text: string;
   /** 被批注选区的文本快照（展示用，不用于定位——定位靠正文 data-annotation-id）。 */
   excerpt: string;
+  /** 关联的人物/世界观设定卡 id（可选；空 = 未关联，设定卡反向视图据此聚合）。 */
+  settingId?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -458,6 +518,11 @@ export const writingAnnotationsApi = {
 
   async delete(annotationId: string): Promise<void> {
     return invoke('delete_writing_annotation', { annotationId });
+  },
+
+  /** 按关联设定卡反查全书批注（人物/世界观右栏「正文批注引用」反向视图）。 */
+  async bySetting(settingId: string): Promise<WritingAnnotation[]> {
+    return invoke<WritingAnnotation[]>('list_writing_annotations_by_setting', { settingId });
   },
 };
 
@@ -624,4 +689,87 @@ export function newNoteId(): string {
 /** 生成完结作品记录 id（语义前缀 cw_ + uuid）。 */
 export function newCompletedWorkId(): string {
   return `cw_${crypto.randomUUID().replace(/-/g, '')}`;
+}
+
+// ─── 外部素材采集（Writing Phase 1）：图片/文字/记事本片段/链接 → 素材库 ───
+
+/** 外部素材类型：image（图片）/ text（纯文本）/ note（记事本片段）/ link（网页链接）。 */
+export type ExternalCaptureKind = 'image' | 'text' | 'note' | 'link';
+
+/** AI 分析结果（analysis_json 结构化内容）：人生轨迹时间线 + 人物画像 + 创作价值 + 建议。 */
+export interface ExternalCaptureAnalysis {
+  /** 人生轨迹/素材脉络时间线：[{ at: '时间点', event: '事件' }] */
+  timeline?: Array<{ at: string; event: string }>;
+  /** 素材中浮现的人物画像（可空字段按需出现） */
+  profile?: {
+    appearance?: string;
+    personality?: string;
+    motivation?: string;
+  };
+  /** 创作价值：这段素材值得写进故事的原因 */
+  creativeValue?: string;
+  /** 落地建议：如何把素材变成情节/场景/设定 */
+  suggestions?: string[];
+}
+
+export interface ExternalCapture {
+  id: string;
+  /** 归属书 id；'' = 全局素材（未绑定任何书籍） */
+  bookId: string;
+  kind: ExternalCaptureKind;
+  /** 原始内容：图片存 app-local 路径 / 文本直接存 / 记事本存 note_id / 链接存 URL */
+  sourceRaw: string;
+  /** OCR 或抓取后的纯文本（AI 分析输入）；未提取时为空串 */
+  extractedText: string;
+  /** AI 分析结果 JSON（ExternalCaptureAnalysis 序列化）；未分析时为空串 */
+  analysisJson: string;
+  /** 用户可编辑标题 */
+  title: string;
+  /** 标签 JSON 数组串（["tag1","tag2"]） */
+  tags: string;
+  /** 用途标记：character / scene / world / archive / article */
+  targetUse: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const externalCapturesApi = {
+  /** 列出某书（'' = 全局）的外部素材，按创建时间倒序。 */
+  async list(bookId: string): Promise<ExternalCapture[]> {
+    return invoke<ExternalCapture[]>('list_external_captures', { bookId });
+  },
+
+  async save(item: ExternalCapture): Promise<void> {
+    return invoke('save_external_capture', { item });
+  },
+
+  async delete(captureId: string): Promise<void> {
+    return invoke('delete_external_capture', { captureId });
+  },
+};
+
+/** 生成外部素材 id（语义前缀 cap_ + uuid）。 */
+export function newExternalCaptureId(): string {
+  return `cap_${crypto.randomUUID().replace(/-/g, '')}`;
+}
+
+/** 解析 analysis_json；坏数据/空串一律当空对象，绝不因脏数据崩渲染（与 parseSettingExtra 同口径）。 */
+export function parseCaptureAnalysis(analysisJson: string): ExternalCaptureAnalysis {
+  try {
+    const parsed = JSON.parse(analysisJson || '{}') as ExternalCaptureAnalysis;
+    if (parsed && typeof parsed === 'object') return parsed;
+  } catch {
+    /* 落空对象 */
+  }
+  return {};
+}
+
+/** 解析 tags JSON 数组串；坏数据回退空数组。 */
+export function parseCaptureTags(tags: string): string[] {
+  try {
+    const parsed = JSON.parse(tags || '[]') as unknown;
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
 }

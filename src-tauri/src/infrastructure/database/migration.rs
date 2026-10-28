@@ -1526,13 +1526,41 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             content TEXT NOT NULL DEFAULT '',
             word_count INTEGER NOT NULL DEFAULT 0,
             origin TEXT NOT NULL DEFAULT 'auto',
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            name TEXT NOT NULL DEFAULT ''
+        )",
+        [],
+    )?;
+    // 旧库升级：快照自定义名称（重命名）。只 ALTER 不 DROP；
+    // 新库建表已含该列，ALTER 报 duplicate column 是预期的，`let _ =` 吞掉。
+    let _ = conn.execute(
+        "ALTER TABLE writing_chapter_snapshots ADD COLUMN name TEXT NOT NULL DEFAULT ''",
+        [],
+    );
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_chapter_snapshots_chapter \
+         ON writing_chapter_snapshots(chapter_id, created_at)",
+        [],
+    )?;
+    // 设定卡修订历史（批次③ 增-3）：AI 开始改写人物/世界观卡，改写前必须先把旧值存进历史。
+    // 与章节快照同一套规矩：只存旧值（新值即 writing_settings 当前行），按卡滚动保留。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS writing_setting_revisions (
+            id TEXT PRIMARY KEY,
+            setting_id TEXT NOT NULL,
+            book_id TEXT NOT NULL,
+            name TEXT NOT NULL DEFAULT '',
+            subtitle TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            extra TEXT NOT NULL DEFAULT '',
+            origin TEXT NOT NULL DEFAULT 'ai',
             created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
         )",
         [],
     )?;
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_writing_chapter_snapshots_chapter \
-         ON writing_chapter_snapshots(chapter_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_writing_setting_revisions_setting \
+         ON writing_setting_revisions(setting_id, created_at)",
         [],
     )?;
     // 章内批注（批次② T4）：正文只存引用 id，批注内容独立表持久化。
@@ -1541,6 +1569,7 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             id TEXT PRIMARY KEY,
             chapter_id TEXT NOT NULL,
             book_id TEXT NOT NULL,
+            setting_id TEXT NOT NULL DEFAULT '',
             text TEXT NOT NULL DEFAULT '',
             excerpt TEXT NOT NULL DEFAULT '',
             created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
@@ -1551,6 +1580,25 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_writing_annotations_chapter \
          ON writing_annotations(chapter_id, created_at)",
+        [],
+    )?;
+    // 旧库升级：批注加 setting_id 列（只 ALTER 不 DROP；新库建表已含，PRAGMA 检查幂等）。
+    // 必须先于 setting 索引创建：旧库尚无该列时，先建索引会直接命中
+    // `no such column: setting_id`，导致整个初始化失败。
+    let annotation_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(writing_annotations)")?
+        .query_map([], |row| row.get(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    if !annotation_cols.is_empty() && !annotation_cols.contains(&"setting_id".to_string()) {
+        conn.execute(
+            "ALTER TABLE writing_annotations ADD COLUMN setting_id TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_writing_annotations_setting \
+         ON writing_annotations(setting_id, created_at)",
         [],
     )?;
     // 灵感/快速笔记（T4）：全局级跨章笔记。chapter_id 可空（'' = 全书级）。
@@ -1608,62 +1656,53 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             [],
         )?;
     }
-    // P6：章节卷分组（volume='' = 未分卷）与书级日更目标。幂等 ALTER（migrate 每次启动都会跑）。
-    let chapter_cols: Vec<String> = conn
-        .prepare("PRAGMA table_info(writing_chapters)")?
-        .query_map([], |row| row.get(1))?
-        .filter_map(|r| r.ok())
-        .collect();
-    if !chapter_cols.is_empty() && !chapter_cols.contains(&"volume".to_string()) {
-        conn.execute(
-            "ALTER TABLE writing_chapters ADD COLUMN volume TEXT NOT NULL DEFAULT ''",
-            [],
-        )?;
-    }
+    // P6：章节卷分组（volume='' = 未分卷）。幂等 ALTER（migrate 每次启动都会跑）；
+    // 每次 ALTER 前实时 PRAGMA，不再复用旧列快照（审核 D2 防漂移）。
+    add_column_if_missing(
+        conn,
+        "writing_chapters",
+        "volume",
+        "ALTER TABLE writing_chapters ADD COLUMN volume TEXT NOT NULL DEFAULT ''",
+    )?;
     // 章头图等 P2 扩展走 extra JSON 透传（与 settings/outlines 同范式，加字段零迁移）。
     // 幂等 ALTER；旧库建表无此列，新库建表已有（init_tables 同步见 commands/writing.rs 导入样板）。
-    if !chapter_cols.is_empty() && !chapter_cols.contains(&"extra".to_string()) {
-        conn.execute(
-            "ALTER TABLE writing_chapters ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'",
-            [],
-        )?;
-    }
+    add_column_if_missing(
+        conn,
+        "writing_chapters",
+        "extra",
+        "ALTER TABLE writing_chapters ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'",
+    )?;
     // 章节主剧情线（G1 结构性补强）：章→线直连，补平「经事件间接推断」的空白。
     // 幂等 ALTER；旧库无此列，新库建表已有（与 timeline_events.storyline_id 同范式）。
-    if !chapter_cols.is_empty() && !chapter_cols.contains(&"storyline_id".to_string()) {
-        conn.execute(
-            "ALTER TABLE writing_chapters ADD COLUMN storyline_id TEXT",
-            [],
-        )?;
-    }
+    add_column_if_missing(
+        conn,
+        "writing_chapters",
+        "storyline_id",
+        "ALTER TABLE writing_chapters ADD COLUMN storyline_id TEXT",
+    )?;
 
-    let book_cols: Vec<String> = conn
-        .prepare("PRAGMA table_info(writing_books)")?
-        .query_map([], |row| row.get(1))?
-        .filter_map(|r| r.ok())
-        .collect();
-    if !book_cols.is_empty() && !book_cols.contains(&"daily_goal".to_string()) {
-        conn.execute(
-            "ALTER TABLE writing_books ADD COLUMN daily_goal INTEGER NOT NULL DEFAULT 0",
-            [],
-        )?;
-    }
+    add_column_if_missing(
+        conn,
+        "writing_books",
+        "daily_goal",
+        "ALTER TABLE writing_books ADD COLUMN daily_goal INTEGER NOT NULL DEFAULT 0",
+    )?;
     // P1 体裁×载体：载体列（serial 连载 / standalone 单本 / collection 篇目集）。
     // 幂等 ALTER（migrate 每次启动都会跑）；体裁列 genre 建表即有，无需补。
-    if !book_cols.is_empty() && !book_cols.contains(&"medium".to_string()) {
-        conn.execute(
-            "ALTER TABLE writing_books ADD COLUMN medium TEXT NOT NULL DEFAULT ''",
-            [],
-        )?;
-    }
+    add_column_if_missing(
+        conn,
+        "writing_books",
+        "medium",
+        "ALTER TABLE writing_books ADD COLUMN medium TEXT NOT NULL DEFAULT ''",
+    )?;
     // 全书目标（T2 写作目标）：targetWords / targetChapters / deadline 走 extra JSON 透传，
     // 加字段零迁移（与 settings/outlines 同范式）。幂等 ALTER；旧库无此列，新库建表已有。
-    if !book_cols.is_empty() && !book_cols.contains(&"extra".to_string()) {
-        conn.execute(
-            "ALTER TABLE writing_books ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'",
-            [],
-        )?;
-    }
+    add_column_if_missing(
+        conn,
+        "writing_books",
+        "extra",
+        "ALTER TABLE writing_books ADD COLUMN extra TEXT NOT NULL DEFAULT '{}'",
+    )?;
 
     // 设计视图节拍挂载：outline.extra JSON 透传（出场人物/场景 id 集合）。
     // 幂等 ALTER；旧库建表时无此列，新库建表即有。
@@ -1724,11 +1763,40 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     // ─── 语言专属内置审查规则（§4.2 RuleRegistry ↔ 引擎：按语言分发的种子规则）───
     seed_language_review_rules(conn)?;
 
+    create_external_captures_table(conn)?;
+
     seed_analysis_categories(conn)?;
     seed_component_categories(conn)?;
     seed_project_plugins(conn)?;
 
     Ok(())
+}
+
+/// 实时读取表的列名清单；表不存在时返回空列表。
+fn table_columns(conn: &Connection, table: &str) -> Result<Vec<String>, rusqlite::Error> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let cols = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(cols)
+}
+
+/// 幂等补列：表存在且缺 `column` 列时执行 `ddl`（ALTER TABLE … ADD COLUMN …）。
+/// 每次调用实时取列清单——同表多条 ALTER 各自基于最新结构判断，
+/// 消除复用旧列快照在多次 ALTER 之间的漂移（审核 D2）。
+/// 表不存在（空清单）时跳过，交给 CREATE TABLE IF NOT EXISTS 建表语句。
+fn add_column_if_missing(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    ddl: &str,
+) -> Result<(), rusqlite::Error> {
+    let cols = table_columns(conn, table)?;
+    if cols.is_empty() || cols.iter().any(|c| c == column) {
+        return Ok(());
+    }
+    conn.execute(ddl, []).map(|_| ())
 }
 
 pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -1766,20 +1834,18 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
     // ─── 结构树（parent_id + kind）：旧书 volume 串 → 卷父节点 ───
     // 创作者自定义任意层级（部/卷/章/节/幕/场…），底层只是一张带 parent_id 的节点表。
     // 幂等 ALTER（migrate 每次启动都跑）；新库建表即有这两列，旧库补 ALTER。
-    let ch_cols: Vec<String> = conn
-        .prepare("PRAGMA table_info(writing_chapters)")?
-        .query_map([], |row| row.get(1))?
-        .filter_map(|r| r.ok())
-        .collect();
-    if !ch_cols.is_empty() && !ch_cols.contains(&"parent_id".to_string()) {
-        conn.execute("ALTER TABLE writing_chapters ADD COLUMN parent_id TEXT", [])?;
-    }
-    if !ch_cols.is_empty() && !ch_cols.contains(&"kind".to_string()) {
-        conn.execute(
-            "ALTER TABLE writing_chapters ADD COLUMN kind TEXT NOT NULL DEFAULT ''",
-            [],
-        )?;
-    }
+    add_column_if_missing(
+        conn,
+        "writing_chapters",
+        "parent_id",
+        "ALTER TABLE writing_chapters ADD COLUMN parent_id TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "writing_chapters",
+        "kind",
+        "ALTER TABLE writing_chapters ADD COLUMN kind TEXT NOT NULL DEFAULT ''",
+    )?;
     // 回填：parent_id 仍为 NULL 且带了旧 volume 的章，按 volume 归并成 卷 父节点后 reparent。
     // 幂等：只动 parent_id IS NULL 的行；首跑后这些章已挂到 卷 下，后续启动不再触发。
     let legacy_books: Vec<String> = conn
@@ -1898,68 +1964,66 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         )?;
     }
 
-    let analysis_columns: Vec<String> = conn
-        .prepare("PRAGMA table_info(analyses)")?
-        .query_map([], |row| row.get::<_, String>(1))?
-        .filter_map(|r| r.ok())
-        .collect();
+    // analyses 补列：每次 ALTER 前实时 PRAGMA，不再复用旧列快照（审核 D2 防漂移）
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "project_root",
+        "ALTER TABLE analyses ADD COLUMN project_root TEXT NOT NULL DEFAULT ''",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "scan_status",
+        "ALTER TABLE analyses ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'pending'",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "scan_progress",
+        "ALTER TABLE analyses ADD COLUMN scan_progress INTEGER NOT NULL DEFAULT 0",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "last_scanned_at",
+        "ALTER TABLE analyses ADD COLUMN last_scanned_at INTEGER",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "total_files",
+        "ALTER TABLE analyses ADD COLUMN total_files INTEGER NOT NULL DEFAULT 0",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "total_lines",
+        "ALTER TABLE analyses ADD COLUMN total_lines INTEGER NOT NULL DEFAULT 0",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "primary_language",
+        "ALTER TABLE analyses ADD COLUMN primary_language TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "editor_components",
+        "ALTER TABLE analyses ADD COLUMN editor_components TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "editor_layers",
+        "ALTER TABLE analyses ADD COLUMN editor_layers TEXT",
+    )?;
 
-    if !analysis_columns.is_empty() && !analysis_columns.contains(&"project_root".to_string()) {
-        conn.execute(
-            "ALTER TABLE analyses ADD COLUMN project_root TEXT NOT NULL DEFAULT ''",
-            [],
-        )?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"scan_status".to_string()) {
-        conn.execute(
-            "ALTER TABLE analyses ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'pending'",
-            [],
-        )?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"scan_progress".to_string()) {
-        conn.execute(
-            "ALTER TABLE analyses ADD COLUMN scan_progress INTEGER NOT NULL DEFAULT 0",
-            [],
-        )?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"last_scanned_at".to_string()) {
-        conn.execute(
-            "ALTER TABLE analyses ADD COLUMN last_scanned_at INTEGER",
-            [],
-        )?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"total_files".to_string()) {
-        conn.execute(
-            "ALTER TABLE analyses ADD COLUMN total_files INTEGER NOT NULL DEFAULT 0",
-            [],
-        )?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"total_lines".to_string()) {
-        conn.execute(
-            "ALTER TABLE analyses ADD COLUMN total_lines INTEGER NOT NULL DEFAULT 0",
-            [],
-        )?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"primary_language".to_string()) {
-        conn.execute("ALTER TABLE analyses ADD COLUMN primary_language TEXT", [])?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"editor_components".to_string()) {
-        conn.execute("ALTER TABLE analyses ADD COLUMN editor_components TEXT", [])?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"editor_layers".to_string()) {
-        conn.execute("ALTER TABLE analyses ADD COLUMN editor_layers TEXT", [])?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"canvas_config".to_string()) {
-        if !analysis_columns.is_empty() && analysis_columns.contains(&"canvas_size".to_string()) {
+    // canvas_config：旧库列名 canvas_size → RENAME；无此列则直接 ADD（实时取列清单判断）
+    let cols_now = table_columns(conn, "analyses")?;
+    if !cols_now.is_empty() && cols_now.iter().all(|c| c != "canvas_config") {
+        if cols_now.iter().any(|c| c == "canvas_size") {
             conn.execute(
                 "ALTER TABLE analyses RENAME COLUMN canvas_size TO canvas_config",
                 [],
@@ -1969,25 +2033,30 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         }
     }
 
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"global_components".to_string()) {
-        conn.execute("ALTER TABLE analyses ADD COLUMN global_components TEXT", [])?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"views".to_string()) {
-        conn.execute("ALTER TABLE analyses ADD COLUMN views TEXT", [])?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"active_view_id".to_string()) {
-        conn.execute("ALTER TABLE analyses ADD COLUMN active_view_id TEXT", [])?;
-    }
-
-    if analysis_columns.is_empty() || !analysis_columns.contains(&"viewport_sync_rules".to_string())
-    {
-        conn.execute(
-            "ALTER TABLE analyses ADD COLUMN viewport_sync_rules TEXT",
-            [],
-        )?;
-    }
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "global_components",
+        "ALTER TABLE analyses ADD COLUMN global_components TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "views",
+        "ALTER TABLE analyses ADD COLUMN views TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "active_view_id",
+        "ALTER TABLE analyses ADD COLUMN active_view_id TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "analyses",
+        "viewport_sync_rules",
+        "ALTER TABLE analyses ADD COLUMN viewport_sync_rules TEXT",
+    )?;
 
     {
         let exists: i64 = conn
@@ -2794,4 +2863,68 @@ fn seed_analysis_categories(conn: &Connection) -> Result<(), rusqlite::Error> {
     }
 
     Ok(())
+}
+
+fn create_external_captures_table(conn: &Connection) -> Result<(), rusqlite::Error> {
+    // 外部素材采集（Writing Phase 1）：图片/文字/记事本片段/链接 → AI 分析素材库。
+    // book_id='' = 全局素材（未绑定书籍）；kind 存小写枚举名（image/text/note/link）；
+    // analysis_json 为 AI 分析结构化结果（timeline/profile/creative_value/suggestions）。
+    // 注意：必须在 init_tables 主链路执行，不能放进带早退的种子函数，否则老库永远建不出此表。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS external_captures (
+            id TEXT PRIMARY KEY,
+            book_id TEXT NOT NULL DEFAULT '',
+            kind TEXT NOT NULL DEFAULT 'text',
+            source_raw TEXT NOT NULL DEFAULT '',
+            extracted_text TEXT NOT NULL DEFAULT '',
+            analysis_json TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL DEFAULT '',
+            tags TEXT NOT NULL DEFAULT '',
+            target_use TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_external_captures_book \
+         ON external_captures(book_id, created_at DESC)",
+        [],
+    )?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 回归：external_captures 曾被放在 seed_analysis_categories 的早退分支之后，
+    /// 导致已播种 analysis_categories 的老库永远建不出该表（运行时报 no such table）。
+    #[test]
+    fn external_captures_table_is_created_even_for_seeded_legacy_db() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_tables(&conn).unwrap();
+
+        // 模拟"表加入前的老库"：种子数据已存在，但 external_captures 尚未创建。
+        conn.execute("DROP TABLE external_captures", []).unwrap();
+        let exists_before: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='external_captures'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(exists_before, 0);
+
+        // 重新跑 init_tables 必须把表补回来。
+        init_tables(&conn).unwrap();
+        let exists_after: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='external_captures'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(exists_after, 1);
+    }
 }

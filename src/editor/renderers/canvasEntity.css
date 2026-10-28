@@ -77,9 +77,29 @@
   }
 }
 
+/* T3 校对定位高亮：正文容器跳章后目标块短暂脉冲（挂在块级元素上，指针事件放行） */
+.ps-locate-flash {
+  animation: ps-locate-flash 1.8s ease-out;
+  pointer-events: none;
+}
+
+@keyframes ps-locate-flash {
+  0%,
+  100% {
+    background: transparent;
+  }
+  20%,
+  45% {
+    background: rgba(255, 213, 79, 0.32);
+  }
+}
+
 /* 尊重「减少动态效果」系统偏好 */
 @media (prefers-reduced-motion: reduce) {
   .ps-entity--selected {
+    animation: none;
+  }
+  .ps-locate-flash {
     animation: none;
   }
 }
@@ -215,8 +235,9 @@
   background: rgba(255, 152, 0, 0.26);
 }
 
-/* 空卡占位提示（tiptap v3 Placeholder 扩展的 is-editor-empty 标记） */
-.ps-workbench .ProseMirror p.is-editor-empty:first-child::before {
+/* 空卡占位提示（tiptap v3 Placeholder 扩展的 is-editor-empty 标记）；
+   用 :first-of-type 与 editorSx 一致，避免 SSR/emotion 对 :first-child 的 unsafe 警告 */
+.ps-workbench .ProseMirror p.is-editor-empty:first-of-type::before {
   content: attr(data-placeholder);
   float: left;
   height: 0;

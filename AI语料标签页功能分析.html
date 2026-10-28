@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>写作台 · AI 语料标签页功能分析</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --card: #ffffff;
+        --ink: #1f2937;
+        --ink2: #4b5563;
+        --ink3: #9ca3af;
+        --line: #e5e7eb;
+        --accent: #2563eb;
+        --accent-soft: #eff6ff;
+        --green: #059669;
+        --green-soft: #ecfdf5;
+        --amber: #d97706;
+        --amber-soft: #fffbeb;
+        --red: #dc2626;
+        --red-soft: #fef2f2;
+        --violet: #7c3aed;
+        --violet-soft: #f5f3ff;
+        --radius: 12px;
+        --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI',
+          sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.75;
+        font-size: 15px;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+      }
+
+      /* 头部 */
+      .hero {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+        color: #fff;
+        border-radius: var(--radius);
+        padding: 32px 36px;
+        margin-bottom: 28px;
+        box-shadow: var(--shadow);
+      }
+      .hero .kicker {
+        font-size: 13px;
+        letter-spacing: 2px;
+        opacity: 0.85;
+        font-weight: 600;
+      }
+      .hero h1 {
+        font-size: 26px;
+        font-weight: 800;
+        margin: 8px 0 10px;
+        letter-spacing: 0.5px;
+      }
+      .hero p {
+        font-size: 14.5px;
+        opacity: 0.92;
+        max-width: 760px;
+      }
+      .hero .meta {
+        display: flex;
+        gap: 16px;
+        margin-top: 14px;
+        font-size: 12.5px;
+        opacity: 0.8;
+        flex-wrap: wrap;
+      }
+
+      /* 章节 */
+      section {
+        margin-bottom: 34px;
+      }
+      h2 {
+        font-size: 19px;
+        font-weight: 800;
+        margin: 0 0 14px;
+        padding-left: 12px;
+        border-left: 4px solid var(--accent);
+        line-height: 1.4;
+      }
+      h3 {
+        font-size: 15.5px;
+        font-weight: 700;
+        margin: 22px 0 10px;
+      }
+      h4 {
+        font-size: 14px;
+        font-weight: 700;
+        margin: 16px 0 8px;
+        color: var(--ink2);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 20px 22px;
+        margin-bottom: 16px;
+      }
+      p {
+        margin-bottom: 10px;
+        color: var(--ink2);
+      }
+      ul,
+      ol {
+        margin: 8px 0 10px 22px;
+        color: var(--ink2);
+      }
+      li {
+        margin-bottom: 6px;
+      }
+      b,
+      strong {
+        color: var(--ink);
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        background: #f3f4f6;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 1px 5px;
+        color: #be185d;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 11.5px;
+        font-weight: 600;
+        padding: 1px 8px;
+        border-radius: 999px;
+        margin-right: 6px;
+        vertical-align: 1px;
+      }
+      .tag.blue {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .tag.green {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+      .tag.amber {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+      .tag.red {
+        background: var(--red-soft);
+        color: var(--red);
+      }
+      .tag.violet {
+        background: var(--violet-soft);
+        color: var(--violet);
+      }
+
+      /* 表格 */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0 8px;
+        font-size: 13.5px;
+      }
+      th {
+        background: #f9fafb;
+        text-align: left;
+        font-weight: 700;
+        padding: 9px 12px;
+        border-bottom: 2px solid var(--line);
+        color: var(--ink);
+      }
+      td {
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+        color: var(--ink2);
+        vertical-align: top;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td code {
+        white-space: nowrap;
+      }
+
+      /* 示意：mock 面板 */
+      .mock-wrap {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin: 14px 0;
+      }
+      .mock {
+        flex: 1 1 300px;
+        background: #111827;
+        color: #d1d5db;
+        border-radius: 10px;
+        padding: 14px 16px;
+        font-size: 12.5px;
+        box-shadow: var(--shadow);
+        min-width: 280px;
+      }
+      .mock .m-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #9ca3af;
+        margin-bottom: 8px;
+        letter-spacing: 1px;
+      }
+      .mock .bar {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 10px;
+      }
+      .mock .seg {
+        flex: 1;
+        text-align: center;
+        padding: 4px 0;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .mock .seg.on {
+        background: #2563eb;
+        color: #fff;
+      }
+      .mock .seg.off {
+        background: #1f2937;
+        color: #6b7280;
+      }
+      .mock .row {
+        background: #1f2937;
+        border: 1px solid #374151;
+        border-radius: 6px;
+        padding: 7px 9px;
+        margin-bottom: 7px;
+      }
+      .mock .row .rh {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #9ca3af;
+        margin-bottom: 3px;
+      }
+      .mock .row.cell {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .mock .chip {
+        font-size: 10.5px;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: #374151;
+        color: #d1d5db;
+      }
+      .mock .btn {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 5px;
+        background: #2563eb;
+        color: #fff;
+      }
+      .mock .q {
+        background: #1f2937;
+        border: 1px solid #374151;
+        border-radius: 6px;
+        padding: 6px 9px;
+        color: #6b7280;
+        font-size: 11.5px;
+      }
+      .mock .ai {
+        background: #312e81;
+        border: 1px solid #4c4a9e;
+        border-radius: 6px;
+        padding: 7px 9px;
+        margin-bottom: 7px;
+        font-size: 12px;
+        color: #e0e7ff;
+      }
+      .mock .flow {
+        font-size: 11.5px;
+        color: #6b7280;
+        background: #1f2937;
+        border-radius: 6px;
+        padding: 7px 9px;
+        margin-bottom: 7px;
+      }
+      .mock .flow b {
+        color: #93c5fd;
+        font-weight: 600;
+      }
+      .arrow {
+        text-align: center;
+        font-size: 20px;
+        color: var(--ink3);
+        margin: 2px 0;
+      }
+
+      /* CSS-only tabs 演示 */
+      .demo-tabs {
+        position: relative;
+        margin: 14px 0 6px;
+      }
+      .demo-tabs input {
+        display: none;
+      }
+      .demo-tab-bar {
+        display: flex;
+        gap: 2px;
+        border-bottom: 2px solid var(--line);
+        margin-bottom: 0;
+      }
+      .demo-tab-bar label {
+        padding: 8px 18px;
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--ink3);
+        cursor: pointer;
+        border-radius: 8px 8px 0 0;
+        user-select: none;
+        transition: color 0.15s;
+      }
+      .demo-tab-bar label:hover {
+        color: var(--accent);
+      }
+      .demo-pane {
+        display: none;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-top: 0;
+        border-radius: 0 0 var(--radius) var(--radius);
+        padding: 16px 20px;
+        box-shadow: var(--shadow);
+      }
+      #tab1:checked ~ .demo-tab-bar label[for='tab1'],
+      #tab2:checked ~ .demo-tab-bar label[for='tab2'] {
+        color: var(--accent);
+        border-bottom: 3px solid var(--accent);
+      }
+      #tab1:checked ~ .pane1 {
+        display: block;
+      }
+      #tab2:checked ~ .pane2 {
+        display: block;
+      }
+      .pane-note {
+        font-size: 12.5px;
+        color: var(--ink3);
+        margin-bottom: 8px;
+      }
+
+      /* 流程/时间线 */
+      .steps {
+        counter-reset: step;
+        margin: 10px 0;
+      }
+      .step {
+        display: flex;
+        gap: 14px;
+        margin-bottom: 14px;
+        position: relative;
+      }
+      .step::before {
+        counter-increment: step;
+        content: counter(step);
+        flex: 0 0 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 800;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #bfdbfe;
+      }
+      .step .st-body {
+        flex: 1;
+        padding-top: 3px;
+      }
+      .step .st-body .st-title {
+        font-weight: 700;
+        color: var(--ink);
+        margin-bottom: 3px;
+      }
+      .step .st-body p {
+        margin-bottom: 4px;
+        font-size: 13.5px;
+      }
+
+      .callout {
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 12px 0;
+        font-size: 13.5px;
+      }
+      .callout.warn {
+        background: var(--amber-soft);
+        border: 1px solid #fde68a;
+        color: #92400e;
+      }
+      .callout.info {
+        background: var(--accent-soft);
+        border: 1px solid #bfdbfe;
+        color: #1e40af;
+      }
+      .callout.ok {
+        background: var(--green-soft);
+        border: 1px solid #a7f3d0;
+        color: #065f46;
+      }
+      .callout b {
+        color: inherit;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 10px 0;
+      }
+      .pill {
+        background: #f9fafb;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 12.5px;
+        color: var(--ink2);
+        font-weight: 600;
+      }
+      .pill em {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 720px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+        .hero {
+          padding: 24px;
+        }
+        .hero h1 {
+          font-size: 21px;
+        }
+      }
+
+      .footer {
+        margin-top: 40px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        font-size: 12.5px;
+        color: var(--ink3);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hero">
+        <div class="kicker">FEATURE ANALYSIS</div>
+        <h1>写作台 · AI 语料标签页功能分析</h1>
+        <p>
+          在现有「语料参考（自动匹配语料库已有句子）」基础上，新增独立 AI 标签页：支持 AI
+          自动生成语料，以及通过对话基于「整篇作品分析 + 本章分析」为用户提供参考决策建议。
+        </p>
+        <div class="meta">
+          <span>范围：写作台右抽屉（创作台）语料参考区</span>
+          <span>方式：功能需求梳理 + 设计建议 + 界面衔接</span>
+        </div>
+      </div>
+
+      <!-- 一、背景与目标 -->
+      <section>
+        <h2>一、背景与目标</h2>
+        <div class="card">
+          <p>
+            <b>现状一句话：</b
+            >写作台的语料参考目前只有一条能力链路——<b>自动匹配语料库中已存在的句子</b>。编辑器输入时自动取词，FTS5
+            检索，命中句以卡片呈现，可复制或插入正文，全程零手动输入、不打断心流。
+          </p>
+          <p><b>本次诉求（用户原话拆解）：</b></p>
+          <ul>
+            <li><b>新增一个 AI 标签页</b>：与「匹配语料库已有句子」并列，作为语料参考区的第二个 Tab。</li>
+            <li>
+              <b>能力 A —— AI 自动生成语料</b>：当语料库里没有现成句子可抄时，由 AI
+              基于作品与当前章节的上下文当场生成可参考的句子/段落。
+            </li>
+            <li>
+              <b>能力 B —— 对话式参考决策</b>：用户可与 AI 对话，AI
+              结合<b>整篇作品的分析</b>和<b>本章的分析</b>，替用户判断"这句该怎么参考、该参考什么、是否生成/改写"，把"查语料"升级为"问语料"。
+            </li>
+          </ul>
+          <div class="callout info">
+            一句话定位：语料参考区从<b>「检索器」</b>升级为<b>「检索器 + AI 参谋」</b
+            >——库里有就匹配，库里没有就生成，拿不准就问 AI 怎么参考。
+          </div>
+        </div>
+      </section>
+
+      <!-- 二、现状梳理 -->
+      <section>
+        <h2>二、现状梳理</h2>
+        <div class="card">
+          <h3>2.1 现有语料参考链路（CorpusReferencePanel）</h3>
+          <table>
+            <tr>
+              <th style="width: 140px">环节</th>
+              <th>实现</th>
+            </tr>
+            <tr>
+              <td>取词</td>
+              <td>
+                <code>extractCorpusQuery</code>：以光标为界取前一段，按标点/空白切段取末段，再截尾 4
+                字符（<code>MAX_CORPUS_QUERY_CHARS=4</code>），重复串收敛为原子词
+              </td>
+            </tr>
+            <tr>
+              <td>防抖</td>
+              <td>输入停顿 300ms 后自动检索（<code>SEARCH_DEBOUNCE_MS</code>）；翻页紧跟输入时补齐剩余防抖窗口</td>
+            </tr>
+            <tr>
+              <td>检索</td>
+              <td>
+                <code>corpusApi.search</code> → 后端 FTS5（BM25 句子级）；书命中（书名/作者/分类）置顶 +
+                句子命中卡片列表，每页 8 条
+              </td>
+            </tr>
+            <tr>
+              <td>呈现</td>
+              <td>
+                卡片含：书名、章节 Chip、句子序号、重复出处、参考价值分层（high/medium/low）、字数统计；高亮命中词
+              </td>
+            </tr>
+            <tr>
+              <td>动作</td>
+              <td>复制到剪贴板 / 插入正文（<code>onInsertText</code> 由调用方注入，组件不碰编辑器）</td>
+            </tr>
+            <tr>
+              <td>降级</td>
+              <td>corpus.db 初始化失败 → 可用性探针提示，不打断写作</td>
+            </tr>
+          </table>
+          <h3>2.2 承载位置（WritingDrawer · 创作台右抽屉）</h3>
+          <p>
+            语料参考以 <b>embedded</b> 形态铺满右抽屉剩余高度（宽 320px），顶栏为「章详情」入口 +
+            收起按钮，其上是提醒汇总区（伏笔 / 灵感 / 校对 / 统计，输入时自动折叠让位）。整体上排布为：
+          </p>
+          <table>
+            <tr>
+              <th style="width: 200px">区域</th>
+              <th>内容</th>
+              <th>与语料的关系</th>
+            </tr>
+            <tr>
+              <td>抽屉顶栏</td>
+              <td>章详情按钮 + 收起创作台按钮</td>
+              <td>——</td>
+            </tr>
+            <tr>
+              <td>提醒汇总区</td>
+              <td>伏笔 / 灵感 / 校对 / 统计四条提醒</td>
+              <td>输入时自动折叠，把垂直空间让给语料</td>
+            </tr>
+            <tr>
+              <td><b>语料参考区</b></td>
+              <td>CorpusReferencePanel（embedded）</td>
+              <td><b>本次改造对象</b></td>
+            </tr>
+          </table>
+          <div class="callout warn">
+            <b>现状的边界：</b>只能命中<b>库里已有的句子</b>。用户写的是新内容，FTS 命中率天然有限（设计上已把取词收敛到
+            2-4 字缓解）；一旦相关语料缺失，参考区就是一片空白，没有第二条出路。
+          </div>
+        </div>
+        <div class="card">
+          <h3>2.3 可复用的 AI 基础设施（关键资产）</h3>
+          <p>项目里已经具备<b>一套完整、成熟、与本书场景深度耦合</b>的 AI 能力，新标签页无需从零搭建：</p>
+          <table>
+            <tr>
+              <th style="width: 220px">资产</th>
+              <th>提供什么</th>
+              <th>复用点</th>
+            </tr>
+            <tr>
+              <td><code>WritingAiChatDialog</code></td>
+              <td>per (agent, 书) 会话复用、首轮自动注入上下文、流式订阅、中断、新会话</td>
+              <td>对话骨架（可抽成嵌入式复用以避免重复实现）</td>
+            </tr>
+            <tr>
+              <td><code>buildChatContext</code></td>
+              <td>
+                书名 + 当前章节 + <b>全书章节骨架</b> + <b>人物档案</b> + <b>世界观设定</b> +
+                <b>本章正文尾部</b>（双语）
+              </td>
+              <td><b>「整篇作品分析 + 本章分析」的上下文几乎现成</b></td>
+            </tr>
+            <tr>
+              <td><code>runInlineWritingTask</code></td>
+              <td>续写/润色/改写/摘要四类内联任务，流式输出</td>
+              <td>生成类语料的执行通道（可扩展新 kind：生成参考语料）</td>
+            </tr>
+            <tr>
+              <td><code>buildCatalogCorpus / buildCharactersCorpus / buildWorldBibleCorpus</code></td>
+              <td>章节骨架、人物卡、世界观语料（纯函数、可测）</td>
+              <td>生成/对话上下文的拼装素材</td>
+            </tr>
+            <tr>
+              <td><code>workbenchContext</code>（bookTopic）</td>
+              <td>题材随左栏切换的人设指令与上下文协议</td>
+              <td>AI 语料人设可按「语料参考」题材固化</td>
+            </tr>
+            <tr>
+              <td><code>agentApi / useAgentStore</code></td>
+              <td>会话 CRUD、agent 选择、流式通道、中断闸门</td>
+              <td>对话与生成共用一套通道，零新增后端</td>
+            </tr>
+          </table>
+          <div class="callout ok">
+            <b>结论：</b>本次方案的增量主要在 <b>UI 层（Tabs + 两个面板）</b> 与
+            <b>上下文拼装/提示词</b>；后端、会话、流式、agent 体系全部可复用既有实现，改动面可控。
+          </div>
+        </div>
+      </section>
+
+      <!-- 三、方案设计 -->
+      <section>
+        <h2>三、方案设计</h2>
+        <div class="card">
+          <h3>3.1 整体结构：语料参考区升级为双标签页</h3>
+          <p>
+            在 <code>WritingDrawer</code> 的语料参考区（CorpusReferencePanel 外层）引入 MUI
+            <code>Tabs</code>，与工作台左栏（章节/设定/笔记）、右栏（正文/详情）的既有页签风格一致：
+          </p>
+          <div class="demo-tabs">
+            <input type="radio" name="dt" id="tab1" checked />
+            <input type="radio" name="dt" id="tab2" />
+            <div class="demo-tab-bar">
+              <label for="tab1">📚 语料库（现状）</label>
+              <label for="tab2">✨ AI 语料（新增）</label>
+            </div>
+            <div class="demo-pane pane1">
+              <div class="pane-note">Tab 1 · 保持现有 <code>CorpusReferencePanel</code> 原样，零回归。</div>
+              <ul>
+                <li>输入即自动匹配库内已有句子（自动取词 → FTS5 → 卡片插入）</li>
+                <li>行为、样式、拖拽宽度、分页全部不变</li>
+                <li>仅在外层包一层 Tabs 容器，语料区高度语义不变</li>
+              </ul>
+            </div>
+            <div class="demo-pane pane2">
+              <div class="pane-note">Tab 2 · 新增 <code>AiCorpusPanel</code>，含「生成」与「对话」两条子能力。</div>
+              <ul>
+                <li><b>生成模式</b>：一键让 AI 基于本书 + 当前章节生成若干条可参考语料，逐条可插入</li>
+                <li><b>对话模式</b>：与 AI 对话，AI 基于整篇作品分析 + 本章分析给出"怎么参考"的建议</li>
+                <li>两条子能力共用一个 agent 选择与流式通道</li>
+              </ul>
+            </div>
+          </div>
+          <div class="mock-wrap">
+            <div class="mock">
+              <div class="m-title">语料库 TAB（保留现状）</div>
+              <div class="bar">
+                <div class="seg on">📚 语料库</div>
+                <div class="seg off">✨ AI 语料</div>
+              </div>
+              <div class="row">
+                <div class="rh"><span>《斗破苍穹》</span><span>#12 · 高参考</span></div>
+                “萧炎，三年之约，可还记得？”
+              </div>
+              <div class="row">
+                <div class="rh"><span>《雪中悍刀行》</span><span>#3</span></div>
+                “这人间，我徐凤年来过。”
+              </div>
+              <div class="row cell"><span class="chip">命中 3 句 · 第 1/2 页</span><span class="btn">插入</span></div>
+            </div>
+            <div class="mock">
+              <div class="m-title">AI 语料 TAB（新增）</div>
+              <div class="bar">
+                <div class="seg off">📚 语料库</div>
+                <div class="seg on">✨ AI 语料</div>
+              </div>
+              <div class="flow"><b>生成：</b>基于本章场景生成 3 条参考句 ⏎</div>
+              <div class="ai">
+                ① “雨点砸在青石板上，溅起的水花没入夜色，一如那句没说出口的告别。”（已结合本章基调）<span
+                  class="btn"
+                  style="float: right"
+                  >插入</span
+                >
+              </div>
+              <div class="ai">② “他攥紧剑柄，指节发白——犹豫再久，天亮还是要赶路。”</div>
+              <div class="q">💬 这段要不要用原句？还是改成更含蓄的写法？</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>3.2 能力 A：AI 自动生成语料</h3>
+          <table>
+            <tr>
+              <th style="width: 150px">设计点</th>
+              <th>方案</th>
+            </tr>
+            <tr>
+              <td>触发方式</td>
+              <td>
+                <b>显式一键</b>（按钮「生成语料」），不随输入自动触发——生成有 LLM 成本且可能打断心流，与语料库 Tab
+                的"自动检索"形成对照；保留在需要时按需使用的控制权
+              </td>
+            </tr>
+            <tr>
+              <td>上下文</td>
+              <td>
+                复用 <code>buildChatContext</code> 拼装：书名 + 本章标题/字数/状态 + <b>全书章节骨架</b> + 人物档案 +
+                世界观设定 + <b>本章正文尾部（2000 字符）</b>，双语注入
+              </td>
+            </tr>
+            <tr>
+              <td>生成目标</td>
+              <td>
+                默认基于<b>本章场景与基调</b>生成 3
+                条风格一致、可直接改用的句子/段落；每条标记"结合了本章哪一类上下文"（场景 / 人物 / 世界观 / 前文语气）
+              </td>
+            </tr>
+            <tr>
+              <td>执行通道</td>
+              <td>
+                扩展 <code>runInlineWritingTask</code> 新增 kind（如
+                <code>corpus-gen</code>）或复用现有通道传自定义指令，流式输出到面板；零新增后端
+              </td>
+            </tr>
+            <tr>
+              <td>结果呈现</td>
+              <td>
+                每条生成结果一张小卡：正文 + 「插入」按钮（复用 <code>onInsertText</code>）+
+                「复制」；支持再生成（换一批）
+              </td>
+            </tr>
+            <tr>
+              <td>可选参数</td>
+              <td>
+                轻量附加项：条数（1-5）、偏好（如"更克制/更有画面感"）、用途（对白/动作/环境）——默认留空即智能默认，不为难用户
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>3.3 能力 B：对话式参考决策</h3>
+          <p>这是本次的核心增值：把"看命中句自己琢磨"变成"问 AI 怎么参考"。AI 的人设与上下文做<b>针对性强化</b>：</p>
+          <table>
+            <tr>
+              <th style="width: 200px">设计点</th>
+              <th>方案</th>
+            </tr>
+            <tr>
+              <td>人设</td>
+              <td>
+                「本书语料参谋」：结合<b>整篇作品分析</b>（全书结构 / 人物 / 世界观 /
+                已写章节的总体风格）与<b>本章分析</b>（本章场景、节奏、当前段落的上下文），给出"这句是否可参考 /
+                参考哪句 / 直接引用还是改写 / 是否由 AI 重写一段"的明确建议
+              </td>
+            </tr>
+            <tr>
+              <td>上下文注入</td>
+              <td>
+                首轮消息自动拼 <code>buildChatContext()</code>（已有整篇 + 本章全部素材），后续轮次靠会话历史延续——与
+                <code>WritingAiChatDialog</code> 完全同一策略
+              </td>
+            </tr>
+            <tr>
+              <td>会话复用</td>
+              <td>
+                per (agentId, 书) 复用同名会话（如「语料参谋 ·
+                书名」），换章不换会话；「新会话」按钮随时重开且重新注入上下文
+              </td>
+            </tr>
+            <tr>
+              <td>参考衔接</td>
+              <td>
+                对话中 AI 推荐引用的句子，如已命中语料库，可回链到语料库 Tab 定位（传回 <code>query</code> 切换
+                Tab）；AI 生成的句子同样可「插入」
+              </td>
+            </tr>
+            <tr>
+              <td>快捷提问</td>
+              <td>
+                预置 2-3 个常见场景快捷
+                chip（"这段该怎么参考？"“这章基调是什么意思，帮我分析”“语料库里没匹配到，帮我造两句”）降低冷启动门槛
+              </td>
+            </tr>
+          </table>
+          <div class="steps">
+            <div class="step">
+              <div class="st-body">
+                <div class="st-title">用户提问</div>
+                <p>在 AI 语料 Tab 输入或点快捷 chip，如"我现在写主角重逢，库里有可参考的句子吗？"</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="st-body">
+                <div class="st-title">上下文组装</div>
+                <p>
+                  首轮自动拼上书 + 全书章节骨架 + 人物/世界观 + 本章正文尾部；同时（可选）把当前输入的自动检索词一并带上
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="st-body">
+                <div class="st-title">AI 分析并决策</div>
+                <p>AI 基于整篇与本章上下文回答：有无可参考 → 给原句或改写 → 或建议生成新句，并说明理由</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="st-body">
+                <div class="st-title">落笔</div>
+                <p>用户对推荐结果点「插入」或「复制」，一句到位；不满意可继续追问</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>3.4 Tab 内布局与交互细节</h3>
+          <ul>
+            <li>
+              <b>面板结构（自上而下）：</b>agent 选择条 → 子能力切换（生成 / 对话 两个小 Segment 或叠加区）→
+              内容区（流式对话气泡 或 生成结果卡片列表）→ 底部输入/操作区。
+            </li>
+            <li>
+              <b>生成区：</b>顶部一行「生成语料」按钮 +
+              数量/偏好轻参数（默认收起，点开才显示），下方结果卡片流，底部「换一批」。
+            </li>
+            <li>
+              <b>对话区：</b>消息气泡（用户右、AI 左）、流式渲染、中断按钮、Enter 发送 / Shift+Enter
+              换行、新会话；有会话历史可续聊。
+            </li>
+            <li>
+              <b>插入通路：</b>生成结果卡片与对话中 AI 推荐句均带「插入」→ 复用父级
+              <code>onInsertText</code>（WritingPage 的
+              <code>handleCorpusInsert</code>），在编辑器光标处落笔，插入后卡片就地高亮（沿用现有
+              <code>flashInserted</code> 模式）；对话框场景可传到抽屉外。
+            </li>
+            <li>
+              <b>空态与降级：</b>未配置 agent → 「去配置」引导出口（复用
+              <code>writing.aiNoAgent / aiGoConfigure</code>）；流式中禁用发送与切换。
+            </li>
+            <li><b>宽度约束：</b>抽屉固定 320px，对话气泡与卡片文案保持紧凑排版；生成条数默认 3 条防滚动过长。</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 四、界面衔接 -->
+      <section>
+        <h2>四、与现有界面 / 基础设施的衔接</h2>
+        <div class="card">
+          <h3>4.1 改动面清单</h3>
+          <table>
+            <tr>
+              <th style="width: 240px">文件 / 位置</th>
+              <th>改动</th>
+              <th style="width: 90px">影响</th>
+            </tr>
+            <tr>
+              <td><code>writingPage/WritingDrawer.tsx</code></td>
+              <td>
+                语料参考区外包 MUI Tabs（语料库 / AI 语料），状态默认「语料库」；传入 AI 面板所需
+                props（activeBook、chapters、editor 上下文构建器等）
+              </td>
+              <td>小改</td>
+            </tr>
+            <tr>
+              <td><code>writingPage/CorpusReferencePanel.tsx</code></td>
+              <td>基本不动（作为 Tab 1 内容保留）；可把头部本就有的标题区收敛为 Tab 条以省高度</td>
+              <td>微调 / 零改</td>
+            </tr>
+            <tr>
+              <td><code>writingPage/AiCorpusPanel.tsx</code>（新增）</td>
+              <td>AI 语料面板：生成区 + 对话区 + agent 选择 + 上下文注入，复用会话/流式协议</td>
+              <td>新增</td>
+            </tr>
+            <tr>
+              <td><code>writingPage/useAiActions.ts</code></td>
+              <td>
+                暴露可复用的 <code>buildChatContext</code> / 新增轻量便捷封装（如 buildAiCorpusContext
+                增加"当前输入片段"）
+              </td>
+              <td>小改</td>
+            </tr>
+            <tr>
+              <td><code>ai/writingAssistant.ts</code></td>
+              <td>（可选）新增内联任务 kind：生成参考语料；不改则直接复用对话通道 + 指令即可</td>
+              <td>可选</td>
+            </tr>
+            <tr>
+              <td><code>i18n</code></td>
+              <td>
+                新增 key：AI 语料 Tab 标签 / 生成按钮 / 快捷 chip / 空态文案等（沿用 <code>writing.*</code> 命名）
+              </td>
+              <td>小改</td>
+            </tr>
+            <tr>
+              <td>后端</td>
+              <td><b>无</b>——会话、流式、agent、语料检索全部既有</td>
+              <td>零改</td>
+            </tr>
+          </table>
+          <h3>4.2 与既有能力的复用关系</h3>
+          <div class="pill-row">
+            <span class="pill"><em>WritingAiChatDialog</em> → 对话骨架（抽嵌入式）</span>
+            <span class="pill"><em>buildChatContext</em> → 整篇 + 本章上下文</span>
+            <span class="pill"><em>runInlineWritingTask</em> → 生成通道</span>
+            <span class="pill"><em>agentApi / useAgentStore</em> → 会话与流式</span>
+            <span class="pill"><em>onInsertText</em> → 插入落笔</span>
+          </div>
+          <div class="callout info">
+            <b>衔接原则：</b>语料库 Tab 的"自动匹配"保持自动驾驶不改语义；AI Tab
+            的生成/对话是<b>用户显式触发的按需服务</b>，两者互补不打架：有匹配看匹配，没有匹配可生成，拿不准可对话。
+          </div>
+        </div>
+      </section>
+
+      <!-- 五、功能边界 -->
+      <section>
+        <h2>五、功能边界（本轮明确不做）</h2>
+        <div class="card">
+          <table>
+            <tr>
+              <th style="width: 280px">不做</th>
+              <th>原因 / 替代</th>
+            </tr>
+            <tr>
+              <td>AI 生成结果自动写入语料库</td>
+              <td>
+                写入是重操作且污染「外部参考书籍」语料语义；本轮只做参考，未做"入库"；如需沉淀可后续做独立"我的语料"空间
+              </td>
+            </tr>
+            <tr>
+              <td>随输入自动触发 AI 生成</td>
+              <td>成本与心流考量；保持显式按钮/对话触发</td>
+            </tr>
+            <tr>
+              <td>AI 直接替换正文段落（大段改写）</td>
+              <td>与内联 AI（润色/改写/续写）能力重叠；本 Tab 聚焦"生成/决策参考句"，整段改动走既有内联入口</td>
+            </tr>
+            <tr>
+              <td>拖拽调宽 / 独立栏形态</td>
+              <td>本 Tab 固定在 320px 抽屉内，保持现状可调性不动</td>
+            </tr>
+            <tr>
+              <td>跨章生成（自动扫描全书正文）</td>
+              <td>上下文预算与响应速度；本章尾部 + 全书骨架已足够支撑参考决策</td>
+            </tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- 六、落地计划 -->
+      <section>
+        <h2>六、落地实施计划（建议分 3 步）</h2>
+        <div class="card">
+          <div class="steps">
+            <div class="step">
+              <div class="st-body">
+                <div class="st-title">
+                  P0 · 骨架与 Tab 切换<span class="tag blue" style="margin-left: 8px">结构性</span>
+                </div>
+                <p>
+                  WritingDrawer 语料区包 Tabs；「语料库」原样封入 Tab1；Tab2 先渲染 AI 语料面板骨架（agent 选择 + 空态 +
+                  去配置出口）。验收：双 Tab 可切换，语料库行为与引入前一致。
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="st-body">
+                <div class="st-title">
+                  P1 · 对话式参考<span class="tag violet" style="margin-left: 8px">核心价值</span>
+                </div>
+                <p>
+                  接入嵌入式对话：复用会话复用/流式/上下文注入，默认注入 <code>buildChatContext</code>（整篇 +
+                  本章），快捷 chip 与「插入」按钮落地。验收：首轮对话带全书 + 本章上下文，AI
+                  能给出明确参考建议并可插入。
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="st-body">
+                <div class="st-title">
+                  P2 · 一键生成语料<span class="tag green" style="margin-left: 8px">补全能力</span>
+                </div>
+                <p>
+                  生成模式落地：按钮触发 → 组装上下文 → 流式生成 3 条 → 卡片 +
+                  插入/复制/换一批；可选数量与偏好参数。验收：空库场景下也能产出与本章基调一致的参考句并可插入。
+                </p>
+              </div>
+            </div>
+          </div>
+          <h3>测试与回归</h3>
+          <ul>
+            <li>新增 <code>AiCorpusPanel.test.tsx</code>：Tab 切换渲染、无 agent 出口、发送禁用/流式态、插入回调。</li>
+            <li>回归 <code>CorpusReferencePanel.test.tsx</code> 全绿（Tab1 语义不变）。</li>
+            <li>全量 <code>tsc</code> + <code>vitest</code> + <code>eslint</code> 零新增问题，双语 i18n key 齐全。</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 七、风险与对策 -->
+      <section>
+        <h2>七、风险与对策</h2>
+        <div class="card">
+          <table>
+            <tr>
+              <th style="width: 230px">风险</th>
+              <th>对策</th>
+            </tr>
+            <tr>
+              <td>320px 窄抽屉 + 对话 + 生成共存导致拥挤</td>
+              <td>子能力用 Segment 切换（一次只展示一种）；生成默认 3 条；文案字号与现有提醒区一致（11-13px）</td>
+            </tr>
+            <tr>
+              <td>上下文超长（全书骨架 + 人物 + 世界观 + 本章尾）</td>
+              <td>
+                沿用既有 <code>CHAT_CONTEXT_PROFILE</code> 预算（40 人物 / 40 世界观 / 60 章骨架 / 2000
+                尾字符），量级已被现有对话验证过
+              </td>
+            </tr>
+            <tr>
+              <td>生成内容风格漂移 / 与本书设定冲突</td>
+              <td>
+                上下文强制注入人物/世界观语料；提示词明确"基于本书设定生成，不凭空捏造"（与
+                <code>bookTopicRoleInstruction</code> 同一纪律）
+              </td>
+            </tr>
+            <tr>
+              <td>与内联 AI / 既有对话的入口重叠</td>
+              <td>
+                定位差异化：内联 AI = 对选中文字操作；AI 语料 = 针对"参考决策 + 生成参考句"；入口在语料区而非编辑器菜单
+              </td>
+            </tr>
+            <tr>
+              <td>会话标题与既有「写作台」会话混淆</td>
+              <td>per 书使用独立会话名「语料参谋 · 书名」，与现有写作台会话并存不污染</td>
+            </tr>
+          </table>
+        </div>
+      </section>
+
+      <div class="footer">
+        sight-folio · 写作台 AI 语料标签页功能分析 · 2026-10-12 · 基于当前代码现状（CorpusReferencePanel / WritingDrawer
+        / WritingAiChatDialog / useAiActions）分析
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::analysis;
+
 /// 语料库域模型（Sight Folio「语料库」功能）。
 ///
 /// 定位：外部参考书籍/文章的本地全文检索库——用户导入优秀作品，
@@ -91,6 +93,13 @@ pub struct CorpusSearchHit {
     pub kind: String,
     pub chapter_title: String,
     pub content: String,
+    /// 字数/词数统计（旧序列化无此字段时自动缺省）。
+    #[serde(default)]
+    pub analysis: Option<analysis::SentenceAnalysis>,
+    /// 参考价值分层（high/medium/low；对应 reference::tier_of，检索时实时补标——
+    /// 让创作者优先参考叙事/对话/描写/修辞信号完整的句子）。
+    #[serde(default)]
+    pub reference_tier: Option<String>,
     /// 该句在**本次检索范围内**的出现次数（按书过滤时即该书内次数）。未合并场景为 1。
     #[serde(default = "default_one")]
     pub occurrence_count: i64,
@@ -120,6 +129,9 @@ pub struct CorpusSearchResult {
     pub books: Vec<CorpusBook>,
     /// 正文句子命中（沿用既有排序与重复句合并）。
     pub hits: Vec<CorpusSearchHit>,
+    /// 句子命中总数（重复句合并后；`hits` 为其中一页）——分页 UI 用。
+    #[serde(default)]
+    pub total: i64,
 }
 
 /// 入库归档的源文本镜像（P0-1 维护优化）。
@@ -263,4 +275,56 @@ pub struct CorpusStorageReport {
     pub fts_rows_before: i64,
     /// 回收后 FTS5 倒排行数。
     pub fts_rows_after: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 序列化兼容回归：旧版本序列化的命中（无 analysis 字段）必须能无损反序列化。
+    /// `#[serde(default)]` 保证 analysis 缺省为 None，读写老库/老客户端数据不报错。
+    #[test]
+    fn legacy_hit_without_analysis_deserializes() {
+        let legacy = r#"{"chunkId":1,"bookId":1,"bookTitle":"围城","seq":3,"kind":"sentence","chapterTitle":"第一章","content":"婚姻是一座围城。","occurrenceCount":1,"occurrences":[]}"#;
+        let hit: CorpusSearchHit = serde_json::from_str(legacy).expect("旧格式命中应可反序列化");
+        assert_eq!(hit.chunk_id, 1);
+        assert_eq!(hit.book_title, "围城");
+        assert!(hit.analysis.is_none(), "缺省字段应解析为 None");
+    }
+
+    /// 新格式命中（含 analysis）可正常序列化/反序列化，字段完整往返。
+    #[test]
+    fn hit_with_analysis_roundtrips() {
+        let hit = CorpusSearchHit {
+            chunk_id: 2,
+            book_id: 1,
+            book_title: "活着".to_string(),
+            seq: 0,
+            kind: "sentence".to_string(),
+            chapter_title: String::new(),
+            content: "人是为了活着本身而活着。".to_string(),
+            analysis: Some(analysis::SentenceAnalysis {
+                char_count: 12,
+                token_count: 6,
+            }),
+            reference_tier: Some("medium".to_string()),
+            occurrence_count: 1,
+            occurrences: vec![],
+        };
+        let json = serde_json::to_string(&hit).expect("应可序列化");
+        let back: CorpusSearchHit = serde_json::from_str(&json).expect("应可反序列化");
+        assert_eq!(back.analysis.as_ref().unwrap().char_count, 12);
+        assert_eq!(back.analysis.as_ref().unwrap().token_count, 6);
+        assert_eq!(back.reference_tier.as_deref(), Some("medium"));
+    }
+
+    /// 旧版本序列化的命中（无 reference_tier 字段）必须能无损反序列化：
+    /// `#[serde(default)]` 保证缺省为 None。
+    #[test]
+    fn legacy_hit_without_reference_tier_deserializes() {
+        let legacy = r#"{"chunkId":1,"bookId":1,"bookTitle":"围城","seq":3,"kind":"sentence","chapterTitle":"第一章","content":"婚姻是一座围城。","occurrenceCount":1,"occurrences":[]}"#;
+        let hit: CorpusSearchHit = serde_json::from_str(legacy).expect("旧格式命中应可反序列化");
+        assert_eq!(hit.chunk_id, 1);
+        assert!(hit.reference_tier.is_none(), "缺省字段应解析为 None");
+    }
 }

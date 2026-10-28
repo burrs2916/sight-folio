@@ -98,6 +98,24 @@ export function findNodeInForest(forest: TreeNode[], id: string): TreeNode | nul
 }
 
 /**
+ * 树先序索引表（id → { index, depth }）：与大纲树同构的扁平呈现（如灵感念头按绑定章节
+ * 排成树序）共用。index = 该节点在「根 → 深 → 平」先序遍历中的次序（0 起），故绑定同一
+ * 章节的实体天然聚在同一层；depth 与 buildTree 同源。禁第二份实现。
+ */
+export function forestPreorderIndex(forest: TreeNode[]): Map<string, { index: number; depth: number }> {
+  const out = new Map<string, { index: number; depth: number }>();
+  let i = 0;
+  const walk = (nodes: TreeNode[]): void => {
+    for (const n of nodes) {
+      out.set(n.node.id, { index: i++, depth: n.depth });
+      walk(n.children);
+    }
+  };
+  walk(forest);
+  return out;
+}
+
+/**
  * 节点在结构树上的「层级路径标签」（文字封面兜底等共用）：
  * 沿根到目标节点，每层输出「kind 序号」（如 卷 1 → 章 3；序号 = 该节点在兄弟中的次序，
  * buildTree 已按 sortOrder 升序，故序数 1 起、各入口一致）。kind 为空（旧模型节点）

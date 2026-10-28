@@ -53,6 +53,38 @@ pub struct WritingSetting {
     pub updated_at: i64,
 }
 
+/// 设定卡修订历史（批次③ 增-3）
+///
+/// 为什么必须有它：本仓库对 AI 写正文的规矩是「覆盖前先把原稿存进版本历史」
+/// （见 `write_chapter` 里的「数据安全铁律」注释）。设定卡同样是书稿——而且是人设关系、
+/// 世界观规则这类**一旦改错就无法凭记忆还原**的结构化内容。AI 开始帮作者维护卡片之后，
+/// 没有历史的改写等于不可撤销的破坏。
+///
+/// 只存被替换掉的**旧值**；新值就是 `writing_settings` 的当前行，不重复存。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WritingSettingRevision {
+    pub id: String,
+    pub setting_id: String,
+    pub book_id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub subtitle: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub extra: String,
+    /// 这次改写是谁做的：目前只有 `ai`，预留手动存版本
+    #[serde(default = "default_revision_origin")]
+    pub origin: String,
+    pub created_at: i64,
+}
+
+fn default_revision_origin() -> String {
+    "ai".to_string()
+}
+
 /// 每日写作快照（写作统计用）
 ///
 /// day 为本地日期 YYYY-MM-DD；word_count 为该日结束时全书总字数。
@@ -116,6 +148,11 @@ pub struct WritingChapterSnapshot {
     #[serde(default = "default_snapshot_origin")]
     pub origin: String,
     pub created_at: i64,
+    /// 用户自定义名称（重命名）。`None`/空 = 未命名，列表回退显示 origin 文案。
+    /// 落库为 `name` 列；命名只走 `rename_chapter_snapshot` 单列更新，
+    /// 不随整行覆写（防前端旧副本回滚用户刚改的名字）。
+    #[serde(default)]
+    pub name: Option<String>,
 }
 
 fn default_snapshot_origin() -> String {
@@ -132,6 +169,9 @@ pub struct WritingAnnotation {
     pub id: String,
     pub chapter_id: String,
     pub book_id: String,
+    /// 关联的人物/世界观设定卡 id；空串 = 未关联（设定卡反向视图据此聚合）。
+    #[serde(default)]
+    pub setting_id: String,
     pub text: String,
     #[serde(default)]
     pub excerpt: String,
@@ -274,13 +314,13 @@ pub struct CompletedWork {
     /// epub | pdf | docx | html | md | txt | backup
     #[serde(default)]
     pub format: String,
-    /// 导出产物的绝对路径
+    /// 导出产物绝对路径
     #[serde(default)]
     pub file_path: String,
     /// 产物字节数（导出成功后由命令层 stat 回填，前端不负责计算）
     #[serde(default)]
     pub file_size: i64,
-    /// 源文件是否存在（列表加载时由命令层顺带检测并回写）。true = 用户已移动/删除源文件。
+    /// 源文件是否存在（列表加载时由命令层顺带检测磁盘后回写）。true = 用户已移动/删除源文件。
     #[serde(default)]
     pub is_file_missing: bool,
     #[serde(default)]
@@ -289,4 +329,50 @@ pub struct CompletedWork {
     pub chapter_count: i64,
     /// 导出完成时间（Unix 秒）
     pub created_at: i64,
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 外部素材采集（Phase 1）：从真实世界摄取素材并 AI 分析
+// ═════════════════════════════════════════════════════════════════
+
+/// 外部素材类型：图片 / 纯文本 / 记事本片段 / 网页链接。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ExternalCaptureKind {
+    Image,
+    Text,
+    Note,
+    Link,
+}
+
+/// 外部素材采集记录。
+///
+/// 用户从真实世界摄入的原始素材（图片/文字/记事本/链接），经 AI 分析后产出
+/// 人物画像 / 场景素材 / 世界观元素 / 创作建议，供写作台调用。
+/// book_id 可空 = 全局素材（未绑定任何书籍）；analysis_json 为 AI 分析结构化结果。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalCapture {
+    pub id: String,
+    #[serde(default)]
+    pub book_id: String,
+    pub kind: ExternalCaptureKind,
+    /// 原始内容（图片存 app-local 路径 / 文本直接存 / 记事本存 note_id / 链接存 URL）
+    pub source_raw: String,
+    /// OCR 或抓取后的纯文本（AI 分析输入）
+    #[serde(default)]
+    pub extracted_text: String,
+    /// AI 分析结果 JSON：timeline / profile / creative_value / suggestions 结构
+    #[serde(default)]
+    pub analysis_json: String,
+    /// 用户可编辑标题
+    pub title: String,
+    /// 标签 JSON 数组串
+    #[serde(default)]
+    pub tags: String,
+    /// 用途标记：character / scene / world / archive / article
+    #[serde(default)]
+    pub target_use: String,
+    pub created_at: i64,
+    pub updated_at: i64,
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { agentApi } from '../services/tauri';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { t } from '../i18n';
 import type {
   AiProvider,
   AiEndpoint,
@@ -13,6 +14,18 @@ import type {
 } from '../services/tauri';
 import { logger } from '../utils/logger';
 import { mergeToolCallEvent } from '../utils/toolCallDisplay';
+
+/** 流式空闲超时（ms）：超过该时长未收到任何 chunk，判定 provider/网络/后端卡死 */
+export const STREAM_IDLE_TIMEOUT_MS = 90_000;
+/** 判超时后仍收不到后端回执时的强制收尾等待（ms），防止 isStreaming 永久锁死全局闸门 */
+export const STREAM_FORCE_SETTLE_MS = 15_000;
+/**
+ * 流式 chunk 合并 flush 窗口（ms）：onChunk 高频到达（SSE 常为 10-50ms 一片）时，
+ * 攒批量再一次性 set streamingContent，把「每片一次 store 广播 + 全串拼接 O(n²)」
+ * 压成「每 ~48ms 一次」，大幅降低所有订阅端（工作台/写作台/InlineChat/报告面板）的重渲染频率。
+ * 对标 VS Code 流式渲染的 rAF 批处理：合并高频小片、保留文字流动感。
+ */
+export const STREAM_FLUSH_MS = 48;
 
 interface AgentState {
   // 数据列表
@@ -43,12 +56,27 @@ interface AgentState {
    * 「AI 自己答完了」还是「我按停止截断的」——面板据此在末条消息下标注「已停止」。
    */
   stoppedConversationId: string | null;
+  /**
+   * 当前流式所属会话 id（sendMessage 发起时置位、settle 时清空）。
+   * streamingContent / isStreaming 是全局状态，多个消费端面板（工作台 AI、AI 页、
+   * 写作台语料参谋、写作台 AI 对话框）共享同一 store——若没有归属字段，
+   * 任意一端发起流式时，其余打开中的面板会把同一段文本渲染进自己的会话气泡（串台）。
+   * 消费端渲染流式气泡前必须与本值判等。
+   */
+  currentStreamConversationId: string | null;
+  /**
+   * 最近一轮流式的错误信息（settle 后保留，供 UI 渲染错误气泡；新一轮发起时清除）。
+   * 哨兵值 'timeout'：watchdog 判定流空闲超时后置位，UI 显示本地化文案而非原始错误文本。
+   */
+  lastStreamError: string | null;
+  /** 流式最后活跃时间戳（发起时与每次 chunk 到达时刷新），供 watchdog 判定空闲超时 */
+  streamLastChunkAt: number | null;
   toolCalls: ToolCallEvent[];
 
   /**
-   * 待用户确认的高危工具调用（当前为 run_command 的 human-in-the-loop 拦截）。
-   * 引擎在即将执行命令前推送审批请求，前端据此弹确认框；用户落定后清空。
-   * 仅一条在途审批（一轮内 run_command 串行，不会并发等待多条）。
+   * 待用户确认的高危工具调用（human-in-the-loop 拦截：run_command 逐条确认，
+   * 写入类工具可会话级记住）。引擎在即将执行前推送审批请求，前端据此弹确认框；
+   * 用户落定后清空。仅一条在途审批（一轮内工具串行执行，不会并发等待多条）。
    */
   pendingToolApproval: {
     runId: string;
@@ -56,6 +84,10 @@ interface AgentState {
     tool: string;
     command: string;
     cwd: string;
+    /** 面向创作者的操作摘要（写入类工具没有 command，用 summary 展示） */
+    summary: string;
+    /** true = 写入类低危工具，弹窗提供「本会话不再询问」选项 */
+    sessionRememberable: boolean;
   } | null;
 
   // 加载状态
@@ -97,6 +129,13 @@ interface AgentState {
     content: string,
     allowedTools?: string[] | null,
     modelId?: string | null,
+    /**
+     * 显式指定本次运行使用的 agent。
+     * 直读 API 建会话的面板（写作台 AiCorpusPanel / WritingAiChatDialog）不会进入
+     * store.conversations，且写作台窗口下 selectedAgentId 未设置——没有这个参数时
+     * agentId 无法推导，sendMessage 只能放弃发送。传入后优先级最高。
+     */
+    agentId?: string | null,
   ) => Promise<void>;
   /**
    * 从某条消息起截断当前转录（含该条），返回被截断的第一条消息（供「重试」拿回原始正文）。
@@ -112,7 +151,7 @@ interface AgentState {
   requestInterrupt: () => void;
 
   /** 落定当前待审批的高危工具调用：approved=true 允许执行，false 拒绝（引擎默认拒绝）。 */
-  resolveToolApproval: (approved: boolean) => Promise<void>;
+  resolveToolApproval: (approved: boolean, rememberSession?: boolean) => Promise<void>;
 }
 
 export const useAgentStore = create<AgentState>((set, get) => ({
@@ -131,6 +170,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   interruptRequested: false,
   currentRunId: null,
   stoppedConversationId: null,
+  currentStreamConversationId: null,
+  lastStreamError: null,
+  streamLastChunkAt: null,
   toolCalls: [],
   pendingToolApproval: null,
 
@@ -308,7 +350,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  createConversation: async (agentId, title = '新对话') => {
+  createConversation: async (agentId, title = t('agent.newChat')) => {
     try {
       const conversation = await agentApi.createConversation(agentId, title);
       await get().loadConversations(agentId);
@@ -372,16 +414,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     return first ?? null;
   },
 
-  sendMessage: async (conversationId, content, allowedTools?: string[] | null, modelId?: string | null) => {
+  sendMessage: async (
+    conversationId,
+    content,
+    allowedTools?: string[] | null,
+    modelId?: string | null,
+    explicitAgentId?: string | null,
+  ) => {
     const state = get();
     if (state.isStreaming || state.interruptRequested) {
       logger.warn('AgentStore', 'Already streaming / interrupt pending, ignoring message');
       return;
     }
 
-    // run_agent 需要 agentId：优先取会话归属，回退到当前选中的 Agent。
-    // 两者都拿不到就直接失败——绝不在这里兜底成某个写死的 Agent。
-    const agentId = state.conversations.find((c) => c.id === conversationId)?.agentId ?? state.selectedAgentId;
+    // run_agent 需要 agentId，解析优先级：显式传入 > 会话归属 > 当前选中的 Agent。
+    // 直读 API 建会话的面板（写作台语料参谋 / 写作台 AI 对话框）不经过 store.conversations，
+    // 也没有设置 selectedAgentId——必须由调用端显式传 agentId，否则这里只能放弃发送。
+    const agentId =
+      explicitAgentId ?? state.conversations.find((c) => c.id === conversationId)?.agentId ?? state.selectedAgentId;
     if (!agentId) {
       logger.error('AgentStore', 'sendMessage aborted: 无法确定 agentId', { conversationId });
       return;
@@ -398,22 +448,77 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     };
     set((s) => ({ messages: [...s.messages, optimisticUserMessage] }));
 
-    // 收尾统一走这里：谁先到谁生效（onDone / 命令返回 / catch）。
+    // 收尾统一走这里：谁先到谁生效（onDone / 命令返回 / catch / 超时强制收尾）。
+    // once 语义：同一轮的多条收尾路径几乎总会先后到达（onDone 与命令返回兜底必有一次重叠），
+    // 只有第一条真正执行，其余直接返回——否则后到的收尾会清掉可能已被新一轮接管的
+    // 流式状态（isStreaming / currentRunId / pendingToolApproval），产生跨轮串扰。
     // 若收尾时 interruptRequested 仍为真，说明本轮是被用户按停止截断的 → 记账供面板标注「已停止」。
+    let settled = false;
     const settleStream = () => {
+      if (settled) return;
+      settled = true;
+      if (watchdog) {
+        clearInterval(watchdog);
+        watchdog = null;
+      }
+      if (forceSettleTimer) {
+        clearTimeout(forceSettleTimer);
+        forceSettleTimer = null;
+      }
+      // 丢弃仍卡在 flush 窗口内的残余分片：权威全文由 loadMessages 从库里拉齐
+      // （onDone / 命令返回兜底路径），被停止截断的残余也不应再写入界面。
+      if (streamFlushTimer) {
+        clearTimeout(streamFlushTimer);
+        streamFlushTimer = null;
+      }
+      streamBuf = '';
       const wasInterrupted = get().interruptRequested;
       set((s) => ({
         isStreaming: false,
         streamingContent: '',
         interruptRequested: false,
         currentRunId: null,
+        // currentStreamConversationId 保留到下一轮发起再覆盖：流结束后 UI 仍要靠它判断
+        // 本条「错误气泡 / 已停止」标注属于哪个会话（isStreaming=false 时不会误渲染流式内容）。
+        streamLastChunkAt: null,
         stoppedConversationId: wasInterrupted ? conversationId : s.stoppedConversationId,
+        // lastStreamError 不清空：settle 后保留给 UI 渲染错误气泡，下一轮发起时再清。
         // 收尾时清掉可能残留的审批弹窗（如用户在审批等待中点了「停止」：后端已按拒绝处理并结束本轮）
         pendingToolApproval: null,
       }));
     };
 
-    // 高危工具审批监听：引擎即将执行 run_command 时推送，前端弹确认框。
+    // 卡死 watchdog：provider 半开 / 网络断 / 后端挂起时 onDone 永远不来，
+    // isStreaming 会一直为 true 锁死全部 AI 入口——用「最后 chunk 时间」判定空闲超时，
+    // 超时先调用 requestInterrupt 走标准取消（保留已吐出的部分回答），
+    // 后端仍不回执的话再由 forceSettleTimer 强制收尾解锁并发闸门。
+    let watchdog: ReturnType<typeof setInterval> | null = null;
+    let forceSettleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // ---- streamingContent 合并 flush（对标 VS Code rAF 批处理）----
+    // onChunk 高频到达时只追加到缓冲区，flushTimer 按 STREAM_FLUSH_MS 窗口统一 set 一次：
+    // ① 全串拼接频率从「每片一次 O(n)」降到「每窗口一次」，长流式下避免 O(n²) 卡顿；
+    // ② store 广播与所有订阅端重渲染从「每片一次」降到「每秒 ~20 次」，文字仍逐字流动。
+    // streamLastChunkAt 也随 flush 更新：watchdog 巡检 5s / 超时阈值 90s，48ms 窗口偏差可忽略。
+    let streamBuf = '';
+    let streamFlushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushStream = () => {
+      streamFlushTimer = null;
+      if (!streamBuf || settled) return;
+      // 已按停止：残余片不写入，界面立刻停字（对标 VS Code「停止即冻结」）
+      if (get().interruptRequested) {
+        streamBuf = '';
+        return;
+      }
+      const buf = streamBuf;
+      streamBuf = '';
+      set((state) => ({
+        streamingContent: state.streamingContent + buf,
+        streamLastChunkAt: Date.now(),
+      }));
+    };
+
+    // 高危工具审批监听：引擎即将执行 run_command / 写入类工具时推送，前端弹确认框。
     // 仅在本轮运行期间有效，结束时务必反注册，避免泄漏监听器。
     // 声明在 try 之外，catch 中也能反注册，防止异常路径悬挂监听。
     const approvalUnlisten: Promise<UnlistenFn> = listen<AgentToolApprovalEvent>('agent-tool-approval', (event) => {
@@ -425,6 +530,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           tool: event.payload.tool,
           command: event.payload.command,
           cwd: event.payload.cwd,
+          summary: event.payload.summary ?? '',
+          sessionRememberable: event.payload.sessionRememberable ?? false,
         },
       });
     });
@@ -433,15 +540,38 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       // 前端生成单次运行 id，随 run_agent 下发，供 requestInterrupt 精准取消本次运行
       const runId = globalThis.crypto?.randomUUID?.() ?? `run_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-      // 开始流式响应（清掉上一轮的「已停止」标注：新一轮开始，旧回执作废）
+      // 开始流式响应（清掉上一轮的「已停止」标注与错误：新一轮开始，旧回执作废）
       set({
         isStreaming: true,
         streamingContent: '',
         toolCalls: [],
         currentRunId: runId,
         stoppedConversationId: null,
+        currentStreamConversationId: conversationId,
+        lastStreamError: null,
+        streamLastChunkAt: Date.now(),
         pendingToolApproval: null,
       });
+
+      // 启动空闲超时 watchdog：固定间隔巡检，只在流仍活跃且超时时动作
+      watchdog = setInterval(() => {
+        const current = get();
+        if (!current.isStreaming) {
+          if (watchdog) clearInterval(watchdog);
+          watchdog = null;
+          return;
+        }
+        const lastActive = current.streamLastChunkAt ?? Date.now();
+        if (Date.now() - lastActive <= STREAM_IDLE_TIMEOUT_MS) return;
+        // 判定卡死：先记账（哨兵 'timeout'，UI 据此显示本地化文案），再走标准取消
+        set({ lastStreamError: 'timeout' });
+        get().requestInterrupt();
+        if (!forceSettleTimer) {
+          forceSettleTimer = setTimeout(() => {
+            if (get().isStreaming) settleStream();
+          }, STREAM_FORCE_SETTLE_MS);
+        }
+      }, 5000);
 
       await agentApi.runAgent(
         agentId,
@@ -449,10 +579,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         conversationId,
         // onChunk
         (chunk) => {
-          // 已点停止：丢弃在途残余分片，界面立刻停字（对标 VS Code）。
-          // 后端取消是「读下一个网络分片前检查」，已在飞行中的那一片仍会到达，这里兜住。
-          if (get().interruptRequested) return;
-          set((state) => ({ streamingContent: state.streamingContent + chunk }));
+          // 已点停止 / 已收尾：丢弃在途残余分片，界面立刻停字（对标 VS Code）。
+          // 后端取消是「读下一个网络分片前检查」，已在飞行中的那一片仍会到达，这里兜住；
+          // settled 兜住「收尾后才抵达的迟到分片」，避免它们复活已清空的流式状态。
+          if (settled || get().interruptRequested) return;
+          // 高频分片只攒缓冲，flushStream 按 STREAM_FLUSH_MS 窗口统一 set 一次，
+          // 避免每个 chunk 做一次全串拼接（长流式 O(n²)）与一次 store 广播（全端重渲染）。
+          streamBuf += chunk;
+          if (!streamFlushTimer) {
+            streamFlushTimer = setTimeout(flushStream, STREAM_FLUSH_MS);
+          }
         },
         // onToolCall：running / done 两次事件合并成一张卡片
         (toolCall) => {
@@ -460,12 +596,25 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         },
         // onDone：后端已落库用户消息 + 助手回复，这里从 DB 重新拉齐即可
         async () => {
-          await get().loadMessages(conversationId);
-          settleStream();
+          try {
+            // 仅当本轮仍持有流式槽位（currentRunId === runId）时才刷新：
+            // 若命令返回兜底已收尾且新一轮已接管（currentRunId 变了），
+            // 旧快照 set 进 messages 会覆盖新一轮的乐观消息，跳过更安全。
+            if (get().currentRunId === runId) {
+              await get().loadMessages(conversationId);
+            }
+          } catch (e) {
+            // 拉齐失败不阻断收尾：否则 isStreaming 会一直挂到 watchdog 超时才解锁
+            logger.warn('AgentStore', 'onDone loadMessages failed', { error: e });
+          } finally {
+            settleStream();
+          }
         },
         // onError
         (error) => {
           logger.error('AgentStore', 'runAgent error', { error });
+          // 错误只记文本不记原始对象（避免把密钥/超长文本塞进 UI 状态），截断到可展示长度
+          set({ lastStreamError: error.slice(0, 500) || 'unknown' });
           settleStream();
         },
         // runId：后端取消令牌表的 key
@@ -475,14 +624,29 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // modelId：模型选择器覆盖（对标 VS Code），发给 run_agent 覆盖 Agent 默认模型
         modelId,
       );
-      // 兜底：事件可能因窗口切换错过，命令返回后再对齐一次
-      await get().loadMessages(conversationId);
+      // 兜底：事件可能因窗口切换错过，命令返回后再对齐一次；
+      // onDone 已先行收尾时跳过重复刷新（settle 的 once 语义也会拦截重复收尾）
+      if (!settled) {
+        try {
+          await get().loadMessages(conversationId);
+        } catch (e) {
+          // 拉齐失败不应伪装成运行失败（否则成功的一轮会冒出错误气泡），只记日志
+          logger.warn('AgentStore', 'post-run loadMessages failed', { error: e });
+        }
+      }
       settleStream();
       // 清理审批监听器（无论正常结束还是异常，都不留悬挂监听）
       const unlisten = await approvalUnlisten;
       unlisten();
     } catch (error) {
       logger.error('AgentStore', 'sendMessage failed', { error });
+      // 仅当本轮尚未收尾时才入账：若运行已成功收尾、只是清理动作（如反注册监听）抛错，
+      // 不应给成功的一轮补一条错误气泡
+      if (!settled) {
+        // 命令级失败同样入账（如后端不可达），UI 能显示失败原因而非只看到「流没了」
+        const text = error instanceof Error ? error.message : typeof error === 'string' ? error : 'send failed';
+        set({ lastStreamError: text.slice(0, 500) || 'unknown' });
+      }
       settleStream();
       // 异常路径同样反注册审批监听器，防止悬挂监听泄漏
       try {
@@ -494,13 +658,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  resolveToolApproval: async (approved: boolean) => {
+  resolveToolApproval: async (approved: boolean, rememberSession = false) => {
     const pending = get().pendingToolApproval;
     if (!pending) return;
     // 先清空，避免重复点击；后端按 runId:toolCallId 精准命中在途审批通道
     set({ pendingToolApproval: null });
     try {
-      await agentApi.resolveToolApproval(pending.runId, pending.toolCallId, approved);
+      await agentApi.resolveToolApproval(pending.runId, pending.toolCallId, approved, rememberSession);
     } catch (e) {
       logger.error('AgentStore', 'resolveToolApproval failed', { error: e });
     }

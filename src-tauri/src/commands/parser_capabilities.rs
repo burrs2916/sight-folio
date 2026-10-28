@@ -8,7 +8,6 @@
 //! 前端 manifest 仅提供展示名/图标/规则等 UI 元数据，能力以这里为准。
 
 use crate::parser::{registry, ParserCapabilities};
-use tauri::State;
 
 /// 后端真实能力矩阵（JSON 序列化结构）
 #[derive(serde::Serialize)]

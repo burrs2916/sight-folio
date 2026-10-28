@@ -13,6 +13,7 @@ import {
   buildTestRequest,
   toPersistedDataSource,
 } from "../types/dataSource";
+import { t } from "../i18n";
 import type { DatabaseConnectionConfig, DatabaseTestConfig } from "../types/database";
 import { createDefaultDatabaseConfig, createDefaultDatabaseTest } from "../types/database";
 import type { WebSocketConfig } from "../types/websocket";
@@ -151,7 +152,7 @@ export const useDataSourceStore = create<DataSourceState>()((set, get) => ({
       });
     } catch (error) {
       console.error("[DataSource] 从后端加载数据源失败:", error);
-      set({ isLoading: false, error: "加载数据源失败" });
+      set({ isLoading: false, error: t("datasource.loadFailed") });
     }
   },
 

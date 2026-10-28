@@ -69,7 +69,7 @@ pub async fn start_acp_ws_server(app: AppHandle, port: u16) -> Result<(), String
 
 /// 单连接中继：WS 入站 → Tauri 事件（带 connId，前端 host 消费）；前端 host → send_acp_ws → WS 出站（按 connId 路由）。
 async fn relay(ws: WebSocketStream<tokio::net::TcpStream>, app: AppHandle, conn_id: ConnId) {
-    let (mut write, mut read) = ws.split();
+    let (write, read) = ws.split();
     // 显式类型注解：split 后的半通道需明确 Sink/Stream 目标类型，避免推断失败。
     let mut write: futures::stream::SplitSink<WebSocketStream<tokio::net::TcpStream>, Message> =
         write;

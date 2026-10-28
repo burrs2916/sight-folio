@@ -1,0 +1,1184 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>写作台缺陷审计与改进建议 — sight-folio</title>
+    <style>
+      :root {
+        --ink: #1f2329;
+        --ink-2: #59606d;
+        --ink-3: #8a919e;
+        --line: #e5e8ee;
+        --bg: #f7f8fa;
+        --card: #ffffff;
+        --brand: #4f6ef2;
+        --brand-2: #eef1fe;
+        --red: #d93a3a;
+        --red-bg: #fdeeee;
+        --orange: #d97706;
+        --orange-bg: #fef4e6;
+        --yellow: #a16207;
+        --yellow-bg: #fdf6da;
+        --green: #16854f;
+        --green-bg: #e8f6ee;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI',
+          sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.65;
+        font-size: 15px;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 32px 24px 80px;
+      }
+
+      /* header */
+      header.hero {
+        background: linear-gradient(135deg, #4f6ef2 0%, #7c5cf0 100%);
+        color: #fff;
+        border-radius: 16px;
+        padding: 36px 40px;
+        margin-bottom: 28px;
+      }
+      header.hero .kicker {
+        font-size: 13px;
+        letter-spacing: 2px;
+        opacity: 0.78;
+        text-transform: uppercase;
+      }
+      header.hero h1 {
+        font-size: 28px;
+        font-weight: 700;
+        margin: 8px 0 10px;
+      }
+      header.hero p {
+        font-size: 14px;
+        opacity: 0.92;
+        max-width: 760px;
+      }
+      header.hero .meta {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+      header.hero .meta span {
+        background: rgba(255, 255, 255, 0.16);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 999px;
+        padding: 3px 12px;
+        font-size: 12px;
+      }
+
+      /* section */
+      section {
+        margin-bottom: 32px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 24px 28px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      }
+      h2 {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      h2 .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: var(--brand-2);
+        color: var(--brand);
+        font-size: 14px;
+        font-weight: 700;
+        flex: none;
+      }
+      .section-sub {
+        color: var(--ink-2);
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+
+      /* summary chips */
+      .chip-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .chip {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: var(--card);
+      }
+      .chip .v {
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .chip .k {
+        font-size: 12px;
+        color: var(--ink-2);
+        margin-top: 2px;
+      }
+      .chip.c-red .v {
+        color: var(--red);
+      }
+      .chip.c-orange .v {
+        color: var(--orange);
+      }
+      .chip.c-green .v {
+        color: var(--green);
+      }
+      .chip.c-brand .v {
+        color: var(--brand);
+      }
+
+      /* table */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+      th {
+        text-align: left;
+        font-weight: 600;
+        color: var(--ink-2);
+        background: #fafbfc;
+        border-bottom: 1px solid var(--line);
+        padding: 9px 12px;
+        white-space: nowrap;
+      }
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 10px 12px;
+        vertical-align: top;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      td code {
+        font-size: 12px;
+      }
+
+      /* severity */
+      .sev {
+        display: inline-block;
+        border-radius: 6px;
+        padding: 2px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .sev.high {
+        background: var(--red-bg);
+        color: var(--red);
+      }
+      .sev.mid {
+        background: var(--orange-bg);
+        color: var(--orange);
+      }
+      .sev.low {
+        background: var(--yellow-bg);
+        color: var(--yellow);
+      }
+      .sev.info {
+        background: var(--green-bg);
+        color: var(--green);
+      }
+
+      code {
+        font-family: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+        font-size: 12px;
+        background: #f2f3f5;
+        border: 1px solid #e7e9ee;
+        border-radius: 4px;
+        padding: 1px 5px;
+        color: #333;
+      }
+      .loc {
+        font-family: 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        color: var(--brand);
+        background: var(--brand-2);
+        border-radius: 4px;
+        padding: 1px 6px;
+        white-space: nowrap;
+      }
+      .loc.plain {
+        color: var(--ink-2);
+        background: #f2f3f5;
+      }
+
+      /* detail items */
+      .item {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        overflow: hidden;
+      }
+      .item-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 18px;
+        cursor: pointer;
+        background: var(--card);
+      }
+      .item-head:hover {
+        background: #fafbfc;
+      }
+      .item-head .idx {
+        font-weight: 700;
+        color: var(--brand);
+        font-size: 14px;
+        flex: none;
+        padding-top: 1px;
+      }
+      .item-head .tt {
+        font-weight: 600;
+        font-size: 14.5px;
+        flex: 1;
+      }
+      .item-head .tag {
+        flex: none;
+        margin-top: 3px;
+      }
+      .item-body {
+        display: none;
+        padding: 4px 18px 16px 48px;
+        border-top: 1px dashed var(--line);
+        background: #fcfdfe;
+      }
+      .item.open .item-body {
+        display: block;
+      }
+      .item-body .row {
+        margin-top: 10px;
+        font-size: 13.5px;
+      }
+      .item-body .lbl {
+        font-weight: 600;
+        color: var(--ink-2);
+        font-size: 12px;
+        letter-spacing: 0.5px;
+        display: block;
+        margin-bottom: 2px;
+      }
+      .item-body ul {
+        padding-left: 18px;
+      }
+      .item-body li {
+        margin-top: 4px;
+      }
+      .item-body .why {
+        background: var(--red-bg);
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #8f2d2d;
+        font-size: 13px;
+      }
+      .item-body .fix {
+        background: var(--green-bg);
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #11603a;
+        font-size: 13px;
+      }
+      .item-body .risk {
+        background: var(--yellow-bg);
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #7a4d08;
+        font-size: 13px;
+      }
+
+      /* responsive grid for short lists */
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .mini {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: var(--card);
+        font-size: 13.5px;
+      }
+      .mini .mt {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      /* roadmap */
+      .road {
+        border-left: 3px solid var(--brand);
+        padding: 14px 18px;
+        margin-bottom: 14px;
+        background: var(--card);
+        border-radius: 0 12px 12px 0;
+        border-left-color: #4f6ef2;
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--brand);
+      }
+      .road.r1 {
+        border-left-color: var(--red);
+      }
+      .road.r2 {
+        border-left-color: var(--orange);
+      }
+      .road.r3 {
+        border-left-color: var(--green);
+      }
+      .road .rt {
+        font-weight: 700;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .road .rt .pill {
+        font-size: 11px;
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-weight: 600;
+      }
+      .road.r1 .pill {
+        background: var(--red-bg);
+        color: var(--red);
+      }
+      .road.r2 .pill {
+        background: var(--orange-bg);
+        color: var(--orange);
+      }
+      .road.r3 .pill {
+        background: var(--green-bg);
+        color: var(--green);
+      }
+      .road p {
+        font-size: 13.5px;
+        color: var(--ink-2);
+        margin-top: 6px;
+      }
+      .road ul {
+        margin-top: 8px;
+        padding-left: 20px;
+        font-size: 13.5px;
+      }
+      .road li {
+        margin-top: 4px;
+      }
+
+      /* footer note */
+      .footnote {
+        font-size: 12.5px;
+        color: var(--ink-3);
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+        margin-top: 40px;
+      }
+      .legend {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        font-size: 12.5px;
+        color: var(--ink-2);
+        margin-top: 10px;
+      }
+
+      @media (max-width: 720px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+        header.hero {
+          padding: 26px 24px;
+        }
+        .card {
+          padding: 18px;
+        }
+        .item-body {
+          padding-left: 18px;
+        }
+        table {
+          font-size: 12.5px;
+        }
+        th,
+        td {
+          padding: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <div class="kicker">Sight-folio · Writing Desk Audit</div>
+        <h1>写作台缺陷审计与改进建议</h1>
+        <p>
+          针对写作/创作模块（<code>WritingPage.tsx</code>、<code>writingPage/</code>、<code>ChapterTreePanel</code> /
+          <code>ChapterListPanel</code> 及关联 store / utils /
+          i18n）的系统性审计，输出缺陷清单、根因分析与分级改进路线图。<b>本报告仅为分析产物，不涉及任何源码改动。</b>
+        </p>
+        <div class="meta">
+          <span>审计日期 2026-10-10</span>
+          <span>5 个核心模块 · 5 千余行</span>
+          <span>三路独立勘察 + 抽样实证</span>
+          <span>纯分析 · 零改动</span>
+        </div>
+      </header>
+
+      <!-- 总体结论 -->
+      <section>
+        <div class="card">
+          <h2><span class="num">1</span>总体结论</h2>
+          <p class="section-sub">
+            写作台基础健康度良好，但存在若干<b>数据可靠性</b>与<b>交互竞态</b>问题需要优先处理。
+          </p>
+          <div class="chip-grid">
+            <div class="chip c-red">
+              <div class="v">5</div>
+              <div class="k">高优先级缺陷<br />（数据安全/可复现 bug）</div>
+            </div>
+            <div class="chip c-orange">
+              <div class="v">9</div>
+              <div class="k">中优先级缺陷<br />（一致性/性能/i18n）</div>
+            </div>
+            <div class="chip c-yellow">
+              <div class="v">10</div>
+              <div class="k">低优先级<br />（代码卫生/维护性）</div>
+            </div>
+            <div class="chip c-green">
+              <div class="v">1463</div>
+              <div class="k">测试用例全通过<br />（vitest）</div>
+            </div>
+            <div class="chip c-brand">
+              <div class="v">0</div>
+              <div class="k">i18n key 差异<br />（zh↔en 各 5479，完全对称）</div>
+            </div>
+          </div>
+          <p style="margin-top: 14px; font-size: 13.5px; color: var(--ink-2)">
+            审计中发现的<b>健康亮点</b>：① store 写路径统一遵守「先落库成功、再改本地状态」约定；② 双语 JSON key
+            集合完全一致、无漂移（这是历史工程少见的整洁度）；③ 大批量纯 props 零 mock
+            组件测试覆盖良好（ChapterTreePanel、ChapterListPanel、CorpusReferencePanel、corpusQuery、SaveIndicator
+            等）。
+          </p>
+          <p style="margin-top: 8px; font-size: 13.5px; color: var(--ink-2)">
+            核心风险集中在
+            <b>自动保存状态机与各异步流程的互斥缺失</b
+            >：快照/草稿恢复、关窗保稿、备份、设定卡保存四类流程都绕过了统一的保存防抖队列，存在「旧内容覆盖新内容」或「静默丢改动」的可能。
+          </p>
+        </div>
+      </section>
+
+      <!-- 缺陷总览表 -->
+      <section>
+        <div class="card">
+          <h2><span class="num">2</span>缺陷总览（24 项）</h2>
+          <div class="legend"><span>▲ 已抽样逐行实证</span><span>△ 勘察报告结论，建议落地前复核</span></div>
+          <div style="overflow-x: auto; margin-top: 12px">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>缺陷</th>
+                  <th>位置</th>
+                  <th>严重度</th>
+                  <th>类别</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>快照/草稿恢复不清 pending 与防抖定时器，旧内容可覆盖刚恢复的内容</td>
+                  <td><span class="loc">WritingPage 893-934</span></td>
+                  <td><span class="sev high">高</span></td>
+                  <td>数据可靠</td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>关窗保存失败仅 log，窗口照常销毁</td>
+                  <td><span class="loc">WritingPage 1165-1186</span></td>
+                  <td><span class="sev high">高</span></td>
+                  <td>数据可靠</td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>⌘K 双监听器冲突：章跳转与命令面板同时响应，弹两层</td>
+                  <td><span class="loc">WritingPage 586-590 / 1412-1421</span></td>
+                  <td><span class="sev high">高</span></td>
+                  <td>交互 bug</td>
+                </tr>
+                <tr>
+                  <td>4</td>
+                  <td>对话框确认失败静默吞错，仍关闭对话框（删除/批量「假成功」）</td>
+                  <td><span class="loc">useDialogActions 196-200</span></td>
+                  <td><span class="sev high">高</span></td>
+                  <td>反馈缺失</td>
+                </tr>
+                <tr>
+                  <td>5</td>
+                  <td>设定卡自动保存失败静默，用户改动丢失无感知</td>
+                  <td><span class="loc">WritingPage 1054-1067</span></td>
+                  <td><span class="sev high">高</span></td>
+                  <td>反馈缺失</td>
+                </tr>
+                <tr>
+                  <td>6</td>
+                  <td>删除多步 Promise.all 无回滚，中间失败导致树结构半完成</td>
+                  <td><span class="loc">writingStore 642-648</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>数据一致</td>
+                </tr>
+                <tr>
+                  <td>7</td>
+                  <td>手动备份不先 flush 未保存内容，备份缺最后几秒改动</td>
+                  <td><span class="loc">useExportActions 278-295</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>数据一致</td>
+                </tr>
+                <tr>
+                  <td>8</td>
+                  <td>AI 上下文 chapterMeta 中文字面量/草稿混入英文模板</td>
+                  <td><span class="loc">useAiActions 238-243</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>i18n/质量</td>
+                </tr>
+                <tr>
+                  <td>9</td>
+                  <td>导出菜单每次打开发 7 次 IPC 查询计数，无缓存</td>
+                  <td><span class="loc">ExportCountBadge</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>性能</td>
+                </tr>
+                <tr>
+                  <td>10</td>
+                  <td>每按键整页重渲染（corpusQuery/selectedChars 状态提升过宽）</td>
+                  <td><span class="loc">WritingPage</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>性能</td>
+                </tr>
+                <tr>
+                  <td>11</td>
+                  <td>chapterQuery 跨书切换不重置，残留上一本书的查询词</td>
+                  <td><span class="loc">WritingPage 381</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>状态残留</td>
+                </tr>
+                <tr>
+                  <td>12</td>
+                  <td>命令面板 category 硬编码中文，英文界面不翻译</td>
+                  <td><span class="loc">WritingPage 1430-1498</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>i18n</td>
+                </tr>
+                <tr>
+                  <td>13</td>
+                  <td>硬编码 aria-label ×3 + 高亮色板无 aria-label，无障碍缺口</td>
+                  <td><span class="loc">WritingPage 2570/2600/2663、2878-2905</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>a11y</td>
+                </tr>
+                <tr>
+                  <td>14</td>
+                  <td>多处 async 导入/操作无 try/catch，异常冒泡无反馈</td>
+                  <td><span class="loc">handleImportTxt 等</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>健壮性</td>
+                </tr>
+                <tr>
+                  <td>15</td>
+                  <td>导出系列无 loading 态，可连点重复导出</td>
+                  <td><span class="loc">useExportActions</span></td>
+                  <td><span class="sev mid">中</span></td>
+                  <td>交互</td>
+                </tr>
+                <tr>
+                  <td>16</td>
+                  <td>AiSelectionMenu blur 监听 off 传匿名函数，解绑无效致监听器泄漏</td>
+                  <td><span class="loc">AiSelectionMenu 70-82</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>代码卫生</td>
+                </tr>
+                <tr>
+                  <td>17</td>
+                  <td>ProofreadPanel rawExcerpt 死参数：写入 text 但调用处只传 excerpt</td>
+                  <td><span class="loc">ProofreadPanel</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>死代码</td>
+                </tr>
+                <tr>
+                  <td>18</td>
+                  <td>ProofreadPanel label 用字符串 replace 而非 i18n 插值</td>
+                  <td><span class="loc">ProofreadPanel</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>i18n 脆弱</td>
+                </tr>
+                <tr>
+                  <td>19</td>
+                  <td>魔法值散落（240/320/680/760px、品牌色双份定义）</td>
+                  <td><span class="loc">多处</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>维护性</td>
+                </tr>
+                <tr>
+                  <td>20</td>
+                  <td>list index 当 key ×2（当前安全但模式脆弱）</td>
+                  <td><span class="loc">多处</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>模式风险</td>
+                </tr>
+                <tr>
+                  <td>21</td>
+                  <td>writingTree 默认层级中文兜底、首章探测依赖 kind==='章'</td>
+                  <td><span class="loc">writingStore</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>耦合</td>
+                </tr>
+                <tr>
+                  <td>22</td>
+                  <td>死导入 findMatches / 死导出 resetBatch</td>
+                  <td><span class="loc">corpus 相关</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>死代码</td>
+                </tr>
+                <tr>
+                  <td>23</td>
+                  <td>corpus 面板 onResizeEnd 闭包捕获旧值</td>
+                  <td><span class="loc">CorpusReferencePanel</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>闭包泄漏</td>
+                </tr>
+                <tr>
+                  <td>24</td>
+                  <td>WritingDrawer maxHeight 用百分比 + 魔法宽度，`action.hover as unknown as string` 断言</td>
+                  <td><span class="loc">WritingDrawer 等</span></td>
+                  <td><span class="sev low">低</span></td>
+                  <td>类型/样式</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 高优先级详解 -->
+      <section>
+        <div class="card">
+          <h2><span class="num">3</span>高优先级缺陷详解（建议 R1 处理）</h2>
+          <p class="section-sub">影响数据可靠性或为可稳定复现的交互缺陷，均已完成逐行实证。</p>
+
+          <div class="item open">
+            <div class="item-head">
+              <span class="idx">#1</span><span class="tt">快照/草稿恢复竞态：旧内容覆盖新内容</span
+              ><span class="tag"><span class="sev high">高 · 数据可靠</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">WritingPage.tsx 891-934</span></div>
+              <div class="row why">
+                <b>根因：</b>恢复流程（快照恢复 / 草稿恢复）先写入落库、再刷新本地内容，但<b
+                  >既不 flush 保存队列、也不清理防抖定时器与 pending 标记</b
+                >。随后 800ms
+                防抖自动保存触发时，会把恢复操作之前仍在队列里的旧内容覆盖写回——用户刚恢复的内容可能被旧草稿覆盖，且无任何提示。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>恢复入口统一走「先 cancel 防抖 + flush 未决保存 → 再执行恢复 →
+                重建保存队列」的原子流程；恢复期间置位抑制自动保存（共用互斥标记），恢复完成后重新初始化 pending
+                状态。改动范围集中在 WritingPage 保存状态机，辅以还原时序测试。
+              </div>
+              <div class="row risk">
+                <b>风险：</b>保存状态机是全局核心链路，改动需全量回归快照/草稿/自动保存/关窗四条路径；建议同步补「恢复后
+                1.5s 内旧 pending 不再覆盖」的回归测试。
+              </div>
+            </div>
+          </div>
+
+          <div class="item open">
+            <div class="item-head">
+              <span class="idx">#2</span><span class="tt">关窗保存失败仍销毁窗口：静默丢数据</span
+              ><span class="tag"><span class="sev high">高 · 数据可靠</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">WritingPage.tsx 1165-1186</span></div>
+              <div class="row why">
+                <b>根因：</b>窗口关闭流程 catch 分支只 log 错误，随后无条件执行窗口
+                destroy。落库失败（磁盘满、权限、进程写冲突）时用户毫无感知，改动即永久丢失。
+              </div>
+              <div class="row fix">
+                <b>修法（两档可选）：</b>轻档——保存失败时阻止关闭、弹错误提示（尊重现有「error 类 toast
+                保留」偏好）；重档——提供「放弃并退出」二次确认。改动范围：WritingPage 关窗处理器 + 对话框文案。
+              </div>
+              <div class="row risk">
+                <b>风险：</b>阻止关闭可能造成「窗口关不掉」的观感，需明确给出失败原因与重试/放弃两个出口。
+              </div>
+            </div>
+          </div>
+
+          <div class="item open">
+            <div class="item-head">
+              <span class="idx">#3</span><span class="tt">⌘K 双监听器冲突：一次按键弹两层 UI</span
+              ><span class="tag"><span class="sev high">高 · 交互 bug</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row">
+                <span class="lbl">位置</span><span class="loc">WritingPage.tsx 586-590 与 1412-1421</span>
+              </div>
+              <div class="row why">
+                <b>根因：</b>章跳转面板与命令面板各自注册 ⌘K window keydown 监听，<b
+                  >两处都 preventDefault 但均不检查 e.defaultPrevented</b
+                >。按键一次触发两个面板同时弹出/切换，状态互相打架。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>收敛为单一 ⌘K 分发点（建议归并到命令面板），或两处都先判
+                <code>e.defaultPrevented</code> 短路返回；快捷键映射抽成常量表便于维护。改动范围小，回归成本低。
+              </div>
+              <div class="row risk">
+                <b>风险：</b>需确认 ⌘K 的产品归属（章跳转 vs 命令面板二选一），改动前先与既定交互预期对齐。
+              </div>
+            </div>
+          </div>
+
+          <div class="item open">
+            <div class="item-head">
+              <span class="idx">#4</span><span class="tt">对话框确认失败静默：删除/批量操作「假成功」</span
+              ><span class="tag"><span class="sev high">高 · 反馈缺失</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">useDialogActions.tsx 196-200</span></div>
+              <div class="row why">
+                <b>根因：</b>确认动作 catch 只 log 后无条件
+                <code>setDialog(null)</code
+                >。删除章节/批量操作失败时用户看到的是「操作已完成」的假象，实际数据未变——是最危险的静默失败形态。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>失败时保留对话框并显示 error 反馈（沿用现有 error
+                toast），提供「重试/关闭」两个出口；只有成功才关闭。改动范围：useDialogActions 确认流程 + 对话框文案。
+              </div>
+              <div class="row risk"><b>风险：</b>低；需为对话框错误态补 1-2 条测试。</div>
+            </div>
+          </div>
+
+          <div class="item open">
+            <div class="item-head">
+              <span class="idx">#5</span><span class="tt">设定卡自动保存失败静默：改动丢失无感知</span
+              ><span class="tag"><span class="sev high">高 · 反馈缺失</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">WritingPage.tsx 1054-1067</span></div>
+              <div class="row why">
+                <b>根因：</b><code>flushSettingSave</code> 的 catch 只
+                log，不向用户暴露失败；卡片乐观更新后失败不回滚、无提示，用户误以为设置已生效。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>失败时回滚设定卡显示 + error toast（尊重「操作完成不加 success
+                toast」偏好，但失败必须提示）；与 #4 共用一套「异步失败反馈」约定。
+              </div>
+              <div class="row risk">
+                <b>风险：</b>低；需要注意乐观更新回滚时避免覆盖用户正在编辑的其他字段，建议按字段粒度回滚。
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 中优先级 -->
+      <section>
+        <div class="card">
+          <h2><span class="num">4</span>中优先级缺陷详解（建议 R2 处理）</h2>
+          <p class="section-sub">一致性与体验问题，单点改动、收益明确。</p>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#6</span><span class="tt">删除多步无回滚：树结构半完成态</span
+              ><span class="tag"><span class="sev mid">中 · 数据一致</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">writingStore 642-648</span></div>
+              <div class="row why">
+                <b>根因：</b>删除章节的多个落库步骤用
+                <code>Promise.all</code>
+                并行执行，无事务包装与回滚。中途一步失败时，部分子数据已删、父结构未更新，树进入不一致状态且无提示。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>① 串行执行并逐步回滚已成功步骤；② 或先删父再兜底清理（视存储语义）；③ 失败时保留对话框走 #4
+                的错误出口。改动范围：writingStore 删除流程。
+              </div>
+              <div class="row risk">
+                <b>风险：</b>需理解底层存储无事务时的回滚语义，建议用模拟失败注入（mock 第二次调用 reject）补测试。
+              </div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#7</span><span class="tt">手动备份不 flush：备份缺最后几秒改动</span
+              ><span class="tag"><span class="sev mid">中 · 数据一致</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">useExportActions.ts 278-295</span></div>
+              <div class="row why">
+                <b>根因：</b><code>handleBackupBook</code> 直接调用底层备份接口，跳过 <code>flushSave</code>。若用户在
+                800ms 防抖窗口内操作后立即备份，备份文件缺失最新改动。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>备份入口先 await <code>flushSave()</code> 再执行备份；与 #1 的保存队列互斥标记复用。改动
+                1-2 行 + 1 条顺序测试。
+              </div>
+              <div class="row risk"><b>风险：</b>无。</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#8</span><span class="tt">AI 上下文 chapterMeta 中文字面量混入英文模板</span
+              ><span class="tag"><span class="sev mid">中 · i18n/质量</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">useAiActions.ts 238-243</span></div>
+              <div class="row why">
+                <b>根因：</b>构建 AI
+                上下文时，双语提示词模板外直接拼接中文字段/书面语标签（如「当前章节」类字面量与草稿内容），英文模式下的
+                AI 上下文混入中文，降低生成质量与一致性。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>元信息标签抽入 i18n key（zh/en），草稿内容保持原文；补齐英文 key 后跑 i18n
+                对称校验（现有校验已可拦截）。
+              </div>
+              <div class="row risk"><b>风险：</b>低；AI 上下文变化可能影响输出风格，建议与 prompt 模板一起审查。</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#9</span><span class="tt">导出菜单每次打开发 7 次 IPC 计数查询</span
+              ><span class="tag"><span class="sev mid">中 · 性能</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">ExportCountBadge</span></div>
+              <div class="row why">
+                <b>根因：</b>导出项计数徽标在菜单展开时对每种导出格式各发一次 IPC 查询（约 7
+                次），无去重/缓存。频繁开关菜单产生可感知的 IPC 噪音，在慢盘上会卡顿。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>① 单次批量查询接口（若有）；② 或按会话缓存 + 「菜单展开节流」；③
+                打开菜单后只查询一次并共享结果。
+              </div>
+              <div class="row risk"><b>风险：</b>低；注意计数时效性，缓存策略取「本次展开生命周期」即可。</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#10</span><span class="tt">每按键整页重渲染</span
+              ><span class="tag"><span class="sev mid">中 · 性能</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">WritingPage 状态分布</span></div>
+              <div class="row why">
+                <b>根因：</b><code>corpusQuery</code> / <code>selectedChars</code> 等高频变化状态提升在 WritingPage
+                顶层，正文输入每键触发全页（含抽屉语料面板、章节树等）重渲染。语料面板同时承担「输入即检索」高频逻辑，成本放大。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>① 语料面板自身状态局部化（面板挂载期内查询字符串只在面板内闭环）；②
+                或对与输入无关的下层组件做 memo/稳定引用。目标：每键渲染范围收敛到「正文章节 + 语料面板」。
+              </div>
+              <div class="row risk">
+                <b>风险：</b>中；状态局部化可能牵动「折叠面板暂停检索、展开恢复」的既有行为，需回归该交互。
+              </div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#11</span><span class="tt">chapterQuery 跨书残留</span
+              ><span class="tag"><span class="sev mid">中 · 状态残留</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">WritingPage 381</span></div>
+              <div class="row why">
+                <b>根因：</b>章节定位输入框的查询 state
+                不携带书籍上下文，切换书籍时旧查询词残留并继续作用于新书的章节过滤。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>切书（<code>setActiveBook</code>）时重置查询词，或在 state 中携带 bookId 做无效化。
+              </div>
+              <div class="row risk"><b>风险：</b>低。</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#12</span><span class="tt">命令面板 category 硬编码中文</span
+              ><span class="tag"><span class="sev mid">中 · i18n</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">WritingPage 1430-1498</span></div>
+              <div class="row why">
+                <b>根因：</b>命令面板分组标签直接写中文字面量，未走 i18n；英文界面下命令面板仍显示中文分组。
+              </div>
+              <div class="row fix"><b>修法：</b>分组标签抽 i18n key；顺带核对命令描述文案是否全部走 t()。</div>
+              <div class="row risk"><b>风险：</b>低。</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#13</span><span class="tt">硬编码 aria-label ×3、高亮色板无标签</span
+              ><span class="tag"><span class="sev mid">中 · a11y</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row">
+                <span class="lbl">位置</span><span class="loc">WritingPage 2570 / 2600 / 2663；2878-2905</span>
+              </div>
+              <div class="row why">
+                <b>根因：</b>若干图标按钮 aria-label
+                硬编码中文（英文界面读屏输出中文）；高亮色板渲染为按钮但没有可读名称，读屏用户无法识别颜色含义。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>aria-label 走 i18n；色板按钮补「颜色 +
+                是否当前选中」的可读命名（如「高亮色：红（当前）」）。
+              </div>
+              <div class="row risk"><b>风险：</b>低。</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#14</span><span class="tt">多处 async 导入/操作无 try/catch</span
+              ><span class="tag"><span class="sev mid">中 · 健壮性</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">handleImportTxt 等</span></div>
+              <div class="row why">
+                <b>根因：</b>文件导入等异步流程未捕获异常，失败时错误冒泡到全局 unhandled，用户无反馈。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>统一错误边界约定——所有用户可触发的异步操作 catch 后走 error toast / 就地反馈；与 #4/#5
+                共用同一「异步失败反馈」模式。
+              </div>
+              <div class="row risk"><b>风险：</b>低。</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-head">
+              <span class="idx">#15</span><span class="tt">导出系列无 loading 态，可连点重复导出</span
+              ><span class="tag"><span class="sev mid">中 · 交互</span></span>
+            </div>
+            <div class="item-body">
+              <div class="row"><span class="lbl">位置</span><span class="loc">useExportActions</span></div>
+              <div class="row why">
+                <b>根因：</b
+                >导出/备份按钮点击后无进行中状态，慢速导出时用户连续点击会触发多次并行任务，产生重复文件与资源竞争。
+              </div>
+              <div class="row fix">
+                <b>修法：</b>导出进行中禁用按钮或显示就地进度（按钮小 spinner 即可，不动布局）；完成后 1.2s 恢复。
+              </div>
+              <div class="row risk">
+                <b>风险：</b>低；注意与「操作完成不加 success toast」偏好一致，用按钮态而非 toast 反馈。
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 低优先级 -->
+      <section>
+        <div class="card">
+          <h2><span class="num">5</span>低优先级缺陷（建议 R3 随重构消化）</h2>
+          <p class="section-sub">代码卫生与维护性问题，不阻塞交付，可在日常重构中顺带清理。</p>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 40px">#</th>
+                <th>问题</th>
+                <th>建议动作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>16</td>
+                <td>
+                  <span class="loc">AiSelectionMenu 70-82</span> blur 监听 off 传匿名函数，解绑无效 →
+                  监听器随开关累积泄漏
+                </td>
+                <td>命名 handler 或 useEffect 依赖数组解绑</td>
+              </tr>
+              <tr>
+                <td>17</td>
+                <td><span class="loc">ProofreadPanel</span> rawExcerpt 死参数：接收 text 但调用处只传 excerpt</td>
+                <td>删除死参数或补全语义</td>
+              </tr>
+              <tr>
+                <td>18</td>
+                <td><span class="loc">ProofreadPanel</span> label 用字符串 replace 而非 i18n 插值，语言适配脆弱</td>
+                <td>改 t(key, { param }) 插值</td>
+              </tr>
+              <tr>
+                <td>19</td>
+                <td>魔法值散落：240/320/680/760px 抽屉/面板宽度、品牌色双份定义</td>
+                <td>抽 design-token 常量，宽度统一出自主题</td>
+              </tr>
+              <tr>
+                <td>20</td>
+                <td>list <code>index</code> 当 key ×2（当前安全但模式脆弱）</td>
+                <td>改为稳定 id（章节 id / 语料 id）</td>
+              </tr>
+              <tr>
+                <td>21</td>
+                <td><span class="loc">writingStore</span> 默认层级中文文案兜底、首章探测依赖 kind==='章'</td>
+                <td>key 化 + 按 level 而非中文字符判断</td>
+              </tr>
+              <tr>
+                <td>22</td>
+                <td>死导入 findMatches / 死导出 resetBatch</td>
+                <td>清理 + lint 规则防回潮</td>
+              </tr>
+              <tr>
+                <td>23</td>
+                <td><span class="loc">CorpusReferencePanel</span> onResizeEnd 闭包捕获旧尺寸值</td>
+                <td>回调内读 ref 或函数式更新</td>
+              </tr>
+              <tr>
+                <td>24</td>
+                <td>
+                  <span class="loc">WritingDrawer</span> maxHeight 用百分比、魔法宽度；<code
+                    >action.hover as unknown as string</code
+                  >
+                  断言
+                </td>
+                <td>固定像素/主题变量；修正 Sx 类型</td>
+              </tr>
+              <tr>
+                <td>25</td>
+                <td><span class="loc">WritingPage</span> ⌘K 相关常量与面板开关状态无集中管理（与 #3 联动）</td>
+                <td>随 #3 一并收敛快捷键注册表</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 测试与工程面 -->
+      <section>
+        <div class="card">
+          <h2><span class="num">6</span>测试覆盖与工程风险</h2>
+          <div class="grid2" style="margin-top: 12px">
+            <div class="mini">
+              <div class="mt">✅ 覆盖良好区</div>
+              ChapterTreePanel / ChapterListPanel / CorpusReferencePanel / corpusQuery / SaveIndicator 等：纯 props 零
+              mock 测试，行为断言清晰，是后续改动回归的稳定基线。
+            </div>
+            <div class="mini">
+              <div class="mt">⚠️ 未覆盖高风险区</div>
+              自动保存状态机（#1/#7 核心）、关窗保稿（#2）、导出/备份链（#7/#15）、内联 AI
+              动作、批量表单状态机（#4/#6）缺少针对性测试——恰是数据可靠性缺陷密度最高的区域。
+            </div>
+            <div class="mini">
+              <div class="mt">⚠️ 测试环境耦合</div>
+              act 环境为手写全局、PointerEvent 依赖 polyfill 注入，环境搭建与实现细节耦合，升级
+              React/测试库时需重点回归。
+            </div>
+            <div class="mini">
+              <div class="mt">⚠️ 未提交改动</div>
+              当前工作区 30+ 文件未提交（+3627/-1345），含 6 个未跟踪新文件。缺失 checkpoint 意味着 R1
+              修复若中途出问题较难回退；建议先行按功能拆分提交，再进入缺陷修复。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 路线图 -->
+      <section>
+        <div class="card">
+          <h2><span class="num">7</span>分级改进路线图</h2>
+          <p class="section-sub">
+            按「先保数据、再修体验、后做工程」排序，每级给出改动范围与风险提示。遵循协作契约：<b
+              >每级正式动工前先与用户确认具体方案，不擅自加 UI 元素，默认数据保持精简。</b
+            >
+          </p>
+
+          <div class="road r1">
+            <div class="rt"><span>R1 · 数据安全（#1–#5）</span><span class="pill">建议 1–2 个迭代窗口</span></div>
+            <ul>
+              <li>统一保存状态机：新增「恢复/备份/关窗」共用互斥标记与 flush-cancel 原语，收编 #1/#2/#7 三个入口。</li>
+              <li>
+                异步失败反馈约定：对话框（#4）、设定卡（#5）失败必须可见，提供重试出口；沿用「成功不加
+                toast、失败必须提示」的现有偏好。
+              </li>
+              <li>⌘K 收敛单一分发点（#3）。</li>
+            </ul>
+            <p>
+              改动范围：WritingPage 保存链路 + useDialogActions + useExportActions 备份入口；预计 4-6 个文件、3-4
+              条新测试。<b>风险提示：保存状态机改动需先做当前 30+ 未提交文件的关键性提交快照。</b>
+            </p>
+          </div>
+
+          <div class="road r2">
+            <div class="rt"><span>R2 · 一致性与体验（#6–#15）</span><span class="pill">建议 2–3 个迭代窗口</span></div>
+            <ul>
+              <li>删除流程串行化 + 回滚（#6）；导出 loading 态（#15）。</li>
+              <li>
+                i18n 补漏：AI 上下文元信息（#8）、命令面板分组（#12）、aria-label
+                与色板命名（#13）——复用现有对称校验兜底。
+              </li>
+              <li>性能：导出计数缓存（#9）、语料查询状态局部化（#10）、chapterQuery 切书重置（#11）。</li>
+            </ul>
+            <p>
+              改动范围：writingStore 删除链 + useAiActions + 命令面板/工具栏 + CorpusReferencePanel 状态边界；<b
+                >风险提示：#10 涉及面板开合与检索联动，回归时重点验证折叠-展开闭环。</b
+              >
+            </p>
+          </div>
+
+          <div class="road r3">
+            <div class="rt"><span>R3 · 工程卫生（#16–#25）</span><span class="pill">随重构持续消化</span></div>
+            <ul>
+              <li>死代码清理（#17/#22）、监听器解绑修正（#16/#23）、i18n 插值化（#18）。</li>
+              <li>设计 token 抽取（#19）、稳定 key（#20）、类型断言修正（#24）。</li>
+              <li>测试环境解耦（act 全局、PointerEvent polyfill 收敛）与未覆盖高风险区补测。</li>
+            </ul>
+            <p>改动范围：零行为变化，纯工程整理；每项改动独立小步提交。<b>风险提示：低。</b></p>
+          </div>
+        </div>
+      </section>
+
+      <div class="footnote">
+        本报告基于三路独立代码勘察（UI/交互、数据/i18n、测试/遗留风险）与关键断言逐行抽样核实生成；标注 ▲
+        的条目已完成实证，其余标注 △ 的建议落地前复核。<br />
+        sight-folio · 写作台缺陷审计 · 2026-10-10 · 纯分析交付，未修改任何源码
+      </div>
+    </div>
+
+    <script>
+      document.querySelectorAll('.item-head').forEach(function (head) {
+        head.addEventListener('click', function () {
+          head.parentElement.classList.toggle('open');
+        });
+      });
+    </script>
+  </body>
+</html>

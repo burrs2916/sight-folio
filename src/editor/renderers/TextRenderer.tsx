@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Box from "@mui/material/Box";
 import type { ComponentRendererProps } from "../../types/editor";
+import { t } from "../../i18n";
 
 let _instanceCounter = 0;
 function useInstanceSuffix(): string {
@@ -456,7 +457,7 @@ export function TextRenderer(props: ComponentRendererProps) {
   const config = props?.config ?? {};
   const onConfigChange = props?.onConfigChange;
   const instanceSuffix = useInstanceSuffix();
-  const content = (config.content as string) || "文本内容";
+  const content = (config.content as string) || t("editor.textContent");
   const autoFit = (config.autoFit as boolean) ?? true;
 
   const fontFamily = (config.fontFamily as string) || "inherit";

@@ -292,6 +292,14 @@ pub fn is_noise_text(raw: &str) -> bool {
     if t.starts_with("VIP卷") || t.starts_with("VIP 卷") || t == "版权信息" {
         return true;
     }
+    // 目录页标记行（电子书文件头「目录」「正文」分隔标记，独立成行）。
+    // 存量实证（斗破苍穹全本）：源文件 `目录 \r\n 正文` 两行经短句合并逻辑
+    // 拼成「目录正文」入句库；「正文」独立行会与后续正文行拼成
+    // 「正文第一章 陨落的天才」式脏句。逐行精确拦截三形态；
+    // 正文叙事中「目录/正文」作为词不独立成行，不误伤。
+    if t == "目录" || t == "目录正文" || t == "正文" {
+        return true;
+    }
     // ④ 站点水印/页脚
     if t.chars().count() <= 60 && WATERMARK_PHRASES.iter().any(|w| t.contains(w)) {
         return true;
@@ -414,8 +422,40 @@ pub fn clean_chapter_heading(line: &str) -> Option<&str> {
     Some(core)
 }
 
-/// 章标题结构判定：仅判断「第X章/回/节/卷/部/篇」、「Chapter N」或常见卷章关键词
-/// 的行首结构，不含标点检查（由 [`clean_chapter_heading`] 统一把关）。
+/// 章节数字字符集（汉数字 + 阿拉伯数字）。含「两」——存量实证（斗破苍穹全本）：
+/// 「第两百章 青莲地心火」「第一千两百零一章 局势」等章标题因缺「两」字导致
+/// `num_end` 停在「两」处 = 0，整行不被识别为标题、按正文切句入库（476 条）。
+fn is_chapter_num_char(c: char) -> bool {
+    matches!(
+        c,
+        '0'..='9'
+            | '零'
+            | '一'
+            | '二'
+            | '两'
+            | '三'
+            | '四'
+            | '五'
+            | '六'
+            | '七'
+            | '八'
+            | '九'
+            | '十'
+            | '百'
+            | '千'
+            | '万'
+            | '亿'
+    )
+}
+
+/// 章标题结构判定：仅判断「第X章/回/节/卷/部/篇」、「第N 短标题」、「Chapter N」
+/// 或常见卷章关键词的行首结构，不含标点检查（由 [`clean_chapter_heading`] 统一把关）。
+///
+/// 「第N 短标题」无单位形态（存量实证「第八十七 下杀手」「第一千三百四十五 离开天墓」）：
+/// 源文件目录页漏写「章/回」单位的真实章标题。识别为标题而非正文句——
+/// ① 段落边界语义：它行使章标题职能，后续正文归入该章；② 检索纯度：不以句子形式
+/// 入库。误伤守卫：仅当数字后为空白、且空白后标题 ≤8 字、整行 ≤20 字符时命中——
+/// 正文「第N 长句」形态（如「第一 回合结束时，他松手。」）超长不命中，走正文分支。
 fn is_heading_structure(t: &str) -> bool {
     // 「第 + 数字/汉数字 + 章/回/节/卷/部/篇」（后随可有标题文字）
     let mut chars = t.chars();
@@ -423,34 +463,22 @@ fn is_heading_structure(t: &str) -> bool {
         let rest: String = chars.collect();
         let num_end = rest
             .char_indices()
-            .find(|(_, c)| {
-                !matches!(
-                    c,
-                    '0'..='9'
-                        | '零'
-                        | '一'
-                        | '二'
-                        | '三'
-                        | '四'
-                        | '五'
-                        | '六'
-                        | '七'
-                        | '八'
-                        | '九'
-                        | '十'
-                        | '百'
-                        | '千'
-                        | '万'
-                        | '亿'
-                )
-            })
+            .find(|(_, c)| !is_chapter_num_char(*c))
             .map(|(i, _)| i)
             .unwrap_or(rest.len());
         if num_end > 0 {
-            if let Some(unit) = rest[num_end..].chars().next() {
-                if matches!(unit, '章' | '回' | '节' | '卷' | '部' | '篇') {
+            match rest[num_end..].chars().next() {
+                Some(unit) if matches!(unit, '章' | '回' | '节' | '卷' | '部' | '篇') => {
                     return true;
                 }
+                // 无单位形态：数字后为空白 + 短标题（目录页漏单位标题，见函数注释）
+                Some(sep) if sep.is_whitespace() => {
+                    let title = rest[num_end..].trim_start();
+                    if !title.is_empty() && title.chars().count() <= 8 && t.chars().count() <= 20 {
+                        return true;
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -531,7 +559,10 @@ pub fn parse_text(text: &str) -> Vec<ParsedChunk> {
     let mut pending_short: Option<String> = None;
 
     for raw_line in text.lines() {
-        let line = raw_line.trim();
+        // 清洗行内控制字符（epub 源文件混入的 \x7f 等，如「第一千两百二十八章 \x7f 远古丹药」），
+        // 避免控制字符破坏章标题识别与检索内容完整性（全行过滤，不限于首尾）。
+        let cleaned: String = raw_line.chars().filter(|c| !c.is_control()).collect();
+        let line = cleaned.trim();
         if line.is_empty() {
             // 段尾若残留短句（独立成段的短对话/短叙述），暂存跨段并入；
             // 连续短句段不叠加：已有 pending 先判级落库，避免对话轮次粘连
@@ -1825,6 +1856,103 @@ mod tests {
         ] {
             assert!(is_noise_text(l), "应判定为噪声: {l:?}");
         }
+    }
+
+    /// 目录残留行三类修复（存量实证，斗破苍穹全本）：
+    /// ①「两」字章标题（字符集缺『两』导致 476 条按正文入库）→ chapter；
+    /// ② 目录页漏单位标题（「第八十七 下杀手」「第一千三百四十五 离开天墓」）→ chapter 而非 sentence；
+    /// ③ 目录标记行（「目录」「目录正文」「正文」）→ 噪声，不入索引。
+    #[test]
+    fn toc_residue_lines_do_not_enter_sentence_index() {
+        // ① 含「两」的章标题行判定为标题
+        for h in [
+            "第两百章 青莲地心火",
+            "第一千两百零一章 局势",
+            "第两百零二章 晋级！",
+        ] {
+            assert!(is_chapter_heading(h), "should be heading: {h}");
+            assert_eq!(clean_chapter_heading(h), Some(h), "净标题应当原样保留: {h}");
+        }
+        // ② 目录页漏单位形态（数字后空白 + 短标题）判定为标题
+        for h in ["第八十七 下杀手", "第一千三百四十五 离开天墓"] {
+            assert!(is_chapter_heading(h), "should be heading: {h}");
+        }
+        // ③ 目录标记行判噪声
+        for n in ["目录", "正文", "目录正文"] {
+            assert!(is_noise_text(n), "should be noise: {n:?}");
+        }
+        // 集成：目录残留行不得以 sentence 形式入库
+        let chunks = parse_text(
+            "目录\n\n正文\n\n第一段正文内容较长，足以构成一个完整检索单元。\n\n第八十七 下杀手\n\n老者说。",
+        );
+        assert!(
+            !chunks
+                .iter()
+                .any(|c| c.kind == "sentence" && c.content == "目录正文"),
+            "目录标记行不应拼入句子: {chunks:?}"
+        );
+        assert!(
+            !chunks
+                .iter()
+                .any(|c| c.kind == "sentence" && c.content == "第八十七 下杀手"),
+            "漏单位的真实章标题不应以句子入库: {chunks:?}"
+        );
+        assert!(
+            chunks
+                .iter()
+                .any(|c| c.kind == "chapter" && c.content == "第八十七 下杀手"),
+            "漏单位的真实章标题应为 chapter: {chunks:?}"
+        );
+        // ③ 回归锚定：短句「老者说。」保留为 sentence（M3 不回退）
+        assert!(
+            chunks
+                .iter()
+                .any(|c| c.kind == "sentence" && c.content == "老者说。"),
+            "短句老者说。应保留: {chunks:?}"
+        );
+    }
+
+    /// 目录行判定防误伤守卫：正文「第N 长句」形态（超长标题 / 带句末标点）不判为标题，
+    /// 仍走正文切句；正文含「第X章」词组的句子不受影响（M2 不回退）。
+    #[test]
+    fn toc_heading_guards_do_not_hit_body_sentences() {
+        // 超长标题（>20 字符）不命中无单位分支
+        assert!(!is_chapter_heading("第一 回合结束时，他松手。"));
+        // 句末标点守卫：正文句不因行首「第X」被误判为章标题
+        assert!(!is_chapter_heading("第二章码出来之前，他一直坚持写。"));
+        assert!(!is_chapter_heading("第一章的内容很精彩，值得一看。"));
+        // 正文含「第X章」词组的句子仍正常走正文（无单位分支要求标题 ≤8 字 +
+        // 整行 ≤20 字符，此处超限）
+        assert!(!is_chapter_heading(
+            "第一次来，我来是想领一枚炼药师等级徽章。"
+        ));
+    }
+
+    /// 行内控制字符清洗：epub 源文件混入的 \x7f 等会破坏章标题识别
+    /// （存量实证「第一千两百二十八章 \x7f 远古丹药」），全行过滤后标题可识别、
+    /// 正文内容不再带控制字符。
+    #[test]
+    fn control_chars_are_stripped_before_heading_detect() {
+        let raw = "第一千两百二十八章 \u{7f} 远古丹药";
+        let cleaned: String = raw.chars().filter(|c| !c.is_control()).collect();
+        assert_eq!(cleaned, "第一千两百二十八章  远古丹药");
+        assert!(
+            is_chapter_heading(&cleaned),
+            "清洗后应识别为标题: {cleaned:?}"
+        );
+
+        // 集成：parse_text 内部同样执行清洗
+        let chunks = parse_text(&format!("{raw}\n\n正文内容足够长，构成一个完整检索单元。"));
+        assert!(
+            chunks
+                .iter()
+                .any(|c| c.kind == "chapter" && c.content == "第一千两百二十八章  远古丹药"),
+            "控制字符清洗后应入库为 chapter: {chunks:?}"
+        );
+        assert!(
+            !chunks.iter().any(|c| c.content.contains('\u{7f}')),
+            "控制字符不应残留进内容: {chunks:?}"
+        );
     }
 
     /// 反向护栏：裸「谢谢大家。」与完结感言正文句会被误判为噪声丢弃。

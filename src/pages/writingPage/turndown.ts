@@ -25,3 +25,19 @@ turndown.addRule('table', {
     return `\n\n${lines.join('\n')}\n\n`;
   },
 });
+
+// 批次③ T9：图片显式规则——导出 Markdown 时 src 原样输出（data URI 内联 / 外部 URL /
+// 相对路径均适用），不依赖 turndown 默认对未知协议的猜测，保证 <img> 只产出标准
+// `![alt](src)` 语法且不丢 title。
+turndown.addRule('imageDataUri', {
+  filter: (node) => node.nodeName === 'IMG',
+  replacement(_content, node) {
+    const img = node as HTMLImageElement;
+    const src = img.getAttribute('src') ?? '';
+    if (!src) return '';
+    const alt = img.getAttribute('alt') ?? '';
+    const title = img.getAttribute('title');
+    const titlePart = title ? ` "${title.replace(/"/g, '\\"')}"` : '';
+    return `![${alt}](${src}${titlePart})`;
+  },
+});

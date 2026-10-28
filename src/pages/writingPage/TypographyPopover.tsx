@@ -1,11 +1,7 @@
 import {
   Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControlLabel,
+  ListSubheader,
   MenuItem,
   Popover,
   Slider,
@@ -14,7 +10,12 @@ import {
   Typography,
 } from '@mui/material';
 import { t } from '../../i18n';
-import type { BookTypography } from '../../utils/typography';
+import {
+  FONT_FAMILY_OPTIONS,
+  LATIN_FONT_OPTIONS,
+  type BookTypography,
+  type LatinFontGroup,
+} from '../../utils/typography';
 
 export interface TypographyPopoverProps {
   anchorEl: HTMLElement | null;
@@ -61,6 +62,50 @@ export function TypographyPopover({ anchorEl, onClose, typo, onChange }: Typogra
             onChange={(_, v) => onChange({ fontSize: v as number })}
           />
         </Box>
+
+        <TextField
+          select
+          size="small"
+          fullWidth
+          label={t('writing.typography.fontFamily')}
+          value={typo.fontFamily}
+          onChange={(e) => onChange({ fontFamily: e.target.value as BookTypography['fontFamily'] })}
+        >
+          {FONT_FAMILY_OPTIONS.map((o) => (
+            <MenuItem key={o.key} value={o.key} sx={{ fontFamily: o.stack || undefined }}>
+              {t(`writing.typography.font_${o.key}`)}
+            </MenuItem>
+          ))}
+        </TextField>
+
+        <TextField
+          select
+          size="small"
+          fullWidth
+          label={t('writing.typography.latinFontFamily')}
+          value={typo.latinFontFamily}
+          onChange={(e) => onChange({ latinFontFamily: e.target.value as BookTypography['latinFontFamily'] })}
+        >
+          {/* 跟随系统：单独置于最前，不参与分组 */}
+          <MenuItem value="system" sx={{ fontFamily: undefined }}>
+            {t('writing.typography.latinFont_system')}
+          </MenuItem>
+          {(['serif', 'sans', 'mono'] as readonly LatinFontGroup[]).map((group) => (
+            <Box key={group}>
+              <ListSubheader
+                disableSticky
+                sx={{ fontSize: 11, lineHeight: '30px', color: 'text.secondary', bgcolor: 'transparent' }}
+              >
+                {t(`writing.typography.latinGroup_${group}`)}
+              </ListSubheader>
+              {LATIN_FONT_OPTIONS.filter((o) => o.group === group).map((o) => (
+                <MenuItem key={o.key} value={o.key} sx={{ fontFamily: o.stack || undefined, fontSize: 13 }}>
+                  {t(`writing.typography.latinFont_${o.key}`)}
+                </MenuItem>
+              ))}
+            </Box>
+          ))}
+        </TextField>
 
         <TextField
           select

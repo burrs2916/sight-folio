@@ -323,7 +323,7 @@ export function WritingBookInsights() {
                   <Chip
                     key={v.volume}
                     size="small"
-                    label={`${v.volume} · ${v.chapters} 章 · ${v.words.toLocaleString()} 字`}
+                    label={t('agent.writing.volumeSummary', { volume: v.volume, chapters: v.chapters, words: v.words.toLocaleString() })}
                     sx={{ height: 18, fontSize: 9.5, bgcolor: 'transparent' }}
                   />
                 ))}

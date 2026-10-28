@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { avgSentenceLen, formatBigCount } from '../formatCount';
 
-// 背景：斗破苍穹全集 5,109,253 字 · 100,400 句，详情/书卡此前用裸数字展示，
-// 102 万量级在窄卡片上不可直读。formatBigCount 负责中文「万」折算与英文千分位，
-// avgSentenceLen 提供写作参考口径（平均每句字数）。
+// 背景：斗破苍穹全集历史 txt 源基线 5,109,253 字 · 100,400 句（2026-09 重建实证，
+// docs/corpus-design.md 7.9 节），此处作为格式化行为样例输入。2026-10 修复 mobi
+// 解析链路（palmdoc 解压/解码/html_to_text）后同书重导实测 5,117,274 字 · 90,680 句，
+// 两套数字来源/切分规则不同，不互相改写（详见 docs/corpus-design.md 8.1 节）。
+// 详情/书卡此前用裸数字展示，102 万量级在窄卡片上不可直读。formatBigCount 负责
+// 中文「万」折算与英文千分位，avgSentenceLen 提供写作参考口径（平均每句字数）。
 
 describe('formatBigCount', () => {
   it('中文语境：≥1 万折算「万」单位（5109253 → 510.9万）', () => {

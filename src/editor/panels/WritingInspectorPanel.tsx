@@ -24,6 +24,8 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import StickyNote2RoundedIcon from '@mui/icons-material/StickyNote2Rounded';
+import { writingAnnotationsApi, type WritingAnnotation } from '../../services/writing';
 import { t } from '../../i18n';
 import logger from '../../utils/logger';
 import { useWritingStore } from '../../store/writingStore';
@@ -45,6 +47,7 @@ import {
   ideasOfSetting,
   settingCompleteness,
   relatedSettingsOf,
+  relationTargetName,
   scenesOfChapter,
   toggleSettingOnChapter,
 } from '../../utils/writingOutline';
@@ -138,8 +141,15 @@ function str(v: unknown): string {
 /**
  * 世界观关系分组（P5+）：按 r.type 归类、可折叠，每组内条目可点跳转（有 targetId 时）。
  * 仅世界观原生详情页使用，人物分支不触碰。
+ * A2：展示名 targetId 命中实时取 settings 当前名，未命中回退 rel.target 快照，正向/反向一致。
  */
-function WorldviewRelationGroups({ relations }: { relations: WritingRelation[] }) {
+function WorldviewRelationGroups({
+  relations,
+  settings,
+}: {
+  relations: WritingRelation[];
+  settings: WritingSetting[];
+}) {
   const groups = useMemo(() => {
     const m = new Map<string, WritingRelation[]>();
     for (const r of relations) {
@@ -196,11 +206,11 @@ function WorldviewRelationGroups({ relations }: { relations: WritingRelation[] }
                         color: 'primary.main',
                       }}
                     >
-                      {r.target}
+                      {relationTargetName(settings, r)}
                     </Button>
                   ) : (
                     <Typography key={i} sx={{ fontSize: 11.5, fontWeight: 600, pl: 0.5, color: 'text.primary' }}>
-                      {r.target}
+                      {relationTargetName(settings, r)}
                     </Typography>
                   ),
                 )}
@@ -426,7 +436,7 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
       <Divider sx={{ my: 1.25 }} />
 
       <SectionTitle>{t('editor.writing.inspector.relations')}</SectionTitle>
-      <WorldviewRelationGroups relations={relations} />
+      <WorldviewRelationGroups relations={relations} settings={settings} />
 
       <Divider sx={{ my: 1.25 }} />
 
@@ -436,7 +446,10 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
           {inbound.map(({ setting: ref, relationType }) => (
-            <Box key={ref.id} sx={{ display: 'flex', gap: 0.5, fontSize: 11.5, alignItems: 'baseline' }}>
+            <Box
+              key={`${ref.id}-${relationType}`}
+              sx={{ display: 'flex', gap: 0.5, fontSize: 11.5, alignItems: 'baseline' }}
+            >
               <Button
                 size="small"
                 variant="text"
@@ -493,6 +506,8 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
       )}
 
       <SettingTimelineSection settingId={setting.id} bookId={bookId} />
+
+      <SettingAnnotationRefs settingId={setting.id} bookId={bookId} chapters={chapters} />
 
       <Button
         size="small"
@@ -736,7 +751,7 @@ function WritingSettingInspector({
           {relations.map((r: WritingRelation, i) => (
             <Box key={i} sx={{ display: 'flex', gap: 0.5, fontSize: 11.5, alignItems: 'baseline' }}>
               <Typography sx={{ fontSize: 10.5, color: 'text.secondary', flexShrink: 0 }}>{r.type || '·'}</Typography>
-              <Typography sx={{ fontSize: 11.5, fontWeight: 600 }}>{r.target}</Typography>
+              <Typography sx={{ fontSize: 11.5, fontWeight: 600 }}>{relationTargetName(settings, r)}</Typography>
             </Box>
           ))}
         </Box>
@@ -750,7 +765,10 @@ function WritingSettingInspector({
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
           {inbound.map(({ setting: ref, relationType }) => (
-            <Box key={ref.id} sx={{ display: 'flex', gap: 0.5, fontSize: 11.5, alignItems: 'baseline' }}>
+            <Box
+              key={`${ref.id}-${relationType}`}
+              sx={{ display: 'flex', gap: 0.5, fontSize: 11.5, alignItems: 'baseline' }}
+            >
               <Button
                 size="small"
                 variant="text"
@@ -800,6 +818,8 @@ function WritingSettingInspector({
       )}
 
       <SettingTimelineSection settingId={setting.id} bookId={bookId} />
+
+      <SettingAnnotationRefs settingId={setting.id} bookId={bookId} chapters={chapters} />
 
       {/* 相关伏笔：与此人物/设定相关的伏笔反向联动 */}
       {relatedFs.length > 0 && (
@@ -857,6 +877,99 @@ function WritingSettingInspector({
         {t('editor.writing.inspector.editProfileExit')}
       </Button>
     </Box>
+  );
+}
+
+// ─── 正文批注引用反向视图：引用该设定卡的批注（跨章，SQLite 按 setting_id 反查） ───
+// 点行 → openWritingDesk 打开（或聚焦）该章写作台窗口，正文中批注高亮随章就位。
+// 空结果不渲染区块（设定卡未在任何批注中被引用时保持右栏干净）。
+function SettingAnnotationRefs({
+  settingId,
+  bookId,
+  chapters,
+}: {
+  settingId: string;
+  bookId: string;
+  chapters: WritingChapter[];
+}) {
+  const [items, setItems] = useState<WritingAnnotation[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setItems(null);
+    void writingAnnotationsApi
+      .bySetting(settingId)
+      .then((rows) => {
+        if (alive) setItems(rows);
+      })
+      .catch((e) => {
+        logger.warn('WritingInspectorPanel', 'load setting annotation refs failed', {
+          settingId,
+          error: String(e),
+        });
+        if (alive) setItems([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [settingId]);
+  if (items === null || items.length === 0) return null;
+  const titleOf = (chapterId: string) => chapters.find((c) => c.id === chapterId)?.title ?? '';
+  return (
+    <>
+      <Divider sx={{ my: 1.25 }} />
+      <SectionTitle>{t('writing.annotationRefsTitle')}</SectionTitle>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+        {items.map((a) => (
+          <Button
+            key={a.id}
+            size="small"
+            variant="outlined"
+            title={t('writing.annotationRefsOpen')}
+            onClick={() => void openWritingDesk({ bookId, chapterId: a.chapterId })}
+            sx={{
+              textTransform: 'none',
+              fontSize: 11,
+              justifyContent: 'flex-start',
+              px: 1,
+              py: 0.5,
+              borderRadius: 1,
+              borderColor: 'divider',
+              color: 'text.primary',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              '&:hover': { borderColor: 'primary.main' },
+            }}
+          >
+            <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <StickyNote2RoundedIcon sx={{ fontSize: 13, color: 'text.secondary', flexShrink: 0 }} />
+              <Box
+                component="span"
+                sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontWeight: 600 }}
+              >
+                {titleOf(a.chapterId) || t('writingWorkbench.untitled')}
+              </Box>
+            </Box>
+            {a.excerpt ? (
+              <Typography
+                sx={{
+                  fontSize: 10.5,
+                  color: 'text.secondary',
+                  lineHeight: 1.6,
+                  mt: 0.25,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {a.excerpt}
+              </Typography>
+            ) : null}
+          </Button>
+        ))}
+      </Box>
+    </>
   );
 }
 

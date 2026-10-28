@@ -1,6 +1,7 @@
 import EChartsReact from "echarts-for-react";
 import { useTheme } from "@mui/material/styles";
 import type { PieChartWidgetProps } from "../types";
+import { t } from "../../../i18n";
 
 export default function PieChartWidget({
   title,
@@ -51,7 +52,7 @@ export default function PieChartWidget({
     },
     series: [
       {
-        name: title || "数据",
+        name: title || t("ui.chartData"),
         type: "pie",
         radius: ["40%", "70%"],
         center: ["60%", "50%"],

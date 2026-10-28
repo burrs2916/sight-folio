@@ -12,8 +12,14 @@
 
 import type { ProjectFile } from "../services/tauri";
 
+// 出场边治理：与关系板 MAX_EDGES 同一思路 —— 全集必是毛线球，按强度截断。
+// 单人物只保留提及最多的前 6 章；全局再截前 80 条，丢弃数回传给调用方提示。
+const APPEAR_PER_CHAR_CAP = 6;
+const MAX_APPEARANCE_EDGES = 80;
+
 export interface BookOverviewCard {
-  type: "writing-chapter" | "writing-character" | "writing-outline";
+  /** dependency-edge = 出场边（人物 → 出场章节，F8-G2/H1） */
+  type: "writing-chapter" | "writing-character" | "writing-outline" | "dependency-edge";
   name: string;
   x: number;
   y: number;
@@ -30,6 +36,10 @@ export interface BookOverviewResult {
   characterCount: number;
   volumeCount: number;
   totalWords: number;
+  /** 出场边数量（人物 → 出场章节，F8-G2/H1；0 表示无人物数据） */
+  appearanceEdgeCount: number;
+  /** 因上限被丢弃的出场边数（0 表示全画了） */
+  appearanceEdgesDropped: number;
 }
 
 export interface ChapterRow {
@@ -88,6 +98,10 @@ export function buildBookOverview(files: ProjectFile[]): BookOverviewResult {
 
   const totalWords = chapters.reduce((sum, c) => sum + (c.file.size || 0), 0);
 
+  // 书 id：从章节虚拟文件路径反解（writing://{bookId}/...），供设定卡/出场边配置携带，
+  // 让画布双击跳设定卡不依赖工作室窗口里 writingStore 是否恰好装载过这本书。
+  const bookId = chapters[0]?.file.path.match(/^writing:\/\/([^/]+)\//)?.[1] ?? "";
+
   // 2) 人物聚合（跨章求提及次数与出现章数，按总提及降序）
   //    同时记下「主出场章节」（提及最多的那一章，并列取靠前的）：设定卡自己不是文件，
   //    没有它双击就是死节点 —— 挂上后复用画布「带 fileId 实体双击跳正文」通用兜底，
@@ -127,12 +141,18 @@ export function buildBookOverview(files: ProjectFile[]): BookOverviewResult {
   const COLS = 4;
   const GRID_W = COLS * CH_W + (COLS - 1) * GAP_X;
 
+  // 出场边端点收集：人物卡中心 / 章节卡中心（bbox 相对坐标在边卡生成时换算）
+  const charCenter = new Map<string, { x: number; y: number }>();
+  const chapterCenter = new Map<string, { x: number; y: number; title: string }>();
+
   characters.forEach((c, i) => {
+    const cy = i * (CHAR_H + CHAR_GAP);
+    charCenter.set(c.id, { x: CHAR_W / 2, y: cy + CHAR_H / 2 });
     cards.push({
       type: "writing-character",
       name: c.name,
       x: 0,
-      y: i * (CHAR_H + CHAR_GAP),
+      y: cy,
       width: CHAR_W,
       height: CHAR_H,
       locked: false,
@@ -140,11 +160,16 @@ export function buildBookOverview(files: ProjectFile[]): BookOverviewResult {
         name: c.name,
         appearances: c.total,
         chapterCount: c.chapters,
+        // 设定卡 id（F2 扫描的 appearances[].id 即 WritingSetting.id）：双击直跳设定卡，
+        // 不再依赖画布层「按名匹配 writingStore.settings」的兜底（工作室窗口里设定
+        // 未必装载过，按名匹配会失败弹「未绑定」）。
+        settingId: c.id,
         // 主出场章节：双击跳正文的落点（见上方聚合注释）。
         // 没有主出场章（理论上不会出现）就根本不写这两个键 —— 写空串会被通用兜底
         // 当成「有 fileId」去跳，弹一个莫名其妙的失败 toast。
         topChapter: c.top?.file.name ?? "",
         ...(c.top ? { fileId: c.top.file.id, filePath: c.top.file.path } : {}),
+        ...(bookId ? { bookId } : {}),
       },
     });
   });
@@ -183,11 +208,18 @@ export function buildBookOverview(files: ProjectFile[]): BookOverviewResult {
     group.forEach((ch, i) => {
       const col = i % COLS;
       const row = Math.floor(i / COLS);
+      const chX = GRID_X + col * (CH_W + GAP_X);
+      const chY = y + row * (CH_H + GAP_Y);
+      chapterCenter.set(ch.file.id, {
+        x: chX + CH_W / 2,
+        y: chY + CH_H / 2,
+        title: ch.file.name,
+      });
       cards.push({
         type: "writing-chapter",
         name: ch.file.name,
-        x: GRID_X + col * (CH_W + GAP_X),
-        y: y + row * (CH_H + GAP_Y),
+        x: chX,
+        y: chY,
         width: CH_W,
         height: CH_H,
         locked: false,
@@ -206,11 +238,68 @@ export function buildBookOverview(files: ProjectFile[]): BookOverviewResult {
     idx = end;
   }
 
+  // 4) 出场边（F8-G2/H1）：人物 → 其出场章节。全集很容易是几百条毛线，
+  //    沿用关系板的治理手法：单人物只取提及最多的前 6 章（并列按章序），
+  //    全局再按提及次数降序截前 MAX_APPEARANCE_EDGES 条，丢弃数回传调用方提示。
+  const nameOf = new Map(characters.map((c) => [c.id, c.name]));
+  const perChar: { charId: string; fileId: string; count: number; order: number }[] = [];
+  chapters.forEach((ch, order) => {
+    for (const a of ch.appearances) {
+      if (charCenter.has(a.id) && chapterCenter.has(ch.file.id)) {
+        perChar.push({ charId: a.id, fileId: ch.file.id, count: a.count, order });
+      }
+    }
+  });
+  const byCharTop = new Map<string, typeof perChar>();
+  for (const e of perChar) {
+    const list = byCharTop.get(e.charId) ?? [];
+    list.push(e);
+    byCharTop.set(e.charId, list);
+  }
+  const candidates: typeof perChar = [];
+  byCharTop.forEach((list) => {
+    list.sort((m, n) => n.count - m.count || m.order - n.order);
+    candidates.push(...list.slice(0, APPEAR_PER_CHAR_CAP));
+  });
+  candidates.sort((m, n) => n.count - m.count);
+  const kept = candidates.slice(0, MAX_APPEARANCE_EDGES);
+  const dropped = candidates.length - kept.length;
+  const maxMention = kept.length ? kept[0].count : 0;
+  for (const e of kept) {
+    const p1 = charCenter.get(e.charId)!;
+    const p2 = chapterCenter.get(e.fileId)!;
+    const minX = Math.min(p1.x, p2.x);
+    const minY = Math.min(p1.y, p2.y);
+    cards.push({
+      type: "dependency-edge",
+      name: `${nameOf.get(e.charId) ?? ""} → ${chapterCenter.get(e.fileId)!.title}`,
+      x: minX,
+      y: minY,
+      width: Math.max(4, Math.abs(p2.x - p1.x)),
+      height: Math.max(4, Math.abs(p2.y - p1.y)),
+      locked: true, // 边由布局算出来，拖动只会让它与两端卡片脱节
+      config: {
+        depType: "appearance",
+        fromX: p1.x - minX,
+        fromY: p1.y - minY,
+        toX: p2.x - minX,
+        toY: p2.y - minY,
+        // 线宽归一：degree 0..1（相对最强提及）；mentions 是该章真实提及次数（tooltip 用）
+        degree: maxMention > 0 ? e.count / maxMention : 0,
+        mentions: e.count,
+        fromName: nameOf.get(e.charId) ?? "",
+        toName: chapterCenter.get(e.fileId)!.title,
+      },
+    });
+  }
+
   return {
     cards,
     chapterCount: chapters.length,
     characterCount: characters.length,
     volumeCount,
     totalWords,
+    appearanceEdgeCount: kept.length,
+    appearanceEdgesDropped: dropped,
   };
 }

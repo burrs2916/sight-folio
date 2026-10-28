@@ -123,6 +123,64 @@ export function DependencyEdgeRenderer({
     );
   }
 
+  // ─── 写作：人物出场边（appearance，全书总览 H1）────────────────────────────
+  // 「张三 → 第3章」：人物在该章被提及。与共现边同构（对称线段+端点），
+  // 但语义是「出场」不是「同场」，用紫罗兰 #8b5cf6 与共现琥珀区分；
+  // 线宽随该章提及次数归一（degree 0..1）。
+  if (depType === "appearance") {
+    const fx = config.fromX ?? 0;
+    const fy = config.fromY ?? height / 2;
+    const tx = config.toX ?? width;
+    const ty = config.toY ?? height / 2;
+    const mentions = typeof config.mentions === "number" ? config.mentions : 0;
+    const degree = typeof config.degree === "number" ? Math.max(0, Math.min(1, config.degree)) : 0;
+    const w = 1.5 + degree * 3.5;
+    const fromName = typeof config.fromName === "string" ? config.fromName : "";
+    const toName = typeof config.toName === "string" ? config.toName : "";
+    const tip = L(
+      `「${fromName}」出场于「${toName}」（本章提及 ${mentions} 次）`,
+      `"${fromName}" appears in "${toName}" (mentioned ${mentions} time(s))`,
+    );
+    if (lod === "block") {
+      return (
+        <svg width="100%" height="100%" style={{ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }}>
+          <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#8b5cf6" strokeWidth={w} opacity={0.75} />
+        </svg>
+      );
+    }
+    return (
+      <div style={{ width: "100%", height: "100%", position: "relative", overflow: "visible", pointerEvents: "none" }}>
+        <svg width="100%" height="100%" style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}>
+          <line x1={fx} y1={fy} x2={tx} y2={ty} stroke="#8b5cf6" strokeWidth={w} opacity={0.75} />
+          <circle cx={fx} cy={fy} r={w * 0.9} fill="#8b5cf6" opacity={0.9} />
+        </svg>
+        {lod === "full" && (
+          <div
+            title={tip}
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              display: "flex",
+              alignItems: "center",
+              fontSize: 9,
+              color: "#8b5cf6",
+              backgroundColor: "rgba(0,0,0,0.4)",
+              padding: "2px 4px",
+              borderRadius: 4,
+              lineHeight: 1,
+              whiteSpace: "nowrap",
+              pointerEvents: "none",
+            }}
+          >
+            <span>{L(`提及 ${mentions} 次`, `${mentions} mention(s)`)}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ─── 写作：设定卡共现边（cooccur）────────────────────────────────────
   // 两张设定卡在同一章被提及 = 一条共现关系（人物关系板 H5）。不复用 couplingEdge：
   // 共变的 tooltip 写死「共同修改 N 次」，用在这里是说谎 —— 语义是「一起出现」不是「一起改」。

@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 语料与写作辅助 · 优化评估报告</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --card: #ffffff;
+        --ink: #1f2430;
+        --ink-2: #5a6472;
+        --ink-3: #8a94a6;
+        --line: #e4e8ef;
+        --accent: #2f6fed;
+        --accent-soft: #e8f0ff;
+        --p0: #c0392b;
+        --p0-bg: #fdf0ee;
+        --p1: #b9770e;
+        --p1-bg: #fdf6e9;
+        --p2: #1e8449;
+        --p2-bg: #eaf7ef;
+        --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+        line-height: 1.7;
+        padding: 0 0 80px;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      /* Header */
+      header {
+        background: linear-gradient(135deg, #1c2a4a 0%, #24365e 55%, #2f6fed 130%);
+        color: #fff;
+        padding: 52px 0 44px;
+        margin-bottom: 36px;
+      }
+      header .wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .kicker {
+        font-size: 13px;
+        letter-spacing: 2px;
+        color: #a9c2ff;
+        text-transform: uppercase;
+      }
+      h1 {
+        font-size: 30px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+      .sub {
+        max-width: 760px;
+        font-size: 15px;
+        color: #cdd9f5;
+      }
+
+      /* Section */
+      section {
+        margin-bottom: 40px;
+      }
+      h2 {
+        font-size: 21px;
+        font-weight: 700;
+        margin: 0 0 6px;
+        padding-left: 12px;
+        border-left: 4px solid var(--accent);
+      }
+      .sec-desc {
+        color: var(--ink-2);
+        font-size: 14px;
+        margin: 0 0 18px 12px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 20px 22px;
+        margin-bottom: 14px;
+      }
+      .card h3 {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+      .card p {
+        font-size: 14px;
+        color: var(--ink-2);
+      }
+      code,
+      .path {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: #f0f2f6;
+        border: 1px solid #e2e6ee;
+        border-radius: 5px;
+        padding: 1px 6px;
+        color: #31456e;
+        word-break: break-all;
+      }
+
+      /* Summary chips */
+      .sum-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 14px;
+      }
+      .sum-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px 20px;
+        border-top: 3px solid var(--accent);
+      }
+      .sum-card .tag {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: var(--accent);
+      }
+      .sum-card .tit {
+        font-size: 16px;
+        font-weight: 700;
+        margin: 6px 0 6px;
+      }
+      .sum-card p {
+        font-size: 13.5px;
+        color: var(--ink-2);
+      }
+
+      /* Tables */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+        background: var(--card);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        background: #f0f3f9;
+        font-weight: 600;
+        color: #33405c;
+        white-space: nowrap;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      .row-hi td {
+        background: #fbfcff;
+      }
+
+      /* Pill / priority */
+      .pill {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 2px 10px;
+        border-radius: 20px;
+        white-space: nowrap;
+      }
+      .pill.p0 {
+        color: var(--p0);
+        background: var(--p0-bg);
+        border: 1px solid #f2c6c0;
+      }
+      .pill.p1 {
+        color: var(--p1);
+        background: var(--p1-bg);
+        border: 1px solid #ecd7a8;
+      }
+      .pill.p2 {
+        color: var(--p2);
+        background: var(--p2-bg);
+        border: 1px solid #b9dfc9;
+      }
+      .cost {
+        font-size: 12px;
+        color: var(--ink-3);
+        white-space: nowrap;
+      }
+
+      /* Opportunity cards */
+      .opp {
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--line);
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin-bottom: 12px;
+        background: var(--card);
+      }
+      .opp.p0-b {
+        border-left-color: var(--p0);
+      }
+      .opp.p1-b {
+        border-left-color: var(--p1);
+      }
+      .opp.p2-b {
+        border-left-color: var(--p2);
+      }
+      .opp-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 4px;
+      }
+      .opp-head h3 {
+        font-size: 15.5px;
+        margin: 0;
+      }
+      .opp p {
+        font-size: 13.5px;
+        color: var(--ink-2);
+        margin-bottom: 8px;
+      }
+      .opp .meta {
+        font-size: 12.5px;
+        color: var(--ink-3);
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .opp .meta b {
+        color: var(--ink-2);
+        font-weight: 600;
+      }
+
+      /* Roadmap */
+      .road {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 14px;
+      }
+      .road-item {
+        border-radius: 12px;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        background: var(--card);
+      }
+      .road-item.p0 {
+        border-top: 4px solid var(--p0);
+      }
+      .road-item.p1 {
+        border-top: 4px solid var(--p1);
+      }
+      .road-item.p2 {
+        border-top: 4px solid var(--p2);
+      }
+      .road-item h3 {
+        font-size: 15px;
+        margin-bottom: 10px;
+      }
+      .road-item ul {
+        list-style: none;
+      }
+      .road-item li {
+        font-size: 13px;
+        color: var(--ink-2);
+        padding: 5px 0 5px 18px;
+        position: relative;
+      }
+      .road-item li::before {
+        content: '·';
+        position: absolute;
+        left: 4px;
+        font-weight: 900;
+        color: var(--ink-3);
+      }
+      .road-item .why {
+        font-size: 12.5px;
+        color: var(--ink-3);
+        margin-top: 10px;
+        border-top: 1px dashed var(--line);
+        padding-top: 8px;
+      }
+
+      /* Risk / note */
+      .note {
+        display: flex;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .note b {
+        color: var(--ink);
+      }
+      .warn {
+        background: #fffaf0;
+        border: 1px solid #f0e2c0;
+      }
+      .warn-note {
+        background: #fdf0ee;
+        border: 1px solid #f2c6c0;
+      }
+
+      footer {
+        margin-top: 30px;
+        font-size: 12.5px;
+        color: var(--ink-3);
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+
+      @media (max-width: 640px) {
+        h1 {
+          font-size: 23px;
+        }
+        header {
+          padding: 36px 0 30px;
+        }
+        .wrap {
+          padding: 0 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="kicker">sight-folio · 写作辅助产品研究</div>
+        <h1>AI 语料与写作辅助 · 还能怎么优化？</h1>
+        <div class="sub">
+          面向创作者（作者）的三条主线 —— <b>优化文章 · 优化语句 · 提供灵感</b> —— 基于当前已落地的 9
+          项能力做现状盘点、机会矩阵与优先级路线建议。
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <!-- ============ 摘要 ============ -->
+      <section>
+        <h2>一句话结论</h2>
+        <p class="sec-desc">
+          功能骨架已经完整 —— 从「检测」（AI
+          味、情感弧线、直述句）、「参考」（范例、手法卡片、写法对照）到「审校」（四档预设）都有落地，且全部挂在统一检索与对话体系上。真正的优化空间不在「再加一个能力」，而在<b>把已有的检测结果变成可执行动作</b>：让结论能一键应用、让素材能一键发展成正文、让受阻时能主动给灵感。
+        </p>
+        <div class="sum-grid" style="margin-top: 14px">
+          <div class="sum-card">
+            <div class="tag">优化文章</div>
+            <div class="tit">审校结论 → 一键应用</div>
+            <p>
+              四档审校预设能给出「1-5 分 + 证据句 + 方向」，但结论只读、改稿靠手动。做个「建议 → 定位原文 →
+              采纳改写」闭环，是投入产出比最高的一项。
+            </p>
+          </div>
+          <div class="sum-card">
+            <div class="tag">优化语句</div>
+            <div class="tit">检测 → 批量润色流水线</div>
+            <p>
+              AI 味检测与 Show-not-Tell 能“抓问题”，但一次只处理眼前几行。升级成「全文扫描 → 问题句清单 → 逐句 AI 改写 →
+              采纳/替换/忽略」，相当于内置拼写检查器的 Fix All。
+            </p>
+          </div>
+          <div class="sum-card">
+            <div class="tag">提供灵感</div>
+            <div class="tit">灵感念头池 → AI 发展成文</div>
+            <p>
+              浮动速记收集的灵感念头池已经存在，但目前只是一份背景材料。选中任意一条念头，「AI 扩写成段落 →
+              插入正文」即可打通创作闭环。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 现状盘点 ============ -->
+      <section>
+        <h2>现状盘点 · 已落地的 9 项能力</h2>
+        <p class="sec-desc">以下全部经过源码确认（2026-10 现状），每项标注实现载体、能做什么、以及当前边界。</p>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 120px">能力</th>
+              <th>实现载体</th>
+              <th>做了什么</th>
+              <th style="width: 200px">当前边界 / 缺口</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>B1 人味约束</b></td>
+              <td><code>src/utils/aiCorpusChat.ts</code></td>
+              <td>
+                AI 语料对话注入 5 条人味约束（避免机械感 / 禁模板套话 / 具体优先 / 情节大于铺陈 /
+                给立场），覆盖对话与生成两条链路。
+              </td>
+              <td>约束固定，不能按文风切换（网文 vs 文学 vs 知乎体）。</td>
+            </tr>
+            <tr>
+              <td><b>B2 快捷指令</b></td>
+              <td><code>AiCorpusPanel.tsx</code> · <code>aiCorpusChat.ts</code></td>
+              <td>
+                「对话 / 生成」双模式；<code>&gt;&gt;&gt; </code> 推荐句解析 →
+                <code>onInsertText</code> 一键插入正文；按 dialogue / action / scene / auto 意图生成。
+              </td>
+              <td>生成后即停，无「继续扩写 / 换个方向」的链式追问；插入是纯文本，不保留原位置语义。</td>
+            </tr>
+            <tr>
+              <td><b>A2 AI 味检测器</b></td>
+              <td><code>src/editor/proofread/aiFlavorEngine.ts</code></td>
+              <td>
+                四类 issue：template（模板句）/ rhythm（节奏单调）/ punctuation（标点）/ vague（情绪直述），分 warning /
+                hint 严重度，导出 <code>VAGUE_WORDS</code> 与 <code>splitSentences</code>。
+              </td>
+              <td>检测在哪，改稿还得自己动手；无批量扫描入口。</td>
+            </tr>
+            <tr>
+              <td><b>C2 找范例前置检索</b></td>
+              <td><code>aiCorpusChat.ts</code> · <code>corpusApi.search</code></td>
+              <td>识别「找范例」意图 → 检索库内例句组装证据块喂给 LLM 作参考，答案带库内出处。</td>
+              <td>检索是 FTS5 关键词匹配，无语义向量 → 近义/意译召回弱；&lt;3 字走 LIKE 有噪音。</td>
+            </tr>
+            <tr>
+              <td><b>C3 写法对照工作台</b></td>
+              <td><code>src/utils/craftCompare.ts</code> · <code>CraftComparePanel.tsx</code></td>
+              <td>
+                选中句 → <code>filterReferenceHits</code> 按 referenceTier 分层取前 6 → 本地节奏拆解（±20%
+                阈值，longer/shorter/similar）+ LLM 语义维度对比 → 改写示范。
+              </td>
+              <td>只对「选中句」生效；视角/细节密度等语义维度依赖每次重访 LLM；无采纳回写。</td>
+            </tr>
+            <tr>
+              <td><b>A1 四档审校预设</b></td>
+              <td><code>src/ai/providers/writingContextProvider.ts</code></td>
+              <td>
+                情感浓度 / AI 味 / 节奏张力 / 逻辑连续性四档双语预设，材料含时间线、伏笔、灵感池、校对体检，经
+                <code>launchModuleAnalysis</code> → insights 闭环可回看历史结论。
+              </td>
+              <td>审校范围默认「当前章」，无全书/多章批量审；结论只读，无「按建议改」。</td>
+            </tr>
+            <tr>
+              <td><b>C1 手法卡片</b></td>
+              <td><code>src/utils/craftTags.ts</code> · <code>CorpusReferencePanel.tsx</code></td>
+              <td>命中例句自动拆解：手法标签 / 节奏四档 / 情感 told-shown / 用词亮点 / 可迁移模板 / 仿写示范。</td>
+              <td>被动触发（拆解在「手法」toggle 下）；无「按手法标签主动逛库」的入口。</td>
+            </tr>
+            <tr>
+              <td><b>A3 情感弧线</b></td>
+              <td><code>src/utils/emotionArc.ts</code> · <code>EmotionArcPanel.tsx</code></td>
+              <td>
+                段落按情绪聚类（8 类，强度 1-5），识别平淡区（连续 ≥2 段无情绪）与断层（剧变对/阶跃 ≥3），彩点折线图 +
+                红叉断层 + 段落点击定位。
+              </td>
+              <td>单文档视角；无情绪来自词表的透明度说明；不提供「断层处怎么补」的建议。</td>
+            </tr>
+            <tr>
+              <td><b>B3 Show-not-Tell 顾问</b></td>
+              <td><code>src/utils/showTell.ts</code> · <code>ShowTellPanel.tsx</code></td>
+              <td>直述句判定（≤26 字 + 抽象情绪词 + 无细节）→ 8 类情绪各 3 条改写方向 + 示范改写 + 召回库内示范句。</td>
+              <td>检测与示范分离：给了「方向」但没给「一键换好词的按钮」。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ============ 可复用资产 ============ -->
+      <section>
+        <h2>底层资产盘点 · 优化可以踩在这些肩膀上</h2>
+        <p class="sec-desc">下面这些是已经存在、且被多项能力共用的基础设施 —— 后续优化多数不需要从零造。</p>
+        <div class="card">
+          <h3>5 个可直接复用的能力底座</h3>
+          <ul style="list-style: none; margin-top: 6px">
+            <li style="padding: 7px 0; border-bottom: 1px dashed var(--line)">
+              <b>检索层：</b><code>corpusApi.search</code>（FTS5 关键词 ± LIKE 兜底）、<code>referenceTier</code>
+              分层（high / medium / low）、<code>occurrences</code> 位置定位、<code>charCount / tokenCount</code>
+              字数词数 —— 查得到、排得对、能定位。
+            </li>
+            <li style="padding: 7px 0; border-bottom: 1px dashed var(--line)">
+              <b>对话层：</b>agent 会话 / 流式输出 / <code>&gt;&gt;&gt; </code> 推荐句解析 →
+              <code>onInsertText</code> 插入正文，一次打通「AI 输出 → 正文」。
+            </li>
+            <li style="padding: 7px 0; border-bottom: 1px dashed var(--line)">
+              <b>审校闭环：</b><code>launchModuleAnalysis</code> → insights 历史结论（WritingInsightsDialog /
+              AiReviewDialog），结论可沉淀、可回看。
+            </li>
+            <li style="padding: 7px 0; border-bottom: 1px dashed var(--line)">
+              <b>灵感池：</b><code>INSPIRATION_KEY='inspirations'</code> 浮动速记 FAB 已在写作页落地 ——
+              收集已经解决，发展成文是空缺。
+            </li>
+            <li style="padding: 7px">
+              <b>编辑器定位：</b><code>buildTextIndex</code> + <code>textRangeToPos</code> 已被 A3 / B3 用来段落点击定位
+              —— 「建议 → 跳到原文」的技术已就绪。
+            </li>
+          </ul>
+        </div>
+        <div class="card warn-note">
+          <div class="note">
+            <b>⚠ 事实修正（避免后续踩坑）：</b>语料库后端的句子级语言分析（jieba 词性 + 启发式主谓宾提取 + UDPipe
+            依存校正）<b>历史上已被整体移除</b>，现在 <code>analysis.rs</code> 只保留稳定的字 / 词数统计（见
+            <code>src-tauri/src/domain/corpus/analysis.rs</code> 模块头注释）。因此「本地主谓宾 /
+            句法成分」类优化<b>不可行也不该做</b>；句子级语义判断一律走 LLM 通道，本地只做词频、字数等可信统计（jieba
+            已内嵌用户词典，人名分词可用）。
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 优化机会矩阵 ============ -->
+      <section>
+        <h2>优化机会矩阵 · 按创作者四大需求方向</h2>
+        <p class="sec-desc">
+          共 12 个候选机会；标注复用资产、预估成本与优先级（P0 高价值低成本 → P2 大改动 / 依赖外部）。
+        </p>
+
+        <h3 style="font-size: 16px; margin: 14px 0 10px; color: #33405c">方向一 · 优化文章（宏观结构）</h3>
+
+        <div class="opp p1-b">
+          <div class="opp-head">
+            <h3>O1 审校建议 → 一键应用改写</h3>
+            <span class="pill p1">P1</span><span class="cost">成本：中</span>
+          </div>
+          <p>
+            四档审校预设产出「分数 + 证据句 + 提升方向」，目前结论只读。在 AiReviewDialog / WritingInsightsDialog
+            中给每条建议加「查看原文 / AI 改写 / 采纳替换」动作，用 push 到正文闭环落地。
+          </p>
+          <div class="meta">
+            <b>复用：</b><code>&gt;&gt;&gt;</code> 插入闭环 · <code>buildTextIndex + textRangeToPos</code> · insights
+            闭环 · agent 流式
+          </div>
+        </div>
+
+        <div class="opp p1-b">
+          <div class="opp-head">
+            <h3>O2 章节写作体检单（聚合报告卡）</h3>
+            <span class="pill p1">P1</span><span class="cost">成本：中</span>
+          </div>
+          <p>
+            把四个纯函数引擎（AI 味检测 / 情感弧线 / 手法节奏 / Show-not-Tell）聚合成本章「写作体检报告」：AI
+            味问题数、情感断层位置、直述句密度、节奏分布 —— 一屏看清本章健康度，像审代码报告一样审故事。
+          </p>
+          <div class="meta">
+            <b>复用：</b><code>detectAiFlavor</code> · <code>emotionArc</code> · <code>craftTags</code> ·
+            <code>showTell</code> 均为已测纯函数 · 前端图表技术（SVG 已用于弧线）
+          </div>
+        </div>
+
+        <div class="opp p2-b">
+          <div class="opp-head">
+            <h3>O3 跨章节 / 全书级审校</h3>
+            <span class="pill p2">P2</span><span class="cost">成本：大</span>
+          </div>
+          <p>
+            人设一致性、时间线冲突、伏笔回收目前以「当前章」为上下文；升级为多章 /
+            全书批量审校，输出跨章问题清单（如「第 3 章埋的伏笔，第 9 章还没回收」）。
+          </p>
+          <div class="meta">
+            <b>复用：</b>writingContextProvider 的时间线 / 伏笔 / 人物材料 · 语料库
+            <code>linkedTo / relations</code> 同步经验（人物卡已有先例）
+          </div>
+        </div>
+
+        <h3 style="font-size: 16px; margin: 18px 0 10px; color: #33405c">方向二 · 优化语句（微观润色）</h3>
+
+        <div class="opp p1-b">
+          <div class="opp-head">
+            <h3>O4 批量润色流水线（检测 → 清单 → 逐句改）</h3>
+            <span class="pill p1">P1</span><span class="cost">成本：中</span>
+          </div>
+          <p>
+            「全文/选中段落扫描 → 聚合 AI 味 + 直述句问题 → 问题句清单（原文 + 类型 + 严重度）→ 逐句生成改写建议 → 采纳
+            / 替换 / 忽略」。相当于把 A2 与 B3 从「单次面板」升级成「批量处理流水线」。
+          </p>
+          <div class="meta">
+            <b>复用：</b><code>detectAiFlavor</code> · <code>showTell</code> 批量入口 · agent 流式 ·
+            <code>onInsertText / 替换</code> 编辑通道
+          </div>
+        </div>
+
+        <div class="opp p1-b">
+          <div class="opp-head">
+            <h3>O5 口头禅 / 高频重复词检测</h3>
+            <span class="pill p1">P1</span><span class="cost">成本：低-中</span>
+          </div>
+          <p>
+            统计当前章高频词 / 口头禅（「忽然」「然而」「勾了勾嘴角」类描写套路），给出出现位置与替换候选 ——
+            纯本地统计，不耗 LLM。
+          </p>
+          <div class="meta">
+            <b>复用：</b>jieba 用户词典分词（人名不再碎切）· <code>CHARACTERS_KEY</code> 人物名过滤 · 后端 count_words
+            口径
+          </div>
+        </div>
+
+        <div class="opp p2-b">
+          <div class="opp-head">
+            <h3>O6 句式单调 / 代词指代检测</h3>
+            <span class="pill p2">P2</span><span class="cost">成本：大</span>
+          </div>
+          <p>
+            连续同句式开头（「他……」×N）、句长单调、代词指代不清 —— 需要语义理解，本地不可靠，只能走 LLM
+            批量分析（成本高）。若做，建议并入 O4 清单作为 issue 类型，而不是独立功能。
+          </p>
+          <div class="meta"><b>复用：</b>O4 的扫描流水线 · LLM 通道</div>
+        </div>
+
+        <h3 style="font-size: 16px; margin: 18px 0 10px; color: #33405c">方向三 · 提供灵感</h3>
+
+        <div class="opp p0-b">
+          <div class="opp-head">
+            <h3>O7 灵感念头池 → AI 发展成段落</h3>
+            <span class="pill p0">P0</span><span class="cost">成本：低</span>
+          </div>
+          <p>
+            灵感池已有（浮动速记 FAB），但目前只是审校背景材料。加「选中一条念头 → AI 扩写成 2-3 个版本的段落 / 场景 →
+            一键插入正文」：把「记下来」变成「写出来」。这是全套件中「复用链条最短、收益最直接」的机会。
+          </p>
+          <div class="meta">
+            <b>复用：</b><code>INSPIRATION_KEY</code> 灵感池 · agent 流式 · <code>&gt;&gt;&gt;</code> 插入闭环 ·
+            现有速记 UI
+          </div>
+        </div>
+
+        <div class="opp p1-b">
+          <div class="opp-head">
+            <h3>O8 卡文雷达：主动给灵感</h3>
+            <span class="pill p1">P1</span><span class="cost">成本：中</span>
+          </div>
+          <p>
+            检测「持续无输入 / 长时间卡在同段落」时，AI 侧建议入口提供三个剧情走向、库内相关金句、或「继续写」的下一句
+            —— 沿用现有 inlineContinue（续写），把被动等命令变成主动援助。
+          </p>
+          <div class="meta">
+            <b>复用：</b>inlineContinue 续写通道 · <code>corpusApi.search</code> 金句召回 · 编辑器光标/输入事件
+          </div>
+        </div>
+
+        <div class="opp p1-b">
+          <div class="opp-head">
+            <h3>O9 库内素材主动发现（按手法 / 情绪逛库）</h3>
+            <span class="pill p1">P1</span><span class="cost">成本：中</span>
+          </div>
+          <p>
+            C1
+            手法卡片是被动拆解；可以做「手法画廊」：按手法标签（如「留白」「通感」「对话推进」）或情绪类型逛库，一次给
+            6-8 条例句 + 仿写示范，灵感不进则主动找。
+          </p>
+          <div class="meta">
+            <b>复用：</b><code>craftTags</code> 标签引擎 · <code>filterReferenceHits</code> 分层排序 · 语料库 tags
+            多值标签
+          </div>
+        </div>
+
+        <h3 style="font-size: 16px; margin: 18px 0 10px; color: #33405c">方向四 · 数据与体验面</h3>
+
+        <div class="opp p2-b">
+          <div class="opp-head">
+            <h3>O10 检索升级：近义召回（本地同义映射 → 远期向量）</h3>
+            <span class="pill p2">P2</span><span class="cost">成本：大</span>
+          </div>
+          <p>
+            FTS5 是字面匹配，「找近义词的写法的句子」召回弱。轻量先行：导入同义 / 近义映射表做查询扩展；重方案：引入
+            embedding 向量检索（依赖外部模型与部署，需评估离线/在线取舍）。
+          </p>
+          <div class="meta"><b>复用：</b><code>corpusApi.search</code> 扩展入参 · jieba 词典 · 语料库 id 索引</div>
+        </div>
+
+        <div class="opp p1-b">
+          <div class="opp-head">
+            <h3>O11 命中上下文还原（看句子先看语境）</h3>
+            <span class="pill p1">P1</span><span class="cost">成本：低</span>
+          </div>
+          <p>
+            目前检索命中展示单句 KWIC，看不到上下文；作者难以判断「这句好不好、适不适合我」。按
+            <code>occurrences</code> 附近段落做「±N 句上下文」展开卡片。
+          </p>
+          <div class="meta">
+            <b>复用：</b><code>occurrences</code> 位置 · corpus 后端可取下句 · <code>CorpusSearchHit</code> 已含段落定位
+          </div>
+        </div>
+
+        <div class="opp p1-b">
+          <div class="opp-head">
+            <h3>O12 个人语料收藏夹（好句沉淀 → 反向反哺检索）</h3>
+            <span class="pill p1">P1</span><span class="cost">成本：中</span>
+          </div>
+          <p>
+            命中句可收藏至个人收藏夹并打标签，后续 <code>filterReferenceHits</code> 对收藏内容加权 ——
+            语料库从「全库共用」变成「越用越懂你」。写作台人物卡的 linkedTo / relations
+            同步已证明这类数据一致性方案可行。
+          </p>
+          <div class="meta">
+            <b>复用：</b><code>filterReferenceHits</code> 排序钩子 · 语料库表结构调整（新增收藏表）· 人物卡同步经验
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 优先级路线 ============ -->
+      <section>
+        <h2>优先级路线建议</h2>
+        <p class="sec-desc">按「复用链条短、作者感知强、不动数据层」优先排序的落地顺序。</p>
+        <div class="road">
+          <div class="road-item p0">
+            <h3>第一波 · 打通用例闭环（P0）</h3>
+            <ul>
+              <li><b>O7</b> 灵感念头池 → AI 扩写 → 插入正文</li>
+            </ul>
+            <div class="why">
+              复用链条最短（池子、流式、插入全就绪），改动集中在前端一个入口，作者体感强烈 ——「记下来的东西能变成字」。
+            </div>
+          </div>
+          <div class="road-item p1">
+            <h3>第二波 · 把检测变成动作（P1）</h3>
+            <ul>
+              <li><b>O4</b> 批量润色流水线（检测→清单→逐句改）</li>
+              <li><b>O1</b> 审校建议一键应用改写</li>
+              <li><b>O11</b> 命中上下文还原</li>
+              <li><b>O5</b> 口头禅 / 高频词检测</li>
+            </ul>
+            <div class="why">
+              四项都复用现有引擎与编辑通道，无数据层改动；把「指出了问题」升级为「给好了答案」，是作者价值提升最大的一波。
+            </div>
+          </div>
+          <div class="road-item p2">
+            <h3>第三波 · 体验与纵深（P2）</h3>
+            <ul>
+              <li><b>O2</b> 章节写作体检单（聚合报告）</li>
+              <li><b>O8</b> 卡文雷达 · <b>O9</b> 手法画廊</li>
+              <li><b>O3</b> 全书级审校 · <b>O10</b> 近义/向量检索</li>
+              <li><b>O12</b> 个人收藏夹 · <b>O6</b> 句式单调检测</li>
+            </ul>
+            <div class="why">需要聚合多个引擎、涉及数据层改造或依赖外部能力，收尾阶段按需逐项落实。</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 关键的取舍 ============ -->
+      <section>
+        <h2>三类值得注意的取舍</h2>
+        <div class="card">
+          <div class="note" style="margin-bottom: 14px">
+            <b>1 · 语法理解走 LLM，不走本地：</b>句子成分类分析历史上因误判干扰创作被移除（analysis.rs
+            模块注释为证）。后续凡「语义 / 指代 / 句式」一律走 LLM
+            通道并给出「可编辑、可拒绝」的建议形态，本地只做词频、字数、位置等可信统计。
+          </div>
+          <div class="note" style="margin-bottom: 14px">
+            <b>2 · “检测-建议”要做成动作而非报告：</b
+            >现有能力里检测与审校占了多数，但作者真正要的是「改」。所有输出建议的位置统一提供<b>采纳 / 替换 / 忽略</b
+            >三态，把面板变成流水线。
+          </div>
+          <div class="note">
+            <b>3 · 灵感的入口要嵌入写作现场：</b
+            >灵感类功能（O7/O8/O9）应出现在「正在卡住、正要下笔」的地方（光标附近、速记
+            FAB、行尾建议），而不是藏在设置或深层面板 —— 这决定作者是否真的会用。
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        sight-folio · AI 语料与写作辅助优化评估 · 基于源码现状（2026-10）编制 · 涉及路径：<code
+          >src/utils/aiCorpusChat.ts</code
+        >
+        · <code>src/pages/writingPage/*</code> · <code>src/editor/proofread/aiFlavorEngine.ts</code> ·
+        <code>src/ai/providers/writingContextProvider.ts</code> · <code>src/services/corpus.ts</code> ·
+        <code>src-tauri/src/domain/corpus/analysis.rs</code>
+      </footer>
+    </div>
+  </body>
+</html>

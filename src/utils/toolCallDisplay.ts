@@ -21,6 +21,14 @@ export function formatToolArguments(args: unknown): string {
   }
 }
 
+/** 工具名 → 人话标签（如 list_chapters → 章节目录）；没有映射时回退原始名 */
+export function toolDisplayName(toolName: string): string {
+  const key = `agent.form.tools.${toolName}`;
+  const label = t(key);
+  // i18n 未命中时 t() 回传 key 本身，此时退回原始工具名，别把 key 摆给用户
+  return label === key ? toolName : label;
+}
+
 /** 状态徽标文案 */
 export function toolStatusLabel(status: ToolCallEvent["status"]): string {
   switch (status) {

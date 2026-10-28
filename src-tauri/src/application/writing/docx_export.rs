@@ -23,14 +23,18 @@ pub fn export_docx(
         .compression_method(zip::CompressionMethod::Deflated);
 
     // 预收集图片
-    let mut img_cache: HashMap<String, (String, Vec<u8>)> = HashMap::new(); // rel → (ext, bytes)
+    use image::GenericImageView;
+    let mut img_cache: HashMap<String, (String, Vec<u8>, u32, u32)> = HashMap::new(); // rel → (ext, bytes, width, height)
     for ch in &chapters {
         for rel in extract_data_asset_refs(&ch.content) {
             if img_cache.contains_key(&rel) {
                 continue;
             }
             if let Ok((ext, bytes)) = load_image_bytes(&rel) {
-                img_cache.insert(rel, (ext, bytes));
+                let (w, h) = image::load_from_memory(&bytes)
+                    .map(|img| img.dimensions())
+                    .unwrap_or((0, 0));
+                img_cache.insert(rel, (ext, bytes, w, h));
             }
         }
     }
@@ -38,7 +42,8 @@ pub fn export_docx(
     // 写入 [Content_Types].xml
     let mut overrides = String::new();
     overrides.push_str(r#"<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>"#);
-    for (i, (_rel, (ext, _))) in img_cache.iter().enumerate() {
+    overrides.push_str(r#"<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>"#);
+    for (i, (_rel, (ext, _, _, _))) in img_cache.iter().enumerate() {
         let ct = match ext.as_str() {
             "png" => "image/png",
             "jpg" | "jpeg" => "image/jpeg",
@@ -74,7 +79,7 @@ pub fn export_docx(
 
     // 写入图片到 word/media/
     let mut img_rel_ids: HashMap<String, String> = HashMap::new();
-    for (i, (rel, (ext, bytes))) in img_cache.iter().enumerate() {
+    for (i, (rel, (ext, bytes, _, _))) in img_cache.iter().enumerate() {
         let filename = format!("word/media/img{i}.{ext}");
         zip.start_file(&filename, options)
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -100,10 +105,14 @@ pub fn export_docx(
     }
 
     // 各章节
+    let mut img_sizes: HashMap<String, (u32, u32)> = HashMap::new(); // rel → (w, h)
+    for (rel, (_, _, w, h)) in &img_cache {
+        img_sizes.insert(rel.clone(), (*w, *h));
+    }
     for ch in &chapters {
         doc_xml.push_str(&heading2_paragraph(&ch.title));
         // 把 HTML 转成 DOCX 段落序列
-        let segments = parse_html_to_segments(&ch.content, &img_rel_ids);
+        let segments = parse_html_to_segments(&ch.content, &img_rel_ids, &img_sizes);
         for seg in segments {
             match seg {
                 DocxSegment::Paragraph(runs) => {
@@ -111,6 +120,9 @@ pub fn export_docx(
                 }
                 DocxSegment::Image(rel_id, w, h) => {
                     doc_xml.push_str(&image_paragraph(&rel_id, w, h));
+                }
+                DocxSegment::Table(rows) => {
+                    doc_xml.push_str(&table_to_xml(&rows));
                 }
             }
         }
@@ -126,11 +138,25 @@ pub fn export_docx(
     zip.write_all(doc_xml.as_bytes())
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    // 写入 word/styles.xml（定义 Heading1/Heading2/Normal，跨端稳定标题样式）
+    const STYLES_XML: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="zh-CN" w:eastAsia="zh-CN"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="360" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
+<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="360" w:after="240"/><w:jc w:val="left"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="44"/><w:szCs w:val="44"/><w:color w:val="1F2430"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="160"/><w:jc w:val="left"/><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:color w:val="312E81"/></w:rPr></w:style>
+</w:styles>"#;
+    zip.start_file("word/styles.xml", options)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    zip.write_all(STYLES_XML.as_bytes())
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
     // 写入 word/_rels/document.xml.rels
     let mut doc_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>"#
         .to_string();
-    for (i, (rel, (ext, _))) in img_cache.iter().enumerate() {
+    for (i, (_rel, (ext, _, _, _))) in img_cache.iter().enumerate() {
         let rel_id = format!("imgRel{i}");
         let ct = match ext.as_str() {
             "png" => "image/png",
@@ -157,7 +183,8 @@ pub fn export_docx(
 
 enum DocxSegment {
     Paragraph(Vec<DocxRun>),
-    Image(String, u32, u32), // rel_id, width_emu, height_emu
+    Image(String, u32, u32),       // rel_id, width_emu, height_emu
+    Table(Vec<Vec<Vec<DocxRun>>>), // rows → cells → runs
 }
 
 #[derive(Clone)]
@@ -171,7 +198,11 @@ struct DocxRun {
 }
 
 /// 极简 HTML 解析器：按段落/图片/表格切分。
-fn parse_html_to_segments(html: &str, img_rel_ids: &HashMap<String, String>) -> Vec<DocxSegment> {
+fn parse_html_to_segments(
+    html: &str,
+    img_rel_ids: &HashMap<String, String>,
+    img_sizes: &HashMap<String, (u32, u32)>,
+) -> Vec<DocxSegment> {
     let mut segments: Vec<DocxSegment> = Vec::new();
     let mut cursor = html;
 
@@ -202,8 +233,15 @@ fn parse_html_to_segments(html: &str, img_rel_ids: &HashMap<String, String>) -> 
                 let inner = &after_tag[after_tag.find('>').unwrap_or(0) + 1..end_pos];
                 match tag_name.as_str() {
                     "p" => {
-                        let runs = parse_inline_elements(inner);
-                        segments.push(DocxSegment::Paragraph(runs));
+                        // <p> 内纯 <img>（无文字）视为图片段，否则按普通段落
+                        if let Some(img_seg) =
+                            image_segment_from_html(inner, img_rel_ids, img_sizes)
+                        {
+                            segments.push(img_seg);
+                        } else {
+                            let runs = parse_inline_elements(inner);
+                            segments.push(DocxSegment::Paragraph(runs));
+                        }
                     }
                     "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                         let mut runs = parse_inline_elements(inner);
@@ -226,23 +264,17 @@ fn parse_html_to_segments(html: &str, img_rel_ids: &HashMap<String, String>) -> 
                     }
                     "img" => {
                         // 独立 <img> 标签（不带包裹）
-                        if let Some(rel_id) = extract_img_rel(after_tag, img_rel_ids) {
-                            segments.push(DocxSegment::Image(rel_id, 4000000, 3000000));
-                            // 默认 4×3 EMU
+                        if let Some(seg) =
+                            image_segment_from_html(after_tag, img_rel_ids, img_sizes)
+                        {
+                            segments.push(seg);
                         }
                     }
                     "table" => {
-                        // 表格：简化处理，每行作为一个段落
-                        let rows = extract_table_text_rows(inner);
-                        for row_text in rows {
-                            segments.push(DocxSegment::Paragraph(vec![DocxRun {
-                                text: row_text,
-                                bold: false,
-                                italic: false,
-                                underline: false,
-                                strike: false,
-                                highlight: false,
-                            }]));
+                        // 表格：导出为真实 OOXML w:tbl 结构
+                        let rows = parse_table_rows(inner);
+                        if !rows.is_empty() {
+                            segments.push(DocxSegment::Table(rows));
                         }
                     }
                     _ => {}
@@ -448,55 +480,136 @@ fn split_list_items(html: &str) -> Vec<String> {
     items
 }
 
-fn extract_table_text_rows(html: &str) -> Vec<String> {
+/// 从 <table> 内部 HTML 解析为 行 → 单元格 → runs。
+fn parse_table_rows(html: &str) -> Vec<Vec<Vec<DocxRun>>> {
     let mut rows = Vec::new();
     let mut cursor = html;
     while let Some(start) = cursor.find("<tr") {
         let after_tr = &cursor[start..];
-        let end_tag = "</tr>";
-        if let Some(end_pos) = after_tr.find(end_tag) {
-            let inner = &after_tr[..end_pos + end_tag.len()];
-            let cells = extract_cells_text(inner);
-            rows.push(cells.join(" | "));
-            cursor = &after_tr[end_pos + end_tag.len()..];
+        if let Some(end_pos) = after_tr.find("</tr>") {
+            let inner = &after_tr[..end_pos];
+            rows.push(parse_row_cells(inner));
+            cursor = &after_tr[end_pos + "</tr>".len()..];
         } else {
             break;
         }
     }
-    if rows.is_empty() {
-        rows.push(strip_html_tags(html));
-    }
     rows
 }
 
-fn extract_cells_text(row_html: &str) -> Vec<String> {
-    let mut cells = Vec::new();
+/// 行内按 <td / <th 文档顺序提取各格 runs；表头格按 HTML 语义加粗。
+fn parse_row_cells(row_html: &str) -> Vec<Vec<DocxRun>> {
+    let mut cells: Vec<Vec<DocxRun>> = Vec::new();
     let mut cursor = row_html;
-    for tag in ["<td", "<th"] {
-        let mut sub = cursor;
-        while let Some(start) = sub.find(tag) {
-            let after = &sub[start..];
-            let close_pos = after.find(">").unwrap_or(after.len()) + 1;
-            let after_open = &after[close_pos..];
-            let end = if tag == "<td" { "</td>" } else { "</th>" };
-            if let Some(end_pos) = after_open.find(end) {
-                cells.push(strip_html_tags(&after_open[..end_pos]));
-                sub = &after_open[end_pos + end.len()..];
-            } else {
-                break;
+    while let Some((kind, content_start)) = find_cell_open(cursor) {
+        let after_open = &cursor[content_start..];
+        let end_tag = if kind == 'd' { "</td>" } else { "</th>" };
+        if let Some(end_pos) = after_open.find(end_tag) {
+            let mut runs = parse_inline_elements(&after_open[..end_pos]);
+            if kind == 'h' {
+                for r in &mut runs {
+                    r.bold = true;
+                }
             }
+            cells.push(runs);
+            cursor = &after_open[end_pos + end_tag.len()..];
+        } else {
+            break;
         }
     }
     cells
 }
 
-fn extract_img_rel(html: &str, img_rel_ids: &HashMap<String, String>) -> Option<String> {
+/// 定位下一个单元格开标签，返回 (单元格类型, 内容起始字节位置)；排除 thead/tbody/tfoot 误匹配。
+fn find_cell_open(html: &str) -> Option<(char, usize)> {
+    let bytes = html.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        if b != b'<' {
+            continue;
+        }
+        if let Some(seg) = html.get(i..i + 3) {
+            if seg == "<td" {
+                let gt = html[i..].find('>')?;
+                return Some(('d', i + gt + 1));
+            }
+            if seg == "<th"
+                && !html[i + 3..].starts_with('e')
+                && !html[i + 3..].starts_with('b')
+                && !html[i + 3..].starts_with('f')
+            {
+                let gt = html[i..].find('>')?;
+                return Some(('h', i + gt + 1));
+            }
+        }
+    }
+    None
+}
+
+/// 生成 OOXML <w:tbl>：细边框、自动列宽，单元格内为无缩进段落。
+fn table_to_xml(rows: &[Vec<Vec<DocxRun>>]) -> String {
+    const TBL_PR: &str = r#"<w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="8A8F98"/><w:left w:val="single" w:sz="4" w:space="0" w:color="8A8F98"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="8A8F98"/><w:right w:val="single" w:sz="4" w:space="0" w:color="8A8F98"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="8A8F98"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="8A8F98"/></w:tblBorders></w:tblPr>"#;
+    let mut xml = String::from("<w:tbl>");
+    xml.push_str(TBL_PR);
+    for row in rows {
+        xml.push_str("<w:tr>");
+        for cell in row {
+            xml.push_str(r#"<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/></w:tcPr>"#);
+            if cell.is_empty() {
+                xml.push_str("<w:p><w:r><w:t></w:t></w:r></w:p>");
+            } else {
+                let runs_xml: String = cell.iter().map(run_to_xml).collect();
+                xml.push_str(&format!("<w:p>{runs_xml}</w:p>"));
+            }
+            xml.push_str("</w:tc>");
+        }
+        xml.push_str("</w:tr>");
+    }
+    xml.push_str("</w:tbl>");
+    xml
+}
+
+/// 从 HTML 片段提取纯图片段（无文字内容时）。
+fn image_segment_from_html(
+    html: &str,
+    img_rel_ids: &HashMap<String, String>,
+    img_sizes: &HashMap<String, (u32, u32)>,
+) -> Option<DocxSegment> {
+    let img_start = html.find("<img")?;
+    let (rel, rel_id) = extract_img_rel(&html[img_start..], img_rel_ids)?;
+    // 仅当 <img> 之外没有正文时视为图片段
+    let text = strip_html_tags(html);
+    if !text.trim().is_empty() {
+        return None;
+    }
+    let (w, h) = img_sizes.get(&rel).copied().unwrap_or((0, 0));
+    let (width_emu, height_emu) = image_emu_size(w, h);
+    Some(DocxSegment::Image(rel_id, width_emu, height_emu))
+}
+
+/// 源图像素尺寸 → DOCX EMU：按 96 DPI 自然尺寸展示，宽度超过内容宽（与 PDF MAX_IMG_W=420pt 一致）时等比缩小，不放大小图。
+fn image_emu_size(w: u32, h: u32) -> (u32, u32) {
+    const MAX_IMG_W_EMU: u64 = 420 * 12_700; // 420pt ≈ 内容宽上限
+    if w == 0 || h == 0 {
+        return (4_000_000, 3_000_000); // 未知尺寸回退 4×3
+    }
+    let natural_w = u64::from(w) * 9525; // 96 DPI：1px = 9525 EMU
+    let natural_h = u64::from(h) * 9525;
+    let scale = (MAX_IMG_W_EMU as f64 / natural_w as f64).min(1.0);
+    (
+        (natural_w as f64 * scale).round() as u32,
+        (natural_h as f64 * scale).round() as u32,
+    )
+}
+
+fn extract_img_rel(html: &str, img_rel_ids: &HashMap<String, String>) -> Option<(String, String)> {
     // 从 <img ...> 标签提取 data-asset
     if let Some(start) = html.find("data-asset=\"") {
         let rest = &html[start + 12..];
         let end = rest.find('"').unwrap_or(rest.len());
         let rel = &rest[..end];
-        img_rel_ids.get(rel).cloned()
+        img_rel_ids
+            .get(rel)
+            .map(|rel_id| (rel.to_string(), rel_id.clone()))
     } else {
         None
     }
@@ -537,21 +650,24 @@ fn heading2_paragraph(text: &str) -> String {
 }
 
 fn paragraph(text: &str, runs: &[DocxRun]) -> String {
+    // 中文出版惯例：正文段落首行缩进 2 字符（firstLineChars=200，Word 按字号自适应）
+    const INDENT_PPR: &str = r#"<w:pPr><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr>"#;
     if runs.is_empty() {
         let escaped = xml_escape(text);
-        format!(r#"<w:p><w:r><w:t>{escaped}</w:t></w:r></w:p>"#)
+        format!(r#"<w:p>{INDENT_PPR}<w:r><w:t>{escaped}</w:t></w:r></w:p>"#)
     } else {
         let runs_xml: String = runs.iter().map(run_to_xml).collect();
-        format!(r#"<w:p>{runs_xml}</w:p>"#)
+        format!(r#"<w:p>{INDENT_PPR}{runs_xml}</w:p>"#)
     }
 }
 
 fn runs_paragraph(runs: &[DocxRun]) -> String {
+    const INDENT_PPR: &str = r#"<w:pPr><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr>"#;
     if runs.is_empty() {
-        return r#"<w:p><w:r><w:t></w:t></w:r></w:p>"#.to_string();
+        return format!(r#"<w:p>{INDENT_PPR}<w:r><w:t></w:t></w:r></w:p>"#);
     }
     let runs_xml: String = runs.iter().map(run_to_xml).collect();
-    format!(r#"<w:p>{runs_xml}</w:p>"#)
+    format!(r#"<w:p>{INDENT_PPR}{runs_xml}</w:p>"#)
 }
 
 fn run_to_xml(run: &DocxRun) -> String {

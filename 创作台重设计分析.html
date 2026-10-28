@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>创作台页面重设计分析 · Sight Folio</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --card: #ffffff;
+        --ink: #1c2333;
+        --ink-2: #4a5568;
+        --ink-3: #8a94a6;
+        --line: #e2e6ee;
+        --primary: #2b6cb0;
+        --primary-dim: #ebf3fb;
+        --warn: #c05621;
+        --warn-bg: #fdf3ec;
+        --danger: #c53030;
+        --danger-bg: #fdeeee;
+        --ok: #276749;
+        --ok-bg: #ecf7f1;
+        --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        --sans:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        line-height: 1.65;
+        font-size: 15px;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 40px 28px 80px;
+      }
+
+      header.hero {
+        background: linear-gradient(135deg, #1a3352 0%, #22456e 100%);
+        color: #fff;
+        border-radius: 14px;
+        padding: 34px 38px;
+        margin-bottom: 30px;
+      }
+      header.hero h1 {
+        margin: 0 0 6px;
+        font-size: 26px;
+        letter-spacing: 0.5px;
+      }
+      header.hero .sub {
+        color: #cfe0f2;
+        font-size: 14.5px;
+      }
+      header.hero .meta {
+        margin-top: 14px;
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+        color: #9fc3e8;
+        font-size: 12.5px;
+      }
+      header.hero .meta b {
+        color: #eef4fb;
+        font-weight: 600;
+      }
+
+      h2 {
+        font-size: 21px;
+        margin: 44px 0 14px;
+        padding-left: 12px;
+        border-left: 4px solid var(--primary);
+      }
+      h3 {
+        font-size: 16.5px;
+        margin: 28px 0 10px;
+        color: #27476b;
+      }
+      h4 {
+        font-size: 14.5px;
+        margin: 20px 0 8px;
+      }
+
+      p {
+        margin: 8px 0;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin: 14px 0;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 820px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0;
+        font-size: 13.5px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        background: #f0f3f8;
+        font-weight: 600;
+        color: #33455f;
+        white-space: nowrap;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      td.num,
+      th.num {
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      code,
+      .mono {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: #eef1f6;
+        border-radius: 4px;
+        padding: 1px 5px;
+        color: #31446a;
+      }
+      .loc {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--primary);
+        background: var(--primary-dim);
+        border-radius: 4px;
+        padding: 0 5px;
+        white-space: nowrap;
+      }
+
+      .issue {
+        border-left: 3px solid var(--warn);
+      }
+      .issue h4 {
+        color: var(--warn);
+      }
+      .issue .impact {
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .light {
+        color: var(--ink-3);
+        font-size: 12.5px;
+      }
+
+      .tag {
+        display: inline-block;
+        font-size: 11.5px;
+        font-weight: 600;
+        border-radius: 4px;
+        padding: 1px 8px;
+        margin-right: 6px;
+      }
+      .tag.p0 {
+        background: var(--danger-bg);
+        color: var(--danger);
+      }
+      .tag.p1 {
+        background: var(--warn-bg);
+        color: var(--warn);
+      }
+      .tag.p2 {
+        background: #eef2f7;
+        color: #4a5a72;
+      }
+      .tag.ok {
+        background: var(--ok-bg);
+        color: var(--ok);
+      }
+
+      .frame {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 14px 0;
+        font-size: 12.5px;
+      }
+      .frame .bar {
+        display: flex;
+      }
+      .frame .col {
+        padding: 10px;
+      }
+      .frame .left {
+        width: 190px;
+        background: #f4f6fa;
+        border-right: 1px solid var(--line);
+        flex-shrink: 0;
+      }
+      .frame .mid {
+        flex: 1;
+        background: #fff;
+      }
+      .frame .right {
+        width: 170px;
+        background: #f7fafd;
+        border-left: 1px solid var(--line);
+        flex-shrink: 0;
+      }
+      .frame .box {
+        border: 1px dashed #b9c6da;
+        border-radius: 5px;
+        padding: 5px 8px;
+        margin: 5px 0;
+        background: #fff;
+        font-size: 12px;
+        color: #40516b;
+      }
+      .frame .box.hi {
+        border-color: var(--primary);
+        border-style: solid;
+        box-shadow: 0 0 0 1px var(--primary-dim);
+      }
+      .frame .box.acc {
+        border-color: var(--warn);
+        border-style: solid;
+      }
+      .frame .title {
+        font-size: 11px;
+        color: var(--ink-3);
+        letter-spacing: 0.3px;
+        margin-bottom: 4px;
+        font-weight: 600;
+      }
+      .frame .foot {
+        border-top: 1px solid var(--line);
+        background: #fbfcfe;
+        padding: 6px 10px;
+        font-size: 11.5px;
+        color: var(--ink-3);
+      }
+
+      ul.tight {
+        margin: 6px 0;
+        padding-left: 20px;
+      }
+      ul.tight li {
+        margin: 4px 0;
+      }
+      .sep {
+        height: 1px;
+        background: var(--line);
+        margin: 34px 0;
+      }
+      footer {
+        margin-top: 48px;
+        color: var(--ink-3);
+        font-size: 12px;
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1>创作台页面重设计分析</h1>
+        <div class="sub">Sight Folio · 前端工程（Tauri + React + TypeScript + MUI）· 分析对象：创作台页面</div>
+        <div class="meta">
+          <span>日期：<b>2026-10-08</b></span>
+          <span>分析方式：<b>代码走读 + 现状梳理</b></span>
+          <span>范围界定：<b>创作台 = /writing 路由「写作台」页</b></span>
+          <span>结论：<b>重设计为三段式工作台框架</b></span>
+        </div>
+      </header>
+
+      <!-- ============ 1 范围界定 ============ -->
+      <h2>1 · 对象界定：什么是「创作台」</h2>
+      <div class="card">
+        <p>
+          本项目用户语境下的「创作台」即前端 <code>/writing</code> 路由渲染的 <b>写作台页面</b>（导航文案「创作」，组件
+          <code class="loc">src/pages/WritingPage.tsx</code>，3263
+          行）。它是用户日常创作小说的主工作区，也是此前「写作中输入即自动检索语料库句子、固定区域实时展示参考」闭环（<code
+            class="loc"
+            >src/pages/writingPage/CorpusReferencePanel.tsx</code
+          >）所在的页面——<b>两者是同一个页面</b>，不存在独立的「创作台」与「写作台」两个界面。
+        </p>
+        <p>该页面支持两种挂载形态：</p>
+        <ul class="tight">
+          <li>
+            <b>主窗口内嵌</b>：左侧 <code>SideMenu</code> + 顶栏 <code>AppNavbar</code> 包裹，路由
+            <code class="loc">src/App.tsx:199</code>；
+          </li>
+          <li>
+            <b>独立写作台窗口</b>：无 chrome 沉浸窗口（<code class="loc">src/utils/writingDeskWindow.ts</code
+            >），同页消费 query 定位参数（<code class="loc">src/App.tsx:153</code>）。
+          </li>
+        </ul>
+        <p>重设计需同时覆盖两种形态：独立窗口去掉了外层导航，页面自身的栏目结构就是它的全部界面。</p>
+      </div>
+
+      <!-- ============ 2 现状梳理 ============ -->
+      <h2>2 · 现状梳理</h2>
+
+      <h3>2.1 整体框架：固定宽左栏 + 弹性右栏（三栏语义，实际两栏）</h3>
+      <div class="frame">
+        <div class="bar">
+          <div class="col left">
+            <div class="title">左栏 280px（仅 normal 模式）</div>
+            <div class="box">头栏：写作台标题 + 5 图标入口（解析全书 / 统计 / 出场矩阵 / 回收站 / 新建作品）</div>
+            <div class="box">书架列表（≤45% 高度，滚动）</div>
+            <div class="box hi">Tabs：章节 / 设定 / 笔记</div>
+            <div class="box">章节 tab：搜索 + 导入 + 批量 + 新建 + 全文检索 + 章节树（拖拽排序）</div>
+            <div class="box">设定 tab / 笔记 tab：列表 + 筛选 + 新建</div>
+          </div>
+          <div class="col mid">
+            <div class="title">右栏（编辑区，flex:1）</div>
+            <div class="box">Tabs：正文 / 章详情</div>
+            <div class="box acc">工具栏（15 项格式化 + 20 项功能图标，单行 flexWrap）</div>
+            <div class="box acc">提醒条 ×4（伏笔到期 / 灵感 / 校对发现 / 统计）</div>
+            <div class="box">章节标题（点击改名）+ 卷 chip + 状态/层级徽章</div>
+            <div class="box hi">编辑器（Tiptap，zen/focus 居中收窄）</div>
+            <div class="box acc">语料参考面板（输入自动检索，固定区，≤240px）</div>
+            <div class="box">底栏：选区字数 / 今日进度 chip / 总字数</div>
+          </div>
+        </div>
+        <div class="foot">
+          浮层：速记 FAB（右下）+ 十余个对话框/弹层（AI 审视、AI 聊天、快照、统计、校对、速记、查找替换、全书搜索、导入
+          TXT、回收站、快捷键、导出菜单…）
+        </div>
+      </div>
+
+      <h3>2.2 左栏：职责过载的四大功能区</h3>
+      <div class="card">
+        <ul class="tight">
+          <li>
+            <b>书架</b>：作品列表常驻（<code class="loc">WritingPage.tsx:1475</code>），顶部 5 个全局操作图标（解析全书
+            / 统计 / 出场矩阵 / 回收站 / 新建作品）；
+          </li>
+          <li>
+            <b>章节 tab</b>：操作行（全书搜索、导入 TXT、批量管理、新建章节）+ 标题/正文全文检索 + 章节树
+            <code class="loc">ChapterTreePanel</code>（拖拽排序、大纲绑定）；
+          </li>
+          <li><b>设定 tab</b>：人设卡 / 世界观条目列表，选中后右栏切换为设定编辑区；</li>
+          <li><b>笔记 tab</b>：全书级灵感笔记列表（绑定章节 / 标签 / 置顶）。</li>
+        </ul>
+        <p class="light">
+          四个职责共用一个 280px 栏，靠顶部 Tabs
+          切换；书架列表以「低频切换作品」的身份常驻占去近半高度，挤压频繁使用的章节树。
+        </p>
+      </div>
+
+      <h3>2.3 右栏编辑区：六层垂直堆叠</h3>
+      <div class="card">
+        <ol class="tight">
+          <li><b>Tabs 栏</b>：正文 / 章详情；详情页切换为 <code class="loc">ChapterDetailsPanel</code>；</li>
+          <li>
+            <b>工具栏</b>：左侧格式化组 15 项（<code class="loc">useToolbarButtons</code>）+ 右侧功能组约 20
+            项（章导航、专注模式、速记、快照、导出菜单、快捷键、AI 审视 / 聊天 / 自动审阅、查找替换、校对、AI 续写 /
+            润色），单行内 <code>flexWrap</code> 平铺；
+          </li>
+          <li>
+            <b>提醒条 ×4</b>：伏笔到期 <code class="loc">ForeshadowReminder</code> / 灵感
+            <code class="loc">InspirationReminder</code> / 校对 <code class="loc">ProofreadReminder</code> / 统计
+            <code class="loc">StatsReminder</code>（<code class="loc">WritingPage.tsx:2715</code
+            >，有内容才出现，多条可同时叠放）；
+          </li>
+          <li><b>章节头</b>：标题 + 卷 chip + 状态/层级徽章；</li>
+          <li>
+            <b>编辑器</b>：Tiptap <code class="loc">EditorContent</code>，写作动线（点击改名 / 就地切状态），zen 模式
+            680px 居中；
+          </li>
+          <li>
+            <b>语料参考面板 + 底栏</b>：编辑器正下方固定展示命中句（<code class="loc">WritingPage.tsx:2783</code
+            >），底栏选区/今日/总字数。
+          </li>
+        </ol>
+        <p class="light">
+          另有 <code>activeSetting</code> 状态：选定「设定」后右栏整体替换为设定编辑区（人设 / 世界观 / 时间线 / 剧情线
+          / 伏笔 / 灵感六页签），工具栏仍留在顶部——此时界面语义从「正文编辑」切到「设定编辑」，但外壳不变。
+        </p>
+      </div>
+
+      <h3>2.4 功能全景（writing 命名空间，649 个 i18n key）</h3>
+      <table>
+        <tr>
+          <th style="width: 130px">功能域</th>
+          <th>典型能力</th>
+          <th class="num" style="width: 90px">入口形态</th>
+        </tr>
+        <tr>
+          <td>写作编辑</td>
+          <td>Tiptap 富文本、多色高亮、表格、批注、章内插画、排版（页宽/字体）、快照/崩溃恢复</td>
+          <td class="num">工具栏 + 就地</td>
+        </tr>
+        <tr>
+          <td>章节管理</td>
+          <td>新建/改名/拖拽排序、批量管理、回收站（软删）、导入 TXT、全书搜索/查找替换、卷</td>
+          <td class="num">左栏 + 对话框</td>
+        </tr>
+        <tr>
+          <td>设定体系</td>
+          <td>人设卡、世界观条目（子类/完整度/矩阵）、作品元数据（体裁/载体）</td>
+          <td class="num">左栏 + 右栏切换</td>
+        </tr>
+        <tr>
+          <td>叙事设计</td>
+          <td>时间线（全书/按章/剧情线视图）、剧情线管理、伏笔（埋设/回收/预警）、灵感念头（分发/挂章）</td>
+          <td class="num">右栏页签</td>
+        </tr>
+        <tr>
+          <td>质量检查</td>
+          <td>校对（错别字/重复/敏感词，输入自动复检）、AI 审视、自动审阅（调度心跳）</td>
+          <td class="num">工具栏/提醒条</td>
+        </tr>
+        <tr>
+          <td>AI 能力</td>
+          <td>AI 聊天（带作品上下文）、AI 续写、AI 润色（整章/选区）、内联 Dialog</td>
+          <td class="num">5+ 分散入口</td>
+        </tr>
+        <tr>
+          <td>数据输出</td>
+          <td>导出 md/epub/html/txt/docx/pdf、全书备份/恢复（导出菜单收纳）</td>
+          <td class="num">导出菜单</td>
+        </tr>
+        <tr>
+          <td>语料参考</td>
+          <td>输入即自动检索语料库（FTS5 句子级），固定区展示命中句，复制/插入正文</td>
+          <td class="num">自动（无手动入口）</td>
+        </tr>
+        <tr>
+          <td>笔记</td>
+          <td>灵感速记（FAB + 工具栏）、全书笔记面板、日更目标/统计</td>
+          <td class="num">FAB + 对话框</td>
+        </tr>
+      </table>
+
+      <h3>2.5 关键交互链路</h3>
+      <table>
+        <tr>
+          <th style="width: 170px">链路</th>
+          <th>触发 → 处理 → 表现</th>
+        </tr>
+        <tr>
+          <td>输入自动保存</td>
+          <td>
+            编辑器 <code>onUpdate</code> → <code>scheduleSave</code>（防抖）→ 800ms 翻转保存态（<code class="loc"
+              >WritingPage.tsx:712</code
+            >）
+          </td>
+        </tr>
+        <tr>
+          <td>输入自动校对</td>
+          <td><code>onUpdate</code> → <code>runProofreadDebounced</code> → 错字/重复/敏感词提醒条 + 校对面板</td>
+        </tr>
+        <tr>
+          <td>输入自动语料参考</td>
+          <td>
+            <code>onUpdate</code> → <code>extractCorpusQuery</code> 取光标前 30 字 → 面板 300ms 防抖 调
+            <code>corpusApi.search</code> → 固定区卡片（复制/插入正文）
+          </td>
+        </tr>
+        <tr>
+          <td>专注模式</td>
+          <td>
+            工具栏图标三态循环 normal → focus（隐藏左栏）→ zen（左栏隐藏 + 680px 居中 + 沉浸滚动），语料面板仅在 zen
+            隐藏
+          </td>
+        </tr>
+        <tr>
+          <td>独立窗口</td>
+          <td>书架/章节列表「在写作台打开」→ 新窗口挂 <code>/writing?book=…&chapter=…</code>，无 chrome</td>
+        </tr>
+      </table>
+
+      <!-- ============ 3 问题点 ============ -->
+      <h2>3 · 问题点（重设计的依据）</h2>
+
+      <h3>3.1 布局与信息架构</h3>
+      <div class="grid2">
+        <div class="card issue">
+          <h4>① 左栏四个职责挤一栏，书架抢占高频空间</h4>
+          <p class="impact">
+            作品切换是低频操作，却以「书籍列表」形态常驻占 ≤45% 栏高（<code class="loc">WritingPage.tsx:1475</code
+            >）；与之抢空间的章节树才是写作高频入口。栏宽固定 280px，设定/笔记列表信息密度受限。
+          </p>
+        </div>
+        <div class="card issue">
+          <h4>② 编辑区六层堆叠，正文可视高度被反复挤压</h4>
+          <p class="impact">
+            工具栏 + 4 条提醒 + 章节头 + 编辑器 + 语料面板 + 底栏纵向排队。语料面板最高 240px，提醒条可 4
+            条同时出现，zen 模式虽隐左栏但提醒条仍保留（仅语料面板隐藏）——normal/focus 下正文往往不足一屏。
+          </p>
+        </div>
+        <div class="card issue">
+          <h4>③ 视图矩阵复杂，「当前在哪一层」不可见</h4>
+          <p class="impact">
+            右栏 <code>body/details</code> Tabs × 左栏 <code>chapters/settings/notes</code> Tabs ×
+            <code>activeSetting</code> 三套状态组合出多种视图；activeSetting
+            时正文被整体替换但工具栏/外壳不变，用户容易把「设定编辑」误认为仍在写作。
+          </p>
+        </div>
+        <div class="card issue">
+          <h4>④ 左侧三 tab 内部结构各自为政</h4>
+          <p class="impact">
+            章节 tab = 操作行+搜索+树；设定 tab = 列表+筛选+新建；笔记 tab = 列表+筛选。每 tab
+            顶部操作区形态不统一，缺少一致的三级导航心智（书 → 章 → 元素）。
+          </p>
+        </div>
+      </div>
+
+      <h3>3.2 交互与可发现性</h3>
+      <div class="grid2">
+        <div class="card issue">
+          <h4>⑤ 工具栏 35+ 图标无分组平铺</h4>
+          <p class="impact">
+            格式化 15 项与功能 20 项共用一个 <code>flexWrap</code> 行，无分组间隔、无文字标签，全靠 hover
+            tooltip；屏宽不足时换行两次，工具栏占三行。功能密度接近「全部平权」，低频按钮（如快捷键、章导航）与高频按钮等高占位。
+          </p>
+        </div>
+        <div class="card issue">
+          <h4>⑥ AI 能力 6 个入口无统一心智</h4>
+          <p class="impact">
+            AI 审视、AI 聊天、自动审阅、AI 续写、AI 润色、内联 Dialog
+            各自独立按钮/对话框；首轮体验者无法判断「该用哪个」。与「自动校对」「自动语料」并列，AI 边界模糊。
+          </p>
+        </div>
+        <div class="card issue">
+          <h4>⑦ 语料参考面板推挤正文，输入即跳动</h4>
+          <p class="impact">
+            面板常驻编辑区底部（哪怕 4 条提醒条已占位），有命中即展开到
+            240px；每次输入刷新时高度变化、滚动位置抖动，打断了「选中即插入」的流畅感——功能正确，但舞台动线（<i
+              >typography</i
+            >
+            的专注感）被破坏。
+          </p>
+        </div>
+        <div class="card issue">
+          <h4>⑧ 就地编辑与对话框两套模式混用</h4>
+          <p class="impact">
+            章节标题点击改名、卷 chip 就地切换、状态/层级徽章，与新建章/新建书/快照/AI
+            对话框并存；同一层级的同类操作（如「改章节名」vs「改设定名」）交互路径不一致，操作心智不统一。
+          </p>
+        </div>
+      </div>
+
+      <h3>3.3 视觉层级</h3>
+      <div class="card issue">
+        <h4>⑨ 全域等权白底，无主次舞台感</h4>
+        <p class="impact">
+          左栏 280px 与右栏同为 <code>Paper variant="outlined"</code> 白底细边，工具栏/提醒条/语料面板仅靠 1px
+          分隔线区分；视觉上没有「正文是最亮的舞台、辅助信息退后」的层级。提醒条 4
+          种颜色（各自语义色）在写作区顶部形成「红灯区」，与语料卡片、徽章混排成杂色带。
+        </p>
+      </div>
+
+      <h3>3.4 工程结构（影响重设计的实施面）</h3>
+      <div class="card issue">
+        <h4>⑩ 3263 行单文件巨型组件，UI 改动高风险</h4>
+        <p class="impact">
+          <code>WritingPage.tsx</code> 承载几十个 <code>useState</code>、内联巨型 JSX
+          与十余个对话框开关；任何布局级重设计都会触及这个文件的大部分区块。历史迭代中每次功能接入（校对、语料、灵感…）都在同一文件内叠加区块，是「堆叠感」的代码根源。
+        </p>
+        <p class="impact">
+          面板/对话框开关状态集中在页面内（<code>statsOpen / chatOpen / proofreadOpen / notesOpen / snapshot…</code
+          >），弹层横向蔓延，无统一「工作台上下文」模型。
+        </p>
+      </div>
+
+      <!-- ============ 4 重设计方向 ============ -->
+      <h2>4 · 重设计方向与建议</h2>
+
+      <h3>方向 A · 三段式工作台框架（主方向，P0）</h3>
+      <div class="card">
+        <p>
+          <b>目标</b>：把「一个页面堆六层」重构为「一个舞台 +
+          左右导航/辅助抽屉」，让正文始终是视觉与交互的中心，辅助信息按需出现、不推挤正文。
+        </p>
+        <div class="frame">
+          <div class="bar">
+            <div class="col left">
+              <div class="title">左列 · 导航与大纲（可折叠 240px/0）</div>
+              <div class="box">作品切换（下拉/侧滑，不再常驻列表）</div>
+              <div class="box hi">章节树（获得完整栏高）</div>
+              <div class="box">设定 / 笔记 / 大纲（与章节同级 Tabs）</div>
+            </div>
+            <div class="col mid">
+              <div class="title">中央 · 写作舞台（不变宽，最多三层）</div>
+              <div class="box">工具栏（分组收纳：高频单行 ≤10 项，其余入「Aa/⌘K」）</div>
+              <div class="box">章节头（标题 + 徽章）</div>
+              <div class="box hi">编辑器（唯一可滚动主体）</div>
+              <div class="box">底栏（选区/今日/字数）</div>
+            </div>
+            <div class="col right">
+              <div class="title">右抽屉 · 上下文辅助（默认收起，≤340px）</div>
+              <div class="box hi">语料参考（输入自动检索，吸顶展示）</div>
+              <div class="box">章详情 / 提醒汇总 / 伏笔·灵感</div>
+              <div class="box">校对结果 / 统计速览</div>
+            </div>
+          </div>
+          <div class="foot">
+            建议：右抽屉兼作「章详情」与设定编辑出口，消灭 activeSetting
+            整体替换正文的状态；语料面板从「编辑器下方固定条」改为「右抽屉首屏/边缘滑出」，输入时不再推挤正文。
+          </div>
+        </div>
+        <ul class="tight">
+          <li>
+            <b>左列</b>：作品列表收为下拉或窄 rail，章节树获得完整纵向空间；「设定/笔记」保持与章节同级 Tab，形成「作品
+            → 章节/元素」的一致二级导航；
+          </li>
+          <li>
+            <b>中央</b
+            >：正文独享滚动区域，提醒条改为「右上角待办胶囊」（统一黄色语义，点击展开右侧抽屉详情），不再在编辑区顶部叠
+            4 条彩带；
+          </li>
+          <li>
+            <b>右抽屉</b>：语料参考、章详情、提醒、校对、统计统一收纳；语料参考保留「输入即自动检索 +
+            固定单一展示区」的核心语义，但展示位置从「推挤正文的底部条」变成「编辑部右侧吸顶抽屉」，插入正文一步到位不变。
+          </li>
+        </ul>
+      </div>
+
+      <h3>方向 B · 工具栏重组（P0）</h3>
+      <div class="card">
+        <ul class="tight">
+          <li>
+            <b>按使用频次分层</b>：行内仅保留高频 6–8
+            项（B/I/U/标题/引用/列表/高亮/链接）；格式全家桶（表格、插画、批注、排版、多色高亮）收进「Aa 格式面板」；
+          </li>
+          <li>
+            <b>功能区按语义分组</b>：写作（章节导航、专注模式、速记）/ 检查（校对、查找替换、自动审阅）/
+            资料（快照、导出菜单、快捷键）/ AI（审视、聊天、续写、润色合并为一个「AI」按钮 → 弹出菜单或面板）；
+          </li>
+          <li>
+            <b>引入 ⌘K 命令面板</b
+            >：把散落的对话框入口（统计、快照、全书搜索、导入、回收站…）统一为可搜索动作，降低发现成本，工具栏最终稳定在单行。
+          </li>
+        </ul>
+      </div>
+
+      <h3>方向 C · 视觉层级（P1）</h3>
+      <div class="card">
+        <ul class="tight">
+          <li>
+            <b>三级背景</b>：工作台容器（无强调）→ 左/右栏 Paper（极淡底 + 细边）→ 当前章节正文（纯白/最亮、maxWidth 走
+            typo.pageWidth，两侧留白）；
+          </li>
+          <li>
+            <b>单一提醒语义</b>：4
+            种提醒条统一为「待处理」胶囊（黄色），严重性差异只在抽屉内用标签区分，消除编辑区顶部杂色带；
+          </li>
+          <li>
+            <b>模式连贯</b>：focus/zen 不再只是「隐藏左栏」，改为「左栏收起 + 右抽屉隐藏 +
+            提醒胶囊淡出」的渐进沉浸，中间态可随时滑出。
+          </li>
+        </ul>
+      </div>
+
+      <h3>方向 D · 工程重构配合（P1–P2）</h3>
+      <div class="card">
+        <ul class="tight">
+          <li>
+            <b>拆分 WritingPage</b>：容器 + 分区组件（<code
+              >WritingSidebar / WritingToolbar / WritingReminders / WritingCanvas / WritingContextPane</code
+            >），对话框开关状态收敛进 <code>writingStore</code> 或独立 context，消除单文件巨型组件对每次 UI
+            改动的放大风险；
+          </li>
+          <li>
+            <b>语料参考独立化</b>：现有接口（<code>query + onInsertText + status 探针</code
+            >）已足够松耦合，重设计只需改挂载容器与呈现位置，不动检索链路，回归面小；
+          </li>
+          <li>
+            <b>独立窗口复用</b>：写作台独立窗口直接复用重设计后的布局（无 SideMenu 环境已验证），三段式天然适配无 chrome
+            形态。
+          </li>
+        </ul>
+      </div>
+
+      <h3>优先级路线（P0 先行，可逐项验收）</h3>
+      <table>
+        <tr>
+          <th style="width: 90px">优先级</th>
+          <th>改动</th>
+          <th>验收口径</th>
+        </tr>
+        <tr>
+          <td><span class="tag p0">P0</span></td>
+          <td><b>三段式布局</b>：作品收窄/下拉化、章节树全高、右抽屉收纳语料参考/章详情/提醒；语料面板不再推挤正文</td>
+          <td>
+            normal 模式下正文可视高度提升 ≥30%；输入时正文不跳动；语料参考仍为「输入自动检索 + 单一固定区 + 插入」
+          </td>
+        </tr>
+        <tr>
+          <td><span class="tag p0">P0</span></td>
+          <td><b>工具栏分组收纳</b>：行内 ≤10 项，格式/AI/资料分菜单；⌘K 命令面板一期（高频 8–10 个动作）</td>
+          <td>1280px 宽下工具栏单行不换行；AI 入口收敛为 1 个统一入口 + ⌘K</td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td><b>提醒条合并为待办胶囊</b>；focus/zen 渐进沉浸；视觉三级背景落地</td>
+          <td>编辑区顶部无彩带；任一提醒条不遮挡正文首行</td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">P1</span></td>
+          <td><b>WritingPage 拆分</b>（先拆工具栏与提醒区，再拆左栏/右抽屉），状态收敛 store</td>
+          <td>tsc / lint / 全量测试通过；WritingPage 体积下降 ≥40%</td>
+        </tr>
+        <tr>
+          <td><span class="tag p2">P2</span></td>
+          <td>activeSetting 编辑出口移入右抽屉；就地编辑与对话框入口统一；高级视觉打磨</td>
+          <td>「设定编辑」不再整体替换正文区；同名操作交互路径一致</td>
+        </tr>
+      </table>
+
+      <!-- ============ 5 对照 ============ -->
+      <h2>5 · 现状 → 方向对照</h2>
+      <table>
+        <tr>
+          <th style="width: 200px">现状</th>
+          <th style="width: 90px">问题编号</th>
+          <th>重设计落点</th>
+        </tr>
+        <tr>
+          <td>左栏四职责 + 书架常驻 45%</td>
+          <td class="num">①</td>
+          <td>方向 A：作品下拉化，章节树全高，二级导航一致化</td>
+        </tr>
+        <tr>
+          <td>编辑区六层堆叠、语料面板推挤正文</td>
+          <td class="num">②⑦</td>
+          <td>方向 A：右抽屉收语料参考/章详情/提醒，正文独享滚动</td>
+        </tr>
+        <tr>
+          <td>三套 Tabs × activeSetting 视图矩阵</td>
+          <td class="num">③④</td>
+          <td>方向 A/P2：设定编辑改入右抽屉，消灭整体替换</td>
+        </tr>
+        <tr>
+          <td>35+ 图标无分组工具栏</td>
+          <td class="num">⑤</td>
+          <td>方向 B：频次分层 + 语义分组 + ⌘K</td>
+        </tr>
+        <tr>
+          <td>AI 6 入口分散</td>
+          <td class="num">⑥</td>
+          <td>方向 B：统一 AI 入口 + 命令面板</td>
+        </tr>
+        <tr>
+          <td>两套交互模式混用、4 色提醒彩带</td>
+          <td class="num">⑧⑨</td>
+          <td>方向 C/P2：待办胶囊、单一语义色、渐进沉浸</td>
+        </tr>
+        <tr>
+          <td>3263 行单文件、弹层横向蔓延</td>
+          <td class="num">⑩</td>
+          <td>方向 D：分区拆分 + 状态收敛，降低重设计实施风险</td>
+        </tr>
+      </table>
+
+      <div class="sep"></div>
+      <div class="card">
+        <p>
+          <b>一句话结论</b>：创作台（=/writing 写作台页）功能完备度很高（649 key、9
+          大功能域），主要矛盾不在能力缺失，而在
+          <b>功能区挤一个栏、正文区堆六层、辅助信息与正文争舞台</b
+          >。重设计的核心动线是「<b>正文上舞台、辅助进抽屉、入口被收纳</b>」，以三段式框架 + 工具栏重组为
+          P0，工程拆分与视觉打磨跟进，即可在不破坏「输入即语料参考」等既有闭环的前提下完成整体焕新。
+        </p>
+      </div>
+
+      <footer>
+        分析口径：基于代码走读（src/pages/WritingPage.tsx 及 writingPage 子模块、src/App.tsx 路由、writing i18n
+        命名空间）。行号引用为 2026-10-08 代码快照，随工程演进可能偏移。本报告为设计分析，不含代码改动。
+      </footer>
+    </div>
+  </body>
+</html>

@@ -330,10 +330,12 @@ const writingContextProvider: AiContextProvider = {
       L('校对体检', 'Proofread Report'),
       7,
       L(
-        '章文本/章账/伏笔/时间线/剧情线/念头池 六组维度体检',
-        'Six-dimension derived report: text, ledger, foreshadowing, timeline, storylines, ideas',
+        '章文本/章账/伏笔/时间线/剧情线/念头池/一致性 七组维度体检',
+        'Seven-dimension derived report: text, ledger, foreshadowing, timeline, storylines, ideas, consistency',
       ),
-      corpusLines(buildProofreadCorpus(book.id, chapters, outlines, s.timelineEvents, s.foreshadowings, s.storylines)),
+      corpusLines(
+        buildProofreadCorpus(book.id, chapters, outlines, s.timelineEvents, s.foreshadowings, s.storylines, s.settings),
+      ),
       {},
     );
 
@@ -403,6 +405,77 @@ const writingContextProvider: AiContextProvider = {
         'en-US':
           'Based on the book overview (chapter structure and word distribution), the current chapter text, and the worldbuilding entries, review: 1) plot coherence and contradictions; 2) pacing problems (chapters too long/short, drag or jump); 3) whether the text respects the established worldbuilding. The materials also include the timeline & storylines, the foreshadowing list, the inspiration pool, and the proofread report — factor in timeline conflicts, incomplete drafts, and planted/unpaid-off foreshadowing, and call out any foreshadowing that was planted but never paid off. Give chapter-specific revision suggestions.',
       },
+      group: 'writing',
+    },
+    // ── P1·A1 审校预设扩展：情感浓度 / AI 味 / 节奏张力 / 逻辑连续性（写作方案 A1）──
+    // 四个预设共用同一产出协议：给 1-5 分档、引原文证据句、给可执行的提升方向，
+    // 结论经 launchModuleAnalysis 流入既有「历史审阅结论」闭环（WritingInsightsDialog）。
+    {
+      key: 'emotional-intensity',
+      title: { 'zh-CN': '情感浓度审校', 'en-US': 'Emotional Intensity Review' },
+      description: {
+        'zh-CN': '对当前章节逐段评估情感强度（1-5 分），给出证据句与提升方向，标出情绪直述或情感空转。',
+        'en-US':
+          'Score emotional intensity per passage (1-5), with quoted evidence and ways to deepen it; flag told emotions and emotionally empty stretches.',
+      },
+      prompt: {
+        'zh-CN':
+          '请对当前章节正文做情感浓度审校：1）按情节段落给出情感强度 1-5 分与主导情绪（如恐惧/依恋/愤怒/释然）；2）每段引用原文最短 1 句做证据，不得脱离原文空谈；3）给出该段提升情感浓度的 1-2 条具体方向（选词、动作细节、感官意象、独白或留白）；4）标出「情绪直述」（直接写情绪名词而缺少可感的描写）与「情感空转」（段落较长但情绪没有推进）的句子，并按出现位置列出。评分标准：5 分=情绪有层次且能被读者感知，3 分=情绪明确但表现单一，1 分=情绪缺失或与情节不匹配。',
+        'en-US':
+          'Review the emotional intensity of the current chapter: 1) score each story beat 1-5 for emotional intensity and name its dominant emotion (fear, attachment, anger, relief, etc.); 2) quote at least one sentence per beat as evidence — never opine without the text; 3) give 1-2 concrete ways to deepen each beat (word choice, action detail, sensory imagery, internal monologue, or restraint); 4) flag "told emotions" (naming an emotion instead of making it felt) and "emotionally empty stretches" (long passages without emotional movement), listed by location. Scoring: 5 = layered and perceptible emotion, 3 = clear but one-note emotion, 1 = missing or mismatched emotion.',
+      },
+      sectionKeys: [ACTIVE_CHAPTER_KEY],
+      group: 'writing',
+    },
+    {
+      key: 'ai-flavor',
+      title: { 'zh-CN': 'AI 味审校', 'en-US': 'AI-Flavor Review' },
+      description: {
+        'zh-CN': '识别模板套话、节奏单调、长句堆叠与情绪直述等 AI 腔，逐句定位并给去 AI 味改写方向。',
+        'en-US':
+          'Detect template phrases, flat rhythm, run-on sentences and told emotions; locate each and suggest how to de-AI the prose.',
+      },
+      prompt: {
+        'zh-CN':
+          '请对当前章节正文做「去 AI 味」审校，重点检查四类问题：1）模板套话——「仿佛/宛如/犹如/不禁/仿佛整个世界」「这不仅仅…更是…」「在我们内心深处」等万能连词与陈词；2）节奏单调——句子长度几乎一致、缺少长短句交替；3）长句堆叠——连续多句用「，」串接的排比式长句；4）情绪直述——直接写「悲伤/愤怒/感动」而缺少可感的行为与意象。对每处问题：引用原文句子、说明问题类型、给出 1 句去 AI 味改写示例（用具体细节和感官描写替代抽象概括，让情节推进而非停留在氛围铺陈）。句式要有变化的整体建议放在末尾。',
+        'en-US':
+          'Audit the current chapter for AI-flavored prose. Check four problem classes: 1) template fillers — stock connectives and clichés like "as if", "not merely... but also", "deep down"; 2) flat rhythm — sentence lengths barely vary, no alternation of long and short; 3) run-on stacking — several consecutive long sentences chained by commas; 4) told emotions — naming "sadness/anger/touch" instead of making it felt through behavior and imagery. For each find: quote the sentence, name the problem class, and give one de-AI rewrite example that replaces abstraction with concrete detail and sensory imagery and moves the plot forward rather than lingering on atmosphere. End with overall advice on varying sentence rhythm.',
+      },
+      sectionKeys: [ACTIVE_CHAPTER_KEY],
+      group: 'writing',
+    },
+    {
+      key: 'pacing-tension',
+      title: { 'zh-CN': '节奏与张力审校', 'en-US': 'Pacing & Tension Review' },
+      description: {
+        'zh-CN': '分析章节内的叙事节奏峰谷与张力曲线：铺垫是否过长、高潮是否到位、紧张段落密度是否失衡。',
+        'en-US':
+          'Analyze the pacing curve and tension build inside the chapter: overlong setup, under-powered climax, or uneven density in tense scenes.',
+      },
+      prompt: {
+        'zh-CN':
+          '请对当前章节做节奏与张力审校：1）按情节推进划分场景，标注每个场景的张力值（1-5 分）与类型（铺垫/冲突/反转/收束）；2）绘制章节张力走势：连续多个低张力场景是否构成拖沓、多个高张力场景是否缺少喘息；3）检查高潮段落是否「到不到位」——冲突解决的篇幅与铺垫是否匹配、是否用行动而非解释收束；4）对照作品概览中的全书章节字数分布，指出本章相对前后的节奏位置（升/降/平台期）与失衡点；5）对失衡处给出具体收缩或扩充方向（砍掉哪类过渡、在何处提前埋冲突、高潮处增加什么细节）。',
+        'en-US':
+          "Review the pacing and tension of the current chapter: 1) divide it into scenes by plot movement, rating each scene's tension (1-5) and type (setup / conflict / reversal / resolution); 2) sketch the tension curve — do several low-tension scenes in a row drag? do high-tension scenes lack breathing room?; 3) check whether the climax lands — is its length proportional to the setup, and is it resolved through action rather than explanation?; 4) compare against the per-chapter word distribution in the book overview and state this chapter's position on the arc (rise / plateau / fall) and why it works or not; 5) suggest concrete cuts or expansions per weak spot (which transitions to trim, where to plant conflict earlier, which details the climax lacks).",
+      },
+      sectionKeys: [ACTIVE_CHAPTER_KEY, OVERVIEW_KEY],
+      group: 'writing',
+    },
+    {
+      key: 'logical-continuity',
+      title: { 'zh-CN': '逻辑连续性审校', 'en-US': 'Logical Continuity Review' },
+      description: {
+        'zh-CN': '检查场景衔接、时间线、角色动机与设定一致性：前一秒还在某处的角色为何下一秒出现在别处。',
+        'en-US':
+          'Check scene transitions, timeline consistency, character motivation and setting adherence: how did the character get from there to here?',
+      },
+      prompt: {
+        'zh-CN':
+          '请对当前章节做逻辑连续性审校：1）场景衔接——相邻场景之间时间/地点/视角是否交代清楚，是否存在「瞬移」或读者无法推导的跳变；2）时间线——章节内部时间流逝是否自洽，与材料中的时间线事件是否冲突（人物年龄、季节、事件先后）；3）角色动机——言行是否与人设卡一致、动机是否可被前文情节支撑，临时让角色「为情节服务」的违和处；4）设定遵守——正文是否违背世界观规则或例外条款；5）伏笔衔接——本章新增伏笔是否入账、本章对旧伏笔的暗示是否与埋设一致（材料含伏笔清单）。每项给出原文证据与修正建议；材料无法覆盖的判断明确声明盲区，不要编造。',
+        'en-US':
+          'Audit the current chapter for logical continuity: 1) scene transitions — are time, place, and point of view between adjacent scenes clear, with no unexplained teleportation or un-derivable jumps?; 2) timeline — is the elapsed time internally consistent and consistent with the timeline events (ages, seasons, event order)?; 3) character motivation — do words and actions match the character cards, and is motivation supported by earlier plot, flagging moments where a character is bent to serve the plot?; 4) setting adherence — does the text violate established worldbuilding rules or exceptions?; 5) foreshadowing handoff — are new plants properly noted and do hints to old plants stay consistent with the planted records (a foreshadowing list is provided). Give quoted evidence and fixes per item; declare a blind spot for anything the materials cannot cover instead of inventing it.',
+      },
+      sectionKeys: [ACTIVE_CHAPTER_KEY, CHARACTERS_KEY, TIMELINE_KEY, FORESHADOWING_KEY],
       group: 'writing',
     },
   ] as AiAnalysisPreset[],

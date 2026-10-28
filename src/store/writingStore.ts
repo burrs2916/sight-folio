@@ -902,6 +902,33 @@ export const useWritingStore = create<WritingState>()(
 
     deleteSetting: async (settingId: string) => {
       await writingSettingsApi.delete(settingId);
+      // A1：逆向引用清理（P0 一致性，与后端 delete_setting 同语义）——
+      // 删设定后，同书其余设定 extra.relations 里指向被删 id 的关系行一并移除。
+      // 只有成功落库的行才同步进内存；个别失败仅告警，不阻断主删除（reload 后按库复原）。
+      const affected = get().settings.filter((s) => {
+        if (s.id === settingId) return false;
+        return (parseSettingExtra(s.extra).relations ?? []).some((r) => r.targetId === settingId);
+      });
+      const synced: WritingSetting[] = [];
+      for (const row of affected) {
+        const extra = parseSettingExtra(row.extra);
+        const rels = (extra.relations ?? []).filter((r) => r.targetId !== settingId);
+        const next: WritingSetting = {
+          ...row,
+          extra: JSON.stringify({ ...extra, relations: rels.length > 0 ? rels : undefined }),
+          updatedAt: Math.floor(Date.now() / 1000),
+        };
+        try {
+          await writingSettingsApi.save(next);
+          synced.push(next);
+        } catch (e) {
+          logger.warn('writingStore', 'deleteSetting cleanup relations failed', {
+            settingId,
+            refId: row.id,
+            error: e,
+          });
+        }
+      }
       set((s) => {
         s.settings = s.settings.filter((x) => x.id !== settingId);
         if (s.activeSettingId === settingId) s.activeSettingId = null;
@@ -909,6 +936,14 @@ export const useWritingStore = create<WritingState>()(
         // 删设定不删事件——时间线事件保留，仅就地解绑回「书级事件」。
         for (const ev of s.timelineEvents) {
           if (ev.settingId === settingId) ev.settingId = null;
+        }
+        // A1：被清理的逆向引用行同步进内存（与落库同 extra）。
+        for (const row of synced) {
+          const mem = s.settings.find((x) => x.id === row.id);
+          if (mem) {
+            mem.extra = row.extra;
+            mem.updatedAt = row.updatedAt;
+          }
         }
       });
       get()._rebuildIndices();

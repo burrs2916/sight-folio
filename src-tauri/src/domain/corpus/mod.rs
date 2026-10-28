@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod fingerprint;
 pub mod models;
 pub mod pipeline;

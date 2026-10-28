@@ -46,7 +46,10 @@ pub fn start_watching(
     state: tauri::State<'_, FileWatcherState>,
     app: AppHandle,
 ) -> AppResult<String> {
-    let mut jobs = state.jobs.lock().unwrap();
+    let mut jobs = state
+        .jobs
+        .lock()
+        .map_err(|e| crate::error::AppError::Internal(format!("监视任务表锁定失败: {e}")))?;
 
     // 如果已有监视任务，先停止
     if let Some(existing) = jobs.remove(&analysis_id) {
@@ -163,7 +166,10 @@ pub fn stop_watching(
     analysis_id: String,
     state: tauri::State<'_, FileWatcherState>,
 ) -> AppResult<()> {
-    let mut jobs = state.jobs.lock().unwrap();
+    let mut jobs = state
+        .jobs
+        .lock()
+        .map_err(|e| crate::error::AppError::Internal(format!("监视任务表锁定失败: {e}")))?;
     if let Some(job) = jobs.remove(&analysis_id) {
         stop_job(job);
     }
@@ -176,7 +182,10 @@ pub fn get_watch_status(
     analysis_id: String,
     state: tauri::State<'_, FileWatcherState>,
 ) -> AppResult<bool> {
-    let jobs = state.jobs.lock().unwrap();
+    let jobs = state
+        .jobs
+        .lock()
+        .map_err(|e| crate::error::AppError::Internal(format!("监视任务表锁定失败: {e}")))?;
     Ok(jobs.contains_key(&analysis_id))
 }
 

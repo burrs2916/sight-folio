@@ -22,6 +22,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import SearchIcon from "@mui/icons-material/Search";
 import type { ReactNode } from "react";
+import { t } from "../../i18n";
 
 export interface WorkbenchCommand {
   id: string;
@@ -258,7 +259,7 @@ export function CommandPalette({
           inputRef={inputRef}
           fullWidth
           size="small"
-          placeholder={placeholder ?? "输入命令…"}
+          placeholder={placeholder ?? t("editor.cmdPlaceholder")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -284,7 +285,7 @@ export function CommandPalette({
             color="text.disabled"
             sx={{ display: "block", px: 2, py: 2 }}
           >
-            {emptyText ?? "无匹配命令"}
+            {emptyText ?? t("editor.cmdEmpty")}
           </Typography>
         ) : (
           results.map((r, i) => (
@@ -347,7 +348,7 @@ export function CommandPalette({
         }}
       >
         <Typography variant="caption" color="text.secondary">
-          {title ?? "命令面板"}
+          {title ?? t("editor.cmdTitle")}
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography variant="caption" color="text.secondary">

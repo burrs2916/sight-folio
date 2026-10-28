@@ -11,10 +11,13 @@ name = "sight_folio_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+# tauri 2.12+：WebviewWindow/Builder 支持 on_permission_request，
+# 用于接管 WebView 媒体权限请求（Windows WebView2 / macOS WKWebView），
+# 使语音输入等 getUserMedia 场景能弹出系统授权窗口。
+tauri = { version = "2.12", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2.7"
 tauri-plugin-notification = "2"
@@ -81,6 +84,19 @@ tree-sitter-ruby = "0.23.1"
 tree-sitter-php = "0.24.2"
 tree-sitter-kotlin-ng = "1.1.0"
 tree-sitter-swift = "0.7.3"
+jieba-rs = "0.11"
+
+# ─── macOS dev 模式 Dock 图标 ───
+# `tauri dev` 在 macOS 上运行裸二进制（无 .app bundle），Dock 图标由 bundle 内
+# Info.plist 提供，dev 下缺失 → 显示通用二进制图标。这里在启动时调用
+# `NSApplication setApplicationIconImage:` 运行时设置图标（见 lib.rs）。
+# 版本与 wry 0.57 锁定链对齐：objc2 0.6.x / objc2-app-kit 0.3.2 / objc2-foundation 0.3.2。
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6", features = ["std"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["NSApplication", "NSImage"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["NSData"] }
+block2 = { version = "0.6", features = ["std"] }
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3.27.0"

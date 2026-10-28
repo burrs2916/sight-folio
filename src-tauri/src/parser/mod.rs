@@ -19,7 +19,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use crate::infrastructure::ast::{self, Dialect};
+use crate::infrastructure::ast::Dialect;
 
 mod c_like;
 mod go;

@@ -25,6 +25,7 @@ import {
   inspirationStateOf,
 } from '../../utils/writingInspiration';
 import { openTypedCarrierView } from '../../utils/studioBook';
+import { openWritingDesk } from '../../utils/writingDeskWindow';
 import { clipSummary } from '../../utils/writingSearch';
 import { t } from '../../i18n';
 import { DraftInput } from '../components/DraftInput';
@@ -419,6 +420,16 @@ export function InspirationDetail({ beat }: { beat: WritingOutline }) {
           }}
         >
           {inForeshadow ? `✓ ${t('writing.inspirationToForeshadowDone')}` : `⇢ ${t('writing.inspirationToForeshadow')}`}
+        </Box>
+        {/* L2 跨视图 AI 扩写：打开该书写作台独立窗口并预选本念头（O7 扩写闭环扩展到场景视图） */}
+        <Box
+          component="button"
+          type="button"
+          onClick={() => void openWritingDesk({ bookId: beat.bookId, inspirationId: beat.id })}
+          title={t('writing.inspirationExpandRun')}
+          sx={{ ...dispatchBtnSx, color: 'primary.main' }}
+        >
+          ✨ {t('writing.inspirationExpandRun')}
         </Box>
       </Box>
       {/* 转时间线时可选挂线（联动刀二）：createTimelineEvent({ storylineId })，转完即挂线 */}

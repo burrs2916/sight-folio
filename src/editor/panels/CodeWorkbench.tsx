@@ -6,40 +6,40 @@
  * 取代原先的单文件查看 dialog，对齐「比 IDEA 更强的开发平台」定位。
  */
 
-import { useEffect, useMemo, useState, useCallback, useRef, Fragment, type MouseEvent as ReactMouseEvent } from "react";
-import { emit, listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
-import Dialog from "@mui/material/Dialog";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import Chip from "@mui/material/Chip";
-import TextField from "@mui/material/TextField";
-import InputAdornment from "@mui/material/InputAdornment";
-import CircularProgress from "@mui/material/CircularProgress";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import Divider from "@mui/material/Divider";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
-import Tabs from "@mui/material/Tabs";
-import Tab from "@mui/material/Tab";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import CloseIcon from "@mui/icons-material/Close";
-import FolderIcon from "@mui/icons-material/Folder";
-import SearchIcon from "@mui/icons-material/Search";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import SmartToyIcon from "@mui/icons-material/SmartToy";
-import TerminalIcon from "@mui/icons-material/Terminal";
-import ReportProblemIcon from "@mui/icons-material/ReportProblem";
-import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
-import TextSnippetIcon from "@mui/icons-material/TextSnippet";
-import LabelIcon from "@mui/icons-material/Label";
-import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
-import CodeIcon from "@mui/icons-material/Code";
+import { useEffect, useMemo, useState, useCallback, useRef, Fragment, type MouseEvent as ReactMouseEvent } from 'react';
+import { emit, listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import Dialog from '@mui/material/Dialog';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import Chip from '@mui/material/Chip';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import CircularProgress from '@mui/material/CircularProgress';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Divider from '@mui/material/Divider';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CloseIcon from '@mui/icons-material/Close';
+import FolderIcon from '@mui/icons-material/Folder';
+import SearchIcon from '@mui/icons-material/Search';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import TerminalIcon from '@mui/icons-material/Terminal';
+import ReportProblemIcon from '@mui/icons-material/ReportProblem';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import TextSnippetIcon from '@mui/icons-material/TextSnippet';
+import LabelIcon from '@mui/icons-material/Label';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import CodeIcon from '@mui/icons-material/Code';
 import {
   useCodeWorkbenchStore,
   openWorkbenchTab,
@@ -47,40 +47,57 @@ import {
   type PaneNode,
   type PaneOrientation,
   type SplitDirection,
-} from "../../store/codeWorkbenchStore";
-import { useProjectStore } from "../../store/projectStore";
-import { useToastStore } from "../../store/toastStore";
-import { useAgentStore } from "../../store/agentStore";
-import type { EditorSelectionInfo, MonacoEditorHandle } from "./MonacoCodeEditor";
-import { useProblemsPanelStore } from "../../store/problemsPanelStore";
-import { triggerDiagnosis } from "../../ai/triggerDiagnosis";
-import { L } from "../../ai/aiLang";
-import { CommandPalette, type WorkbenchCommand } from "./CommandPalette";
-import { GotoLineDialog } from "./GotoLineDialog";
-import { BookmarkPicker } from "./BookmarkPicker";
-import { WorkbenchSearchPanel } from "./WorkbenchSearchPanel";
-import { WorkbenchEditorPane } from "./WorkbenchEditorPane";
-import { WorkbenchAiPanel } from "./WorkbenchAiPanel";
-import { WorkbenchTerminalTabs } from "./WorkbenchTerminalTabs";
-import { WorkbenchProblemsPanel } from "./WorkbenchProblemsPanel";
-import { sendToActiveTerminal } from "./terminalBus";
-import { RequirementsPanel } from "./RequirementsPanel";
+} from '../../store/codeWorkbenchStore';
+import { useProjectStore } from '../../store/projectStore';
+import { useToastStore } from '../../store/toastStore';
+import { useAgentStore } from '../../store/agentStore';
+import type { EditorSelectionInfo, MonacoEditorHandle } from './MonacoCodeEditor';
+import { useProblemsPanelStore } from '../../store/problemsPanelStore';
+import { triggerDiagnosis } from '../../ai/triggerDiagnosis';
+import { L } from '../../ai/aiLang';
+import { CommandPalette, type WorkbenchCommand } from './CommandPalette';
+import { GotoLineDialog } from './GotoLineDialog';
+import { BookmarkPicker } from './BookmarkPicker';
+import { WorkbenchSearchPanel } from './WorkbenchSearchPanel';
+import { WorkbenchEditorPane } from './WorkbenchEditorPane';
+import { WorkbenchAiPanel } from './WorkbenchAiPanel';
+import { WorkbenchTerminalTabs } from './WorkbenchTerminalTabs';
+import { WorkbenchProblemsPanel } from './WorkbenchProblemsPanel';
+import { sendToActiveTerminal } from './terminalBus';
+import { RequirementsPanel } from './RequirementsPanel';
 
 /** 稳定的空标签数组，避免选择器返回新引用触发多余重渲染 */
 const EMPTY_TABS: WorkbenchTab[] = [];
-import { InlineChat } from "./InlineChat";
-import { t } from "../../i18n";
-import { readLineFromMetadata } from "../utils/sourceNavigate";
-import { projectScanApi, type FileChangeEvent, type ProjectSymbol } from "../../services/tauri";
+import { InlineChat } from './InlineChat';
+import { t } from '../../i18n';
+import { readLineFromMetadata } from '../utils/sourceNavigate';
+import { projectScanApi, type FileChangeEvent, type ProjectSymbol } from '../../services/tauri';
 
-import { escapeRegExp, emitSymbolRenamed, replaceWordOnLine, type RenameTarget } from "./CodeWorkbenchShared";
+import { escapeRegExp, emitSymbolRenamed, replaceWordOnLine, type RenameTarget } from './CodeWorkbenchShared';
 
-import { buildOutlineTree, collectOutlineNodes, filterOutlineTree, kindSortIndex, symbolKindColor, symbolKindLabel, type OutlineNode } from "./CodeWorkbenchOutline";
+import {
+  buildOutlineTree,
+  collectOutlineNodes,
+  filterOutlineTree,
+  kindSortIndex,
+  symbolKindColor,
+  symbolKindLabel,
+  type OutlineNode,
+} from './CodeWorkbenchOutline';
 
-import { buildTree, collectDirPaths, filterTreeNodes, treeHeaderSx, treeHeaderTextSx, treeItemSx, treeMenuSx, FileTreeNode, type TreeNode } from "./CodeWorkbenchTree";
+import {
+  buildTree,
+  collectDirPaths,
+  filterTreeNodes,
+  treeHeaderSx,
+  treeHeaderTextSx,
+  treeItemSx,
+  treeMenuSx,
+  FileTreeNode,
+  type TreeNode,
+} from './CodeWorkbenchTree';
 
-
-import { DefinitionPicker, GoToSymbol, QuickOpen } from "./CodeWorkbenchPanels";
+import { DefinitionPicker, GoToSymbol, QuickOpen } from './CodeWorkbenchPanels';
 
 export function CodeWorkbenchBody({
   onRequestClose,
@@ -125,7 +142,7 @@ export function CodeWorkbenchBody({
       if (el) axisRefs.current.set(id, el);
       else axisRefs.current.delete(id);
     },
-    []
+    [],
   );
   const [dragDivider, setDragDivider] = useState<{ axisId: string; gapIndex: number } | null>(null);
 
@@ -145,7 +162,7 @@ export function CodeWorkbenchBody({
       const startPos = horizontal ? e.clientX : e.clientY;
       setDragDivider({ axisId, gapIndex: i });
       const prevCursor = document.body.style.cursor;
-      document.body.style.cursor = horizontal ? "col-resize" : "row-resize";
+      document.body.style.cursor = horizontal ? 'col-resize' : 'row-resize';
       const onMove = (ev: MouseEvent) => {
         const cur = horizontal ? ev.clientX : ev.clientY;
         const delta = ((cur - startPos) / size) * sum; // 像素增量 → flex 单位
@@ -158,15 +175,15 @@ export function CodeWorkbenchBody({
         setAxisFlexes(axisId, next);
       };
       const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
         document.body.style.cursor = prevCursor;
         setDragDivider(null);
       };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
     },
-    [setAxisFlexes]
+    [setAxisFlexes],
   );
 
   // 双击分隔条 → 全部 axis flex 复位均分（对标 Zed 双击 handle 均分）
@@ -185,9 +202,9 @@ export function CodeWorkbenchBody({
       const f = files.find((x) => x.id === fid);
       if (!f) return;
       openTab(f.id, f.relPath, f.name, f.language, line ?? null, null, [], column ?? null);
-      void emit("workbench-focus-canvas", { fileId: f.id });
+      void emit('workbench-focus-canvas', { fileId: f.id });
     },
-    [files, openTab]
+    [files, openTab],
   );
 
   // 拆分窗格打开文件（对标 Zed go_to_file_split_*）：先在激活窗格旁按 dir 方向生长一个空分屏（设为激活），
@@ -199,14 +216,14 @@ export function CodeWorkbenchBody({
       name: string,
       language: string | null,
       line: number | null,
-      dir: SplitDirection = "right",
-      column?: number | null
+      dir: SplitDirection = 'right',
+      column?: number | null,
     ) => {
-      splitPane(dir, "empty");
+      splitPane(dir, 'empty');
       openTab(fid, relPath, name, language, line, null, [], column ?? null);
-      void emit("workbench-focus-canvas", { fileId: fid });
+      void emit('workbench-focus-canvas', { fileId: fid });
     },
-    [splitPane, openTab]
+    [splitPane, openTab],
   );
 
   // 递归渲染窗格树（对标 Zed `PaneGroup` 渲染：轴节点按自身 orientation 排布子节点并插分隔条，
@@ -225,7 +242,7 @@ export function CodeWorkbenchBody({
         scheduleSave(fid);
       }
     },
-    onAskAi: (sel: EditorSelectionInfo | null) => void askAi("selection", sel),
+    onAskAi: (sel: EditorSelectionInfo | null) => void askAi('selection', sel),
     onRequestAiOpen: () => {
       setAiOpen(true);
       setRightTab(0);
@@ -264,7 +281,7 @@ export function CodeWorkbenchBody({
     openFileInSplit,
   });
   const renderPaneNode = (node: PaneNode, axis: PaneOrientation | null, flex: number): React.ReactNode => {
-    if (node.kind === "pane") {
+    if (node.kind === 'pane') {
       return (
         <WorkbenchEditorPane
           key={node.id}
@@ -276,7 +293,7 @@ export function CodeWorkbenchBody({
         />
       );
     }
-    const isRow = node.axis === "row";
+    const isRow = node.axis === 'row';
     const els: React.ReactNode[] = [];
     node.children.forEach((child, i) => {
       els.push(renderPaneNode(child, node.axis, node.flexes[i] ?? 1));
@@ -286,22 +303,17 @@ export function CodeWorkbenchBody({
             key={`div-${node.id}-${i}`}
             onMouseDown={(e) => onDividerDown(node.id, i, isRow, node.flexes, e)}
             onDoubleClick={onDividerReset}
-            title={t("workbench.pane.resizeHint")}
+            title={t('workbench.pane.resizeHint')}
             sx={{
-              flex: "0 0 6px",
-              cursor: isRow ? "col-resize" : "row-resize",
-              bgcolor:
-                dragDivider?.axisId === node.id && dragDivider.gapIndex === i
-                  ? "primary.main"
-                  : "transparent",
-              "&:hover": { bgcolor: "action.hover" },
+              flex: '0 0 6px',
+              cursor: isRow ? 'col-resize' : 'row-resize',
+              bgcolor: dragDivider?.axisId === node.id && dragDivider.gapIndex === i ? 'primary.main' : 'transparent',
+              '&:hover': { bgcolor: 'action.hover' },
               zIndex: 2,
               transition:
-                dragDivider?.axisId === node.id && dragDivider.gapIndex === i
-                  ? "none"
-                  : "background-color 120ms",
+                dragDivider?.axisId === node.id && dragDivider.gapIndex === i ? 'none' : 'background-color 120ms',
             }}
-          />
+          />,
         );
       }
     });
@@ -313,9 +325,9 @@ export function CodeWorkbenchBody({
           flex,
           minWidth: 0,
           minHeight: 0,
-          display: "flex",
-          flexDirection: isRow ? "row" : "column",
-          overflow: "hidden",
+          display: 'flex',
+          flexDirection: isRow ? 'row' : 'column',
+          overflow: 'hidden',
         }}
       >
         {els}
@@ -330,9 +342,9 @@ export function CodeWorkbenchBody({
       const f = files.find((x) => x.relPath === relPath);
       if (!f) return;
       openTab(f.id, f.relPath, f.name, f.language, line ?? null);
-      void emit("workbench-focus-canvas", { fileId: f.id });
+      void emit('workbench-focus-canvas', { fileId: f.id });
     },
-    [files, openTab]
+    [files, openTab],
   );
   // 项目内搜索结果跳转：命中只带 fileId + 行号，需反查 files 取 name/language/relPath 再 openTab 落到 revealLine。
   const handleSearchJump = useCallback(
@@ -341,26 +353,26 @@ export function CodeWorkbenchBody({
       if (!f) return;
       openTab(f.id, f.relPath, f.name, f.language, lineNo);
     },
-    [files, openTab]
+    [files, openTab],
   );
   // 内嵌 AI 面板：构建带精确坐标（文件:行）的上下文提示，让 AI 不跑偏
-  type AiAskKind = "file" | "selection" | "test" | "review";
+  type AiAskKind = 'file' | 'selection' | 'test' | 'review';
   const buildAiPrompt = (kind: AiAskKind, filePath: string, lang: string, sel?: EditorSelectionInfo | null): string => {
-    const codeBlock = sel?.text ? `\n\n\`\`\`${lang}\n${sel.text}\n\`\`\`` : "";
+    const codeBlock = sel?.text ? `\n\n\`\`\`${lang}\n${sel.text}\n\`\`\`` : '';
     const ref = sel ? `${filePath}:${sel.startLine}-${sel.endLine}` : filePath;
-    if (kind === "selection") {
+    if (kind === 'selection') {
       return L(
         `请解释下面选中的代码，并说明它的作用、潜在问题与改进点：\n\n【文件】${ref}${codeBlock}\n\n先通过 project_context / scan_records(action="dossier", path="${filePath}") 读取真实上下文，不要凭空猜测。`,
         `Please explain the selected code and point out its purpose, potential issues and improvements:\n\n[File] ${ref}${codeBlock}\n\nFirst read the real context via project_context / scan_records(action="dossier", path="${filePath}").`,
       );
     }
-    if (kind === "test") {
+    if (kind === 'test') {
       return L(
         `请为文件 ${filePath} 编写单元测试，覆盖关键函数/分支与边界情况，并给出可执行的测试代码。先通过 scan_records 读取真实代码。`,
         `Please write unit tests for ${filePath} covering key functions/branches and edge cases with runnable test code. First read the real code via scan_records.`,
       );
     }
-    if (kind === "review") {
+    if (kind === 'review') {
       return L(
         `请审查文件 ${filePath}，指出 bug、坏味道（bad smell）、安全隐患与可改进点，引用具体「文件:行号」证据。先通过 scan_records 读取真实代码。`,
         `Please review ${filePath}, point out bugs, code smells, security risks and improvements, citing concrete "file:line" evidence. First read the real code via scan_records.`,
@@ -382,7 +394,7 @@ export function CodeWorkbenchBody({
       if (agentStore.agents.length === 0) await agentStore.loadAgents();
       agentStore = useAgentStore.getState();
       if (agentStore.agents.length === 0) {
-        toast(t("aiPanel.diagnose.noAgent"), "error");
+        toast(t('aiPanel.diagnose.noAgent'), 'error');
         return;
       }
       // 线程连续：复用当前会话（同 Agent），只有「新对话」才开线程（修掉「每点一次建新会话」的爆炸）
@@ -395,11 +407,13 @@ export function CodeWorkbenchBody({
       } else {
         const agent = agentStore.agents.find((a) => a.id === agentStore.selectedAgentId) ?? agentStore.agents[0];
         if (agentStore.selectedAgentId !== agent.id) useAgentStore.getState().selectAgent(agent.id);
-        const conv = await useAgentStore.getState().createConversation(agent.id, t("workbench.aiConvTitle", { file: file.name }));
+        const conv = await useAgentStore
+          .getState()
+          .createConversation(agent.id, t('workbench.aiConvTitle', { file: file.name }));
         convId = conv.id;
       }
       useAgentStore.getState().selectConversation(convId);
-      const prompt = buildAiPrompt(kind, file.relPath, file.language ?? "", sel);
+      const prompt = buildAiPrompt(kind, file.relPath, file.language ?? '', sel);
       if (!convId) return;
       await useAgentStore.getState().sendMessage(convId, prompt);
       setAiOpen(true);
@@ -425,9 +439,8 @@ export function CodeWorkbenchBody({
 
   const tree = useMemo(() => buildTree(files), [files]);
 
-
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState('');
 
   // 文件树右键菜单（对标 ProjectTree 的专业上下文菜单，本工作台无画布故不含「在画布中定位」）
   const [treeMenu, setTreeMenu] = useState<{ x: number; y: number; node: TreeNode } | null>(null);
@@ -439,7 +452,7 @@ export function CodeWorkbenchBody({
   };
   // 按 / 与 \ 双分隔符取父目录（跨平台：macOS/Linux 用 /，Windows 用 \）
   const dirOf = (p: string): string => {
-    const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+    const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
     return i > 0 ? p.slice(0, i) : p;
   };
   // 解析节点的绝对路径：文件直接查 files；目录从其首个子文件反推（空目录退化为相对路径）
@@ -447,7 +460,7 @@ export function CodeWorkbenchBody({
     if (!node.isDir) {
       return files.find((f) => f.id === node.fileId)?.path ?? null;
     }
-    const child = files.find((f) => f.relPath.startsWith(node.path + "/"));
+    const child = files.find((f) => f.relPath.startsWith(node.path + '/'));
     if (child) {
       const suffix = child.relPath.slice(node.path.length);
       return child.path.slice(0, child.path.length - suffix.length);
@@ -456,50 +469,49 @@ export function CodeWorkbenchBody({
   };
   const copyToClipboard = (label: string, value: string) => {
     void navigator.clipboard?.writeText(value);
-    useToastStore.getState().success(t("projectTree.copied", { kind: label }));
+    useToastStore.getState().success(t('projectTree.copied', { kind: label }));
     closeTreeMenu();
   };
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
   // 对标 VS Code：AI 面板是常驻右侧栏，默认展开。用户关/开后记忆偏好（localStorage），
   // 下次进工作台不再重新点开——「右侧就是 AI 面板」从打开那一刻就在。
   const [aiOpen, setAiOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem("workbench.ai.open");
-    return saved === null ? true : saved === "1";
+    const saved = localStorage.getItem('workbench.ai.open');
+    return saved === null ? true : saved === '1';
   });
   // 记忆开/合偏好（跨会话保持，对标 VS Code 的 Chat 面板状态持久化）
   useEffect(() => {
     try {
-      localStorage.setItem("workbench.ai.open", aiOpen ? "1" : "0");
+      localStorage.setItem('workbench.ai.open', aiOpen ? '1' : '0');
     } catch {
       /* localStorage 不可用时静默降级，不影响面板本身 */
     }
   }, [aiOpen]);
   // 集成终端开/合偏好（对标 VS Code 的终端面板，Ctrl+` / Cmd+` 切换）
   const [terminalOpen, setTerminalOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem("workbench.terminal.open");
-    return saved === "1";
+    const saved = localStorage.getItem('workbench.terminal.open');
+    return saved === '1';
   });
   useEffect(() => {
     try {
-      localStorage.setItem("workbench.terminal.open", terminalOpen ? "1" : "0");
+      localStorage.setItem('workbench.terminal.open', terminalOpen ? '1' : '0');
     } catch {
       /* localStorage 不可用时静默降级 */
     }
   }, [terminalOpen]);
   // 集成终端是「键盘孤岛」：当按键源自终端（.xterm 内）时，所有 app 级快捷键必须放行给 PTY，
   // 否则 Ctrl/Cmd+P（应进 shell，如 fzf/上一条）、Ctrl/Cmd+S（XOFF）会被 app 抢走，表现为"有些键用不了"。
-  const isTerminalTarget = (e: KeyboardEvent): boolean =>
-    !!(e.target as HTMLElement | null)?.closest?.(".xterm");
+  const isTerminalTarget = (e: KeyboardEvent): boolean => !!(e.target as HTMLElement | null)?.closest?.('.xterm');
   // Ctrl+` / Cmd+` 切换终端（IDE 习惯）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "`") {
+      if ((e.ctrlKey || e.metaKey) && e.key === '`') {
         e.preventDefault();
         setTerminalOpen((v) => !v);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
   // 右侧 dock 的 tab：0 = AI 助手，1 = 需求分析（业务功能独立于 AI 交互入口）。
   // requirements-capture 等 AI 预设只 *读取* 需求基线（数据流向），本 tab 切换不改变这一事实。
@@ -508,40 +520,76 @@ export function CodeWorkbenchBody({
   const [pendingAiPrompt, setPendingAiPrompt] = useState<string | null>(null);
   // dock 宽度与拖拽（原 AI 面板的宽度/拖拽上移到这一层，两个 tab 共享同一宽度与手柄）
   const [dockWidth, setDockWidth] = useState<number>(() => {
-    const w = Number(localStorage.getItem("workbench.ai.width"));
+    const w = Number(localStorage.getItem('workbench.ai.width'));
     return Number.isFinite(w) && w > 0 ? w : 430;
   });
   const dockDraggingRef = useRef(false);
-  const startDockDrag = useCallback((e: React.MouseEvent) => {
+  const startDockDrag = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      dockDraggingRef.current = true;
+      const startX = e.clientX;
+      const startW = dockWidth;
+      const onMove = (ev: MouseEvent) => {
+        if (!dockDraggingRef.current) return;
+        const nw = Math.max(300, Math.min(900, startW + (startX - ev.clientX)));
+        setDockWidth(nw);
+      };
+      const onUp = () => {
+        dockDraggingRef.current = false;
+        try {
+          localStorage.setItem('workbench.ai.width', String(dockWidth));
+        } catch {
+          /* 忽略持久化失败 */
+        }
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+    },
+    [dockWidth],
+  );
+  // 左侧文件树栏宽度与拖拽（持久化；范围 180–480，默认 264）
+  const [treeWidth, setTreeWidth] = useState<number>(() => {
+    const w = Number(localStorage.getItem('workbench.tree.width'));
+    return Number.isFinite(w) && w >= 180 && w <= 480 ? w : 264;
+  });
+  const treeWidthRef = useRef(treeWidth);
+  treeWidthRef.current = treeWidth;
+  const treeDraggingRef = useRef(false);
+  // 拖动态可见反馈（区别于 ref：state 驱动手柄样式变化，拖动中分隔线高亮主色）
+  const [treeDragActive, setTreeDragActive] = useState(false);
+  const startTreeDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    dockDraggingRef.current = true;
+    treeDraggingRef.current = true;
+    setTreeDragActive(true);
     const startX = e.clientX;
-    const startW = dockWidth;
+    const startW = treeWidthRef.current;
     const onMove = (ev: MouseEvent) => {
-      if (!dockDraggingRef.current) return;
-      const nw = Math.max(300, Math.min(900, startW + (startX - ev.clientX)));
-      setDockWidth(nw);
+      if (!treeDraggingRef.current) return;
+      const nw = Math.max(180, Math.min(480, startW + (ev.clientX - startX)));
+      setTreeWidth(nw);
     };
     const onUp = () => {
-      dockDraggingRef.current = false;
+      treeDraggingRef.current = false;
+      setTreeDragActive(false);
       try {
-        localStorage.setItem("workbench.ai.width", String(dockWidth));
+        localStorage.setItem('workbench.tree.width', String(treeWidthRef.current));
       } catch {
         /* 忽略持久化失败 */
       }
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  }, [dockWidth]);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
   const [inlineOpen, setInlineOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
   // 大纲（对标 Zed outline）：层级树 + 过滤 + 跟随光标 + 折叠
-  const [outlineQuery, setOutlineQuery] = useState("");
+  const [outlineQuery, setOutlineQuery] = useState('');
   const [collapsedOutline, setCollapsedOutline] = useState<Set<string>>(new Set());
   // 大纲视图模式：层级树 ↔ 按类型聚类（对标「结构化符号导航」，大文件下可一键跳到某类符号）
-  const [outlineViewMode, setOutlineViewMode] = useState<"tree" | "kind">("tree");
+  const [outlineViewMode, setOutlineViewMode] = useState<'tree' | 'kind'>('tree');
   const [collapsedKind, setCollapsedKind] = useState<Set<string>>(new Set());
   const [cursorLine, setCursorLine] = useState(0);
   const outlineListRef = useRef<HTMLDivElement>(null);
@@ -557,13 +605,13 @@ export function CodeWorkbenchBody({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTerminalTarget(e)) return;
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === "p" || e.key === "P")) {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
         setQuickOpenOpen(true);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Ctrl/Cmd+Shift+P 唤起统一命令面板（对标 Zed command_palette / VS Code Ctrl+Shift+P）；
@@ -584,26 +632,26 @@ export function CodeWorkbenchBody({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTerminalTarget(e)) return;
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "p" || e.key === "P")) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
         setCmdPaletteOpen(true);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Ctrl/Cmd+G 唤起「转到行」（对标 Zed go_to_line / VS Code Ctrl+G）；终端内按键放行给 PTY。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTerminalTarget(e)) return;
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === "g" || e.key === "G")) {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'g' || e.key === 'G')) {
         e.preventDefault();
         setGotoOpen(true);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Ctrl/Cmd+Shift+F 唤起「项目内搜索」（对标 Zed crates/search ProjectSearchView / VS Code Ctrl+Shift+F）；
@@ -611,13 +659,13 @@ export function CodeWorkbenchBody({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTerminalTarget(e)) return;
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "f" || e.key === "F")) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
         e.preventDefault();
         setSearchOpen((v) => !v);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Ctrl/Cmd+Shift+O 唤起「转到项目符号」（对标 Zed Go to Symbol in Project / VS Code Ctrl+Shift+O）；
@@ -625,13 +673,13 @@ export function CodeWorkbenchBody({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTerminalTarget(e)) return;
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "o" || e.key === "O")) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'o' || e.key === 'O')) {
         e.preventDefault();
         setSymbolOpen(true);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // 窗格键盘导航（对标 Zed ActivatePaneInDirection / ActivateNextPane / SwapPanesInDirection）：
@@ -642,10 +690,10 @@ export function CodeWorkbenchBody({
     const onKey = (e: KeyboardEvent) => {
       if (isTerminalTarget(e)) return;
       const dirMap: Record<string, SplitDirection> = {
-        ArrowLeft: "left",
-        ArrowRight: "right",
-        ArrowUp: "up",
-        ArrowDown: "down",
+        ArrowLeft: 'left',
+        ArrowRight: 'right',
+        ArrowUp: 'up',
+        ArrowDown: 'down',
       };
       // 方向聚焦：Ctrl/Cmd + Shift + Alt + Arrow
       if ((e.metaKey || e.ctrlKey) && e.altKey && e.shiftKey && !e.repeat) {
@@ -658,17 +706,17 @@ export function CodeWorkbenchBody({
       }
       // 循环切换窗格：Ctrl/Cmd + Alt + [ / ]
       if ((e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey && !e.repeat) {
-        if (e.key === "]") {
+        if (e.key === ']') {
           e.preventDefault();
           useCodeWorkbenchStore.getState().activateNextPane();
-        } else if (e.key === "[") {
+        } else if (e.key === '[') {
           e.preventDefault();
           useCodeWorkbenchStore.getState().activatePrevPane();
         }
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // 标签键盘导航（对标 Zed pane::ActivateNextItem / ActivatePreviousItem / ActivateItem）：
@@ -681,19 +729,19 @@ export function CodeWorkbenchBody({
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
       if (e.altKey) return; // 让位给多光标 / 窗格循环键位，避免误触
-      if (e.key === "PageDown" && !e.shiftKey) {
+      if (e.key === 'PageDown' && !e.shiftKey) {
         e.preventDefault();
         useCodeWorkbenchStore.getState().activateNextTab();
-      } else if (e.key === "PageUp" && !e.shiftKey) {
+      } else if (e.key === 'PageUp' && !e.shiftKey) {
         e.preventDefault();
         useCodeWorkbenchStore.getState().activatePrevTab();
-      } else if (!e.shiftKey && e.key >= "1" && e.key <= "9") {
+      } else if (!e.shiftKey && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         useCodeWorkbenchStore.getState().activateTabByIndex(Number(e.key) - 1);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // 书签键位（对标 Zed ToggleBookmark / GoToNextBookmark / GoToPreviousBookmark）：
@@ -703,7 +751,7 @@ export function CodeWorkbenchBody({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTerminalTarget(e)) return;
-      if (e.key !== "F2") return;
+      if (e.key !== 'F2') return;
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
       e.preventDefault();
@@ -711,24 +759,21 @@ export function CodeWorkbenchBody({
       else if (e.altKey && !e.shiftKey) editorHandleRef.current?.goToPrevBookmark();
       else editorHandleRef.current?.toggleBookmark();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // 文件树筛选：有筛选词时自动全展开命中分支，否则沿用用户展开状态
-  const filteredTree = useMemo(
-    () => (filter.trim() ? filterTreeNodes(tree, filter.trim()) : null),
-    [tree, filter]
-  );
+  const filteredTree = useMemo(() => (filter.trim() ? filterTreeNodes(tree, filter.trim()) : null), [tree, filter]);
   const displayTree = filteredTree ?? tree;
   const displayExpanded = filteredTree ? collectDirPaths(filteredTree) : expanded;
   // 打开新文件时自动展开其所在路径，确保焦点文件可见
   useEffect(() => {
     const a = tabs.find((t) => t.fileId === activeFileId);
     if (!a) return;
-    const parts = a.relPath.split("/");
+    const parts = a.relPath.split('/');
     const anc = new Set<string>();
-    let p = "";
+    let p = '';
     for (let i = 0; i < parts.length - 1; i++) {
       p = p ? `${p}/${parts[i]}` : parts[i];
       anc.add(p);
@@ -748,15 +793,15 @@ export function CodeWorkbenchBody({
 
   // ═══ 重命名符号（对标 Zed editor::Rename：光标符号 → 聚合引用 → 确认跨文件改写）═══
   const [renameOpen, setRenameOpen] = useState(false);
-  const [renameOld, setRenameOld] = useState("");
-  const [renameNew, setRenameNew] = useState("");
+  const [renameOld, setRenameOld] = useState('');
+  const [renameNew, setRenameNew] = useState('');
   const [renameTargets, setRenameTargets] = useState<RenameTarget[]>([]);
   const [renameIndexed, setRenameIndexed] = useState(true);
   const [renameBusy, setRenameBusy] = useState(false);
 
   // ═══ 转到定义候选选择器（对标 Zed navigate_to_hover_links：num_locations>1 弹 Definitions 浮层）═══
   const [defPickerOpen, setDefPickerOpen] = useState(false);
-  const [defPickerWord, setDefPickerWord] = useState("");
+  const [defPickerWord, setDefPickerWord] = useState('');
   const [defPickerCandidates, setDefPickerCandidates] = useState<ProjectSymbol[]>([]);
 
   // 取当前激活标签（供只读判断与「仅当前文件」降级扫描）
@@ -773,7 +818,7 @@ export function CodeWorkbenchBody({
     (info: { word: string; line: number; column: number }) => {
       const activeTab = getActiveTab();
       if (activeTab?.readOnly) {
-        useToastStore.getState().showToast(t("workbench.rename.readOnly"), "info");
+        useToastStore.getState().showToast(t('workbench.rename.readOnly'), 'info');
         return;
       }
       const word = info.word;
@@ -805,7 +850,7 @@ export function CodeWorkbenchBody({
         });
       }
       if (targets.size === 0) {
-        useToastStore.getState().showToast(t("workbench.rename.noTarget", { name: word }), "info");
+        useToastStore.getState().showToast(t('workbench.rename.noTarget', { name: word }), 'info');
         return;
       }
       setRenameIndexed(indexed);
@@ -831,12 +876,21 @@ export function CodeWorkbenchBody({
       if (matches.length === 0) return;
       if (matches.length === 1) {
         const best = matches[0];
-        openWorkbenchTab(best.fileId, best.lineStart, t("workbench.jumpToSymbol", { name: word }));
+        openWorkbenchTab(best.fileId, best.lineStart, t('workbench.jumpToSymbol', { name: word }));
         return;
       }
       const defKinds = new Set([
-        "function", "method", "class", "interface", "constructor",
-        "enum", "struct", "trait", "module", "namespace", "type",
+        'function',
+        'method',
+        'class',
+        'interface',
+        'constructor',
+        'enum',
+        'struct',
+        'trait',
+        'module',
+        'namespace',
+        'type',
       ]);
       // 默认选中：优先同文件内定义，其次按定义型符号排序（与 Zed 单一定位点偏好一致）
       const sorted = matches.slice().sort((a, b) => {
@@ -860,12 +914,12 @@ export function CodeWorkbenchBody({
     const panes = useCodeWorkbenchStore.getState().panes;
     for (const pid in panes) {
       const tt = panes[pid].tabs.find((t) => t.fileId === fid);
-      if (tt?.content) return tt.content.lines.join("\n");
+      if (tt?.content) return tt.content.lines.join('\n');
     }
     try {
       const src = await projectScanApi.readSourceFile(fid);
       if (src.skippedReason) return null;
-      return src.lines.join("\n");
+      return src.lines.join('\n');
     } catch {
       return null;
     }
@@ -875,7 +929,7 @@ export function CodeWorkbenchBody({
   const confirmRename = useCallback(async () => {
     const newName = renameNew.trim();
     if (!newName) {
-      useToastStore.getState().showToast(t("workbench.rename.emptyName"), "warning");
+      useToastStore.getState().showToast(t('workbench.rename.emptyName'), 'warning');
       return;
     }
     if (newName === renameOld) {
@@ -894,7 +948,7 @@ export function CodeWorkbenchBody({
       for (const [fileId, lineSet] of byFile) {
         const text = await getFileText(fileId);
         if (text == null) continue; // 二进制/过大/读取失败：安全跳过，绝不写回
-        const lines = text.split("\n");
+        const lines = text.split('\n');
         for (const ln of lineSet) {
           if (ln >= 1 && ln <= lines.length) {
             const before = lines[ln - 1];
@@ -905,21 +959,23 @@ export function CodeWorkbenchBody({
             }
           }
         }
-        await projectScanApi.writeSourceFile(fileId, lines.join("\n"), {
-          reason: t("workbench.rename.ledgerReason", { old: renameOld, new: newName }),
-          origin: "user",
+        await projectScanApi.writeSourceFile(fileId, lines.join('\n'), {
+          reason: t('workbench.rename.ledgerReason', { old: renameOld, new: newName }),
+          origin: 'user',
         });
         fileCount++;
       }
       // 写盘成功后广播重命名事件：引用抽屉(EditorPane)据此乐观刷新（标题/预览/缓存切到新名），
       // 对标 Zed find_all_references 引用视图随 buffer 实时更新。
       emitSymbolRenamed(renameOld, newName);
-      useToastStore.getState().showToast(
-        t("workbench.rename.done", { old: renameOld, new: newName, count: total, files: fileCount }),
-        "success",
-      );
+      useToastStore
+        .getState()
+        .showToast(
+          t('workbench.rename.done', { old: renameOld, new: newName, count: total, files: fileCount }),
+          'success',
+        );
     } catch (e) {
-      useToastStore.getState().showToast(t("workbench.rename.fail", { error: String(e) }), "error");
+      useToastStore.getState().showToast(t('workbench.rename.fail', { error: String(e) }), 'error');
     } finally {
       setRenameBusy(false);
       setRenameOpen(false);
@@ -943,747 +999,747 @@ export function CodeWorkbenchBody({
   // 统一命令面板命令注册表（对标 Zed command_palette 的 available_actions）：
   // 动作以数据驱动，组件只负责模糊匹配 / 频次排序 / 历史，不耦合任何业务逻辑。
   const workbenchCommands: WorkbenchCommand[] = useMemo(() => {
-    const nav = t("workbench.cmd.catNav");
-    const ai = t("workbench.cmd.catAi");
-    const view = t("workbench.cmd.catView");
-    const file = t("workbench.cmd.catFile");
-    const selection = t("workbench.cmd.catSelection");
-    const pane = t("workbench.cmd.catPane");
-    const diagnostic = t("workbench.cmd.catDiagnostic");
-    const edit = t("workbench.cmd.catEdit");
-    const tabsCat = t("workbench.cmd.catTabs");
-    const fold = t("workbench.cmd.catFold");
-    const bookmarksCat = t("workbench.cmd.catBookmarks");
-    const convert = t("workbench.cmd.catConvert");
-    const catLines = t("workbench.cmd.catLines");
+    const nav = t('workbench.cmd.catNav');
+    const ai = t('workbench.cmd.catAi');
+    const view = t('workbench.cmd.catView');
+    const file = t('workbench.cmd.catFile');
+    const selection = t('workbench.cmd.catSelection');
+    const pane = t('workbench.cmd.catPane');
+    const diagnostic = t('workbench.cmd.catDiagnostic');
+    const edit = t('workbench.cmd.catEdit');
+    const tabsCat = t('workbench.cmd.catTabs');
+    const fold = t('workbench.cmd.catFold');
+    const bookmarksCat = t('workbench.cmd.catBookmarks');
+    const convert = t('workbench.cmd.catConvert');
+    const catLines = t('workbench.cmd.catLines');
     return [
       {
-        id: "gotoFile",
-        title: t("workbench.cmd.gotoFile"),
+        id: 'gotoFile',
+        title: t('workbench.cmd.gotoFile'),
         category: nav,
-        keybinding: "Ctrl/Cmd+P",
-        keywords: "open file quick switch",
+        keybinding: 'Ctrl/Cmd+P',
+        keywords: 'open file quick switch',
         run: () => setQuickOpenOpen(true),
       },
       {
-        id: "gotoLine",
-        title: t("workbench.cmd.gotoLine"),
+        id: 'gotoLine',
+        title: t('workbench.cmd.gotoLine'),
         category: nav,
-        keybinding: "Ctrl/Cmd+G",
-        keywords: "go to line column jump navigate",
+        keybinding: 'Ctrl/Cmd+G',
+        keywords: 'go to line column jump navigate',
         run: () => setGotoOpen(true),
       },
       {
-        id: "gotoSymbol",
-        title: t("workbench.cmd.gotoSymbol"),
+        id: 'gotoSymbol',
+        title: t('workbench.cmd.gotoSymbol'),
         category: nav,
-        keybinding: "Ctrl/Cmd+Shift+O",
-        keywords: "symbol function class interface jump navigate definition",
+        keybinding: 'Ctrl/Cmd+Shift+O',
+        keywords: 'symbol function class interface jump navigate definition',
         run: () => setSymbolOpen(true),
       },
       {
-        id: "goToDefinition",
-        title: t("workbench.cmd.goToDefinition"),
+        id: 'goToDefinition',
+        title: t('workbench.cmd.goToDefinition'),
         category: nav,
-        keybinding: "F12",
-        keywords: "definition jump navigate symbol",
+        keybinding: 'F12',
+        keywords: 'definition jump navigate symbol',
         run: () => editorHandleRef.current?.goToDefinition(),
       },
       {
-        id: "findReferences",
-        title: t("workbench.cmd.findReferences"),
+        id: 'findReferences',
+        title: t('workbench.cmd.findReferences'),
         category: nav,
-        keybinding: "Shift+F12",
-        keywords: "references usages find all navigate",
+        keybinding: 'Shift+F12',
+        keywords: 'references usages find all navigate',
         run: () => editorHandleRef.current?.findReferences(),
       },
       {
-        id: "peekDefinition",
-        title: t("workbench.cmd.peekDefinition"),
+        id: 'peekDefinition',
+        title: t('workbench.cmd.peekDefinition'),
         category: nav,
-        keybinding: "Alt+F12",
-        keywords: "peek definition preview inline glance navigate",
+        keybinding: 'Alt+F12',
+        keywords: 'peek definition preview inline glance navigate',
         run: () => editorHandleRef.current?.peekDefinition(),
       },
       {
-        id: "goToTypeDefinition",
-        title: t("workbench.cmd.goToTypeDefinition"),
+        id: 'goToTypeDefinition',
+        title: t('workbench.cmd.goToTypeDefinition'),
         category: nav,
-        keywords: "type definition jump navigate",
+        keywords: 'type definition jump navigate',
         run: () => editorHandleRef.current?.goToTypeDefinition(),
       },
       {
-        id: "goToImplementation",
-        title: t("workbench.cmd.goToImplementation"),
+        id: 'goToImplementation',
+        title: t('workbench.cmd.goToImplementation'),
         category: nav,
-        keywords: "implementation jump navigate",
+        keywords: 'implementation jump navigate',
         run: () => editorHandleRef.current?.goToImplementation(),
       },
       {
-        id: "goToDeclaration",
-        title: t("workbench.cmd.goToDeclaration"),
+        id: 'goToDeclaration',
+        title: t('workbench.cmd.goToDeclaration'),
         category: nav,
-        keywords: "declaration jump navigate",
+        keywords: 'declaration jump navigate',
         run: () => editorHandleRef.current?.goToDeclaration(),
       },
       {
-        id: "searchProject",
-        title: t("workbench.cmd.searchProject"),
+        id: 'searchProject',
+        title: t('workbench.cmd.searchProject'),
         category: nav,
-        keybinding: "Ctrl/Cmd+Shift+F",
-        keywords: "search find in files content grep project",
+        keybinding: 'Ctrl/Cmd+Shift+F',
+        keywords: 'search find in files content grep project',
         run: () => setSearchOpen(true),
       },
       {
-        id: "renameSymbol",
-        title: t("workbench.cmd.renameSymbol"),
+        id: 'renameSymbol',
+        title: t('workbench.cmd.renameSymbol'),
         category: nav,
-        keybinding: "F2",
-        keywords: "rename symbol refactor identifier",
+        keybinding: 'F2',
+        keywords: 'rename symbol refactor identifier',
         run: () => {
           const w = editorHandleRef.current?.getWordAtCursor();
           if (w) handleRenameSymbol({ word: w, line: 0, column: 0 });
         },
       },
       {
-        id: "addCursorAbove",
-        title: t("workbench.cmd.addCursorAbove"),
+        id: 'addCursorAbove',
+        title: t('workbench.cmd.addCursorAbove'),
         category: selection,
-        keybinding: "Ctrl/Cmd+Alt+↑",
-        keywords: "multi cursor selection above add edit",
+        keybinding: 'Ctrl/Cmd+Alt+↑',
+        keywords: 'multi cursor selection above add edit',
         run: () => editorHandleRef.current?.addSelectionAbove(),
       },
       {
-        id: "addCursorBelow",
-        title: t("workbench.cmd.addCursorBelow"),
+        id: 'addCursorBelow',
+        title: t('workbench.cmd.addCursorBelow'),
         category: selection,
-        keybinding: "Ctrl/Cmd+Alt+↓",
-        keywords: "multi cursor selection below add edit",
+        keybinding: 'Ctrl/Cmd+Alt+↓',
+        keywords: 'multi cursor selection below add edit',
         run: () => editorHandleRef.current?.addSelectionBelow(),
       },
       {
-        id: "selectAllMatches",
-        title: t("workbench.cmd.selectAllMatches"),
+        id: 'selectAllMatches',
+        title: t('workbench.cmd.selectAllMatches'),
         category: selection,
-        keybinding: "Ctrl/Cmd+Shift+L",
-        keywords: "select all occurrences matches multi cursor replace",
+        keybinding: 'Ctrl/Cmd+Shift+L',
+        keywords: 'select all occurrences matches multi cursor replace',
         run: () => editorHandleRef.current?.selectAllMatches(),
       },
       {
-        id: "addSelectionToNextMatch",
-        title: t("workbench.cmd.addSelectionNext"),
+        id: 'addSelectionToNextMatch',
+        title: t('workbench.cmd.addSelectionNext'),
         category: selection,
-        keybinding: "Ctrl/Cmd+D",
-        keywords: "add next occurrence match selection multi cursor incremental",
+        keybinding: 'Ctrl/Cmd+D',
+        keywords: 'add next occurrence match selection multi cursor incremental',
         run: () => editorHandleRef.current?.addSelectionToNextMatch(),
       },
       {
-        id: "addSelectionToPreviousMatch",
-        title: t("workbench.cmd.addSelectionPrev"),
+        id: 'addSelectionToPreviousMatch',
+        title: t('workbench.cmd.addSelectionPrev'),
         category: selection,
-        keybinding: "Ctrl/Cmd+Shift+D",
-        keywords: "add previous occurrence match selection multi cursor incremental reverse",
+        keybinding: 'Ctrl/Cmd+Shift+D',
+        keywords: 'add previous occurrence match selection multi cursor incremental reverse',
         run: () => editorHandleRef.current?.addSelectionToPreviousMatch(),
       },
       {
-        id: "toggleColumnSelection",
-        title: t("workbench.cmd.toggleColumnSelection"),
+        id: 'toggleColumnSelection',
+        title: t('workbench.cmd.toggleColumnSelection'),
         category: selection,
-        keywords: "column block rectangular selection alt drag",
+        keywords: 'column block rectangular selection alt drag',
         run: () => editorHandleRef.current?.toggleColumnSelection(),
       },
       {
-        id: "expandSelection",
-        title: t("workbench.cmd.expandSelection"),
+        id: 'expandSelection',
+        title: t('workbench.cmd.expandSelection'),
         category: selection,
-        keybinding: "Shift+Alt+→",
-        keywords: "select larger syntax node expand selection smart select",
+        keybinding: 'Shift+Alt+→',
+        keywords: 'select larger syntax node expand selection smart select',
         run: () => editorHandleRef.current?.expandSelection(),
       },
       {
-        id: "shrinkSelection",
-        title: t("workbench.cmd.shrinkSelection"),
+        id: 'shrinkSelection',
+        title: t('workbench.cmd.shrinkSelection'),
         category: selection,
-        keybinding: "Shift+Alt+←",
-        keywords: "select smaller syntax node shrink selection smart select",
+        keybinding: 'Shift+Alt+←',
+        keywords: 'select smaller syntax node shrink selection smart select',
         run: () => editorHandleRef.current?.shrinkSelection(),
       },
       {
-        id: "toggleLineComment",
-        title: t("workbench.cmd.toggleLineComment"),
+        id: 'toggleLineComment',
+        title: t('workbench.cmd.toggleLineComment'),
         category: edit,
-        keybinding: "Ctrl/Cmd+/",
-        keywords: "comment line toggle edit",
+        keybinding: 'Ctrl/Cmd+/',
+        keywords: 'comment line toggle edit',
         run: () => editorHandleRef.current?.toggleLineComment(),
       },
       {
-        id: "toggleBlockComment",
-        title: t("workbench.cmd.toggleBlockComment"),
+        id: 'toggleBlockComment',
+        title: t('workbench.cmd.toggleBlockComment'),
         category: edit,
-        keybinding: "Shift+Alt+A",
-        keywords: "comment block toggle edit",
+        keybinding: 'Shift+Alt+A',
+        keywords: 'comment block toggle edit',
         run: () => editorHandleRef.current?.toggleBlockComment(),
       },
       {
-        id: "formatDocument",
-        title: t("workbench.cmd.formatDocument"),
+        id: 'formatDocument',
+        title: t('workbench.cmd.formatDocument'),
         category: edit,
-        keybinding: "Shift+Alt+F",
-        keywords: "format document indent edit",
+        keybinding: 'Shift+Alt+F',
+        keywords: 'format document indent edit',
         run: () => editorHandleRef.current?.formatDocument(),
       },
       {
-        id: "duplicateLine",
-        title: t("workbench.cmd.duplicateLine"),
+        id: 'duplicateLine',
+        title: t('workbench.cmd.duplicateLine'),
         category: edit,
-        keybinding: "Shift+Alt+↓",
-        keywords: "duplicate line copy down edit",
+        keybinding: 'Shift+Alt+↓',
+        keywords: 'duplicate line copy down edit',
         run: () => editorHandleRef.current?.duplicateLine(),
       },
       {
-        id: "moveLineUp",
-        title: t("workbench.cmd.moveLineUp"),
+        id: 'moveLineUp',
+        title: t('workbench.cmd.moveLineUp'),
         category: edit,
-        keybinding: "Alt+↑",
-        keywords: "move line up edit",
+        keybinding: 'Alt+↑',
+        keywords: 'move line up edit',
         run: () => editorHandleRef.current?.moveLineUp(),
       },
       {
-        id: "moveLineDown",
-        title: t("workbench.cmd.moveLineDown"),
+        id: 'moveLineDown',
+        title: t('workbench.cmd.moveLineDown'),
         category: edit,
-        keybinding: "Alt+↓",
-        keywords: "move line down edit",
+        keybinding: 'Alt+↓',
+        keywords: 'move line down edit',
         run: () => editorHandleRef.current?.moveLineDown(),
       },
       {
-        id: "joinLines",
-        title: t("workbench.cmd.joinLines"),
+        id: 'joinLines',
+        title: t('workbench.cmd.joinLines'),
         category: edit,
-        keybinding: "Ctrl/Cmd+J",
-        keywords: "join lines merge edit",
+        keybinding: 'Ctrl/Cmd+J',
+        keywords: 'join lines merge edit',
         run: () => editorHandleRef.current?.joinLines(),
       },
       // —— 行结构编辑（对标 Zed DeleteLine / InsertNewlineAbove / InsertNewlineBelow / Transpose）——
       // 此前这些日常操作仅能靠 Monaco 原生键位（若有），命令面板与右键菜单均不可达＝renderable≠useful 缺口；本轮补齐可达入口。
       {
-        id: "deleteLine",
-        title: t("workbench.cmd.deleteLine"),
+        id: 'deleteLine',
+        title: t('workbench.cmd.deleteLine'),
         category: edit,
-        keybinding: "Ctrl/Cmd+Shift+K",
-        keywords: "delete line remove edit",
+        keybinding: 'Ctrl/Cmd+Shift+K',
+        keywords: 'delete line remove edit',
         run: () => editorHandleRef.current?.deleteLine(),
       },
       {
-        id: "insertLineAbove",
-        title: t("workbench.cmd.insertLineAbove"),
+        id: 'insertLineAbove',
+        title: t('workbench.cmd.insertLineAbove'),
         category: edit,
-        keywords: "insert line above newline edit",
+        keywords: 'insert line above newline edit',
         run: () => editorHandleRef.current?.insertLineAbove(),
       },
       {
-        id: "insertLineBelow",
-        title: t("workbench.cmd.insertLineBelow"),
+        id: 'insertLineBelow',
+        title: t('workbench.cmd.insertLineBelow'),
         category: edit,
-        keywords: "insert line below newline edit",
+        keywords: 'insert line below newline edit',
         run: () => editorHandleRef.current?.insertLineBelow(),
       },
       {
-        id: "transpose",
-        title: t("workbench.cmd.transpose"),
+        id: 'transpose',
+        title: t('workbench.cmd.transpose'),
         category: edit,
-        keywords: "transpose swap characters edit",
+        keywords: 'transpose swap characters edit',
         run: () => editorHandleRef.current?.transpose(),
       },
       // —— 缩进 / 取消缩进 / 向上复制行（对标 Zed Indent / Outdent / DuplicateLineUp）——
       // 此前仅能靠原生 Tab/Shift+Tab 键位（且依赖编辑器聚焦），命令面板与右键菜单均不可达＝renderable≠useful 缺口；本轮补齐双入口。
       {
-        id: "indentSelection",
-        title: t("workbench.cmd.indentSelection"),
+        id: 'indentSelection',
+        title: t('workbench.cmd.indentSelection'),
         category: edit,
-        keybinding: "Tab",
-        keywords: "indent selection increase tab edit",
+        keybinding: 'Tab',
+        keywords: 'indent selection increase tab edit',
         run: () => editorHandleRef.current?.indentSelection(),
       },
       {
-        id: "outdentSelection",
-        title: t("workbench.cmd.outdentSelection"),
+        id: 'outdentSelection',
+        title: t('workbench.cmd.outdentSelection'),
         category: edit,
-        keybinding: "Shift+Tab",
-        keywords: "outdent selection decrease untab edit",
+        keybinding: 'Shift+Tab',
+        keywords: 'outdent selection decrease untab edit',
         run: () => editorHandleRef.current?.outdentSelection(),
       },
       {
-        id: "duplicateLineUp",
-        title: t("workbench.cmd.duplicateLineUp"),
+        id: 'duplicateLineUp',
+        title: t('workbench.cmd.duplicateLineUp'),
         category: edit,
-        keybinding: "Shift+Alt+↑",
-        keywords: "duplicate line up copy edit",
+        keybinding: 'Shift+Alt+↑',
+        keywords: 'duplicate line up copy edit',
         run: () => editorHandleRef.current?.duplicateLineUp(),
       },
       // —— 词级移动 / 扩选 / 删除（对标 Zed MoveWordLeft/Right、SelectToPreviousWordStart/NextWordEnd、DeleteWordLeft/Right）——
       // 此前仅能靠 Monaco 原生 Ctrl/Cmd+←/→/Backspace/Delete 键位（且依赖编辑器聚焦），命令面板与右键菜单均不可达＝renderable≠useful 缺口；本轮补齐双入口。
       {
-        id: "moveWordLeft",
-        title: t("workbench.cmd.moveWordLeft"),
+        id: 'moveWordLeft',
+        title: t('workbench.cmd.moveWordLeft'),
         category: edit,
-        keywords: "move word left caret navigate edit",
+        keywords: 'move word left caret navigate edit',
         run: () => editorHandleRef.current?.moveWordLeft(),
       },
       {
-        id: "moveWordRight",
-        title: t("workbench.cmd.moveWordRight"),
+        id: 'moveWordRight',
+        title: t('workbench.cmd.moveWordRight'),
         category: edit,
-        keywords: "move word right caret navigate edit",
+        keywords: 'move word right caret navigate edit',
         run: () => editorHandleRef.current?.moveWordRight(),
       },
       {
-        id: "selectWordLeft",
-        title: t("workbench.cmd.selectWordLeft"),
+        id: 'selectWordLeft',
+        title: t('workbench.cmd.selectWordLeft'),
         category: edit,
-        keywords: "select word left extend selection edit",
+        keywords: 'select word left extend selection edit',
         run: () => editorHandleRef.current?.selectWordLeft(),
       },
       {
-        id: "selectWordRight",
-        title: t("workbench.cmd.selectWordRight"),
+        id: 'selectWordRight',
+        title: t('workbench.cmd.selectWordRight'),
         category: edit,
-        keywords: "select word right extend selection edit",
+        keywords: 'select word right extend selection edit',
         run: () => editorHandleRef.current?.selectWordRight(),
       },
       {
-        id: "deleteWordLeft",
-        title: t("workbench.cmd.deleteWordLeft"),
+        id: 'deleteWordLeft',
+        title: t('workbench.cmd.deleteWordLeft'),
         category: edit,
-        keywords: "delete word left backspace edit",
+        keywords: 'delete word left backspace edit',
         run: () => editorHandleRef.current?.deleteWordLeft(),
       },
       {
-        id: "deleteWordRight",
-        title: t("workbench.cmd.deleteWordRight"),
+        id: 'deleteWordRight',
+        title: t('workbench.cmd.deleteWordRight'),
         category: edit,
-        keywords: "delete word right edit",
+        keywords: 'delete word right edit',
         run: () => editorHandleRef.current?.deleteWordRight(),
       },
       // —— 子词级移动 / 扩选 / 删除（对标 Zed MoveTo*Subword / SelectTo*Subword / DeleteTo*Subword*：camelCase/下划线切分的子词粒度）——
       // 此前整词家族已补命令面板/右键双入口，子词维度完全缺失＝renderable≠useful 缺口（03:00 轮待续②）；本轮补齐双入口。
       {
-        id: "moveSubwordLeft",
-        title: t("workbench.cmd.moveSubwordLeft"),
+        id: 'moveSubwordLeft',
+        title: t('workbench.cmd.moveSubwordLeft'),
         category: edit,
-        keywords: "subword move left caret navigate camelcase edit",
+        keywords: 'subword move left caret navigate camelcase edit',
         run: () => editorHandleRef.current?.moveSubwordLeft(),
       },
       {
-        id: "moveSubwordRight",
-        title: t("workbench.cmd.moveSubwordRight"),
+        id: 'moveSubwordRight',
+        title: t('workbench.cmd.moveSubwordRight'),
         category: edit,
-        keywords: "subword move right caret navigate camelcase edit",
+        keywords: 'subword move right caret navigate camelcase edit',
         run: () => editorHandleRef.current?.moveSubwordRight(),
       },
       {
-        id: "selectSubwordLeft",
-        title: t("workbench.cmd.selectSubwordLeft"),
+        id: 'selectSubwordLeft',
+        title: t('workbench.cmd.selectSubwordLeft'),
         category: edit,
-        keywords: "subword select left extend selection camelcase edit",
+        keywords: 'subword select left extend selection camelcase edit',
         run: () => editorHandleRef.current?.selectSubwordLeft(),
       },
       {
-        id: "selectSubwordRight",
-        title: t("workbench.cmd.selectSubwordRight"),
+        id: 'selectSubwordRight',
+        title: t('workbench.cmd.selectSubwordRight'),
         category: edit,
-        keywords: "subword select right extend selection camelcase edit",
+        keywords: 'subword select right extend selection camelcase edit',
         run: () => editorHandleRef.current?.selectSubwordRight(),
       },
       {
-        id: "deleteSubwordLeft",
-        title: t("workbench.cmd.deleteSubwordLeft"),
+        id: 'deleteSubwordLeft',
+        title: t('workbench.cmd.deleteSubwordLeft'),
         category: edit,
-        keywords: "subword delete left backspace camelcase edit",
+        keywords: 'subword delete left backspace camelcase edit',
         run: () => editorHandleRef.current?.deleteSubwordLeft(),
       },
       {
-        id: "deleteSubwordRight",
-        title: t("workbench.cmd.deleteSubwordRight"),
+        id: 'deleteSubwordRight',
+        title: t('workbench.cmd.deleteSubwordRight'),
         category: edit,
-        keywords: "subword delete right camelcase edit",
+        keywords: 'subword delete right camelcase edit',
         run: () => editorHandleRef.current?.deleteSubwordRight(),
       },
       {
-        id: "deleteToNextWordStart",
-        title: t("workbench.cmd.deleteToNextWordStart"),
+        id: 'deleteToNextWordStart',
+        title: t('workbench.cmd.deleteToNextWordStart'),
         category: edit,
-        keywords: "delete next word start skip edit",
+        keywords: 'delete next word start skip edit',
         run: () => editorHandleRef.current?.deleteToNextWordStart(),
       },
       {
-        id: "deleteToPreviousWordEnd",
-        title: t("workbench.cmd.deleteToPreviousWordEnd"),
+        id: 'deleteToPreviousWordEnd',
+        title: t('workbench.cmd.deleteToPreviousWordEnd'),
         category: edit,
-        keywords: "delete previous word end edit",
+        keywords: 'delete previous word end edit',
         run: () => editorHandleRef.current?.deleteToPreviousWordEnd(),
       },
       // —— 行首尾编辑（对标 Zed MoveToEndOfLine / MoveToStartOfLine / DeleteToEndOfLine / DeleteToStartOfLine / CutToEndOfLine / CutToStartOfLine）——
       // 此前这些日常操作仅能靠 Monaco 原生 End/Home/Shift+Del 键位（依赖编辑器聚焦），命令面板与右键菜单均不可达＝renderable≠useful 缺口。
       {
-        id: "moveToEndOfLine",
-        title: t("workbench.cmd.moveToEndOfLine"),
+        id: 'moveToEndOfLine',
+        title: t('workbench.cmd.moveToEndOfLine'),
         category: edit,
-        keybinding: "End",
-        keywords: "move end of line caret edit",
+        keybinding: 'End',
+        keywords: 'move end of line caret edit',
         run: () => editorHandleRef.current?.moveToEndOfLine(),
       },
       {
-        id: "moveToStartOfLine",
-        title: t("workbench.cmd.moveToStartOfLine"),
+        id: 'moveToStartOfLine',
+        title: t('workbench.cmd.moveToStartOfLine'),
         category: edit,
-        keybinding: "Home",
-        keywords: "move start of line caret edit",
+        keybinding: 'Home',
+        keywords: 'move start of line caret edit',
         run: () => editorHandleRef.current?.moveToStartOfLine(),
       },
       {
-        id: "deleteToEndOfLine",
-        title: t("workbench.cmd.deleteToEndOfLine"),
+        id: 'deleteToEndOfLine',
+        title: t('workbench.cmd.deleteToEndOfLine'),
         category: edit,
-        keywords: "delete end of line edit",
+        keywords: 'delete end of line edit',
         run: () => editorHandleRef.current?.deleteToEndOfLine(),
       },
       {
-        id: "deleteToStartOfLine",
-        title: t("workbench.cmd.deleteToStartOfLine"),
+        id: 'deleteToStartOfLine',
+        title: t('workbench.cmd.deleteToStartOfLine'),
         category: edit,
-        keywords: "delete start of line edit",
+        keywords: 'delete start of line edit',
         run: () => editorHandleRef.current?.deleteToStartOfLine(),
       },
       {
-        id: "cutToEndOfLine",
-        title: t("workbench.cmd.cutToEndOfLine"),
+        id: 'cutToEndOfLine',
+        title: t('workbench.cmd.cutToEndOfLine'),
         category: edit,
-        keywords: "cut end of line clipboard edit",
+        keywords: 'cut end of line clipboard edit',
         run: () => editorHandleRef.current?.cutToEndOfLine(),
       },
       {
-        id: "cutToStartOfLine",
-        title: t("workbench.cmd.cutToStartOfLine"),
+        id: 'cutToStartOfLine',
+        title: t('workbench.cmd.cutToStartOfLine'),
         category: edit,
-        keywords: "cut start of line clipboard edit",
+        keywords: 'cut start of line clipboard edit',
         run: () => editorHandleRef.current?.cutToStartOfLine(),
       },
       {
-        id: "goToMatchingBracket",
-        title: t("workbench.cmd.goToMatchingBracket"),
+        id: 'goToMatchingBracket',
+        title: t('workbench.cmd.goToMatchingBracket'),
         category: edit,
-        keybinding: "Ctrl/Cmd+Shift+\\",
-        keywords: "matching bracket jump navigate edit",
+        keybinding: 'Ctrl/Cmd+Shift+\\',
+        keywords: 'matching bracket jump navigate edit',
         run: () => editorHandleRef.current?.goToMatchingBracket(),
       },
       {
-        id: "moveToEnclosingBracket",
-        title: t("workbench.cmd.moveToEnclosingBracket"),
+        id: 'moveToEnclosingBracket',
+        title: t('workbench.cmd.moveToEnclosingBracket'),
         category: edit,
-        keywords: "enclosing bracket move navigate edit",
+        keywords: 'enclosing bracket move navigate edit',
         run: () => editorHandleRef.current?.moveToEnclosingBracket(),
       },
       {
-        id: "selectToEnclosingBracket",
-        title: t("workbench.cmd.selectToEnclosingBracket"),
+        id: 'selectToEnclosingBracket',
+        title: t('workbench.cmd.selectToEnclosingBracket'),
         category: edit,
-        keywords: "enclosing bracket select edit",
+        keywords: 'enclosing bracket select edit',
         run: () => editorHandleRef.current?.selectToEnclosingBracket(),
       },
       // —— 文本大小写转换（对标 Zed ConvertTo* 家族：UpperCase/LowerCase/TitleCase/SnakeCase/KebabCase/UpperCamelCase/LowerCamelCase/SentenceCase）——
       // 算法逐字移植 Zed convert_case（defaults 边界），命令面板入口保证可达（无需先聚焦编辑器也能转换）；选区为空时取光标处单词。
       {
-        id: "convertUpper",
-        title: t("workbench.cmd.convertUpper"),
+        id: 'convertUpper',
+        title: t('workbench.cmd.convertUpper'),
         category: convert,
-        keywords: "upper case uppercase transform convert",
+        keywords: 'upper case uppercase transform convert',
         run: () => editorHandleRef.current?.convertToUpper(),
       },
       {
-        id: "convertLower",
-        title: t("workbench.cmd.convertLower"),
+        id: 'convertLower',
+        title: t('workbench.cmd.convertLower'),
         category: convert,
-        keywords: "lower case lowercase transform convert",
+        keywords: 'lower case lowercase transform convert',
         run: () => editorHandleRef.current?.convertToLower(),
       },
       {
-        id: "convertTitle",
-        title: t("workbench.cmd.convertTitle"),
+        id: 'convertTitle',
+        title: t('workbench.cmd.convertTitle'),
         category: convert,
-        keywords: "title case transform convert",
+        keywords: 'title case transform convert',
         run: () => editorHandleRef.current?.convertToTitle(),
       },
       {
-        id: "convertSnake",
-        title: t("workbench.cmd.convertSnake"),
+        id: 'convertSnake',
+        title: t('workbench.cmd.convertSnake'),
         category: convert,
-        keywords: "snake case underscore transform convert",
+        keywords: 'snake case underscore transform convert',
         run: () => editorHandleRef.current?.convertToSnake(),
       },
       {
-        id: "convertKebab",
-        title: t("workbench.cmd.convertKebab"),
+        id: 'convertKebab',
+        title: t('workbench.cmd.convertKebab'),
         category: convert,
-        keywords: "kebab case hyphen dash transform convert",
+        keywords: 'kebab case hyphen dash transform convert',
         run: () => editorHandleRef.current?.convertToKebab(),
       },
       {
-        id: "convertPascal",
-        title: t("workbench.cmd.convertPascal"),
+        id: 'convertPascal',
+        title: t('workbench.cmd.convertPascal'),
         category: convert,
-        keywords: "pascal case upper camel transform convert",
+        keywords: 'pascal case upper camel transform convert',
         run: () => editorHandleRef.current?.convertToPascal(),
       },
       {
-        id: "convertCamel",
-        title: t("workbench.cmd.convertCamel"),
+        id: 'convertCamel',
+        title: t('workbench.cmd.convertCamel'),
         category: convert,
-        keywords: "camel case lower camel transform convert",
+        keywords: 'camel case lower camel transform convert',
         run: () => editorHandleRef.current?.convertToCamel(),
       },
       {
-        id: "convertSentence",
-        title: t("workbench.cmd.convertSentence"),
+        id: 'convertSentence',
+        title: t('workbench.cmd.convertSentence'),
         category: convert,
-        keywords: "sentence case transform convert",
+        keywords: 'sentence case transform convert',
         run: () => editorHandleRef.current?.convertToSentence(),
       },
       // —— 行级排序 / 去重（对标 Zed SortLines* / UniqueLines*：选区独立变换，命令面板保证可达，无全局键位以免劫持 Monaco 原生 chords）——
       {
-        id: "sortLinesCI",
-        title: t("workbench.cmd.sortLinesCI"),
+        id: 'sortLinesCI',
+        title: t('workbench.cmd.sortLinesCI'),
         category: catLines,
-        keywords: "sort lines alphabetical case insensitive order arrange",
+        keywords: 'sort lines alphabetical case insensitive order arrange',
         run: () => editorHandleRef.current?.sortLinesCI(),
       },
       {
-        id: "sortLinesCS",
-        title: t("workbench.cmd.sortLinesCS"),
+        id: 'sortLinesCS',
+        title: t('workbench.cmd.sortLinesCS'),
         category: catLines,
-        keywords: "sort lines alphabetical case sensitive order arrange",
+        keywords: 'sort lines alphabetical case sensitive order arrange',
         run: () => editorHandleRef.current?.sortLinesCS(),
       },
       {
-        id: "sortLinesLen",
-        title: t("workbench.cmd.sortLinesLen"),
+        id: 'sortLinesLen',
+        title: t('workbench.cmd.sortLinesLen'),
         category: catLines,
-        keywords: "sort lines length shortest longest order arrange",
+        keywords: 'sort lines length shortest longest order arrange',
         run: () => editorHandleRef.current?.sortLinesLen(),
       },
       {
-        id: "uniqueLinesCI",
-        title: t("workbench.cmd.uniqueLinesCI"),
+        id: 'uniqueLinesCI',
+        title: t('workbench.cmd.uniqueLinesCI'),
         category: catLines,
-        keywords: "unique dedupe remove duplicate lines case insensitive",
+        keywords: 'unique dedupe remove duplicate lines case insensitive',
         run: () => editorHandleRef.current?.uniqueLinesCI(),
       },
       {
-        id: "uniqueLinesCS",
-        title: t("workbench.cmd.uniqueLinesCS"),
+        id: 'uniqueLinesCS',
+        title: t('workbench.cmd.uniqueLinesCS'),
         category: catLines,
-        keywords: "unique dedupe remove duplicate lines case sensitive",
+        keywords: 'unique dedupe remove duplicate lines case sensitive',
         run: () => editorHandleRef.current?.uniqueLinesCS(),
       },
       {
-        id: "goToNextProblem",
-        title: t("workbench.cmd.goToNextProblem"),
+        id: 'goToNextProblem',
+        title: t('workbench.cmd.goToNextProblem'),
         category: diagnostic,
-        keybinding: "F8",
-        keywords: "diagnostic error warning next problem jump navigate",
+        keybinding: 'F8',
+        keywords: 'diagnostic error warning next problem jump navigate',
         run: () => editorHandleRef.current?.goToNextProblem(),
       },
       {
-        id: "goToPrevProblem",
-        title: t("workbench.cmd.goToPrevProblem"),
+        id: 'goToPrevProblem',
+        title: t('workbench.cmd.goToPrevProblem'),
         category: diagnostic,
-        keybinding: "Shift+F8",
-        keywords: "diagnostic error warning previous problem jump navigate",
+        keybinding: 'Shift+F8',
+        keywords: 'diagnostic error warning previous problem jump navigate',
         run: () => editorHandleRef.current?.goToPrevProblem(),
       },
       {
-        id: "fold",
-        title: t("workbench.cmd.fold"),
+        id: 'fold',
+        title: t('workbench.cmd.fold'),
         category: fold,
-        keybinding: "Ctrl/Cmd+Shift+[",
-        keywords: "fold collapse region cursor",
+        keybinding: 'Ctrl/Cmd+Shift+[',
+        keywords: 'fold collapse region cursor',
         run: () => editorHandleRef.current?.foldAtCursor(),
       },
       {
-        id: "unfold",
-        title: t("workbench.cmd.unfold"),
+        id: 'unfold',
+        title: t('workbench.cmd.unfold'),
         category: fold,
-        keybinding: "Ctrl/Cmd+Shift+]",
-        keywords: "unfold expand region cursor",
+        keybinding: 'Ctrl/Cmd+Shift+]',
+        keywords: 'unfold expand region cursor',
         run: () => editorHandleRef.current?.unfoldAtCursor(),
       },
       {
-        id: "toggleFold",
-        title: t("workbench.cmd.toggleFold"),
+        id: 'toggleFold',
+        title: t('workbench.cmd.toggleFold'),
         category: fold,
-        keybinding: "Ctrl/Cmd+K Ctrl+L",
-        keywords: "toggle fold collapse",
+        keybinding: 'Ctrl/Cmd+K Ctrl+L',
+        keywords: 'toggle fold collapse',
         run: () => editorHandleRef.current?.toggleFoldAtCursor(),
       },
       {
-        id: "foldRecursively",
-        title: t("workbench.cmd.foldRecursively"),
+        id: 'foldRecursively',
+        title: t('workbench.cmd.foldRecursively'),
         category: fold,
-        keybinding: "Ctrl/Cmd+K Ctrl+[",
-        keywords: "fold recursively nested collapse",
+        keybinding: 'Ctrl/Cmd+K Ctrl+[',
+        keywords: 'fold recursively nested collapse',
         run: () => editorHandleRef.current?.foldRecursively(),
       },
       {
-        id: "unfoldRecursively",
-        title: t("workbench.cmd.unfoldRecursively"),
+        id: 'unfoldRecursively',
+        title: t('workbench.cmd.unfoldRecursively'),
         category: fold,
-        keybinding: "Ctrl/Cmd+K Ctrl+]",
-        keywords: "unfold recursively nested expand",
+        keybinding: 'Ctrl/Cmd+K Ctrl+]',
+        keywords: 'unfold recursively nested expand',
         run: () => editorHandleRef.current?.unfoldRecursively(),
       },
       {
-        id: "foldAll",
-        title: t("workbench.cmd.foldAll"),
+        id: 'foldAll',
+        title: t('workbench.cmd.foldAll'),
         category: fold,
-        keybinding: "Ctrl/Cmd+K Ctrl+0",
-        keywords: "fold all collapse everything",
+        keybinding: 'Ctrl/Cmd+K Ctrl+0',
+        keywords: 'fold all collapse everything',
         run: () => editorHandleRef.current?.foldAll(),
       },
       {
-        id: "unfoldAll",
-        title: t("workbench.cmd.unfoldAll"),
+        id: 'unfoldAll',
+        title: t('workbench.cmd.unfoldAll'),
         category: fold,
-        keybinding: "Ctrl/Cmd+K Ctrl+J",
-        keywords: "unfold all expand everything",
+        keybinding: 'Ctrl/Cmd+K Ctrl+J',
+        keywords: 'unfold all expand everything',
         run: () => editorHandleRef.current?.unfoldAll(),
       },
       {
-        id: "foldSelection",
-        title: t("workbench.cmd.foldSelection"),
+        id: 'foldSelection',
+        title: t('workbench.cmd.foldSelection'),
         category: fold,
-        keybinding: "Ctrl/Cmd+K Ctrl+,",
-        keywords: "fold selected selection region collapse",
+        keybinding: 'Ctrl/Cmd+K Ctrl+,',
+        keywords: 'fold selected selection region collapse',
         run: () => editorHandleRef.current?.foldSelection(),
       },
       ...Array.from({ length: 7 }, (_, i) => i + 1).map((lv) => ({
         id: `foldLevel${lv}`,
-        title: t("workbench.cmd.foldLevel", { level: lv }),
+        title: t('workbench.cmd.foldLevel', { level: lv }),
         category: fold,
         keybinding: `Ctrl/Cmd+K Ctrl+${lv}`,
         keywords: `fold level ${lv} collapse nesting depth`,
         run: () => editorHandleRef.current?.foldLevel(lv),
       })),
       {
-        id: "toggleWordWrap",
-        title: t("workbench.cmd.toggleWordWrap"),
+        id: 'toggleWordWrap',
+        title: t('workbench.cmd.toggleWordWrap'),
         category: fold,
-        keybinding: "Alt+Z",
-        keywords: "soft wrap word wrap line wrap toggle",
+        keybinding: 'Alt+Z',
+        keywords: 'soft wrap word wrap line wrap toggle',
         run: () => editorHandleRef.current?.toggleWordWrap(),
       },
       {
-        id: "foldFunctionBodies",
-        title: t("workbench.cmd.foldFunctionBodies"),
+        id: 'foldFunctionBodies',
+        title: t('workbench.cmd.foldFunctionBodies'),
         category: fold,
-        keywords: "fold function bodies collapse definitions classes methods rust fn",
+        keywords: 'fold function bodies collapse definitions classes methods rust fn',
         run: () => editorHandleRef.current?.foldFunctionBodies(),
       },
       // —— 书签（对标 Zed ToggleBookmark / GoToNextBookmark / GoToPreviousBookmark / ViewBookmarks）——
       {
-        id: "toggleBookmark",
-        title: t("workbench.cmd.toggleBookmark"),
+        id: 'toggleBookmark',
+        title: t('workbench.cmd.toggleBookmark'),
         category: bookmarksCat,
-        keybinding: "Ctrl/Cmd+F2",
-        keywords: "bookmark mark line gutter toggle pin",
+        keybinding: 'Ctrl/Cmd+F2',
+        keywords: 'bookmark mark line gutter toggle pin',
         run: () => editorHandleRef.current?.toggleBookmark(),
       },
       {
-        id: "nextBookmark",
-        title: t("workbench.cmd.nextBookmark"),
+        id: 'nextBookmark',
+        title: t('workbench.cmd.nextBookmark'),
         category: bookmarksCat,
-        keybinding: "Ctrl/Cmd+Shift+F2",
-        keywords: "bookmark next jump navigate",
+        keybinding: 'Ctrl/Cmd+Shift+F2',
+        keywords: 'bookmark next jump navigate',
         run: () => editorHandleRef.current?.goToNextBookmark(),
       },
       {
-        id: "prevBookmark",
-        title: t("workbench.cmd.prevBookmark"),
+        id: 'prevBookmark',
+        title: t('workbench.cmd.prevBookmark'),
         category: bookmarksCat,
-        keybinding: "Ctrl/Cmd+Alt+F2",
-        keywords: "bookmark previous jump navigate",
+        keybinding: 'Ctrl/Cmd+Alt+F2',
+        keywords: 'bookmark previous jump navigate',
         run: () => editorHandleRef.current?.goToPrevBookmark(),
       },
       {
-        id: "viewBookmarks",
-        title: t("workbench.cmd.viewBookmarks"),
+        id: 'viewBookmarks',
+        title: t('workbench.cmd.viewBookmarks'),
         category: bookmarksCat,
-        keywords: "bookmarks list all view jump navigate picker",
+        keywords: 'bookmarks list all view jump navigate picker',
         run: () => setBookmarkPickerOpen(true),
       },
       {
-        id: "toggleAi",
-        title: t("workbench.cmd.toggleAi"),
+        id: 'toggleAi',
+        title: t('workbench.cmd.toggleAi'),
         category: ai,
-        keywords: "chat assistant panel",
+        keywords: 'chat assistant panel',
         run: () => setAiOpen((v) => !v),
       },
       {
-        id: "openRequirements",
-        title: t("workbench.cmd.openRequirements"),
+        id: 'openRequirements',
+        title: t('workbench.cmd.openRequirements'),
         category: ai,
-        keywords: "requirements spec capture",
+        keywords: 'requirements spec capture',
         run: () => {
           setRightTab(1);
           setAiOpen(true);
         },
       },
       {
-        id: "toggleTerminal",
-        title: t("workbench.cmd.toggleTerminal"),
+        id: 'toggleTerminal',
+        title: t('workbench.cmd.toggleTerminal'),
         category: view,
-        keybinding: "Ctrl/Cmd+`",
-        keywords: "console shell",
+        keybinding: 'Ctrl/Cmd+`',
+        keywords: 'console shell',
         run: () => setTerminalOpen((v) => !v),
       },
       {
-        id: "toggleProblems",
-        title: t("workbench.cmd.toggleProblems"),
+        id: 'toggleProblems',
+        title: t('workbench.cmd.toggleProblems'),
         category: view,
-        keywords: "diagnostics problems errors warnings panel",
+        keywords: 'diagnostics problems errors warnings panel',
         run: () => useProblemsPanelStore.getState().toggle(),
       },
       {
-        id: "toggleOutline",
-        title: t("workbench.cmd.toggleOutline"),
+        id: 'toggleOutline',
+        title: t('workbench.cmd.toggleOutline'),
         category: view,
-        keywords: "symbol structure map",
+        keywords: 'symbol structure map',
         run: () => setOutlineOpen((v) => !v),
       },
       {
-        id: "toggleInlineAi",
-        title: t("workbench.cmd.toggleInlineAi"),
+        id: 'toggleInlineAi',
+        title: t('workbench.cmd.toggleInlineAi'),
         category: ai,
-        keywords: "inline assist ask",
+        keywords: 'inline assist ask',
         run: () => setInlineOpen((v) => !v),
       },
       {
-        id: "copyPath",
-        title: t("workbench.cmd.copyPath"),
+        id: 'copyPath',
+        title: t('workbench.cmd.copyPath'),
         category: file,
-        keywords: "clipboard path",
+        keywords: 'clipboard path',
         run: () => {
           if (activeTab?.relPath) navigator.clipboard?.writeText(activeTab.relPath);
         },
       },
       {
-        id: "locateFile",
-        title: t("workbench.cmd.locateFile"),
+        id: 'locateFile',
+        title: t('workbench.cmd.locateFile'),
         category: file,
-        keywords: "tree reveal focus",
+        keywords: 'tree reveal focus',
         run: () => {
           if (!activeTab) return;
-          const parts = activeTab.relPath.split("/");
-          let p = "";
+          const parts = activeTab.relPath.split('/');
+          let p = '';
           const anc = new Set<string>();
           for (let i = 0; i < parts.length - 1; i++) {
             p = p ? `${p}/${parts[i]}` : parts[i];
@@ -1693,35 +1749,35 @@ export function CodeWorkbenchBody({
         },
       },
       {
-        id: "closeCurrentTab",
-        title: t("workbench.cmd.closeCurrentTab"),
+        id: 'closeCurrentTab',
+        title: t('workbench.cmd.closeCurrentTab'),
         category: file,
-        keywords: "close tab",
+        keywords: 'close tab',
         run: () => {
           if (activeFileId) closeTab(activeFileId);
         },
       },
       {
-        id: "nextTab",
-        title: t("workbench.cmd.nextTab"),
+        id: 'nextTab',
+        title: t('workbench.cmd.nextTab'),
         category: tabsCat,
-        keybinding: "Ctrl/Cmd+PageDown",
-        keywords: "switch tab forward next",
+        keybinding: 'Ctrl/Cmd+PageDown',
+        keywords: 'switch tab forward next',
         run: () => useCodeWorkbenchStore.getState().activateNextTab(),
       },
       {
-        id: "prevTab",
-        title: t("workbench.cmd.prevTab"),
+        id: 'prevTab',
+        title: t('workbench.cmd.prevTab'),
         category: tabsCat,
-        keybinding: "Ctrl/Cmd+PageUp",
-        keywords: "switch tab back previous",
+        keybinding: 'Ctrl/Cmd+PageUp',
+        keywords: 'switch tab back previous',
         run: () => useCodeWorkbenchStore.getState().activatePrevTab(),
       },
       {
-        id: "lastTab",
-        title: t("workbench.cmd.lastTab"),
+        id: 'lastTab',
+        title: t('workbench.cmd.lastTab'),
         category: tabsCat,
-        keywords: "switch tab last final end",
+        keywords: 'switch tab last final end',
         run: () => {
           if (tabs.length) useCodeWorkbenchStore.getState().activateTabByIndex(tabs.length - 1);
         },
@@ -1729,44 +1785,52 @@ export function CodeWorkbenchBody({
       // —— 标签管理家族（对标 Zed pane::close_other_items / close_items_to_the_left|right / close_all_items，
       //    均保留 pinned；此前仅右键菜单可达，命令面板不可达 = renderable≠useful 发现性缺口） ——
       {
-        id: "closeOthers",
-        title: t("workbench.cmd.closeOthers"),
+        id: 'closeOthers',
+        title: t('workbench.cmd.closeOthers'),
         category: tabsCat,
-        keywords: "close others tabs keep active",
-        run: () => { if (activeFileId) useCodeWorkbenchStore.getState().closeOthers(activeFileId); },
+        keywords: 'close others tabs keep active',
+        run: () => {
+          if (activeFileId) useCodeWorkbenchStore.getState().closeOthers(activeFileId);
+        },
       },
       {
-        id: "closeLeft",
-        title: t("workbench.cmd.closeLeft"),
+        id: 'closeLeft',
+        title: t('workbench.cmd.closeLeft'),
         category: tabsCat,
-        keywords: "close left tabs",
-        run: () => { if (activeFileId) useCodeWorkbenchStore.getState().closeLeft(activeFileId); },
+        keywords: 'close left tabs',
+        run: () => {
+          if (activeFileId) useCodeWorkbenchStore.getState().closeLeft(activeFileId);
+        },
       },
       {
-        id: "closeRight",
-        title: t("workbench.cmd.closeRight"),
+        id: 'closeRight',
+        title: t('workbench.cmd.closeRight'),
         category: tabsCat,
-        keywords: "close right tabs",
-        run: () => { if (activeFileId) useCodeWorkbenchStore.getState().closeRight(activeFileId); },
+        keywords: 'close right tabs',
+        run: () => {
+          if (activeFileId) useCodeWorkbenchStore.getState().closeRight(activeFileId);
+        },
       },
       {
-        id: "closeAll",
-        title: t("workbench.cmd.closeAll"),
+        id: 'closeAll',
+        title: t('workbench.cmd.closeAll'),
         category: tabsCat,
-        keywords: "close all tabs",
+        keywords: 'close all tabs',
         run: () => useCodeWorkbenchStore.getState().closeAll(),
       },
       {
-        id: "pinTab",
-        title: t("workbench.cmd.pinTab"),
+        id: 'pinTab',
+        title: t('workbench.cmd.pinTab'),
         category: tabsCat,
-        keywords: "pin unpin tab toggle",
-        run: () => { if (activeFileId) useCodeWorkbenchStore.getState().togglePin(activeFileId); },
+        keywords: 'pin unpin tab toggle',
+        run: () => {
+          if (activeFileId) useCodeWorkbenchStore.getState().togglePin(activeFileId);
+        },
       },
       // 按序号定位标签（对标 Zed pane::activate_item(N)；Alt+1..9 已绑，此处仅补面板曝光）
       ...Array.from({ length: 9 }, (_, i) => ({
         id: `goToTab${i + 1}`,
-        title: t("workbench.cmd.goToTab", { n: i + 1 }),
+        title: t('workbench.cmd.goToTab', { n: i + 1 }),
         category: tabsCat,
         keywords: `go to tab ${i + 1} switch index`,
         run: () => useCodeWorkbenchStore.getState().activateTabByIndex(i),
@@ -1780,117 +1844,114 @@ export function CodeWorkbenchBody({
         run: () => useCodeWorkbenchStore.getState().activateBuffer(b.fileId),
       })),
       {
-        id: "resetLayout",
-        title: t("workbench.cmd.resetLayout"),
+        id: 'resetLayout',
+        title: t('workbench.cmd.resetLayout'),
         category: view,
-        keywords: "reset layout panes split restore default",
+        keywords: 'reset layout panes split restore default',
         run: () => {
           resetLayout();
-          useToastStore.getState().showToast(
-            t("workbench.layout.resetToast"),
-            "success"
-          );
+          useToastStore.getState().showToast(t('workbench.layout.resetToast'), 'success');
         },
       },
       // —— 编辑器字号缩放（对标 Zed IncreaseBufferFontSize / DecreaseBufferFontSize / ResetBufferFontSize）——
       // 此前编辑器无任何字号控制入口（命令面板/状态栏均缺失）＝renderable≠useful 缺口；本轮补齐双入口。
       {
-        id: "increaseFont",
-        title: t("workbench.cmd.increaseFont"),
+        id: 'increaseFont',
+        title: t('workbench.cmd.increaseFont'),
         category: view,
-        keywords: "font size larger zoom in increase editor readability",
+        keywords: 'font size larger zoom in increase editor readability',
         run: () => editorHandleRef.current?.increaseFont(),
       },
       {
-        id: "decreaseFont",
-        title: t("workbench.cmd.decreaseFont"),
+        id: 'decreaseFont',
+        title: t('workbench.cmd.decreaseFont'),
         category: view,
-        keywords: "font size smaller zoom out decrease editor readability",
+        keywords: 'font size smaller zoom out decrease editor readability',
         run: () => editorHandleRef.current?.decreaseFont(),
       },
       {
-        id: "resetFont",
-        title: t("workbench.cmd.resetFont"),
+        id: 'resetFont',
+        title: t('workbench.cmd.resetFont'),
         category: view,
-        keywords: "font size reset default editor zoom restore",
+        keywords: 'font size reset default editor zoom restore',
         run: () => editorHandleRef.current?.resetFont(),
       },
       // —— 窗格导航（对标 Zed ActivatePaneInDirection / ActivateNextPane / SwapPanesInDirection） ——
       {
-        id: "focusPaneLeft",
-        title: t("workbench.cmd.focusPaneLeft"),
+        id: 'focusPaneLeft',
+        title: t('workbench.cmd.focusPaneLeft'),
         category: pane,
-        keybinding: "Ctrl/Cmd+Shift+Alt+←",
-        keywords: "pane focus left navigate split",
-        run: () => useCodeWorkbenchStore.getState().activatePaneInDirection("left"),
+        keybinding: 'Ctrl/Cmd+Shift+Alt+←',
+        keywords: 'pane focus left navigate split',
+        run: () => useCodeWorkbenchStore.getState().activatePaneInDirection('left'),
       },
       {
-        id: "focusPaneRight",
-        title: t("workbench.cmd.focusPaneRight"),
+        id: 'focusPaneRight',
+        title: t('workbench.cmd.focusPaneRight'),
         category: pane,
-        keybinding: "Ctrl/Cmd+Shift+Alt+→",
-        keywords: "pane focus right navigate split",
-        run: () => useCodeWorkbenchStore.getState().activatePaneInDirection("right"),
+        keybinding: 'Ctrl/Cmd+Shift+Alt+→',
+        keywords: 'pane focus right navigate split',
+        run: () => useCodeWorkbenchStore.getState().activatePaneInDirection('right'),
       },
       {
-        id: "focusPaneUp",
-        title: t("workbench.cmd.focusPaneUp"),
+        id: 'focusPaneUp',
+        title: t('workbench.cmd.focusPaneUp'),
         category: pane,
-        keybinding: "Ctrl/Cmd+Shift+Alt+↑",
-        keywords: "pane focus up navigate split",
-        run: () => useCodeWorkbenchStore.getState().activatePaneInDirection("up"),
+        keybinding: 'Ctrl/Cmd+Shift+Alt+↑',
+        keywords: 'pane focus up navigate split',
+        run: () => useCodeWorkbenchStore.getState().activatePaneInDirection('up'),
       },
       {
-        id: "focusPaneDown",
-        title: t("workbench.cmd.focusPaneDown"),
+        id: 'focusPaneDown',
+        title: t('workbench.cmd.focusPaneDown'),
         category: pane,
-        keybinding: "Ctrl/Cmd+Shift+Alt+↓",
-        keywords: "pane focus down navigate split",
-        run: () => useCodeWorkbenchStore.getState().activatePaneInDirection("down"),
+        keybinding: 'Ctrl/Cmd+Shift+Alt+↓',
+        keywords: 'pane focus down navigate split',
+        run: () => useCodeWorkbenchStore.getState().activatePaneInDirection('down'),
       },
       {
-        id: "focusPaneNext",
-        title: t("workbench.cmd.focusPaneNext"),
+        id: 'focusPaneNext',
+        title: t('workbench.cmd.focusPaneNext'),
         category: pane,
-        keybinding: "Ctrl/Cmd+Alt+]",
-        keywords: "pane next cycle focus",
+        keybinding: 'Ctrl/Cmd+Alt+]',
+        keywords: 'pane next cycle focus',
         run: () => useCodeWorkbenchStore.getState().activateNextPane(),
       },
       {
-        id: "focusPanePrev",
-        title: t("workbench.cmd.focusPanePrev"),
+        id: 'focusPanePrev',
+        title: t('workbench.cmd.focusPanePrev'),
         category: pane,
-        keybinding: "Ctrl/Cmd+Alt+[",
-        keywords: "pane previous cycle focus",
+        keybinding: 'Ctrl/Cmd+Alt+[',
+        keywords: 'pane previous cycle focus',
         run: () => useCodeWorkbenchStore.getState().activatePrevPane(),
       },
       {
-        id: "swapPaneLeft",
-        title: t("workbench.cmd.swapPaneLeft"),
+        id: 'swapPaneLeft',
+        title: t('workbench.cmd.swapPaneLeft'),
         category: pane,
-        keywords: "pane swap left exchange position",
-        run: () => useCodeWorkbenchStore.getState().swapPanesInDirection("left"),
+        keywords: 'pane swap left exchange position',
+        run: () => useCodeWorkbenchStore.getState().swapPanesInDirection('left'),
       },
       {
-        id: "swapPaneRight",
-        title: t("workbench.cmd.swapPaneRight"),
+        id: 'swapPaneRight',
+        title: t('workbench.cmd.swapPaneRight'),
         category: pane,
-        keywords: "pane swap right exchange position",
-        run: () => useCodeWorkbenchStore.getState().swapPanesInDirection("right"),
+        keywords: 'pane swap right exchange position',
+        run: () => useCodeWorkbenchStore.getState().swapPanesInDirection('right'),
       },
       {
-        id: "swapPaneUp",
-        title: t("workbench.cmd.swapPaneUp"),
+        id: 'swapPaneUp',
+        title: t('workbench.cmd.swapPaneUp'),
         category: pane,
-        keywords: "pane swap up exchange position",
-        run: () => useCodeWorkbenchStore.getState().swapPanesInDirection("up"),
+        keywords: 'pane swap up exchange position',
+        run: () => useCodeWorkbenchStore.getState().swapPanesInDirection('up'),
       },
       {
-        id: "swapPaneDown",
-        title: t("workbench.cmd.swapPaneDown"),
+        id: 'swapPaneDown',
+        title: t('workbench.cmd.swapPaneDown'),
         category: pane,
-        keywords: "pane swap down exchange position",
-        run: () => useCodeWorkbenchStore.getState().swapPanesInDirection("down"),
+        keywords: 'pane swap down exchange position',
+        run: () => useCodeWorkbenchStore.getState().swapPanesInDirection('down'),
       },
     ];
   }, [
@@ -1917,8 +1978,10 @@ export function CodeWorkbenchBody({
   const getTabText = useCallback((fid: string): string | null => {
     const buf = contentBuffers.current.get(fid);
     if (buf != null) return buf;
-    const tab = useCodeWorkbenchStore.getState().panes[useCodeWorkbenchStore.getState().activePaneId]?.tabs.find((t) => t.fileId === fid);
-    return tab?.content ? tab.content.lines.join("\n") : null;
+    const tab = useCodeWorkbenchStore
+      .getState()
+      .panes[useCodeWorkbenchStore.getState().activePaneId]?.tabs.find((t) => t.fileId === fid);
+    return tab?.content ? tab.content.lines.join('\n') : null;
   }, []);
 
   // 清掉某文件待触发的保存定时器（切标签/关标签/立即保存前调用，避免旧定时器错写到别的文件）
@@ -1943,9 +2006,9 @@ export function CodeWorkbenchBody({
         contentBuffers.current.delete(fid);
         justWroteByUs.current.set(fid, Date.now());
         useCodeWorkbenchStore.getState().setContent(fid, text);
-        toast(t("workbench.autoSaved", { file: res.relPath }), "success");
+        toast(t('workbench.autoSaved', { file: res.relPath }), 'success');
       } catch (e) {
-        toast(t("workbench.saveFail", { error: e instanceof Error ? e.message : String(e) }), "error");
+        toast(t('workbench.saveFail', { error: e instanceof Error ? e.message : String(e) }), 'error');
       }
     },
     [clearSaveTimer, getTabText],
@@ -1982,13 +2045,13 @@ export function CodeWorkbenchBody({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTerminalTarget(e)) return;
-      if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         flushPendingBeforeLeave(activeFileId);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [flushPendingBeforeLeave, activeFileId]);
 
   // P0-B：监听外部/AI 改盘，避免 AI 改完被用户下一次按键静默覆盖
@@ -1996,16 +2059,17 @@ export function CodeWorkbenchBody({
     let unlisten: (() => void) | undefined;
     (async () => {
       try {
-        unlisten = await listen<FileChangeEvent[]>("file-changes", (event) => {
+        unlisten = await listen<FileChangeEvent[]>('file-changes', (event) => {
           const changes = Array.isArray(event.payload) ? event.payload : [];
           if (!changes.length) return;
-          const openTabs = useCodeWorkbenchStore.getState().panes[useCodeWorkbenchStore.getState().activePaneId]?.tabs ?? EMPTY_TABS;
+          const openTabs =
+            useCodeWorkbenchStore.getState().panes[useCodeWorkbenchStore.getState().activePaneId]?.tabs ?? EMPTY_TABS;
           for (const c of changes) {
-            if (c.kind === "removed") continue;
-            const p = c.path.replace(/\\/g, "/");
+            if (c.kind === 'removed') continue;
+            const p = c.path.replace(/\\/g, '/');
             const match = openTabs.find((t) => {
-              const r = t.relPath.replace(/\\/g, "/");
-              return p === r || p.endsWith("/" + r);
+              const r = t.relPath.replace(/\\/g, '/');
+              return p === r || p.endsWith('/' + r);
             });
             if (!match) continue;
             const fid = match.fileId;
@@ -2059,7 +2123,7 @@ export function CodeWorkbenchBody({
     const map = new Map<string, ProjectSymbol[]>();
     const order: string[] = [];
     for (const s of list) {
-      const k = s.kind || "unknown";
+      const k = s.kind || 'unknown';
       if (!map.has(k)) {
         map.set(k, []);
         order.push(k);
@@ -2069,7 +2133,10 @@ export function CodeWorkbenchBody({
     order.sort((a, b) => kindSortIndex(a) - kindSortIndex(b) || a.localeCompare(b));
     return order.map((k) => ({
       kind: k,
-      items: map.get(k)!.slice().sort((x, y) => x.lineStart - y.lineStart),
+      items: map
+        .get(k)!
+        .slice()
+        .sort((x, y) => x.lineStart - y.lineStart),
     }));
   }, [filteredOutlineTree]);
   // 跟随光标：光标所在（最深）符号高亮，便于在长文件中随时定位当前位置
@@ -2088,106 +2155,156 @@ export function CodeWorkbenchBody({
   // 跟随光标：活动符号进入视口（仅平滑滚动，不抢焦点，避免打断编辑）
   useEffect(() => {
     if (!activeOutlineId || !outlineListRef.current) return;
-    const el = outlineListRef.current.querySelector(
-      `[data-outline-id="${CSS.escape(activeOutlineId)}"]`,
-    );
-    el?.scrollIntoView({ block: "nearest" });
+    const el = outlineListRef.current.querySelector(`[data-outline-id="${CSS.escape(activeOutlineId)}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
   }, [activeOutlineId, filteredOutlineTree]);
   // 可定位符号名集合（小写去重），供编辑器按住 Ctrl/⌘ 悬停显示跳转下划线
 
   // 面包屑符号段：取光标所在（最内层）符号，点击可跳转该行（renderable AND useful）
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
       {/* 顶栏 */}
       <Box
         sx={{
-          display: "flex",
-          alignItems: "center",
+          display: 'flex',
+          alignItems: 'center',
           gap: 1,
           px: 1.5,
           py: 1,
           borderBottom: 1,
-          borderColor: "divider",
-          bgcolor: "background.paper",
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
         }}
       >
         {showBackButton && (
-          <Tooltip title={t("workbench.backCanvas")}>
-            <IconButton size="small" onClick={onRequestClose} aria-label={t("workbench.backCanvas")}>
+          <Tooltip title={t('workbench.backCanvas')}>
+            <IconButton size="small" onClick={onRequestClose} aria-label={t('workbench.backCanvas')}>
               <ArrowBackIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         )}
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-            {t("workbench.title")}
+            {t('workbench.title')}
           </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
-            {activeTab ? activeTab.relPath : t("workbench.subtitle")}
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+            {activeTab ? activeTab.relPath : t('workbench.subtitle')}
           </Typography>
         </Box>
         {activeFindingsCount > 0 && (
           <Chip
             size="small"
             color="warning"
-            label={t("workbench.marks", { n: activeFindingsCount })}
+            label={t('workbench.marks', { n: activeFindingsCount })}
             sx={{ height: 20, fontSize: 10 }}
           />
         )}
         <Box sx={{ flex: 1 }} />
-        <Tooltip title={t("workbench.outlineToggle")}>
-          <IconButton size="small" onClick={() => setOutlineOpen((v) => !v)} color={outlineOpen ? "primary" : "default"} aria-label={t("workbench.outlineToggle")}>
+        <Tooltip title={t('workbench.outlineToggle')}>
+          <IconButton
+            size="small"
+            onClick={() => setOutlineOpen((v) => !v)}
+            color={outlineOpen ? 'primary' : 'default'}
+            aria-label={t('workbench.outlineToggle')}
+          >
             <ListAltIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title={t("workbench.aiToggle")}>
-          <IconButton size="small" onClick={() => setAiOpen((v) => !v)} color={aiOpen ? "primary" : "default"} aria-label={t("workbench.aiToggle")}>
+        <Tooltip title={t('workbench.aiToggle')}>
+          <IconButton
+            size="small"
+            onClick={() => setAiOpen((v) => !v)}
+            color={aiOpen ? 'primary' : 'default'}
+            aria-label={t('workbench.aiToggle')}
+          >
             <SmartToyIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title={t("workbench.terminalToggle")}>
-          <IconButton size="small" onClick={() => setTerminalOpen((v) => !v)} color={terminalOpen ? "primary" : "default"} aria-label={t("workbench.terminalToggle")}>
+        <Tooltip title={t('workbench.terminalToggle')}>
+          <IconButton
+            size="small"
+            onClick={() => setTerminalOpen((v) => !v)}
+            color={terminalOpen ? 'primary' : 'default'}
+            aria-label={t('workbench.terminalToggle')}
+          >
             <TerminalIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title={t("workbench.problemsToggle")}>
-          <IconButton size="small" onClick={() => useProblemsPanelStore.getState().toggle()} color={problemsOpen ? "primary" : "default"} aria-label={t("workbench.problemsToggle")}>
+        <Tooltip title={t('workbench.problemsToggle')}>
+          <IconButton
+            size="small"
+            onClick={() => useProblemsPanelStore.getState().toggle()}
+            color={problemsOpen ? 'primary' : 'default'}
+            aria-label={t('workbench.problemsToggle')}
+          >
             <ReportProblemIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title={t("workbench.close")}>
-          <IconButton size="small" onClick={onRequestClose} aria-label={t("workbench.close")}>
+        <Tooltip title={t('workbench.close')}>
+          <IconButton size="small" onClick={onRequestClose} aria-label={t('workbench.close')}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       </Box>
 
       {/* 主体：左栏(文件树+符号大纲) + 右编辑区 */}
-      <Box sx={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* 左侧栏：文件树与上方可折叠的符号大纲堆叠 */}
         <Box
           sx={{
-            width: 264,
+            width: treeWidth,
             flexShrink: 0,
             borderRight: 1,
-            borderColor: "divider",
-            bgcolor: "background.paper",
-            display: "flex",
-            flexDirection: "column",
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            display: 'flex',
+            flexDirection: 'column',
             minHeight: 0,
+            position: 'relative',
           }}
         >
+          {/* 左栏右缘拖拽手柄（对标 VS Code sidebar resize）：
+              12px 热区 保证可命中；常态可见的 4px 分隔缝提示可拖；hover/拖动时主色高亮反馈 */}
+          <Box
+            onMouseDown={startTreeDrag}
+            sx={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              right: -6,
+              width: 12,
+              cursor: 'col-resize',
+              zIndex: 2,
+              display: 'flex',
+              justifyContent: 'center',
+              transition: 'background-color 120ms',
+              bgcolor: treeDragActive ? 'primary.main' : 'transparent',
+              opacity: treeDragActive ? 0.12 : 1,
+              '&:hover': { bgcolor: 'primary.main', opacity: 0.1 },
+            }}
+          >
+            {/* 分隔缝：常态用 divider 色做「这条边能拖」的静默提示，拖动中随热区一起主色高亮 */}
+            <Box
+              sx={{
+                width: 4,
+                height: '100%',
+                background: treeDragActive ? 'primary.main' : 'divider',
+                opacity: treeDragActive ? 1 : 0.45,
+                transition: 'background-color 120ms, opacity 120ms',
+              }}
+            />
+          </Box>
           <Box sx={{ px: 1, pt: 0.5, pb: 0.5 }}>
             <TextField
               size="small"
               fullWidth
-              placeholder={t("workbench.filterPlaceholder")}
+              placeholder={t('workbench.filterPlaceholder')}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Escape") setFilter("");
-                if (e.key === "Enter") {
+                if (e.key === 'Escape') setFilter('');
+                if (e.key === 'Enter') {
                   const firstFile = displayTree.find((n) => n.fileId);
                   if (firstFile?.fileId) {
                     openFileInTab(firstFile.fileId);
@@ -2204,14 +2321,14 @@ export function CodeWorkbenchBody({
                   sx: { fontSize: 12 },
                 },
               }}
-              sx={{ "& .MuiInputBase-root": { height: 30 } }}
+              sx={{ '& .MuiInputBase-root': { height: 30 } }}
             />
           </Box>
           {/* 文件树滚动区 */}
-          <Box sx={{ flex: 1, overflow: "auto", minHeight: 0, py: 0.5 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, py: 0.5 }}>
             {displayTree.length === 0 ? (
-              <Typography variant="caption" color="text.disabled" sx={{ display: "block", px: 1.5, py: 1 }}>
-                {filteredTree ? t("workbench.noMatch") : t("workbench.empty")}
+              <Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.5, py: 1 }}>
+                {filteredTree ? t('workbench.noMatch') : t('workbench.empty')}
               </Typography>
             ) : (
               displayTree.map((n) => (
@@ -2233,8 +2350,8 @@ export function CodeWorkbenchBody({
           <Menu
             anchorReference="anchorPosition"
             anchorPosition={treeMenu ? { top: treeMenu.y + 4, left: treeMenu.x + 4 } : undefined}
-            anchorOrigin={{ vertical: "top", horizontal: "right" }}
-            transformOrigin={{ vertical: "top", horizontal: "left" }}
+            anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
             open={Boolean(treeMenu)}
             onClose={closeTreeMenu}
             slotProps={{ paper: { sx: treeMenuSx } }}
@@ -2247,8 +2364,8 @@ export function CodeWorkbenchBody({
                 const reveal = () => {
                   const p = absPathOf(node);
                   if (p) {
-                    void invoke("reveal_in_file_manager", { path: p }).catch(() => {});
-                    useToastStore.getState().info(t("projectTree.revealToast", { name: node.name }));
+                    void invoke('reveal_in_file_manager', { path: p }).catch(() => {});
+                    useToastStore.getState().info(t('projectTree.revealToast', { name: node.name }));
                   }
                   closeTreeMenu();
                 };
@@ -2256,14 +2373,22 @@ export function CodeWorkbenchBody({
                 const sections: { header: string; items: Item[] }[] = [];
                 if (!node.isDir) {
                   sections.push({
-                    header: t("projectTree.secActions"),
+                    header: t('projectTree.secActions'),
                     items: [
                       {
-                        label: t("workbench.treeMenu.openInSplit"),
+                        label: t('workbench.treeMenu.openInSplit'),
                         icon: <CodeIcon sx={{ fontSize: 16 }} />,
                         onClick: () => {
                           if (node.fileId) {
-                            openFileInSplit(node.fileId, node.path, node.name, node.language ?? null, null, "right", null);
+                            openFileInSplit(
+                              node.fileId,
+                              node.path,
+                              node.name,
+                              node.language ?? null,
+                              null,
+                              'right',
+                              null,
+                            );
                           }
                           closeTreeMenu();
                         },
@@ -2271,13 +2396,17 @@ export function CodeWorkbenchBody({
                     ],
                   });
                   sections.push({
-                    header: t("projectTree.secAi"),
+                    header: t('projectTree.secAi'),
                     items: [
                       {
-                        label: t("panel.menu.aiDiagnose"),
+                        label: t('panel.menu.aiDiagnose'),
                         icon: <AutoFixHighIcon sx={{ fontSize: 16 }} />,
                         onClick: () => {
-                          triggerDiagnosis({ filePath: node.path, kind: "file", title: t("projectTree.aiDiagnoseTitle", { name: node.name }) });
+                          triggerDiagnosis({
+                            filePath: node.path,
+                            kind: 'file',
+                            title: t('projectTree.aiDiagnoseTitle', { name: node.name }),
+                          });
                           closeTreeMenu();
                         },
                       },
@@ -2286,36 +2415,36 @@ export function CodeWorkbenchBody({
                 }
                 const copyItems: Item[] = [
                   {
-                    label: t("projectTree.copyDir"),
+                    label: t('projectTree.copyDir'),
                     icon: <FolderIcon sx={{ fontSize: 16 }} />,
-                    onClick: () => copyToClipboard(t("projectTree.copyDir"), node.isDir ? abs : dirOf(abs)),
+                    onClick: () => copyToClipboard(t('projectTree.copyDir'), node.isDir ? abs : dirOf(abs)),
                   },
                   ...(node.isDir
                     ? []
                     : [
                         {
-                          label: t("projectTree.copyFile"),
+                          label: t('projectTree.copyFile'),
                           icon: <InsertDriveFileIcon sx={{ fontSize: 16 }} />,
-                          onClick: () => copyToClipboard(t("projectTree.copyFile"), abs),
+                          onClick: () => copyToClipboard(t('projectTree.copyFile'), abs),
                         },
                       ]),
                   {
-                    label: t("projectTree.copyRel"),
+                    label: t('projectTree.copyRel'),
                     icon: <TextSnippetIcon sx={{ fontSize: 16 }} />,
-                    onClick: () => copyToClipboard(t("projectTree.copyRel"), node.isDir ? rel : dirOf(rel)),
+                    onClick: () => copyToClipboard(t('projectTree.copyRel'), node.isDir ? rel : dirOf(rel)),
                   },
                   {
-                    label: t("projectTree.copyName"),
+                    label: t('projectTree.copyName'),
                     icon: <LabelIcon sx={{ fontSize: 16 }} />,
-                    onClick: () => copyToClipboard(t("projectTree.copyName"), node.name),
+                    onClick: () => copyToClipboard(t('projectTree.copyName'), node.name),
                   },
                 ];
-                sections.push({ header: t("projectTree.copyHeader"), items: copyItems });
+                sections.push({ header: t('projectTree.copyHeader'), items: copyItems });
                 sections.push({
-                  header: t("projectTree.secSystem"),
+                  header: t('projectTree.secSystem'),
                   items: [
                     {
-                      label: t("workbench.tabMenu.revealInFileManager"),
+                      label: t('workbench.tabMenu.revealInFileManager'),
                       icon: <FolderOpenIcon sx={{ fontSize: 16 }} />,
                       onClick: reveal,
                     },
@@ -2334,7 +2463,7 @@ export function CodeWorkbenchBody({
                         {sec.items.map((it) => (
                           <MenuItem key={it.label} onClick={it.onClick} sx={treeItemSx}>
                             <ListItemIcon sx={{ minWidth: 28 }}>{it.icon}</ListItemIcon>
-                            <ListItemText primary={it.label} sx={{ "& .MuiListItemText-primary": { fontSize: 13 } }} />
+                            <ListItemText primary={it.label} sx={{ '& .MuiListItemText-primary': { fontSize: 13 } }} />
                           </MenuItem>
                         ))}
                       </Box>
@@ -2347,33 +2476,33 @@ export function CodeWorkbenchBody({
           {outlineOpen && (
             <Box
               sx={{
-                height: "52%",
+                height: '52%',
                 flexShrink: 0,
                 borderTop: 1,
-                borderColor: "divider",
-                display: "flex",
-                flexDirection: "column",
+                borderColor: 'divider',
+                display: 'flex',
+                flexDirection: 'column',
                 minHeight: 0,
               }}
             >
               {/* 标题行 + 视图模式切换 + 全部展开/折叠 */}
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, px: 1, py: 0.5 }}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", flex: 1 }}>
-                  {t("workbench.outlineTitle")}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', flex: 1 }}>
+                  {t('workbench.outlineTitle')}
                 </Typography>
                 {/* 视图模式切换：层级树 ↔ 按类型聚类（对标结构化符号导航，大文件一键跳到某类符号） */}
                 <Box
                   sx={{
-                    display: "flex",
+                    display: 'flex',
                     borderRadius: 1,
-                    overflow: "hidden",
-                    border: "1px solid",
-                    borderColor: "divider",
+                    overflow: 'hidden',
+                    border: '1px solid',
+                    borderColor: 'divider',
                     flexShrink: 0,
                   }}
-                  title={t("workbench.outlineToggleView")}
+                  title={t('workbench.outlineToggleView')}
                 >
-                  {(["tree", "kind"] as const).map((m) => (
+                  {(['tree', 'kind'] as const).map((m) => (
                     <Box
                       key={m}
                       onClick={() => setOutlineViewMode(m)}
@@ -2381,21 +2510,21 @@ export function CodeWorkbenchBody({
                         px: 0.6,
                         py: 0.2,
                         fontSize: 10,
-                        cursor: "pointer",
-                        userSelect: "none",
-                        bgcolor: outlineViewMode === m ? "primary.main" : "transparent",
-                        color: outlineViewMode === m ? "#fff" : "text.secondary",
-                        "&:hover": { bgcolor: outlineViewMode === m ? "primary.main" : "action.hover" },
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        bgcolor: outlineViewMode === m ? 'primary.main' : 'transparent',
+                        color: outlineViewMode === m ? '#fff' : 'text.secondary',
+                        '&:hover': { bgcolor: outlineViewMode === m ? 'primary.main' : 'action.hover' },
                       }}
                     >
-                      {m === "tree" ? t("workbench.outlineViewTree") : t("workbench.outlineViewKind")}
+                      {m === 'tree' ? t('workbench.outlineViewTree') : t('workbench.outlineViewKind')}
                     </Box>
                   ))}
                 </Box>
                 <Typography variant="caption" color="text.disabled">
                   {allOutlineNodes.length}
                 </Typography>
-                <Tooltip title={t("workbench.outlineExpandAll")}>
+                <Tooltip title={t('workbench.outlineExpandAll')}>
                   <IconButton
                     size="small"
                     sx={{ p: 0.25 }}
@@ -2403,23 +2532,23 @@ export function CodeWorkbenchBody({
                       setCollapsedOutline(new Set());
                       setCollapsedKind(new Set());
                     }}
-                   aria-label={t("workbench.outlineExpandAll")}>
+                    aria-label={t('workbench.outlineExpandAll')}
+                  >
                     <span style={{ fontSize: 12, lineHeight: 1 }}>▾▾</span>
                   </IconButton>
                 </Tooltip>
-                <Tooltip title={t("workbench.outlineCollapseAll")}>
+                <Tooltip title={t('workbench.outlineCollapseAll')}>
                   <IconButton
                     size="small"
                     sx={{ p: 0.25 }}
                     onClick={() => {
                       setCollapsedOutline(
-                        new Set(
-                          allOutlineNodes.filter((n) => n.children.length > 0).map((n) => n.sym.id),
-                        ),
+                        new Set(allOutlineNodes.filter((n) => n.children.length > 0).map((n) => n.sym.id)),
                       );
                       setCollapsedKind(new Set(kindGroups.map((g) => g.kind)));
                     }}
-                   aria-label={t("workbench.outlineCollapseAll")}>
+                    aria-label={t('workbench.outlineCollapseAll')}
+                  >
                     <span style={{ fontSize: 12, lineHeight: 1 }}>▸▸</span>
                   </IconButton>
                 </Tooltip>
@@ -2429,7 +2558,7 @@ export function CodeWorkbenchBody({
                 <TextField
                   size="small"
                   fullWidth
-                  placeholder={t("workbench.outlineFilter")}
+                  placeholder={t('workbench.outlineFilter')}
                   value={outlineQuery}
                   onChange={(e) => setOutlineQuery(e.target.value)}
                   slotProps={{
@@ -2442,20 +2571,20 @@ export function CodeWorkbenchBody({
                       sx: { fontSize: 12 },
                     },
                   }}
-                  sx={{ "& .MuiInputBase-root": { height: 28 } }}
+                  sx={{ '& .MuiInputBase-root': { height: 28 } }}
                 />
               </Box>
               {/* 层级树 */}
-              <Box ref={outlineListRef} sx={{ flex: 1, overflow: "auto", minHeight: 0, pb: 1 }}>
+              <Box ref={outlineListRef} sx={{ flex: 1, overflow: 'auto', minHeight: 0, pb: 1 }}>
                 {allOutlineNodes.length === 0 ? (
-                  <Typography variant="caption" color="text.disabled" sx={{ display: "block", px: 1.5, py: 1 }}>
-                    {t("workbench.noSymbols")}
+                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.5, py: 1 }}>
+                    {t('workbench.noSymbols')}
                   </Typography>
                 ) : filteredOutlineTree.length === 0 ? (
-                  <Typography variant="caption" color="text.disabled" sx={{ display: "block", px: 1.5, py: 1 }}>
-                    {t("workbench.noMatch")}
+                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 1.5, py: 1 }}>
+                    {t('workbench.noMatch')}
                   </Typography>
-                ) : outlineViewMode === "tree" ? (
+                ) : outlineViewMode === 'tree' ? (
                   (() => {
                     const renderNode = (n: OutlineNode): JSX.Element => {
                       const hasChildren = n.children.length > 0;
@@ -2469,19 +2598,19 @@ export function CodeWorkbenchBody({
                             onClick={() =>
                               useCodeWorkbenchStore
                                 .getState()
-                                .jumpTo(n.sym.lineStart, t("workbench.outlineJump", { name: n.sym.name }))
+                                .jumpTo(n.sym.lineStart, t('workbench.outlineJump', { name: n.sym.name }))
                             }
                             sx={{
-                              display: "flex",
-                              alignItems: "center",
+                              display: 'flex',
+                              alignItems: 'center',
                               gap: 0.5,
                               pl: `${indent}px`,
                               pr: 1,
                               py: 0.4,
-                              cursor: "pointer",
-                              borderLeft: `2px solid ${isActive ? "primary.main" : "transparent"}`,
-                              bgcolor: isActive ? "action.selected" : "transparent",
-                              "&:hover": { bgcolor: "action.hover" },
+                              cursor: 'pointer',
+                              borderLeft: `2px solid ${isActive ? 'primary.main' : 'transparent'}`,
+                              bgcolor: isActive ? 'action.selected' : 'transparent',
+                              '&:hover': { bgcolor: 'action.hover' },
                             }}
                           >
                             {hasChildren ? (
@@ -2500,11 +2629,11 @@ export function CodeWorkbenchBody({
                                   width: 14,
                                   flexShrink: 0,
                                   fontSize: 11,
-                                  color: "text.secondary",
-                                  cursor: "pointer",
+                                  color: 'text.secondary',
+                                  cursor: 'pointer',
                                 }}
                               >
-                                {collapsed ? "▸" : "▾"}
+                                {collapsed ? '▸' : '▾'}
                               </Box>
                             ) : (
                               <Box component="span" sx={{ width: 14, flexShrink: 0 }} />
@@ -2516,25 +2645,17 @@ export function CodeWorkbenchBody({
                                 width: 34,
                                 fontSize: 9,
                                 color: symbolKindColor(n.sym.kind),
-                                textTransform: "uppercase",
+                                textTransform: 'uppercase',
                                 fontWeight: 600,
                               }}
                               noWrap
                             >
                               {symbolKindLabel(n.sym.kind)}
                             </Typography>
-                            <Typography
-                              variant="caption"
-                              noWrap
-                              sx={{ flex: 1, fontWeight: isActive ? 700 : 500 }}
-                            >
+                            <Typography variant="caption" noWrap sx={{ flex: 1, fontWeight: isActive ? 700 : 500 }}>
                               {n.sym.name}
                             </Typography>
-                            <Typography
-                              variant="caption"
-                              color="text.disabled"
-                              sx={{ flexShrink: 0, fontSize: 10 }}
-                            >
+                            <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0, fontSize: 10 }}>
                               {n.sym.lineStart}
                             </Typography>
                           </Box>
@@ -2559,16 +2680,16 @@ export function CodeWorkbenchBody({
                             })
                           }
                           sx={{
-                            display: "flex",
-                            alignItems: "center",
+                            display: 'flex',
+                            alignItems: 'center',
                             gap: 0.5,
                             pl: 1,
                             pr: 1,
                             py: 0.4,
-                            cursor: "pointer",
-                            userSelect: "none",
-                            bgcolor: "action.selected",
-                            "&:hover": { bgcolor: "action.hover" },
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            bgcolor: 'action.selected',
+                            '&:hover': { bgcolor: 'action.hover' },
                           }}
                         >
                           <Typography
@@ -2578,7 +2699,7 @@ export function CodeWorkbenchBody({
                               fontWeight: 700,
                               flexShrink: 0,
                               color: symbolKindColor(g.kind),
-                              textTransform: "uppercase",
+                              textTransform: 'uppercase',
                             }}
                           >
                             {symbolKindLabel(g.kind)}
@@ -2586,8 +2707,8 @@ export function CodeWorkbenchBody({
                           <Typography variant="caption" color="text.disabled" sx={{ fontSize: 10 }}>
                             {g.items.length}
                           </Typography>
-                          <Box component="span" sx={{ fontSize: 11, color: "text.secondary", ml: "auto" }}>
-                            {isCollapsed ? "▸" : "▾"}
+                          <Box component="span" sx={{ fontSize: 11, color: 'text.secondary', ml: 'auto' }}>
+                            {isCollapsed ? '▸' : '▾'}
                           </Box>
                         </Box>
                         {!isCollapsed &&
@@ -2600,19 +2721,19 @@ export function CodeWorkbenchBody({
                                 onClick={() =>
                                   useCodeWorkbenchStore
                                     .getState()
-                                    .jumpTo(s.lineStart, t("workbench.outlineJump", { name: s.name }))
+                                    .jumpTo(s.lineStart, t('workbench.outlineJump', { name: s.name }))
                                 }
                                 sx={{
-                                  display: "flex",
-                                  alignItems: "center",
+                                  display: 'flex',
+                                  alignItems: 'center',
                                   gap: 0.5,
-                                  pl: "6px",
+                                  pl: '6px',
                                   pr: 1,
                                   py: 0.4,
-                                  cursor: "pointer",
-                                  borderLeft: `2px solid ${isActive ? "primary.main" : "transparent"}`,
-                                  bgcolor: isActive ? "action.selected" : "transparent",
-                                  "&:hover": { bgcolor: "action.hover" },
+                                  cursor: 'pointer',
+                                  borderLeft: `2px solid ${isActive ? 'primary.main' : 'transparent'}`,
+                                  bgcolor: isActive ? 'action.selected' : 'transparent',
+                                  '&:hover': { bgcolor: 'action.hover' },
                                 }}
                               >
                                 <Typography
@@ -2622,18 +2743,14 @@ export function CodeWorkbenchBody({
                                     width: 34,
                                     fontSize: 9,
                                     color: symbolKindColor(s.kind),
-                                    textTransform: "uppercase",
+                                    textTransform: 'uppercase',
                                     fontWeight: 600,
                                   }}
                                   noWrap
                                 >
                                   {symbolKindLabel(s.kind)}
                                 </Typography>
-                                <Typography
-                                  variant="caption"
-                                  noWrap
-                                  sx={{ flex: 1, fontWeight: isActive ? 700 : 500 }}
-                                >
+                                <Typography variant="caption" noWrap sx={{ flex: 1, fontWeight: isActive ? 700 : 500 }}>
                                   {s.name}
                                 </Typography>
                                 <Typography
@@ -2656,44 +2773,46 @@ export function CodeWorkbenchBody({
         </Box>
 
         {/* 多窗格编辑区（对标 Zed PaneGroup）：递归窗格树，各 axis 按自身 orientation 排布窗格 */}
-        <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
+        <Box
+          sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}
+        >
           <Box
             ref={paneContainerRef}
             sx={{
               flex: 1,
               minWidth: 0,
               minHeight: 0,
-              display: "flex",
-              flexDirection: "column",
-              userSelect: dragDivider !== null ? "none" : undefined,
+              display: 'flex',
+              flexDirection: 'column',
+              userSelect: dragDivider !== null ? 'none' : undefined,
             }}
           >
             {renderPaneNode(paneTree, null, 1)}
           </Box>
           {inlineOpen && (
-              <InlineChat
-                open={inlineOpen}
-                onClose={() => setInlineOpen(false)}
-                activeFile={
-                  activeTab
-                    ? {
-                        fileId: activeTab.fileId,
-                        relPath: activeTab.relPath,
-                        language: activeTab.language,
-                        name: activeTab.name,
-                        totalLines: activeTab.content?.totalLines,
-                      }
-                    : null
-                }
-                selection={selection}
-                editorRef={editorHandleRef}
-                onOpenPanel={() => {
-                  setInlineOpen(false);
-                  setAiOpen(true);
-                  setRightTab(0);
-                }}
-              />
-            )}
+            <InlineChat
+              open={inlineOpen}
+              onClose={() => setInlineOpen(false)}
+              activeFile={
+                activeTab
+                  ? {
+                      fileId: activeTab.fileId,
+                      relPath: activeTab.relPath,
+                      language: activeTab.language,
+                      name: activeTab.name,
+                      totalLines: activeTab.content?.totalLines,
+                    }
+                  : null
+              }
+              selection={selection}
+              editorRef={editorHandleRef}
+              onOpenPanel={() => {
+                setInlineOpen(false);
+                setAiOpen(true);
+                setRightTab(0);
+              }}
+            />
+          )}
         </Box>
 
         {/* 右侧 dock：tab 分栏（AI 助手 | 需求分析），两个 tab 共享同一宽度与拖拽手柄。
@@ -2704,31 +2823,53 @@ export function CodeWorkbenchBody({
               width: dockWidth,
               flexShrink: 0,
               borderLeft: 1,
-              borderColor: "divider",
-              bgcolor: "background.paper",
-              display: "flex",
-              flexDirection: "column",
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+              display: 'flex',
+              flexDirection: 'column',
               minHeight: 0,
-              position: "relative",
+              position: 'relative',
             }}
           >
             {/* 拖拽手柄（共享宽度，整块 dock 可拖） */}
             <Box
               onMouseDown={startDockDrag}
-              sx={{ position: "absolute", left: -3, top: 0, bottom: 0, width: 6, cursor: "col-resize", zIndex: 5, "&:hover": { bgcolor: "primary.main", opacity: 0.3 } }}
+              sx={{
+                position: 'absolute',
+                left: -3,
+                top: 0,
+                bottom: 0,
+                width: 6,
+                cursor: 'col-resize',
+                zIndex: 5,
+                '&:hover': { bgcolor: 'primary.main', opacity: 0.3 },
+              }}
             />
             {/* tab 栏 */}
-            <Box sx={{ display: "flex", alignItems: "center", borderBottom: 1, borderColor: "divider", pl: 0.5, pr: 0.25 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider', pl: 0.5, pr: 0.25 }}
+            >
               <Tabs value={rightTab} onChange={(_e, v) => setRightTab(v)} sx={{ minHeight: 34, flex: 1 }}>
-                <Tab label={t("workbench.tab.ai")} sx={{ minHeight: 34, py: 0.5, fontSize: 12, textTransform: "none" }} />
-                <Tab label={t("workbench.tab.requirements")} sx={{ minHeight: 34, py: 0.5, fontSize: 12, textTransform: "none" }} />
+                <Tab
+                  label={t('workbench.tab.ai')}
+                  sx={{ minHeight: 34, py: 0.5, fontSize: 12, textTransform: 'none' }}
+                />
+                <Tab
+                  label={t('workbench.tab.requirements')}
+                  sx={{ minHeight: 34, py: 0.5, fontSize: 12, textTransform: 'none' }}
+                />
               </Tabs>
-              <IconButton size="small" onClick={() => setAiOpen(false)} sx={{ flexShrink: 0 }} aria-label={t("workbench.close")}>
+              <IconButton
+                size="small"
+                onClick={() => setAiOpen(false)}
+                sx={{ flexShrink: 0 }}
+                aria-label={t('workbench.close')}
+              >
                 <CloseIcon fontSize="small" />
               </IconButton>
             </Box>
             {/* tab 内容 */}
-            <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               {rightTab === 0 && (
                 <WorkbenchAiPanel
                   activeFile={
@@ -2770,7 +2911,7 @@ export function CodeWorkbenchBody({
             height: 240,
             flexShrink: 0,
             borderTop: 1,
-            borderColor: "divider",
+            borderColor: 'divider',
             minHeight: 0,
           }}
         >
@@ -2784,7 +2925,7 @@ export function CodeWorkbenchBody({
         onPick={(fid, line, col) => openFileInTab(fid, line, col)}
         onPickSplit={(fid, line, col, dir) => {
           const f = files.find((x) => x.id === fid);
-          if (f) openFileInSplit(f.id, f.relPath, f.name, f.language, line ?? null, dir ?? "right", col ?? null);
+          if (f) openFileInSplit(f.id, f.relPath, f.name, f.language, line ?? null, dir ?? 'right', col ?? null);
         }}
       />
       <GoToSymbol
@@ -2794,77 +2935,64 @@ export function CodeWorkbenchBody({
         onPickSplit={openFileInSplit}
         files={files}
         onPick={(fileId, relPath, name, language, line) =>
-          openTab(fileId, relPath, name, language, line, t("workbench.symbolJump", { name }))
+          openTab(fileId, relPath, name, language, line, t('workbench.symbolJump', { name }))
         }
       />
       <CommandPalette
         open={cmdPaletteOpen}
         onClose={() => setCmdPaletteOpen(false)}
         commands={workbenchCommands}
-        title={t("workbench.commandPalette")}
-        placeholder={t("workbench.commandPalettePlaceholder")}
-        emptyText={t("workbench.commandPaletteEmpty")}
+        title={t('workbench.commandPalette')}
+        placeholder={t('workbench.commandPalettePlaceholder')}
+        emptyText={t('workbench.commandPaletteEmpty')}
       />
-      <GotoLineDialog
-        open={gotoOpen}
-        onClose={() => setGotoOpen(false)}
-        editorHandleRef={editorHandleRef}
-      />
+      <GotoLineDialog open={gotoOpen} onClose={() => setGotoOpen(false)} editorHandleRef={editorHandleRef} />
       {/* 查看书签清单（对标 Zed ViewBookmarks：全部书签聚合为可跳转清单；点击即跳、Delete 即删） */}
       <BookmarkPicker
         open={bookmarkPickerOpen}
         onClose={() => setBookmarkPickerOpen(false)}
         onPick={(fileId, line) => openFileInTab(fileId, line)}
       />
-      <WorkbenchSearchPanel
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        onJump={handleSearchJump}
-      />
-      {problemsOpen && (
-        <WorkbenchProblemsPanel onClose={() => setProblemsOpen(false)} onJump={handleOpenPath} />
-      )}
+      <WorkbenchSearchPanel open={searchOpen} onClose={() => setSearchOpen(false)} onJump={handleSearchJump} />
+      {problemsOpen && <WorkbenchProblemsPanel onClose={() => setProblemsOpen(false)} onJump={handleOpenPath} />}
 
       {/* 重命名符号对话框（对标 Zed editor::Rename 的内联确认：预填旧名 → 确认跨文件改写） */}
-      <Dialog
-        open={renameOpen}
-        onClose={() => !renameBusy && setRenameOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
+      <Dialog open={renameOpen} onClose={() => !renameBusy && setRenameOpen(false)} maxWidth="xs" fullWidth>
         <Box sx={{ p: 2.5 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-            {t("workbench.rename.title")}
+            {t('workbench.rename.title')}
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-            <Box component="span" sx={{ fontFamily: "monospace", fontWeight: 700 }}>{renameOld}</Box>
-            {" → "}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            <Box component="span" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
+              {renameOld}
+            </Box>
+            {' → '}
             {renameIndexed
-              ? t("workbench.rename.summary", {
+              ? t('workbench.rename.summary', {
                   count: renameTargets.length,
                   files: new Set(renameTargets.map((x) => x.fileId)).size,
                 })
-              : t("workbench.rename.currentFileOnly", { count: renameTargets.length })}
+              : t('workbench.rename.currentFileOnly', { count: renameTargets.length })}
           </Typography>
           <TextField
             autoFocus
             fullWidth
             size="small"
             value={renameNew}
-            placeholder={t("workbench.rename.placeholder")}
+            placeholder={t('workbench.rename.placeholder')}
             onChange={(e) => setRenameNew(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") confirmRename();
-              else if (e.key === "Escape") setRenameOpen(false);
+              if (e.key === 'Enter') confirmRename();
+              else if (e.key === 'Escape') setRenameOpen(false);
             }}
             sx={{ mb: 1 }}
           />
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
-            {t("workbench.rename.note")}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+            {t('workbench.rename.note')}
           </Typography>
-          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
             <Button size="small" disabled={renameBusy} onClick={() => setRenameOpen(false)}>
-              {t("workbench.rename.cancel")}
+              {t('workbench.rename.cancel')}
             </Button>
             <Button
               size="small"
@@ -2873,7 +3001,7 @@ export function CodeWorkbenchBody({
               onClick={confirmRename}
               startIcon={renameBusy ? <CircularProgress size={14} color="inherit" /> : null}
             >
-              {renameBusy ? t("workbench.rename.busy") : t("workbench.rename.confirm")}
+              {renameBusy ? t('workbench.rename.busy') : t('workbench.rename.confirm')}
             </Button>
           </Box>
         </Box>
@@ -2885,7 +3013,7 @@ export function CodeWorkbenchBody({
         candidates={defPickerCandidates}
         files={files}
         onPick={(fileId, relPath, name, language, line) => {
-          openWorkbenchTab(fileId, line, t("workbench.jumpToSymbol", { name }));
+          openWorkbenchTab(fileId, line, t('workbench.jumpToSymbol', { name }));
           setDefPickerOpen(false);
         }}
         onPickSplit={openFileInSplit}
@@ -2898,14 +3026,8 @@ export function CodeWorkbench() {
   const open = useCodeWorkbenchStore((s) => s.open);
   const close = useCodeWorkbenchStore((s) => s.close);
   return (
-    <Dialog
-      open={open}
-      onClose={close}
-      fullScreen
-      slotProps={{ paper: { sx: { bgcolor: "background.default" } } }}
-    >
+    <Dialog open={open} onClose={close} fullScreen slotProps={{ paper: { sx: { bgcolor: 'background.default' } } }}>
       <CodeWorkbenchBody onRequestClose={close} showBackButton />
     </Dialog>
   );
 }
-

@@ -9,12 +9,11 @@
 //! 与 `file_watcher` 联动：写盘后文件监视器会 emit `file-changes`，
 //! 前端据此走 handleFileChanges 增量重扫（metrics/结构/引用/技术债全链路刷新）。
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter, State};
 
-use crate::domain::project_files::models::ProjectFile;
 use crate::error::AppResult;
 use crate::infrastructure::database::project_file_repository::{
     ProjectFileRepository, SqliteProjectFileRepository,
@@ -291,6 +290,8 @@ pub async fn revert_code_changes_by_conversation(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::project_files::ProjectFile;
+    use std::path::Path;
 
     #[test]
     fn delta_lines_positive_negative() {

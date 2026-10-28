@@ -6,7 +6,7 @@
 // 由主窗口接管（跨窗口精确联动，见 utils/writingDeskJump）。
 import type { WritingForeshadowing } from '../../services/tauri';
 import type { WritingChapter } from '../../services/writing';
-import type { ProofreadIssue } from '../../utils/writingProofread';
+import type { ProofreadFinding } from '../../utils/writingProofread';
 import { beatEventText, beatImported } from '../../utils/writingTimeline';
 import { computeWritingKpis, buildChapterWordRows } from '../../utils/writingStats';
 import { dispatchChapterJump } from '../../utils/writingDeskJump';
@@ -137,7 +137,7 @@ export function InspirationReminder({
 
 /** 校对提醒条：当前章有文本发现（错别字/重复用词/敏感词/长段等）时轻量提示，
  *  点击跳校对页签并定位到该 issue（T5 proofreadFocusKey 精确联动）。 */
-export function ProofreadReminder({ issues, genre }: { issues: ProofreadIssue[]; genre: string }) {
+export function ProofreadReminder({ issues, genre }: { issues: ProofreadFinding[]; genre: string }) {
   if (issues.length === 0) return null;
   const hasBlock = issues.some((i) => i.severity === 'block');
   return (

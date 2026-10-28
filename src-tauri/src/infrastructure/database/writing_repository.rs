@@ -1,11 +1,11 @@
 use crate::domain::writing::{
-    CompletedWork, WritingAnnotation, WritingBook, WritingChapter, WritingChapterSnapshot,
-    WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline, WritingSetting,
-    WritingStoryline, WritingTimelineEvent,
+    CompletedWork, ExternalCapture, ExternalCaptureKind, WritingAnnotation, WritingBook,
+    WritingChapter, WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing, WritingNote,
+    WritingOutline, WritingSetting, WritingSettingRevision, WritingStoryline, WritingTimelineEvent,
 };
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::Database;
-use rusqlite::OptionalExtension;
+
 use std::sync::Arc;
 
 /// 写作域仓储（Sight Folio）
@@ -55,11 +55,36 @@ pub trait WritingRepository: Send + Sync {
         chapter_id: &str,
         limit: i64,
     ) -> AppResult<Vec<WritingChapterSnapshot>>;
+    /// 重命名快照：只更新 `name` 一列（与 `set_chapter_storyline`、`rename_chapter`
+    /// 同一防整行覆写原则——绝不把前端内存里的旧 content 写回去）。
+    /// 传 `None`/空白 = 清除自定义名，列表回退显示 origin 文案。
+    fn rename_chapter_snapshot(&self, snapshot_id: &str, name: Option<&str>) -> AppResult<()>;
+    /// 存一次设定卡改写的**旧值**（新值即 `writing_settings` 当前行），并按卡滚动裁剪。
+    /// 追加与裁剪同一事务——与章节快照同一规矩，避免「存了新的、旧的没裁」的漂移。
+    fn save_setting_revision(
+        &self,
+        revision: &WritingSettingRevision,
+        keep_per_setting: i64,
+    ) -> AppResult<()>;
+    /// 某张卡的改写历史（`created_at` 倒序）。
+    fn list_setting_revisions(
+        &self,
+        setting_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<WritingSettingRevision>>;
     /// 删除传播矩阵（P0 一致性）：删章不删关联内容（零强制）——
     /// 时间线事件、伏笔、大纲均保留，仅把指向该章的引用解绑回「未绑定章」。
     fn delete_chapter(&self, id: &str) -> AppResult<()>;
     fn list_settings(&self, book_id: &str, kind: &str) -> AppResult<Vec<WritingSetting>>;
     fn save_setting(&self, setting: &WritingSetting) -> AppResult<()>;
+    /// 按 id 读单张卡。恢复历史时要精确取一张，不必为此遍历整本书的两种 kind。
+    fn get_setting(&self, id: &str) -> AppResult<Option<WritingSetting>>;
+    /// 取某卡的一条修订历史。**限定属于该卡**——否则会拿 A 卡的历史去覆写 B 卡。
+    fn get_setting_revision(
+        &self,
+        revision_id: &str,
+        setting_id: &str,
+    ) -> AppResult<Option<WritingSettingRevision>>;
     /// 删除传播矩阵（P0 一致性）：删设定不删事件（零强制）——
     /// 挂在设定卡上的时间线事件保留，仅 setting_id 解绑回「书级事件」。
     fn delete_setting(&self, id: &str) -> AppResult<()>;
@@ -88,6 +113,7 @@ pub trait WritingRepository: Send + Sync {
     fn list_annotations(&self, chapter_id: &str) -> AppResult<Vec<WritingAnnotation>>;
     fn save_annotation(&self, item: &WritingAnnotation) -> AppResult<()>;
     fn delete_annotation(&self, id: &str) -> AppResult<()>;
+    fn list_annotations_by_setting(&self, setting_id: &str) -> AppResult<Vec<WritingAnnotation>>;
     /// 完结作品记录（Phase 2）：按导出时间倒序列出全部。
     fn list_completed_works(&self) -> AppResult<Vec<CompletedWork>>;
     /// 落一条完结作品记录（INSERT OR REPLACE，前端持完整对象）。
@@ -110,6 +136,11 @@ pub trait WritingRepository: Send + Sync {
     fn count_completed_works(&self, book_id: &str, format: &str) -> AppResult<i64>;
     /// 回写源文件缺失标记（列表加载时顺带检测磁盘后落库，未来可作为定时探测的落点）。
     fn set_completed_work_missing(&self, id: &str, is_missing: bool) -> AppResult<()>;
+    /// 外部素材采集（Phase 1）：按书列出（created_at 倒序；book_id='' = 全局素材）。
+    fn list_external_captures(&self, book_id: &str) -> AppResult<Vec<ExternalCapture>>;
+    /// 落一条外部素材（INSERT OR REPLACE，前端持完整对象；kind 存小写枚举名）。
+    fn save_external_capture(&self, item: &ExternalCapture) -> AppResult<()>;
+    fn delete_external_capture(&self, id: &str) -> AppResult<()>;
 }
 
 pub struct SqliteWritingRepository {
@@ -200,11 +231,66 @@ const STORYLINE_COLS: &str =
     "id, book_id, name, color, description, sort_order, created_at, updated_at";
 const FORESHADOWING_COLS: &str =
     "id, book_id, title, description, plant_chapter_id, payoff_chapter_id, status, storyline_id, sort_order, created_at, updated_at";
-const SNAPSHOT_COLS: &str = "id, chapter_id, book_id, content, word_count, origin, created_at";
+const SNAPSHOT_COLS: &str =
+    "id, chapter_id, book_id, content, word_count, origin, created_at, name";
 
-const ANNOTATION_COLS: &str = "id, chapter_id, book_id, text, excerpt, created_at, updated_at";
+/// 设定卡历史每卡保留份数。
+///
+/// 定义在仓储层而不是 AI 工具层：写历史的有两条路径（AI 改写、作者恢复），
+/// "保留多少份"必须只有一个数字可改。
+pub const SETTING_REVISION_KEEP: i64 = 20;
+/// 修订来源。`ai` = AI 改写前的旧值；`restore` = 作者恢复到历史版本前的当前值。
+pub const SETTING_REVISION_ORIGIN_AI: &str = "ai";
+pub const SETTING_REVISION_ORIGIN_RESTORE: &str = "restore";
+
+/// 设定卡修订历史的显式列清单（与表实际列的一致性由 `cols_lists_cover_every_column_of_each_table` 锁）
+const SETTING_REVISION_COLS: &str =
+    "id, setting_id, book_id, name, subtitle, description, extra, origin, created_at";
+
+const ANNOTATION_COLS: &str =
+    "id, chapter_id, book_id, setting_id, text, excerpt, created_at, updated_at";
 
 const NOTE_COLS: &str = "id, book_id, chapter_id, content, tags, pin, created_at, updated_at";
+
+const EXTERNAL_CAPTURE_COLS: &str =
+    "id, book_id, kind, source_raw, extracted_text, analysis_json, title, tags, target_use, created_at, updated_at";
+
+/// 枚举 → 库内小写键（与前端 camelCase 序列化对齐：Image→image ...）。
+fn external_kind_db_key(kind: &ExternalCaptureKind) -> &'static str {
+    match kind {
+        ExternalCaptureKind::Image => "image",
+        ExternalCaptureKind::Text => "text",
+        ExternalCaptureKind::Note => "note",
+        ExternalCaptureKind::Link => "link",
+    }
+}
+
+/// 库内小写键 → 枚举；未知值兜底 Text（旧数据/手写值不崩）。
+fn external_kind_from_key(key: &str) -> ExternalCaptureKind {
+    match key {
+        "image" => ExternalCaptureKind::Image,
+        "note" => ExternalCaptureKind::Note,
+        "link" => ExternalCaptureKind::Link,
+        _ => ExternalCaptureKind::Text,
+    }
+}
+
+fn row_to_external_capture(row: &rusqlite::Row) -> rusqlite::Result<ExternalCapture> {
+    let kind_key: String = row.get("kind")?;
+    Ok(ExternalCapture {
+        id: row.get("id")?,
+        book_id: row.get("book_id")?,
+        kind: external_kind_from_key(&kind_key),
+        source_raw: row.get("source_raw")?,
+        extracted_text: row.get("extracted_text")?,
+        analysis_json: row.get("analysis_json")?,
+        title: row.get("title")?,
+        tags: row.get("tags")?,
+        target_use: row.get("target_use")?,
+        created_at: row.get("created_at")?,
+        updated_at: row.get("updated_at")?,
+    })
+}
 
 const COMPLETED_WORK_COLS: &str =
     "id, book_id, book_title, format, file_path, file_size, is_file_missing, word_count, chapter_count, created_at";
@@ -229,6 +315,7 @@ fn row_to_annotation(row: &rusqlite::Row) -> rusqlite::Result<WritingAnnotation>
         id: row.get("id")?,
         chapter_id: row.get("chapter_id")?,
         book_id: row.get("book_id")?,
+        setting_id: row.get("setting_id")?,
         text: row.get("text")?,
         excerpt: row.get("excerpt")?,
         created_at: row.get("created_at")?,
@@ -256,6 +343,24 @@ fn row_to_snapshot(row: &rusqlite::Row) -> rusqlite::Result<WritingChapterSnapsh
         book_id: row.get("book_id")?,
         content: row.get("content")?,
         word_count: row.get("word_count")?,
+        origin: row.get("origin")?,
+        created_at: row.get("created_at")?,
+        name: row
+            .get::<_, String>("name")
+            .ok()
+            .filter(|s| !s.trim().is_empty()),
+    })
+}
+
+fn row_to_revision(row: &rusqlite::Row) -> rusqlite::Result<WritingSettingRevision> {
+    Ok(WritingSettingRevision {
+        id: row.get("id")?,
+        setting_id: row.get("setting_id")?,
+        book_id: row.get("book_id")?,
+        name: row.get("name")?,
+        subtitle: row.get("subtitle")?,
+        description: row.get("description")?,
+        extra: row.get("extra")?,
         origin: row.get("origin")?,
         created_at: row.get("created_at")?,
     })
@@ -530,8 +635,8 @@ impl WritingRepository for SqliteWritingRepository {
         let tx = conn.transaction()?;
         tx.execute(
             "INSERT OR REPLACE INTO writing_chapter_snapshots
-             (id, chapter_id, book_id, content, word_count, origin, created_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7)",
+             (id, chapter_id, book_id, content, word_count, origin, created_at, name)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             rusqlite::params![
                 snapshot.id,
                 snapshot.chapter_id,
@@ -540,6 +645,7 @@ impl WritingRepository for SqliteWritingRepository {
                 snapshot.word_count,
                 snapshot.origin,
                 snapshot.created_at,
+                snapshot.name.clone().unwrap_or_default(),
             ],
         )?;
         tx.execute(
@@ -569,6 +675,86 @@ impl WritingRepository for SqliteWritingRepository {
         ))?;
         let rows = stmt
             .query_map(rusqlite::params![chapter_id, limit], row_to_snapshot)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    fn rename_chapter_snapshot(&self, snapshot_id: &str, name: Option<&str>) -> AppResult<()> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let trimmed = name.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("");
+        let hit = conn.execute(
+            "UPDATE writing_chapter_snapshots SET name = ?2 WHERE id = ?1",
+            rusqlite::params![snapshot_id, trimmed],
+        )?;
+        // 0 行 = 该快照已被每章上限裁掉或 id 不存在。不静默成功：
+        // 前端据此回滚乐观更新并提示，避免用户以为名字存下来了。
+        if hit == 0 {
+            return Err(AppError::NotFound(format!(
+                "snapshot {snapshot_id} not found"
+            )));
+        }
+        Ok(())
+    }
+
+    fn save_setting_revision(
+        &self,
+        revision: &WritingSettingRevision,
+        keep_per_setting: i64,
+    ) -> AppResult<()> {
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        // 追加 + 裁剪同一事务：任一步失败整体回滚（与章节快照同规矩）
+        let tx = conn.transaction()?;
+        tx.execute(
+            "INSERT OR REPLACE INTO writing_setting_revisions
+             (id, setting_id, book_id, name, subtitle, description, extra, origin, created_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            rusqlite::params![
+                revision.id,
+                revision.setting_id,
+                revision.book_id,
+                revision.name,
+                revision.subtitle,
+                revision.description,
+                revision.extra,
+                revision.origin,
+                revision.created_at,
+            ],
+        )?;
+        tx.execute(
+            "DELETE FROM writing_setting_revisions WHERE setting_id = ?1 AND id NOT IN (
+                 SELECT id FROM writing_setting_revisions WHERE setting_id = ?1
+                 ORDER BY created_at DESC, id DESC LIMIT ?2
+             )",
+            rusqlite::params![revision.setting_id, keep_per_setting],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn list_setting_revisions(
+        &self,
+        setting_id: &str,
+        limit: i64,
+    ) -> AppResult<Vec<WritingSettingRevision>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SETTING_REVISION_COLS} FROM writing_setting_revisions WHERE setting_id = ?1 \
+             ORDER BY created_at DESC, id DESC LIMIT ?2"
+        ))?;
+        let rows = stmt
+            .query_map(rusqlite::params![setting_id, limit], row_to_revision)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     }
@@ -660,6 +846,59 @@ impl WritingRepository for SqliteWritingRepository {
         Ok(())
     }
 
+    fn list_external_captures(&self, book_id: &str) -> AppResult<Vec<ExternalCapture>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {EXTERNAL_CAPTURE_COLS} FROM external_captures WHERE book_id = ?1 \
+             ORDER BY created_at DESC, id DESC"
+        ))?;
+        let rows = stmt
+            .query_map([book_id], row_to_external_capture)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    fn save_external_capture(&self, item: &ExternalCapture) -> AppResult<()> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "INSERT OR REPLACE INTO external_captures
+             (id, book_id, kind, source_raw, extracted_text, analysis_json, title, tags, target_use, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+            rusqlite::params![
+                item.id,
+                item.book_id,
+                external_kind_db_key(&item.kind),
+                item.source_raw,
+                item.extracted_text,
+                item.analysis_json,
+                item.title,
+                item.tags,
+                item.target_use,
+                item.created_at,
+                item.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    fn delete_external_capture(&self, id: &str) -> AppResult<()> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute("DELETE FROM external_captures WHERE id = ?1", [id])?;
+        Ok(())
+    }
+
     fn unbind_notes_from_chapter(&self, chapter_id: &str) -> AppResult<()> {
         let conn = self
             .db
@@ -712,6 +951,40 @@ impl WritingRepository for SqliteWritingRepository {
             ],
         )?;
         Ok(())
+    }
+
+    fn get_setting(&self, id: &str) -> AppResult<Option<WritingSetting>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SETTING_COLS} FROM writing_settings WHERE id = ?1"
+        ))?;
+        let found = stmt.query_map([id], row_to_setting)?.next().transpose()?;
+        Ok(found)
+    }
+
+    fn get_setting_revision(
+        &self,
+        revision_id: &str,
+        setting_id: &str,
+    ) -> AppResult<Option<WritingSettingRevision>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SETTING_REVISION_COLS} FROM writing_setting_revisions \
+             WHERE id = ?1 AND setting_id = ?2"
+        ))?;
+        let found = stmt
+            .query_map(rusqlite::params![revision_id, setting_id], row_to_revision)?
+            .next()
+            .transpose()?;
+        Ok(found)
     }
 
     fn delete_setting(&self, id: &str) -> AppResult<()> {
@@ -919,27 +1192,30 @@ impl WritingRepository for SqliteWritingRepository {
     }
 
     fn delete_storyline(&self, id: &str) -> AppResult<()> {
-        let conn = self
+        let mut conn = self
             .db
             .0
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM writing_storylines WHERE id = ?1", [id])?;
+        // 删线与三处解绑必须在同一事务：任一步失败整体回滚，避免留下「线没了、引用还挂着」的孤立状态
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM writing_storylines WHERE id = ?1", [id])?;
         // 删线不删事件：挂线事件回到「未挂线」（零强制）。
-        conn.execute(
+        tx.execute(
             "UPDATE writing_timeline_events SET storyline_id = NULL WHERE storyline_id = ?1",
             [id],
         )?;
         // 删线同样不删伏笔：挂线伏笔回到「未挂线」（零强制）。
-        conn.execute(
+        tx.execute(
             "UPDATE writing_foreshadowings SET storyline_id = NULL WHERE storyline_id = ?1",
             [id],
         )?;
         // 删线不删章节（零强制）：挂线章节回到「未挂线」（G1 章→线直连后同步解绑）。
-        conn.execute(
+        tx.execute(
             "UPDATE writing_chapters SET storyline_id = NULL WHERE storyline_id = ?1",
             [id],
         )?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -1019,12 +1295,13 @@ impl WritingRepository for SqliteWritingRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_annotations
-             (id, chapter_id, book_id, text, excerpt, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7)",
+             (id, chapter_id, book_id, setting_id, text, excerpt, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             rusqlite::params![
                 item.id,
                 item.chapter_id,
                 item.book_id,
+                item.setting_id,
                 item.text,
                 item.excerpt,
                 item.created_at,
@@ -1042,6 +1319,23 @@ impl WritingRepository for SqliteWritingRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute("DELETE FROM writing_annotations WHERE id = ?1", [id])?;
         Ok(())
+    }
+
+    /// 按关联设定卡反查全书批注（人物/世界观右栏「正文批注引用」反向视图）。
+    fn list_annotations_by_setting(&self, setting_id: &str) -> AppResult<Vec<WritingAnnotation>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {ANNOTATION_COLS} FROM writing_annotations WHERE setting_id = ?1 \
+             ORDER BY created_at DESC, id DESC"
+        ))?;
+        let rows = stmt
+            .query_map([setting_id], row_to_annotation)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
     }
 
     fn list_completed_works(&self) -> AppResult<Vec<CompletedWork>> {
@@ -1228,6 +1522,7 @@ mod tests {
             ("writing_storylines", STORYLINE_COLS),
             ("writing_foreshadowings", FORESHADOWING_COLS),
             ("writing_chapter_snapshots", SNAPSHOT_COLS),
+            ("writing_setting_revisions", SETTING_REVISION_COLS),
             ("writing_annotations", ANNOTATION_COLS),
             ("writing_notes", NOTE_COLS),
             ("completed_works", COMPLETED_WORK_COLS),
@@ -1384,6 +1679,7 @@ mod tests {
                     word_count: i,
                     origin: "auto".into(),
                     created_at: 1_700_000_000 + i,
+                    name: None,
                 },
                 20,
             )
@@ -1394,6 +1690,60 @@ mod tests {
         // 倒序：最新在前
         assert_eq!(listed[0].id, "snap_24");
         assert_eq!(listed[19].id, "snap_05", "最旧的 5 份应被裁掉");
+    }
+
+    /// 快照重命名（批次① 接断线）：改名必须真落库、只动 name 一列、
+    /// 空白视为清除，且不存在的 id 不能静默成功（前端要据此回滚乐观更新）。
+    #[test]
+    fn snapshot_rename_persists_clears_and_rejects_unknown() {
+        let repo = make_repo();
+        let book = sample_book("book_snap_rename");
+        repo.save_book(&book).unwrap();
+
+        let mk = |i: i64| WritingChapterSnapshot {
+            id: format!("snap_{i}"),
+            chapter_id: "ch_snap".into(),
+            book_id: "book_snap_rename".into(),
+            content: format!("<p>v{i}</p>"),
+            word_count: i,
+            origin: "manual".into(),
+            created_at: 1_700_000_000 + i,
+            name: None,
+        };
+        repo.save_chapter_snapshot(&mk(1), 20).unwrap();
+        repo.save_chapter_snapshot(&mk(2), 20).unwrap();
+        assert!(repo
+            .list_chapter_snapshots("ch_snap", 20)
+            .unwrap()
+            .iter()
+            .all(|s| s.name.is_none()));
+
+        // 改名：首尾空白裁掉后落库，其余列不得被覆写
+        repo.rename_chapter_snapshot("snap_1", Some("  定稿前  "))
+            .unwrap();
+        let listed = repo.list_chapter_snapshots("ch_snap", 20).unwrap();
+        let s1 = listed.iter().find(|s| s.id == "snap_1").unwrap();
+        assert_eq!(s1.name.as_deref(), Some("定稿前"));
+        assert_eq!(s1.content, "<p>v1</p>", "改名不得覆写正文");
+        assert_eq!(s1.origin, "manual", "改名不得改来源标记");
+        // 另一份不受影响
+        let s2 = listed.iter().find(|s| s.id == "snap_2").unwrap();
+        assert!(s2.name.is_none());
+
+        // 清除自定义名 → 读回 None（前端据此回退 origin 文案）
+        repo.rename_chapter_snapshot("snap_1", Some("   ")).unwrap();
+        let listed = repo.list_chapter_snapshots("ch_snap", 20).unwrap();
+        assert!(listed
+            .iter()
+            .find(|s| s.id == "snap_1")
+            .unwrap()
+            .name
+            .is_none());
+
+        // 已被裁掉 / 不存在的 id：必须报错，不能静默成功
+        assert!(repo
+            .rename_chapter_snapshot("snap_nope", Some("x"))
+            .is_err());
     }
 
     #[test]
@@ -1878,7 +2228,13 @@ mod tests {
             .unwrap();
         repo.save_foreshadowing(&sample_foreshadowing(&book.id, "fs_del", "删书伏笔"))
             .unwrap();
-        repo.record_daily_snapshot(&book.id, "2026-09-19").unwrap();
+        // list_daily_stats 按 date('now') 相对窗口过滤，快照日期必须取"今天"，
+        // 否则硬编码日期会随时间推移滑出窗口（曾因硬编码 2026-09-19 在 30 天后失效）。
+        let today = chrono::Utc::now()
+            .date_naive()
+            .format("%Y-%m-%d")
+            .to_string();
+        repo.record_daily_snapshot(&book.id, &today).unwrap();
 
         // 前置：每张子表都有数据，删书才有意义
         assert_eq!(repo.list_settings(&book.id, "character").unwrap().len(), 1);

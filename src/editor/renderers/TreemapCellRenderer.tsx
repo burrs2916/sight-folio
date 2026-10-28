@@ -60,9 +60,10 @@ export function TreemapCellRenderer(props: TreemapCellRendererProps) {
     <Box
       title={
         `${name}\n` +
-        `文件数 ${config.fileCount ?? 0}（${pct.toFixed(1)}%）· Ce ${config.ce ?? 0} · Ca ${config.ca ?? 0}\n` +
-        `不稳定性 I ${(config.instability ?? 0).toFixed(2)} · 抽象度 A ${(config.abstractness ?? 0).toFixed(2)}` +
-        (config.inCycle ? "\n⚠ 处于循环依赖环" : "")
+        t("editor.treemap.filesShare", { n: config.fileCount ?? 0, pct: pct.toFixed(1), ce: config.ce ?? 0, ca: config.ca ?? 0 }) +
+        "\n" +
+        t("editor.treemap.instabilityAbs", { i: (config.instability ?? 0).toFixed(2), a: (config.abstractness ?? 0).toFixed(2) }) +
+        (config.inCycle ? "\n" + t("editor.treemap.inCycle") : "")
       }
       sx={{
         width: "100%",
@@ -99,7 +100,7 @@ export function TreemapCellRenderer(props: TreemapCellRendererProps) {
           noWrap
           sx={{ fontSize: 9.5, color: textColor, opacity: 0.9, lineHeight: 1.3, mt: 0.25 }}
         >
-          {`${config.fileCount ?? 0} 文件 · ${pct.toFixed(1)}%`}
+          {t("editor.treemap.fileCount", { n: config.fileCount ?? 0, pct: pct.toFixed(1) })}
         </Typography>
       )}
       {!compact && h > 60 && (
@@ -115,7 +116,7 @@ export function TreemapCellRenderer(props: TreemapCellRendererProps) {
           noWrap
           sx={{ fontSize: 9, color: "#fecaca", fontWeight: 600, lineHeight: 1.3, mt: 0.25 }}
         >
-          ⚠ 循环依赖环
+          {t("editor.treemap.cycleBadge")}
         </Typography>
       )}
     </Box>

@@ -30,6 +30,7 @@ import {
 } from './writingPaneSeed';
 import { t } from '../i18n';
 import logger from './logger';
+import { destroyDeskWindowFor, isWritingDeskWindow } from './writingDeskWindow';
 
 /**
  * 并发 seed 守卫：同一 (viewId, kind) 只允许一个 seed 在途。
@@ -185,7 +186,13 @@ export async function deleteBookWithScene(bookId: string): Promise<void> {
   }
   logger.info('studioBook', 'book deleted with scene', { bookId, wasActive, sceneId: sid });
 
+  // 一书一窗：删书连带销毁该书专属写作台窗口（防孤儿窗口残留）。
+  // 若删除正发生在该书自己的写作台窗口内，destroy 后 webview 即随书关闭。
+  void destroyDeskWindowFor(bookId);
+
   if (!wasActive) return;
+  // 写作台窗口内删绑定书：窗口随书销毁，不再执行主窗口语义的落场景切换
+  if (isWritingDeskWindow()) return;
   const rest = useWritingStore.getState().books;
   if (rest.length > 0) {
     await openBookInStudio(rest[0].id, rest[0].title);

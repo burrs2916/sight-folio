@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sight-folio AI 辅助写作增强方案 · 2026-10-13</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --card: #ffffff;
+        --ink: #1c2333;
+        --ink-2: #4a5268;
+        --ink-3: #8a91a5;
+        --line: #e5e8ef;
+        --accent: #3a5dff;
+        --accent-soft: #eef1ff;
+        --green: #1f9d63;
+        --green-soft: #e7f6ee;
+        --amber: #b8791a;
+        --amber-soft: #fdf3e1;
+        --red: #d04848;
+        --red-soft: #fdeeee;
+        --purple: #7a52d4;
+        --purple-soft: #f1edfc;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI',
+          sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        line-height: 1.7;
+        font-size: 15px;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 0 24px 80px;
+      }
+      header.hero {
+        background: linear-gradient(135deg, #2b3b8f 0%, #3a5dff 55%, #5f7bff 100%);
+        color: #fff;
+        padding: 56px 24px 48px;
+        margin-bottom: 32px;
+      }
+      header.hero .inner {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      .eyebrow {
+        display: inline-block;
+        font-size: 12px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, 0.16);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        padding: 4px 12px;
+        border-radius: 999px;
+        margin-bottom: 18px;
+      }
+      header.hero h1 {
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 1.35;
+        margin-bottom: 12px;
+      }
+      header.hero .sub {
+        font-size: 15px;
+        opacity: 0.92;
+        max-width: 720px;
+      }
+      header.hero .meta {
+        margin-top: 18px;
+        font-size: 12.5px;
+        opacity: 0.78;
+      }
+      section {
+        margin-top: 40px;
+      }
+      h2 {
+        font-size: 21px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid var(--line);
+        margin-bottom: 18px;
+      }
+      h2 .no {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+      h3 {
+        font-size: 16.5px;
+        font-weight: 700;
+        margin: 22px 0 10px;
+      }
+      h4 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 16px 0 6px;
+      }
+      p {
+        color: var(--ink-2);
+        margin-bottom: 10px;
+      }
+      strong {
+        color: var(--ink);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin-bottom: 14px;
+        box-shadow: 0 1px 2px rgba(20, 30, 60, 0.04);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 14px;
+      }
+      .cap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 14.5px;
+        margin-bottom: 8px;
+      }
+      .cap .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+      .dot-blue {
+        background: var(--accent);
+      }
+      .dot-green {
+        background: var(--green);
+      }
+      .dot-amber {
+        background: var(--amber);
+      }
+      .dot-red {
+        background: var(--red);
+      }
+      .dot-purple {
+        background: var(--purple);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+        background: var(--card);
+      }
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 9px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #f0f2f8;
+        font-weight: 600;
+        color: var(--ink);
+        white-space: nowrap;
+      }
+      td {
+        color: var(--ink-2);
+      }
+      .pill {
+        display: inline-block;
+        font-size: 11.5px;
+        font-weight: 700;
+        padding: 2px 9px;
+        border-radius: 999px;
+        margin-right: 6px;
+        white-space: nowrap;
+      }
+      .p0 {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+      .p1 {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+      .p2 {
+        background: var(--purple-soft);
+        color: var(--purple);
+      }
+      .p3 {
+        background: #e8ebf2;
+        color: #5a6278;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 11px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-radius: 6px;
+        padding: 1px 7px;
+        margin: 0 4px 4px 0;
+      }
+      .tag.gray {
+        background: #eef0f5;
+        color: #5a6278;
+      }
+      .quote {
+        border-left: 3px solid var(--accent);
+        background: var(--accent-soft);
+        padding: 10px 14px;
+        border-radius: 0 10px 10px 0;
+        font-size: 13.5px;
+        color: var(--ink-2);
+        margin: 10px 0;
+      }
+      ul.tight {
+        margin: 6px 0 10px 20px;
+      }
+      ul.tight li {
+        margin-bottom: 5px;
+        color: var(--ink-2);
+      }
+      .kv {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 13.5px;
+      }
+      .kv b {
+        color: var(--ink);
+        flex-shrink: 0;
+        min-width: 72px;
+      }
+      .callout {
+        border-radius: 12px;
+        padding: 14px 16px;
+        font-size: 14px;
+        margin: 14px 0;
+      }
+      .callout.green {
+        background: var(--green-soft);
+        color: #155a3c;
+      }
+      .callout.blue {
+        background: var(--accent-soft);
+        color: #28408f;
+      }
+      .callout.amber {
+        background: var(--amber-soft);
+        color: #7a5210;
+      }
+      .roadmap {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 14px;
+      }
+      .step {
+        border-radius: 14px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        background: var(--card);
+      }
+      .step .ph {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        margin-bottom: 6px;
+      }
+      .step h4 {
+        margin: 0 0 6px;
+        font-size: 14.5px;
+      }
+      .step ul {
+        margin-left: 16px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .step ul li {
+        margin-bottom: 4px;
+      }
+      .footer {
+        margin-top: 56px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+        font-size: 12.5px;
+        color: var(--ink-3);
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .src {
+        font-size: 12px;
+        color: var(--ink-3);
+        margin-top: 4px;
+      }
+      @media (max-width: 640px) {
+        header.hero h1 {
+          font-size: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="inner">
+        <div class="eyebrow">sight-folio 写作台 · AI 能力增强方案</div>
+        <h1>让 AI 帮创作者「写得好 · 写得真 · 学得会」</h1>
+        <p class="sub">
+          围绕三大目标——AI 辅助审核写作质量、规避 AI
+          味与情感空洞、借鉴语料库优秀作品的情感表达与写作手法——结合写作台现有能力设计可落地功能方案与优先级路线。
+        </p>
+        <div class="meta">2026-10-13 · 现状盘点 + 行业调研 + 三组功能方案（A / B / C）+ P0–P3 路线图</div>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <section id="exec">
+        <h2><span class="no">1</span>核心判断（先说结论）</h2>
+        <div class="grid">
+          <div class="card">
+            <div class="cap"><span class="dot dot-blue"></span>现状的缺口</div>
+            <p>
+              写作台的 AI 语料目前会<b>生成与回答</b>，但还不会<b>审</b>（诊断一段稿子差在哪）、<b>防</b>（约束输出不带
+              AI 味）、<b>学</b>（从语料库里教用户"这句话的手法是什么"）。这三件事正是创作者放弃 AI
+              辅助的最大原因：<strong>产物感情空洞、套路感强、学不到东西</strong>。
+            </p>
+          </div>
+          <div class="card">
+            <div class="cap"><span class="dot dot-green"></span>关键杠杆</div>
+            <p>
+              把<b>已有的</b>三样资产串成闭环：语料库句子级结构化数据（切句 + 主谓宾 + 参考价值分层）、AI
+              审视预设闭环、校对面板的"问题列表 + 定位到句"范式。串起来就是：<strong
+                >生成 → 检测 → 对照范文 → 改写</strong
+              >，而不是继续堆孤立按钮。
+            </p>
+          </div>
+          <div class="card">
+            <div class="cap"><span class="dot dot-amber"></span>最小改动优先</div>
+            <p>
+              P0 阶段只改<b>系统提示词 + 快捷指令模板</b>（零新
+              UI、零架构），先把"人味约束"注入到语料参谋的每一次对话里；检测与范文对照等重功能放到 P1
+              逐步上，每一步都可单独验收。
+            </p>
+          </div>
+        </div>
+        <div class="callout blue">
+          <strong>方案一句话：</strong
+          >把"语料参谋"从<b>答问题的助手</b>升级为<b>会审稿、懂人情、教手法</b>的写作教练——审（A 组）、防空洞（B
+          组）、学写法（C 组）三组功能沿"写作前 / 写作中 / 写作后"全流程布置。
+        </div>
+      </section>
+
+      <section id="landscape">
+        <h2><span class="no">2</span>现状能力盘点（方案的地基）</h2>
+        <p>以下能力均已在代码中验证存在，是本方案的<b>可直接复用资产</b>，而非需要新建的基础设施。</p>
+        <table>
+          <tr>
+            <th style="width: 22%">现有能力</th>
+            <th style="width: 46%">能力描述</th>
+            <th>对本方案的复用点</th>
+          </tr>
+          <tr>
+            <td><strong>语料参谋对话</strong><br /><span class="tag gray">AiCorpusPanel</span></td>
+            <td>
+              流式对话、5 项快捷指令、草稿持久化、Enter / Cmd+Enter 发送、消息复制、发送/停止/新建会话；<b
+                >首轮自动携带整篇 + 本章上下文</b
+              >（buildChatContext）。
+            </td>
+            <td>反 AI 味系统提示注入（B1）与"情感浓度"指令（B2）直接挂在这里；快捷指令机制上一轮已就绪。</td>
+          </tr>
+          <tr>
+            <td><strong>语料库检索命中卡片</strong><br /><span class="tag gray">CorpusReferencePanel</span></td>
+            <td>
+              FTS5 / BM25 检索；命中卡片带<b>参考价值分层</b>（referenceTier：high / medium /
+              low）、重复句出处展开（章节 + 句序）、书名作者、关键词高亮。
+            </td>
+            <td>「找范例」「写法对照」的召回来源；分层字段可直接做"只推高质量范文"的排序权重。</td>
+          </tr>
+          <tr>
+            <td><strong>AI 审视闭环</strong><br /><span class="tag gray">AiReviewDialog + useAiActions</span></td>
+            <td>预设（aiContextRegistry 注册表）+ Agent 由用户选择；审阅结论留存可翻看历史。</td>
+            <td>A1 审校预设扩展的挂载点；不发射也能翻历史的闭环设计值得沿用。</td>
+          </tr>
+          <tr>
+            <td><strong>校对面板</strong><br /><span class="tag gray">ProofreadPanel</span></td>
+            <td>问题列表（issueKey + 原文摘录）+ 点击<b>定位到文档</b>（onLocate）的审校类 UI 范式。</td>
+            <td>A2「AI 味检测器」直接复用该范式：统计层问题 + LLM 层问题都进同一列表，可定位到句。</td>
+          </tr>
+          <tr>
+            <td><strong>语料管线结构化数据</strong><br /><span class="tag gray">src-tauri corpus.rs</span></td>
+            <td>句子切分（已修复切句残留泄漏）、主谓宾识别（jieba 词典修复）；句子入库时已带章节与句序。</td>
+            <td>A2 统计层（句长方差、结构密度）无需新挖管线；C 组"手法标签"可在句子级挂载。</td>
+          </tr>
+        </table>
+        <div class="callout amber">
+          <strong>一句话现状：</strong>地基齐了——对话、检索、审校 UI、语料结构数据四件事都有雏形，缺的是"把它们按
+          <b>审 → 防 → 学</b> 的意图组装起来"。
+        </div>
+      </section>
+
+      <section id="benchmark">
+        <h2><span class="no">3</span>主流实践借鉴（调研结论）</h2>
+
+        <h3>3.1 「AI 味」的机器指纹——可检测、可量化的特征</h3>
+        <p>综合行业对 AI 生成文本的鉴别经验，AI 味的核心不是"用了 AI"，而是以下四类可检测特征（来源见文末链接）：</p>
+        <table>
+          <tr>
+            <th>机器指纹</th>
+            <th>具体表现</th>
+            <th>可做的检测规则</th>
+          </tr>
+          <tr>
+            <td><strong>句式匀速</strong></td>
+            <td>句子长度几乎一致、没有起伏，找不到真人写作的"呼吸感"与口语断点</td>
+            <td>句长方差过低 → 提示"节奏太平"</td>
+          </tr>
+          <tr>
+            <td><strong>用词可预测</strong></td>
+            <td>"首先其次最后""值得注意的是"等连接套路密集；高频模板词密度高</td>
+            <td>内置 AI 模板词库命中计数（中英双语）</td>
+          </tr>
+          <tr>
+            <td><strong>转折模板 + 标点密集</strong></td>
+            <td>"不是……而是……""更重要的是"反复出现；顿号、破折号、冒号堆积</td>
+            <td>模板句式正则匹配 + 标点密度统计</td>
+          </tr>
+          <tr>
+            <td><strong>精致空洞</strong></td>
+            <td>辞藻华丽但推动不了情节；关键情节一笔带过、无关处铺陈冗长；心理与环境描写堆砌</td>
+            <td>上述三项只能靠 LLM 层语义判断（情节 vs 描写配比）</td>
+          </tr>
+        </table>
+
+        <h3>3.2 规避空洞的提示词方法论——直接可用的约束规则</h3>
+        <div class="quote">
+          写提示词就四样：<strong>角色</strong>（你是谁）＋<strong>上下文</strong>（发生了什么）＋<strong>任务</strong>（要写什么、给谁看）＋<strong>约束</strong>（怎么输出、禁用哪些表达）——把"写得生动一点"这类形容词换成可执行的量化标准。
+        </div>
+        <p>
+          这条方法论可直接编译进语料参谋的系统提示：<strong>禁用模板连接词、禁止用形容词级评价代替具体描写、要求感官细节与明确立场、允许口语断点与不完美</strong>——即
+          B1 的规则内核。另一个共识是
+          <strong>Show, Don't Tell</strong>：直接陈述情绪（"她很伤心"）不如用动作、细节、对话呈现——这是 B3
+          顾问的核心算法。
+        </p>
+
+        <h3>3.3 成熟审校工具的交互范式——对标对象</h3>
+        <table>
+          <tr>
+            <th>工具</th>
+            <th>代表性能力</th>
+            <th>给我们的启发</th>
+          </tr>
+          <tr>
+            <td><strong>Hemingway</strong></td>
+            <td>颜色标注：黄=冗长句、红=复杂句、绿=被动句、蓝=副词；整体可读性评分</td>
+            <td>A2 检测结果用"可定位的问题列表"呈现，用户点一下跳转到句</td>
+          </tr>
+          <tr>
+            <td><strong>ProWritingAid</strong></td>
+            <td>重复词、陈词滥调、可读性、行文连贯性、用词老套/抽象无意义检测</td>
+            <td>"抽象词 vs 具体词"维度可并入 A2 词汇层</td>
+          </tr>
+          <tr>
+            <td><strong>Grammarly</strong></td>
+            <td>四个反馈维度：correctness（正确）/ clarity（清晰）/ engagement（多样）/ delivery（语气）</td>
+            <td>审校输出按维度分组给标签，比一条条平铺更易消化</td>
+          </tr>
+          <tr>
+            <td><strong>对话式助手</strong>（ChatGPT / Claude / 国内写作助手）</td>
+            <td>选中文本就地改写、给可选方案、不强推唯一答案</td>
+            <td>B2 / C3 改写结果给"温和 / 浓烈"多版本而非单一答案</td>
+          </tr>
+        </table>
+        <p class="src">
+          来源：知乎《7 款论文润色工具测评》（zhuanlan.zhihu.com/p/669547998）、新浪《AI 代写末日？平台新规下怎么安全用
+          AI 写作》（k.sina.com.cn/article_7879848900...）、新浪《如何准确识别 AI
+          写作的长文》（k.sina.com.cn/article_7879996426...）、效果研究类论文对 Grammarly 四维度反馈的实证。
+        </p>
+      </section>
+
+      <section id="matrix">
+        <h2><span class="no">4</span>方案全景：三组功能 × 写作全流程</h2>
+        <table>
+          <tr>
+            <th style="width: 14%">主题</th>
+            <th style="width: 22%">写作前 / 准备</th>
+            <th style="width: 22%">写作中 / 落笔</th>
+            <th style="width: 21%">写作后 / 复盘</th>
+            <th>核心价值</th>
+          </tr>
+          <tr>
+            <td><strong>A · 审核质量</strong></td>
+            <td>审校预设扩展（A1，选"审什么"）</td>
+            <td>AI 味检测器实时查（A2）</td>
+            <td>情感弧线报告（A3）</td>
+            <td>知道"这段差在哪"</td>
+          </tr>
+          <tr>
+            <td><strong>B · 规避 AI 味</strong></td>
+            <td>——</td>
+            <td>人味约束注入（B1）、情感浓度指令（B2）、Show-Not-Tell 顾问（B3）</td>
+            <td>——</td>
+            <td>落笔就有"人味"，不靠事后补救</td>
+          </tr>
+          <tr>
+            <td><strong>C · 学写法</strong></td>
+            <td>手法卡片与拆解（C1）</td>
+            <td>「找范例」对话（C2）、写法对照工作台（C3）</td>
+            <td>——</td>
+            <td>从语料库"学会"而不是"抄到"</td>
+          </tr>
+        </table>
+        <p>
+          三组是<b>互补的闭环</b>：B 在源头降低空洞概率 → A 在过程中发现问题 → C
+          用语料库的真实优秀写法给出"怎么改更好"的参考答案。其中 A2 与 C3 直接互喂：AI
+          味检测器圈出平淡句，写法对照工作台接住并给出范文级改写。
+        </p>
+      </section>
+
+      <section id="detail-a">
+        <h2><span class="no">5</span>方向 A · 审核写作质量：从"问一句"到"诊断一份稿"</h2>
+
+        <div class="card">
+          <h4>A1 · 审校预设扩展 <span class="pill p1">P1</span></h4>
+          <div class="kv">
+            <b>目标</b
+            ><span
+              >让 AI 审视从"泛泛点评"变成按主题定向诊断：AI
+              味、情感浓度、节奏张力、逻辑连续性、人物一致性各成一档。</span
+            >
+          </div>
+          <div class="kv">
+            <b>交互</b
+            ><span
+              >AI 审视对话框的预设下拉新增档位（沿用 aiContextRegistry 注册表 + 用户自选 Agent +
+              历史结论留存），不改变现有闭环。</span
+            >
+          </div>
+          <div class="kv">
+            <b>实现</b
+            ><span
+              >只加 preset 条目与对应系统提示模板；"情感浓度"档的提示词要求输出<b>浓度评分 1–5 + 证据句 + 提升方向</b
+              >，把模糊感受变成可执行反馈。</span
+            >
+          </div>
+          <div class="kv"><b>依托</b><span>AiReviewDialog + useAiActions 既有架构，零新增组件。</span></div>
+        </div>
+
+        <div class="card">
+          <h4>A2 · AI 味检测器（本方案核心差异化） <span class="pill p1">P1</span></h4>
+          <div class="kv">
+            <b>目标</b><span>仿 Hemingway / ProWritingAid：对选中章节给出"AI 味/空洞感问题清单"，每条可定位到句。</span>
+          </div>
+          <div class="kv">
+            <b>双层检测</b
+            ><span
+              ><b>统计层（零成本、先跑）</b>：句长方差过低、AI 模板词库命中（首先其次/值得注意的是/不是…而是…/更重要的是
+              + 英文模板）、顿号/破折号/冒号密度、抽象词比例（伟大/感动/美好…）。<b>LLM 层（按需跑）</b>：情节推进 vs
+              描写堆砌配比、关键情节被弱化、直接陈述情绪（Tell）未转化为细节（Show）。</span
+            >
+          </div>
+          <div class="kv">
+            <b>交互</b
+            ><span
+              >问题列表（复用 ProofreadPanel 的 issueKey + 原文摘录 + 定位 onLocate
+              范式），每条带<b>维度标签</b>（节奏/用词/空洞/情绪直述）与严重度，可忽略误报。</span
+            >
+          </div>
+          <div class="kv">
+            <b>实现</b
+            ><span
+              >统计层放前端或 Rust 侧纯函数（不占 LLM 成本，可离线）；LLM 层走既有 agentApi
+              发送链路；统计层句子数据用语料管线的切句结果。</span
+            >
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>A3 · 情感弧线分析 <span class="pill p2">P2</span></h4>
+          <div class="kv">
+            <b>目标</b
+            ><span
+              >整章"情绪起伏曲线"：按段落给出情感强度，标出<b>平淡区（连续 N 段无起伏）、断层（情绪突变没铺垫）</b
+              >，让作者看一张图就知道"哪里读者会走神"。</span
+            >
+          </div>
+          <div class="kv">
+            <b>实现</b
+            ><span
+              >LLM 对每段打情感强度与主导情绪（依赖整章上下文一次调用）；前端渲染折线或区块热力条；与 A2
+              的"情节停滞"判断联动。</span
+            >
+          </div>
+        </div>
+      </section>
+
+      <section id="detail-b">
+        <h2><span class="no">6</span>方向 B · 规避 AI 味与情感空洞：从源头防，而不是事后救</h2>
+
+        <div class="card">
+          <h4>B1 · 人味约束注入（先做，改动最小） <span class="pill p0">P0</span></h4>
+          <div class="kv">
+            <b>目标</b><span>语料参谋的每一次生成/改写默认带"反 AI 味"人设约束，用户不用每次手动叮嘱。</span>
+          </div>
+          <div class="kv">
+            <b>约束规则（编译进系统提示）</b
+            ><span
+              >①句长长短交替，允许断点与不完美；②禁用模板连接词（首先其次/总而言之/值得注意的是…）；③具体细节与感官优先，禁止形容词级评价代替描写；④关键情节要有推进，不靠堆心理/环境描写撑篇幅；⑤给明确立场与个性表达。</span
+            >
+          </div>
+          <div class="kv">
+            <b>实现</b
+            ><span
+              >仅修改 AiCorpusPanel 的 AI_CORPUS_SYSTEM_HINT（或追加一段规则常量），零新
+              UI、零架构改动，可立即发布。</span
+            >
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>B2 · 情感浓度与改写指令 <span class="pill p0">P0</span></h4>
+          <div class="kv"><b>目标</b><span>把"去 AI 味""升情感浓度"变成一键指令，替代用户手写复杂提示词。</span></div>
+          <div class="kv">
+            <b>交互</b
+            ><span
+              >在既有快捷指令菜单（上一轮刚上线的闪电按钮 + CMD_PRESETS 机制）追加两条模板：<b>「去 AI 味改写」</b
+              >（先诊断本段 AI
+              味来源，再给改写版，并列出改了哪三处）；<b>「情感浓度提升」</b>（先指出缺哪种情感细节——感官/动作/心理/对话，再给"温和
+              / 浓烈"两个版本任选）。</span
+            >
+          </div>
+          <div class="kv"><b>实现</b><span>加 i18n 键 + 模板文本，全部复用现有指令机制。</span></div>
+        </div>
+
+        <div class="card">
+          <h4>B3 · Show-not-Tell 顾问 <span class="pill p2">P2</span></h4>
+          <div class="kv">
+            <b>目标</b
+            ><span>自动找出"直接陈述情绪"的句子（她很难过 / 他非常愤怒），提示转成动作、细节、对话来呈现。</span>
+          </div>
+          <div class="kv">
+            <b>交互</b
+            ><span
+              >选中文本 → Show-not-Tell 顾问 → 列出"情绪直述句 + 3 种展示式改写 +
+              一个来自语料库的真实例句"（联动检索，证明"这样写是成立的"）。</span
+            >
+          </div>
+          <div class="kv">
+            <b>实现</b
+            ><span
+              >直述句识别可用统计层情绪词 + 主谓宾结构启发式命中，改写走 LLM；真实例句走
+              corpusApi.search（现有链路）。</span
+            >
+          </div>
+        </div>
+      </section>
+
+      <section id="detail-c">
+        <h2><span class="no">7</span>方向 C · 借鉴语料库优秀写法：从"拿来用"到"学会写"</h2>
+
+        <div class="card">
+          <h4>C1 · 手法卡片与拆解视图 <span class="pill p2">P2</span></h4>
+          <div class="kv">
+            <b>目标</b><span>语料命中卡片不只给"这句可以抄"，还教"这句为什么好、手法叫什么、怎么迁移"。</span>
+          </div>
+          <div class="kv">
+            <b>交互</b
+            ><span
+              >卡片附<b>手法标签</b>（白描 / 细节放大 / 短句顿挫 / 对话推进 / 心理独白 /
+              环境与情绪呼应…）；点击「拆解」展开：节奏分析 → 用词精妙点 → 情感逻辑 →
+              <b>可迁移模板</b>（句式骨架，可套自己的内容）→ 仿写示例。</span
+            >
+          </div>
+          <div class="kv">
+            <b>实现</b
+            ><span
+              >手法标签可由 LLM
+              后处理批量打标并入库（一次全库批处理，句子级存储，复用切句/句序字段）；拆解内容点开时按需生成。</span
+            >
+          </div>
+          <div class="kv">
+            <b>边界</b><span>给出的是"手法 + 模板 + 仿写"，不直接提供整段可粘贴的原文——守住借鉴与抄写的界线。</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>C2 · 「找范例」对话能力 <span class="pill p1">P1</span></h4>
+          <div class="kv">
+            <b>目标</b
+            ><span
+              >用户问"给我一个写离别的含蓄表达"时，语料参谋<b>先检索语料库</b>命中真实原文再拆解手法，而不是凭空生成一段"AI
+              式离别"。</span
+            >
+          </div>
+          <div class="kv">
+            <b>交互</b
+            ><span
+              >对话前先走 corpusApi.search（现有链路），把库内高相关句子作为"证据引用"，参谋的任务从"创作"降级为"引用 +
+              拆解 + 归纳手法"，最后仍可给出融合仿写。</span
+            >
+          </div>
+          <div class="kv">
+            <b>实现</b
+            ><span
+              >改对话链路：识别"找范例类"意图（关键词或快捷指令）→ 前置 search →
+              把命中句打包进上下文再调用生成；命中卡片保留出处（已有）。</span
+            >
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>C3 · 写法对照工作台 <span class="pill p1">P1</span></h4>
+          <div class="kv">
+            <b>目标</b
+            ><span
+              >用户选中自己写得平淡的一句 → 从语料库找回一语义的"更优写法" → 逐句对照差异 →
+              生成标注手法的改写建议。</span
+            >
+          </div>
+          <div class="kv">
+            <b>交互</b
+            ><span
+              >左侧自己的句子，右侧库内范例，中间列出差异点：<b>节奏</b>（短句停顿）/ <b>视角</b>（人物在场感）/
+              <b>细节密度</b>（具体名词 vs 抽象词）→ 底部给 1–3 版改写并标注"借鉴了 X
+              手法"。用户可逐版选用或继续调。</span
+            >
+          </div>
+          <div class="kv">
+            <b>实现</b
+            ><span
+              >相似句召回：先按章节主题/关键词检索候选 → LLM/向量选择语义最贴近 1–2 句；差异分析一次 LLM
+              调用；全部复用现有检索与生成链路，新增一个对照视图组件。</span
+            >
+          </div>
+          <div class="kv">
+            <b>与 A2 互喂</b
+            ><span>A2 圈出的"情绪直述/空洞句"一键送入 C3，形成"发现问题 → 对照范文 → 落地改写"的完整闭环。</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <h2><span class="no">8</span>优先级路线图</h2>
+        <div class="roadmap">
+          <div class="step">
+            <div class="ph" style="color: var(--green)">P0 · 近期（约一周）</div>
+            <h4>零架构 · 立竿见影</h4>
+            <ul>
+              <li>B1 人味约束注入系统提示</li>
+              <li>B2 情感浓度 / 去 AI 味快捷指令 ×2</li>
+            </ul>
+            <p style="font-size: 12.5px; margin-top: 8px; color: var(--ink-3)">只改提示词与 i18n，当天可验收。</p>
+          </div>
+          <div class="step">
+            <div class="ph" style="color: var(--amber)">P1 · 核心差异化（2–3 周）</div>
+            <h4>审校 + 借鉴双引擎</h4>
+            <ul>
+              <li>A2 AI 味检测器（统计层先行）</li>
+              <li>C2 「找范例」对话前置检索</li>
+              <li>C3 写法对照工作台</li>
+              <li>A1 审校预设扩展（情感浓度档）</li>
+            </ul>
+          </div>
+          <div class="step">
+            <div class="ph" style="color: var(--purple)">P2 · 深化体验</div>
+            <h4>曲线 + 手法 + 顾问</h4>
+            <ul>
+              <li>A3 情感弧线报告</li>
+              <li>B3 Show-not-Tell 顾问</li>
+              <li>C1 手法卡片与拆解视图</li>
+            </ul>
+          </div>
+          <div class="step">
+            <div class="ph" style="color: #5a6278">P3 · 进阶探索</div>
+            <h4>个人化与自动化</h4>
+            <ul>
+              <li>从书稿学习用户个人风格画像</li>
+              <li>「语料 → 成品」一键工作流</li>
+              <li>多 Agent 审校对照（观点交锋）</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout green">
+          <strong>落地建议：</strong>先落 P0（两天工作量，直接在既有 AiCorpusPanel 快捷指令与系统提示上叠加），把"生成 →
+          检测 → 对照范文 → 改写"的最小闭环跑通并收集反馈，再决定 P1 三个组件的先后。
+        </div>
+      </section>
+
+      <section id="risks">
+        <h2><span class="no">9</span>风险与边界</h2>
+        <div class="grid">
+          <div class="card">
+            <div class="cap"><span class="dot dot-red"></span>鉴抄与借鉴的界线</div>
+            <p>
+              C
+              组所有功能<b>只给手法拆解、句式模板与仿写建议</b>，不提供整段可粘贴原文；检索命中均带出处（现有能力），库内原文定位为"教学引用"而非"素材替换"。
+            </p>
+          </div>
+          <div class="card">
+            <div class="cap"><span class="dot dot-amber"></span>检测的误报与可解释性</div>
+            <p>
+              统计层规则可解释但必然误报（短句密集不等于 AI 味）；交互上每条问题都允许"忽略/不是问题"，且<b
+                >情感浓度给 1–5 分而非对错标签</b
+              >——风格无对错，只有浓度与选择。
+            </p>
+          </div>
+          <div class="card">
+            <div class="cap"><span class="dot dot-blue"></span>成本与延迟</div>
+            <p>
+              统计层零 LLM 成本先跑；LLM
+              层按需批量/节选触发，整章情感弧线一次调用；对话场景全部沿用现有流式链路，不新增等待体验。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="next">
+        <h2><span class="no">10</span>一句话下一步</h2>
+        <div class="callout blue">
+          <strong>建议的第一步：</strong>在现有 AiCorpusPanel 上直接落地
+          <b>B1（人味约束）+ B2（情感浓度 / 去 AI 味指令）</b
+          >——这是唯一零新组件、当天可验收、且用户立刻能感知"语料参谋变聪明"的改动；跑通后再把
+          <b>A2 检测 → C3 对照改写</b>的闭环做进写作台右侧抽屉。
+        </div>
+      </section>
+
+      <div class="footer">
+        sight-folio · AI 辅助写作增强方案（调研稿 v1）· 2026-10-13 ·
+        基于写作台现有代码盘点与行业实践整理，功能取舍供讨论。
+      </div>
+    </div>
+  </body>
+</html>

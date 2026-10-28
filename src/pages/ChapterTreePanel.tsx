@@ -91,7 +91,7 @@ export interface ChapterTreePanelProps {
   /** 非多选期点击章行后追加的动作（写作台用它切右栏「章详情」tab，点章即打开该章专有详情） */
   onOpenChapterDetails?: (id: string) => void;
   dragChapterIdRef: MutableRefObject<string | null>;
-  flushSave: () => Promise<void>;
+  flushSave: () => Promise<boolean>;
   setDropIndex: (i: number | null) => void;
   reorderChapter: (id: string, toIndex: number) => Promise<void>;
   reparentNode: (nodeId: string, newParentId: string | null) => Promise<void>;
@@ -156,7 +156,7 @@ function TreeRow({
   dragging: boolean;
   dropIndex: number | null;
   dragChapterIdRef: MutableRefObject<string | null>;
-  flushSave: () => Promise<void>;
+  flushSave: () => Promise<boolean>;
   setDropIndex: (i: number | null) => void;
   reorderChapter: (id: string, toIndex: number) => Promise<void>;
   /** 扁平下标 Map：行身拖拽换算落点（向后拖减 1 抵消移除偏移）时查询被拖节点下标 */
@@ -303,7 +303,24 @@ function TreeRow({
           </Tooltip>
         )}
         <TreeMetaText text={meta} />
-        <Box className="row-actions" sx={{ display: selectionMode ? 'none' : 'flex', transition: 'opacity 0.15s' }}>
+        {/* 行尾动作：绝对定位浮层，不占 flex 宽度——否则 240px 左栏里标题被压到 0 宽、
+            长标题必然省略号截断（2026-10-10 定位：5 个按钮常驻占 115px，标题只剩 0–17px）。
+            背景用不透明面板底色整块遮断：bgcolor:'inherit' 继承的 action.hover/selected 是半透明
+            （alpha 0.2/0.3），叠在行上方盖不住底下的标题/图标，形成叠印式视觉重叠（2026-10-10 修复）。 */}
+        <Box
+          className="row-actions"
+          sx={{
+            position: 'absolute',
+            right: 2,
+            top: 0,
+            bottom: 0,
+            display: selectionMode ? 'none' : 'flex',
+            alignItems: 'center',
+            borderRadius: 0.75,
+            bgcolor: (th) => th.palette.background.paper,
+            transition: 'opacity 0.15s',
+          }}
+        >
           {/* 同级上/下移：只在存在前/后兄弟时出现（复用 reorderChapter 的「移到该行前」语义） */}
           {onMoveUp && (
             <Tooltip title={t('writingTree.moveUp')}>
@@ -353,7 +370,7 @@ function TreeRow({
               e.stopPropagation();
               onOpenDialog({ kind: 'move-volume', chapterId: chapter.id }, chapter.volume);
             }}
-            aria-label={t('writingDesign.addChild')}
+            aria-label={t('writing.moveToVolume')}
           >
             <DriveFileMoveRoundedIcon sx={{ fontSize: 13 }} />
           </IconButton>

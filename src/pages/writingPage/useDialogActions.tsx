@@ -195,6 +195,9 @@ export function useDialogActions(options: {
       }
     } catch (e) {
       logger.warn('WritingPage', 'dialog action failed', { e });
+      // 失败不静默：保留对话框与输入，用户可修正后重试或取消——绝不能“假成功”关闭
+      useToastStore.getState().error(String(e));
+      return;
     }
     setDialog(null);
     setDialogText('');

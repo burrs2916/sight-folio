@@ -55,7 +55,10 @@ export function WelcomeView({
   return (
     <Box
       sx={{
-        flex: 1,
+        // 只伸展不收缩：父容器（AiAgentPage 空态滚动区）内还有 Divider + 书籍洞察，
+        // 若这里允许 flex 收缩（minHeight:0 + flex:1），内容超高时 justify-content:center
+        // 会把六个卡片/最近对话向两端溢出容器、盖到下方洞察区块上（2026-10-15 修复）。
+        flex: '1 0 auto',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -64,7 +67,6 @@ export function WelcomeView({
         px: 3,
         py: 2,
         gap: 2.5,
-        minHeight: 0,
       }}
     >
       {/* Agent 品牌区 */}
@@ -133,7 +135,7 @@ export function WelcomeView({
             <Chip
               size="small"
               icon={<AutoStoriesIcon sx={{ fontSize: 14 }} />}
-              label={`${currentChapter.title} · ${currentChapter.wordCount} 字`}
+              label={t('agent.welcome.wordCount', { title: currentChapter.title, wordCount: currentChapter.wordCount })}
               variant="outlined"
             />
           )}

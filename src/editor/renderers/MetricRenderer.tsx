@@ -5,6 +5,7 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import TrendingFlatIcon from "@mui/icons-material/TrendingFlat";
 import type { ComponentRendererProps } from "../../types/editor";
+import { t } from "../../i18n";
 
 interface StatusRule {
   min?: number;
@@ -15,7 +16,7 @@ interface StatusRule {
 
 export function MetricRenderer(props: ComponentRendererProps) {
   const config = props?.config ?? {};
-  const title = (config.title as string) || "指标名称";
+  const title = (config.title as string) || t("editor.metricName");
   const unit = (config.unit as string) || "";
   const prefix = (config.prefix as string) || "";
   const suffix = (config.suffix as string) || "";

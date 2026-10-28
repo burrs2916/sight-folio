@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全项目代码审核报告 · 2026-10-26</title>
+<style>
+  :root{
+    --ink:#1E293B; --ink-2:#475569; --ink-3:#94A3B8; --line:#E2E8F0; --bg:#F8FAFC; --card:#FFFFFF;
+    --hi:#DC2626; --hi-bg:#FEF2F2; --hi-line:#FECACA;
+    --mid:#D97706; --mid-bg:#FFFBEB; --mid-line:#FDE68A;
+    --lo:#64748B; --lo-bg:#F1F5F9; --lo-line:#E2E8F0;
+    --accent-a:#0D9488; --accent-b:#0EA5E9;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.65; padding:32px 20px 80px;}
+  .wrap{max-width:1080px; margin:0 auto;}
+  .hero{background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); border-radius:16px;
+    padding:36px 40px; color:#fff; margin-bottom:28px;}
+  .hero h1{font-size:26px; font-weight:700; letter-spacing:.5px;}
+  .hero p{margin-top:8px; font-size:13.5px; opacity:.92;}
+  .hero .meta{margin-top:18px; display:flex; gap:24px; flex-wrap:wrap;}
+  .hero .meta b{font-size:22px; display:block; font-weight:700;}
+  .hero .meta span{font-size:12px; opacity:.85;}
+  h2{font-size:19px; font-weight:700; margin:44px 0 6px; display:flex; align-items:center; gap:10px;}
+  h2 .bar{width:5px; height:20px; border-radius:3px; background:linear-gradient(180deg,var(--accent-a),var(--accent-b));}
+  .sub{color:var(--ink-2); font-size:13px; margin-bottom:14px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px 24px; margin-bottom:14px;}
+  table{width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line);
+    border-radius:12px; overflow:hidden; font-size:12.5px; margin-bottom:10px;}
+  thead th{background:#F1F5F9; text-align:left; padding:9px 12px; font-weight:600; color:var(--ink-2);
+    border-bottom:1px solid var(--line); white-space:nowrap;}
+  tbody td{padding:8px 12px; border-bottom:1px solid #F1F5F9; vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.loc{font-family:"SF Mono","Consolas",monospace; font-size:11.5px; color:var(--accent-a); white-space:nowrap;}
+  .chip{display:inline-block; padding:1px 9px; border-radius:99px; font-size:11px; font-weight:600; white-space:nowrap;}
+  .chip.hi{color:var(--hi); background:var(--hi-bg); border:1px solid var(--hi-line);}
+  .chip.mid{color:var(--mid); background:var(--mid-bg); border:1px solid var(--mid-line);}
+  .chip.lo{color:var(--lo); background:var(--lo-bg); border:1px solid var(--lo-line);}
+  .scorecard{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px;}
+  .score{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px;}
+  .score h3{font-size:14px; font-weight:700; display:flex; justify-content:space-between; align-items:center;}
+  .grade{font-size:12px; font-weight:700; padding:2px 10px; border-radius:99px;
+    background:linear-gradient(135deg,rgba(13,148,136,.12),rgba(14,165,233,.12)); color:#0369A1;}
+  .counts{margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-2);}
+  .counts b{font-weight:700;}
+  .note{font-size:12px; color:var(--ink-3); margin:6px 2px 0;}
+  .p0{border:1px solid var(--hi-line); border-left:4px solid var(--hi); border-radius:12px;
+    background:var(--card); padding:16px 20px; margin-bottom:12px;}
+  .p0 h4{font-size:13.5px; color:var(--hi); margin-bottom:6px;}
+  .p0 p{font-size:13px; color:var(--ink-2);}
+  .roadmap{counter-reset:stage;}
+  .stage{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-bottom:12px; position:relative;}
+  .stage h4{font-size:14.5px; margin-bottom:8px;}
+  .stage .tag{display:inline-block; font-size:11px; font-weight:700; color:#fff; padding:2px 10px; border-radius:99px;
+    background:linear-gradient(135deg,var(--accent-a),var(--accent-b)); margin-right:8px; vertical-align:2px;}
+  .stage ul{padding-left:20px; font-size:13px; color:var(--ink-2);}
+  .stage li{margin:4px 0;}
+  .good{border-left:4px solid var(--accent-a);}
+  .toc{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 22px; margin-bottom:8px;}
+  .toc a{color:var(--accent-a); text-decoration:none; font-size:13.5px; margin-right:18px; line-height:2;}
+  .toc a:hover{text-decoration:underline;}
+  .kpi{display:flex; gap:14px; flex-wrap:wrap; margin-top:16px;}
+  .kpi .item{flex:1; min-width:150px; background:rgba(255,255,255,.14); border-radius:10px; padding:12px 16px;}
+  code{font-family:"SF Mono","Consolas",monospace; font-size:12px; background:#F1F5F9; padding:1px 5px; border-radius:4px; color:#0F766E;}
+  .footer{margin-top:48px; text-align:center; color:var(--ink-3); font-size:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+  <h1>全项目代码审核报告</h1>
+  <p>sight-folio · 写作工作站（Tauri 2 + React 18 + Rust）· 审核基准日 2026-10-26</p>
+  <div class="meta">
+    <div><b>7</b><span>审核域（3 批并行执行）</span></div>
+    <div><b>132</b><span>条发现（均有文件行号佐证）</span></div>
+    <div><b>29</b><span>条高危（按上报口径）</span></div>
+    <div><b>149 / 57</b><span>前端测试文件 / Rust 测试模块</span></div>
+  </div>
+  <div class="kpi">
+    <div class="item"><b style="font-size:15px">审核方法</b><br><span style="font-size:12px;opacity:.85">7 个只读审计代理分 3 批并行：逐文件细读核心模块 + grep 模式扫描外围 + 定点复核；写作台批次发现经过二次实测核验（剔除 4 条与代码矛盾项）。</span></div>
+  </div>
+</div>
+
+<div class="toc">
+  <a href="#score">① 总览评分卡</a>
+  <a href="#p0">② 必须先修的高危清单</a>
+  <a href="#rust-ai">③ Rust AI 链路</a>
+  <a href="#rust-writing">④ Rust 写作域</a>
+  <a href="#fe-ai">⑤ 前端 AI 层</a>
+  <a href="#rust-rest">⑥ Rust 其他域</a>
+  <a href="#fe-writing">⑦ 前端写作台</a>
+  <a href="#fe-editor">⑧ 前端编辑器与公共层</a>
+  <a href="#health">⑨ 工程健康度</a>
+  <a href="#decision">⑩ AI 优化决策建议</a>
+</div>
+
+<h2 id="score"><span class="bar"></span>① 总览评分卡</h2>
+<p class="sub">严重度按上报口径统计；编辑器域 5 条「高」中有 3 条实为日志残留与性能优化，实际严重度中等。</p>
+<div class="scorecard">
+  <div class="score"><h3>Rust AI 链路 <span class="grade">C+</span></h3>
+    <div class="counts"><span class="chip hi">高 4</span><span class="chip mid">中 8</span><span class="chip lo">低 8</span></div>
+    <p class="note">引擎/工具/Provider 主链路功能完整，但审批闸门只覆盖 run_command、工具输出无预算、全局静态锁裸 unwrap。</p></div>
+  <div class="score"><h3>Rust 写作域 <span class="grade">B−</span></h3>
+    <div class="counts"><span class="chip hi">高 3</span><span class="chip mid">中 4</span><span class="chip lo">低 9</span></div>
+    <p class="note">命令与仓储结构清晰、测试有覆盖；删除链路事务化不足是最大隐患。</p></div>
+  <div class="score"><h3>前端 AI 层 <span class="grade">B−</span></h3>
+    <div class="counts"><span class="chip hi">高 1</span><span class="chip mid">10</span><span class="chip lo">低 7</span></div>
+    <p class="note">流式渲染链路质量尚可；sendMessage 收尾竞态与两入口状态不一致是主要风险。</p></div>
+  <div class="score"><h3>Rust 其他域 <span class="grade">C</span></h3>
+    <div class="counts"><span class="chip hi">高 7</span><span class="chip mid">13</span><span class="chip lo">低 4</span></div>
+    <p class="note">datasource 任意 SQL、git 命令 cwd 未校验、code_write 路径防御失效三处安全洞。</p></div>
+  <div class="score"><h3>前端写作台 <span class="grade">B</span></h3>
+    <div class="counts"><span class="chip hi">高 2</span><span class="chip mid">8</span><span class="chip lo">低 5</span></div>
+    <p class="note">WritingPage 仍剩约 2000 行巨石内核；存稿可靠性（关窗丢稿）与百章树性能是用户可感知的两个点。</p></div>
+  <div class="score"><h3>编辑器与公共层 <span class="grade">B−</span></h3>
+    <div class="counts"><span class="chip hi">高 5*</span><span class="chip mid">9</span><span class="chip lo">低 5</span></div>
+    <p class="note">*按上报口径；实际 3 条为日志/性能类。校对词库扫描性能与 AI 味误报面值得专项治理。i18n 双语 5868 键完全一致。</p></div>
+  <div class="score"><h3>工程健康度 <span class="grade">C+</span></h3>
+    <div class="counts"><span class="chip hi">高 6</span><span class="chip mid">8</span><span class="chip lo">低 6</span></div>
+    <p class="note">API key 明文落库且返回前端、CSP 宽松、核心 AI 模块零测试、209 个未提交变更文件。</p></div>
+</div>
+
+<h2 id="p0"><span class="bar"></span>② 必须先修的高危清单（决定路线的 15 条）</h2>
+<p class="sub">按「安全 → 数据完整性 → 稳定性 → AI 前置条件」排序。这 15 条不修，AI 写工具上线等于裸奔。</p>
+
+<div class="p0"><h4>安全 · S1 datasource.rs:205-335 — 任意 SQL 直接执行</h4><p>db_execute_query 接受前端传来的任意 SQL 字符串，无长度限制、无超时、无语句类型白名单，可 DROP 任何表。建议：只读白名单（SELECT/EXPLAIN）+ 超时 + 行数上限；写操作必须走专用参数化命令。</p></div>
+<div class="p0"><h4>安全 · S2 project_scan.rs:1351-1375 + tools.rs:2816-2837 — 外部命令注入面</h4><p>git 命令的 -C 参数直接取命令输入未做规范化校验；run_command 黑名单用大小写敏感 contains() 匹配可被绕过。建议：cwd 白名单限定项目根 + 路径规范化；run_command 改为白名单动词或 AST 级解析。</p></div>
+<div class="p0"><h4>安全 · S3 agent.rs + migration.rs — API Key 明文落库且原样返回前端</h4><p>ai_providers.api_key 为 TEXT 明文；ProviderDto 将 api_key 直接下发到前端（任何 XSS 或日志都会泄漏）。建议：落库加密（OS keychain 或 AES + 机器绑定），接口只返回掩码。</p></div>
+<div class="p0"><h4>数据完整性 · D1 writing_repository.rs:1022-1044 + commands/writing.rs:53-80 — 删除链路非事务</h4><p>delete_storyline 的 DELETE+UPDATE、delete_writing_book 的删除传播均不在同一事务，部分成功会留下孤立引用。AI 写工具上线后批量操作会放大此风险。建议：全部收敛进 conn.transaction()。</p></div>
+<div class="p0"><h4>稳定性 · T1 mod.rs:27-82 + file_watcher.rs:49-179 — 全局锁裸 unwrap</h4><p>RUN_CANCEL_TOKENS / TOOL_APPROVALS 静态 OnceLock&lt;Mutex&gt; 每次 lock().unwrap()，中毒即 panic 崩溃整个进程；file_watcher 同模式。建议：map_err 返回明确错误。</p></div>
+<div class="p0"><h4>稳定性 · T2 agentStore.ts:578-614 — sendMessage 收尾竞态</h4><p>run 返回后重复 await loadMessages，后一次覆盖 settleStream 的收尾，存在中间窗口重渲染与状态错乱。动作卡片依赖稳定的流式收尾，必须先修。</p></div>
+<div class="p0"><h4>稳定性 · T3 WritingPage.tsx:942/1464 — 丢稿风险</h4><p>卸载 flush 为 fire-and-forget，崩溃/强退绕过关窗拦截即丢稿；关窗 await flushSave 无超时。建议：localStorage 快照兜底 + 启动恢复扫描 + 关窗 5s 超时强制销毁。</p></div>
+<div class="p0"><h4>AI 前置 · A1 engine.rs:278 — 审批闸门只覆盖 run_command</h4><p>写工具（未来的 save_chapter_draft 等）执行前没有统一审批拦截。必须把 approval 通道泛化为「按工具危险等级」的策略表，这是 AI 接管写操作的唯一安全护栏。</p></div>
+<div class="p0"><h4>AI 前置 · A2 engine.rs:378-380 + 178-192 — 工具输出与上下文无预算</h4><p>工具结果原样全量进 messages，长会话上下文无限膨胀。写工具输出（整章正文）远大于只读工具。建议：统一最大长度 + 截断提示 + 历史滑动窗口。</p></div>
+<div class="p0"><h4>AI 前置 · A3 消息模型无 blocks 字段</h4><p>AiMessage 仅 content 文本 + tool_calls 字符串，MessageBubble 无结构化块渲染钩子，store 无动作确认回调通道。动作卡片协议需先扩展消息模型与渲染器。</p></div>
+<div class="p0"><h4>安全 · S4 code_write.rs:92-134 — 写盘防御链失效组合</h4><p>canonicalize 失败回退原路径（校验形同虚设）、备份失败阻断写入、写盘边界自动建父目录。AI 代码补丁工具路径以此为基础，需逐条收紧。</p></div>
+<div class="p0"><h4>数据完整性 · D2 migration.rs:1632-1658 — 迁移列清单漂移</h4><p>writing_chapters 多次 ALTER 复用旧 ch_cols 变量，新旧表结构判断可能漂移。建议每次 ALTER 前重新 PRAGMA。</p></div>
+
+<h2 id="rust-ai"><span class="bar"></span>③ Rust AI 链路（engine / tools / provider / agent 命令层）</h2>
+<table>
+<thead><tr><th>位置</th><th>严重度</th><th>问题</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td class="loc">tools.rs:2816-2837</td><td><span class="chip hi">高</span></td><td>run_command 黑名单对管道/RCE 模式仅小写 contains() 匹配，大小写混合或拼接可绕过</td><td>改 shell 分词或 AST 级解析，白名单内构造子进程参数</td></tr>
+<tr><td class="loc">mod.rs:27/39/46/65/72/82</td><td><span class="chip hi">高</span></td><td>RUN_CANCEL_TOKENS 与 TOOL_APPROVALS 静态 OnceLock&lt;Mutex&gt; 每次 lock().unwrap()，锁异常直接 panic</td><td>改 map_err 向调用方返回明确错误</td></tr>
+<tr><td class="loc">engine.rs:278</td><td><span class="chip hi">高</span></td><td>审批闸门仅对 run_command 生效，apply_change 等写工具无统一审批拦截</td><td>按工具危险等级建立统一审批策略表</td></tr>
+<tr><td class="loc">engine.rs:378-380</td><td><span class="chip hi">高</span></td><td>工具输出原样追加 messages，长输出快速膨胀上下文</td><td>引擎层统一 tool result 最大长度 + 截断提示</td></tr>
+<tr><td class="loc">tools.rs:3016</td><td><span class="chip mid">中</span></td><td>child.id().unwrap_or(0) 极端情况 pid=0，强杀分支失效</td><td>校验 pid 有效性，失败走句柄或错误路径</td></tr>
+<tr><td class="loc">agent.rs:612-625</td><td><span class="chip mid">中</span></td><td>会话不存在时 save 返回值被丢弃，创建失败静默吞掉</td><td>显式检查返回值，失败返回明确错误</td></tr>
+<tr><td class="loc">openai_provider.rs:349/418/472</td><td><span class="chip mid">中</span></td><td>HTTP 非成功状态读取 body 时 unwrap_or_default，错误链路表达不一致</td><td>统一 map_err 包装</td></tr>
+<tr><td class="loc">tools.rs:3501-3547</td><td><span class="chip mid">中</span></td><td>create_project_sight_tools 硬编码 match 注册工具，扩展需改核心函数</td><td>改配置表/模块化注册</td></tr>
+<tr><td class="loc">engine.rs:178-192</td><td><span class="chip mid">中</span></td><td>messages 持续 push 工具结果，无 token 预算与滑动窗口</td><td>结合模型 context_window 做历史截断</td></tr>
+<tr><td class="loc">tools.rs:3292-3490</td><td><span class="chip mid">中</span></td><td>写作域仅 3 个只读工具，无保存章节/人设卡写工具</td><td>新增写工具按 apply_change 模式登记台账并接审批</td></tr>
+<tr><td class="loc">tools.rs:3536-3544</td><td><span class="chip mid">中</span></td><td>写作域工具按 tool_ids 注册，默认不必然加入当前 Agent</td><td>Agent 配置层明确默认接入写作工具集</td></tr>
+<tr><td class="loc">openai_provider.rs:391-434</td><td><span class="chip mid">中</span></td><td>chat_stream 先收完整响应体再解析，取消与实时性弱于增量流</td><td>主流程统一走 chat_stream_incremental</td></tr>
+<tr><td class="loc">tools.rs:3082-3490</td><td><span class="chip lo">低</span></td><td>写作域工具与解析函数、测试混在 4200 行单文件，写工具增加会加剧耦合</td><td>拆 writing_tools.rs，按读/写/注册分层</td></tr>
+<tr><td class="loc">ai_repository.rs:242-243</td><td><span class="chip lo">低</span></td><td>input_types 解析失败静默回退 ["text"] 无日志</td><td>增加 warn 日志与原始值上下文</td></tr>
+<tr><td class="loc">scope.rs:96</td><td><span class="chip lo">低</span></td><td>覆盖度查询失败 unwrap_or(-1)，探测失败被当正常数据</td><td>返回明确异常</td></tr>
+<tr><td class="loc">acp_ws.rs:118-140</td><td><span class="chip lo">低</span></td><td>连接关闭 emit 与广播失败被丢弃，前端状态可能不同步</td><td>记录 emit 失败日志</td></tr>
+<tr><td class="loc">change_ledger.rs:299-302</td><td><span class="chip lo">低</span></td><td>内容哈希空串边界处理不明确，可能误判匹配</td><td>空内容显式分支</td></tr>
+<tr><td class="loc">agent.rs:508-728</td><td><span class="chip lo">低</span></td><td>run_agent 单函数承担配置解析、上下文构建、流式执行，职责过多</td><td>拆小函数</td></tr>
+<tr><td class="loc">tools.rs:3485-3489</td><td><span class="chip lo">低</span></td><td>read_character_card 多卡输出无上限</td><td>字符预算 + 提示按需查单卡</td></tr>
+</tbody></table>
+<p class="note">接缝评估：审批闸门 + change_ledger + .bak 备份 + 撤销的基础设施已存在，写工具应复用而非另起炉灶。</p>
+
+<h2 id="rust-writing"><span class="bar"></span>④ Rust 写作域（commands / application / domain / repository / migration）</h2>
+<table>
+<thead><tr><th>位置</th><th>严重度</th><th>问题</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td class="loc">writing_repository.rs:1022-1044</td><td><span class="chip hi">高</span></td><td>delete_storyline 的 DELETE 与多个 UPDATE 未放同一事务，失败留孤立引用</td><td>conn.transaction() 包住全部删除/解绑</td></tr>
+<tr><td class="loc">commands/writing.rs:53-60</td><td><span class="chip hi">高</span></td><td>delete_writing_book 删除传播跨多个仓储调用，不在一个事务边界</td><td>下沉仓储层事务，或补偿路径</td></tr>
+<tr><td class="loc">writing_repository.rs:439-450</td><td><span class="chip hi">高</span></td><td>delete_book 循环 8 表逐个 DELETE，非关键表失败导致整体回滚</td><td>非关键子表容错，关键结构保持原子</td></tr>
+<tr><td class="loc">migration.rs:1632-1658</td><td><span class="chip mid">中</span></td><td>writing_chapters 多次 ALTER 复用旧 ch_cols，结构判断漂移风险</td><td>每次 ALTER 前重新 PRAGMA table_info</td></tr>
+<tr><td class="loc">writing_repository.rs:634-657</td><td><span class="chip mid">中</span></td><td>删章时批注直接 DELETE，timeline/伏笔/大纲解绑置 NULL，语义不一致</td><td>统一删除语义（解绑 or 明确依附规则）</td></tr>
+<tr><td class="loc">commands/writing.rs:77-80</td><td><span class="chip mid">中</span></td><td>save_writing_chapter 后 record_daily_snapshot 失败仅 eprintln，日更统计静默丢失</td><td>返回 AppResult 或结构化日志</td></tr>
+<tr><td class="loc">writing_repository.rs:1022-1039</td><td><span class="chip mid">中</span></td><td>删线三 UPDATE + 一 DELETE 串行独立调用，中途失败不回滚</td><td>与上条合并进事务</td></tr>
+<tr><td class="loc">migration.rs:2108-2127</td><td><span class="chip mid">中</span></td><td>旧版 extra.timeline 迁移 INSERT OR IGNORE 每次启动静默跳过</td><td>补迁移记录/独立触发入口</td></tr>
+<tr><td class="loc">writing_repository.rs:867-868</td><td><span class="chip lo">低</span></td><td>list_daily_stats 依赖 SQLite date('now', ?2) 解析</td><td>调用层预格式化日期</td></tr>
+<tr><td class="loc">writing_repository.rs:593-598</td><td><span class="chip lo">低</span></td><td>快照裁剪 NOT IN 子查询，大数据量性能隐患</td><td>按 created_at 上限裁剪</td></tr>
+<tr><td class="loc">application/writing/docx_export.rs:749-755</td><td><span class="chip lo">低</span></td><td>DOCX XML 字符串拼接 + replace 转义混用，可读性差</td><td>XML 片段常量化/模板化</td></tr>
+<tr><td class="loc">application/writing/pdf_export.rs:878-901</td><td><span class="chip lo">低</span></td><td>PDF 图片读取失败静默跳过，产出缺图无提示</td><td>关键图片失败报错或占位标记</td></tr>
+<tr><td class="loc">writing_repository.rs:843-845</td><td><span class="chip lo">低</span></td><td>record_daily_snapshot 读 extra.deletedAt，但模型无 deleted_at 字段</td><td>补字段或改按章节列表统计</td></tr>
+<tr><td class="loc">migration.rs:1557-1574</td><td><span class="chip lo">低</span></td><td>补列与建索引顺序依赖不直观</td><td>加注释说明依赖</td></tr>
+<tr><td class="loc">migration.rs:1631-1686</td><td><span class="chip lo">低</span></td><td>幂等 ALTER 逻辑散在 init_tables，新列易漏迁移入口</td><td>迁移入口统一到 migrate()</td></tr>
+</tbody></table>
+<p class="note">AI 写工具适配：save_writing_chapter_content / rename_writing_chapter / save_writing_setting / save_writing_annotation / save_writing_note 参数形态可直接包装；delete 类命令对 AI 过于危险，需要聚合层只暴露高层语义操作。</p>
+
+<h2 id="fe-ai"><span class="bar"></span>⑤ 前端 AI 层（agentStore / AiAgentPage / chat 组件 / 双入口）</h2>
+<table>
+<thead><tr><th>位置</th><th>严重度</th><th>问题</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td class="loc">agentStore.ts:578-614</td><td><span class="chip hi">高</span></td><td>sendMessage 内重复 await loadMessages，后一次覆盖 settleStream 收尾，存在中间窗口</td><td>合并为单次统一收尾，settleStream 前置</td></tr>
+<tr><td class="loc">agentStore.ts:523-631</td><td><span class="chip mid">中</span></td><td>审批监听器 Promise 分叉，多 await 共享同一 Promise 缺 reentrant 保护</td><td>每个 await 分支独立 Promise 包装</td></tr>
+<tr><td class="loc">agentStore.ts:613-614</td><td><span class="chip mid">中</span></td><td>run 返回先 loadMessages 再 settleStream 清闸门，窗口期重渲染</td><td>settleStream 作为流结束第一动作</td></tr>
+<tr><td class="loc">agentStore.ts:461-488</td><td><span class="chip mid">中</span></td><td>settleStream 回调 setState 可能旧截断值覆盖新追加内容</td><td>函数式 setState + 稳定 buffer 引用</td></tr>
+<tr><td class="loc">AiAgentPage.tsx:1067</td><td><span class="chip mid">中</span></td><td>isOwnStreaming 只管流归属，错误与停止回执仍用全局字段，跨会话串台</td><td>补 currentStreamConversationId 归属判断</td></tr>
+<tr><td class="loc">AiAgentPage.tsx:1318-1341</td><td><span class="chip mid">中</span></td><td>messages.map 全量渲染，长会话无虚拟滚动</td><td>react-window 或可见区裁剪</td></tr>
+<tr><td class="loc">AiAgentPage.tsx:978-996</td><td><span class="chip mid">中</span></td><td>scrollTimer 依赖闭包清除，缺 cleanup 的 clearTimeout</td><td>useRef 保存 + cleanup</td></tr>
+<tr><td class="loc">AiAgentPage.tsx:1343-1355</td><td><span class="chip mid">中</span></td><td>「无内容+无工具卡」当 thinking 展示，语义不完整</td><td>明确流式状态语义</td></tr>
+<tr><td class="loc">WritingAiChatDialog.tsx:83-86</td><td><span class="chip mid">中</span></td><td>subscribe 返回值 cleanup 语义不明确</td><td>useEffect 显式记录 cleanup</td></tr>
+<tr><td class="loc">WritingAiChatDialog.tsx:136-174</td><td><span class="chip mid">中</span></td><td>本地乐观消息与 store 流式并行，结束靠 API 兜底，可能状态分叉</td><td>统一从 store.messages 恢复真实消息</td></tr>
+<tr><td class="loc">MessageBubble.tsx:66-91</td><td><span class="chip mid">中</span></td><td>toolCalls JSON.parse 失败静默吞错；ToolCallCard 用索引当 key 难复用</td><td>警告日志 + 稳定 id key</td></tr>
+<tr><td class="loc">AiAgentPage.tsx:1071-1081</td><td><span class="chip lo">低</span></td><td>polishApplyMessageId 每次依赖变化全量遍历</td><td>缓存 lastAssistantMessageId</td></tr>
+<tr><td class="loc">WritingAiChatDialog.tsx:276-290</td><td><span class="chip lo">低</span></td><td>重试 lastSendRef 只存 {text, content}，恢复不完整</td><td>补全重试载荷</td></tr>
+<tr><td class="loc">ToolCallCard.tsx:66</td><td><span class="chip lo">低</span></td><td>expanded 状态每次挂载重置</td><td>确定结果默认展开或本地持久化</td></tr>
+<tr><td class="loc">ChatMarkdown.tsx:262-289</td><td><span class="chip lo">低</span></td><td>流式稳定前缀缓存上限 8，长历史频繁清空</td><td>提升到 32 或按渲染路径缓存</td></tr>
+<tr><td class="loc">writingAssistant.ts:539-546</td><td><span class="chip lo">低</span></td><td>onDelta 不存在时仍走类型断言调用，误传即 crash</td><td>改为可选调用 opts.onDelta?.()</td></tr>
+</tbody></table>
+<p class="note">动作卡片扩展接缝：AiMessage 缺 blocks 字段、MessageBubble 无插件化分发、store 无 onActionConfirm 通道 —— 三者需先扩展再上动作卡片协议。</p>
+
+<h2 id="rust-rest"><span class="bar"></span>⑥ Rust 其他域（corpus / analysis / code_* / terminal / asset / datasource…）</h2>
+<table>
+<thead><tr><th>位置</th><th>严重度</th><th>问题</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td class="loc">datasource.rs:205-335</td><td><span class="chip hi">高</span></td><td>db_execute_query 接受任意 SQL 直接执行，无长度/超时/白名单</td><td>SELECT 白名单 + 超时 + 行数上限</td></tr>
+<tr><td class="loc">project_scan.rs:1351-1375</td><td><span class="chip hi">高</span></td><td>Command::new("git") 的 -C 参数直接取命令输入，未校验</td><td>cwd 白名单 + 规范化校验</td></tr>
+<tr><td class="loc">code_write.rs:92-99</td><td><span class="chip hi">高</span></td><td>canonicalize 失败回退 abs 原路径，文件不存在时路径校验失效</td><td>Err 直接拒绝写盘</td></tr>
+<tr><td class="loc">code_write.rs:113</td><td><span class="chip hi">高</span></td><td>备份写 .bak 失败用 ? 阻断，原文件写入也回滚，错误处理过于激进</td><td>备份失败警告并继续写盘</td></tr>
+<tr><td class="loc">code_write.rs:134</td><td><span class="chip hi">高</span></td><td>写盘边界自动 create_dir_all(parent)，边界写入风险</td><td>显式返回错误，禁止自动建目录</td></tr>
+<tr><td class="loc">file_watcher.rs:49/166/179</td><td><span class="chip hi">高</span></td><td>state.jobs.lock().unwrap()，Mutex 中毒直接 panic</td><td>map_err 处理</td></tr>
+<tr><td class="loc">datasource.rs:358-395</td><td><span class="chip mid">中</span></td><td>sslmode 由前端任意传值，连接串拼接无转义</td><td>sslmode 枚举白名单</td></tr>
+<tr><td class="loc">asset.rs:88-283</td><td><span class="chip mid">中</span></td><td>read/delete/rename 仅校验存在，不限素材目录，可操作任意路径</td><td>限定 assets_dir 基座内</td></tr>
+<tr><td class="loc">file_watcher.rs:189</td><td><span class="chip mid">中</span></td><td>stop_job 的 join() 无超时，可能阻塞停止路径</td><td>超时或异步 join</td></tr>
+<tr><td class="loc">project_scan.rs:559/576</td><td><span class="chip mid">中</span></td><td>文件列表读取失败静默空列表；无基线时按未修改处理，新鲜度误判</td><td>返回错误或强制全量扫描</td></tr>
+<tr><td class="loc">change_coupling.rs:94 + git_history.rs:45/92</td><td><span class="chip mid">中</span></td><td>git 输出无大小/超时/行数限制，大仓库性能与统计不稳定</td><td>限制输出 + 超时 + 显式解析失败行为</td></tr>
+<tr><td class="loc">review.rs:155-255</td><td><span class="chip mid">中</span></td><td>rule_body 解析失败 unwrap_or_default，规则静默降级为空</td><td>解析失败返回 Validation 错误</td></tr>
+<tr><td class="loc">corpus.rs:424-428</td><td><span class="chip mid">中</span></td><td>导入失败 fallback title 可能覆盖前端传入标题</td><td>仅在用户未传时使用 fallback</td></tr>
+<tr><td class="loc">code_structure.rs:3399</td><td><span class="chip mid">中</span></td><td>LIKE 查询未转义 % _ [ ]，误匹配</td><td>转义或改 FTS5</td></tr>
+<tr><td class="loc">code_clone.rs:47-81</td><td><span class="chip mid">中</span></td><td>行数限制对大仓库仍有压力；字符串字面量中的 // 误剥离</td><td>动态限制 + 用 parser tokenizer</td></tr>
+<tr><td class="loc">call_graph.rs:80</td><td><span class="chip mid">中</span></td><td>全语言关键字硬编码表，调用形态误判</td><td>用 parser 类型信息过滤</td></tr>
+<tr><td class="loc">logger.rs:23-27</td><td><span class="chip lo">低</span></td><td>日志目录依赖 CARGO_MANIFEST_DIR，安装场景不一致</td><td>app_data_dir</td></tr>
+<tr><td class="loc">asset.rs:307-325</td><td><span class="chip lo">低</span></td><td>缩略图文件名来自 component_type，缺白名单</td><td>uuid + 安全字符命名</td></tr>
+<tr><td class="loc">call_graph.rs:3345-3351</td><td><span class="chip lo">低</span></td><td>临时目录名用 process::id()，碰撞风险</td><td>Uuid::new_v4()</td></tr>
+</tbody></table>
+<p class="note">整体印象：结构清晰，code_write 项目内校验、asset 部分穿越防御已落地；问题集中在错误处理粗暴与外部输入/外部命令的最终白名单缺失。</p>
+
+<h2 id="fe-writing"><span class="bar"></span>⑦ 前端写作台（WritingPage / writingPage/* / stores / services）· 已实测核验</h2>
+<table>
+<thead><tr><th>位置</th><th>严重度</th><th>问题</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td class="loc">WritingPage.tsx:291</td><td><span class="chip hi">高</span></td><td>巨石组件 5124 行，已拆 4 hooks 但仍内联约 2000 行状态/副作用/渲染</td><td>继续抽章节树、设定卡编辑、右栏抽屉为独立组件</td></tr>
+<tr><td class="loc">ChapterTreePanel.tsx:40</td><td><span class="chip hi">高</span></td><td>章节树仅 memo 无虚拟化，百章以上滚动卡顿</td><td>复用 editor/panels/VirtualRows 做虚拟滚动</td></tr>
+<tr><td class="loc">writingStore.ts:756</td><td><span class="chip mid">中</span></td><td>saveChapterContent 悲观式落库，失败时编辑器新内容与 store 旧值分叉</td><td>失败回滚编辑器或保留 dirty 标直到重试成功</td></tr>
+<tr><td class="loc">writingStore.ts:1343</td><td><span class="chip mid">中</span></td><td>setChapterCover 走 saveChapter 全量 INSERT OR REPLACE，与正文保存并发时相互覆盖</td><td>extra 分字段更新</td></tr>
+<tr><td class="loc">writingStore.ts:877</td><td><span class="chip mid">中</span></td><td>settingInboundIndex 增量 diff 维护复杂，边界易错</td><td>全量重建或补差量单测</td></tr>
+<tr><td class="loc">WritingPage.tsx:2224</td><td><span class="chip mid">中</span></td><td>章节树 11 个 props 钻透深</td><td>收口为 context 或自定义 hook</td></tr>
+<tr><td class="loc">useAiActions.ts:115</td><td><span class="chip mid">中</span></td><td>useAiActions 入参 10 个，耦合高</td><td>抽 context + 纯函数版供 AI 卡片复用</td></tr>
+<tr><td class="loc">aiCorpusChat.ts:31</td><td><span class="chip mid">中</span></td><td>extractAiCorpusPicks 对非 >>> 行静默 continue，AI 不守约即 0 结果无降级</td><td>降级取末段或提示格式异常</td></tr>
+<tr><td class="loc">WritingPage.tsx:689/717/1090/1495</td><td><span class="chip mid">中</span></td><td>4 处 exhaustive-deps 禁用，闭包过期风险</td><td>ref 引用最新值或补全依赖</td></tr>
+<tr><td class="loc">WritingPage.tsx:942</td><td><span class="chip mid">中</span></td><td>卸载 flush fire-and-forget，崩溃/强退绕过关窗拦截丢稿</td><td>localStorage 快照兜底 + 启动恢复扫描</td></tr>
+<tr><td class="loc">WritingPage.tsx:1464</td><td><span class="chip mid">中</span></td><td>关窗 await flushSave 无超时，后端卡住窗口无法销毁</td><td>5s 超时强制 destroy 并提示</td></tr>
+<tr><td class="loc">WritingPage.tsx:864</td><td><span class="chip lo">低</span></td><td>自动保存 800ms 防抖，非关闭路径有窗口期</td><td>补 15s 强制落库快照</td></tr>
+<tr><td class="loc">WritingPage.tsx:507</td><td><span class="chip lo">低</span></td><td>草稿恢复同会话仅提示一次，无手动入口</td><td>章节菜单加「恢复草稿」</td></tr>
+<tr><td class="loc">WritingPage.tsx:869</td><td><span class="chip lo">低</span></td><td>保存失败 toast 10s 节流，持续失败用户不易察觉</td><td>升级常驻错误条</td></tr>
+<tr><td class="loc">WritingPage.tsx:1788</td><td><span class="chip lo">低</span></td><td>工具栏 flexShrink:0 单行设计，窄屏溢出重叠</td><td>flex-wrap 或横向滚动</td></tr>
+</tbody></table>
+<p class="note">AI 动作卡片适配：writingStore actions 均为标准异步函数、基础类型入参、无 UI 依赖，适合动作卡片直接调用；useAiActions 需先抽纯函数版；>>> 文本协议应升级为结构化 JSON。</p>
+
+<h2 id="fe-editor"><span class="bar"></span>⑧ 前端编辑器 / 画布 / 公共层（含校对引擎）</h2>
+<table>
+<thead><tr><th>位置</th><th>严重度</th><th>问题</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td class="loc">proofreadEngine.ts:81-98</td><td><span class="chip mid">中</span></td><td>错别字/冗余/敏感词按词库 indexOf 逐条扫描全文，长章成本高</td><td>正则预处理或 Aho-Corasick 结构</td></tr>
+<tr><td class="loc">aiFlavorEngine.ts:46-100</td><td><span class="chip mid">中</span></td><td>情绪词库覆盖常见文学表达（开心/伤心/幸福/紧张），误报面广</td><td>词性/上下文/体裁规则过滤</td></tr>
+<tr><td class="loc">aiFlavorEngine.ts:22</td><td><span class="chip mid">中</span></td><td>模板正则误报（「同时」命中「与此同时」）</td><td>词边界或短语白名单</td></tr>
+<tr><td class="loc">EventBindingEngine.ts:30</td><td><span class="chip mid">中</span></td><td>定时器 Map 只注册无销毁入口，unsubs 声明未用，存在泄漏</td><td>加 destroy()/cleanup() 统一清理</td></tr>
+<tr><td class="loc">CodeWorkbench.tsx:9-3033</td><td><span class="chip mid">中</span></td><td>单文件 3033 行巨石</td><td>按文件树/标签栏/编辑器/扫描结果拆分</td></tr>
+<tr><td class="loc">WorkbenchAiPanel.tsx:22</td><td><span class="chip mid">中</span></td><td>核心 AI 面板缺 useCallback/useMemo 与 memo 优化</td><td>回调与长列表 memo 化</td></tr>
+<tr><td class="loc">canvas/EditorCanvas.tsx</td><td><span class="chip mid">中</span></td><td>画布子节点未整体 memo，属性变化重复重算</td><td>按类型/状态独立 memo</td></tr>
+<tr><td class="loc">extensions/writingAnnotation.ts:19</td><td><span class="chip mid">中</span></td><td>TipTap 批注扩展无 destroy 清理入口，manager 引用可能残留</td><td>扩展实例级清理</td></tr>
+<tr><td class="loc">CodeWorkbench.tsx:1997-2009</td><td><span class="chip mid">中</span></td><td>自动保存先写盘再 setContent，旧快照覆盖风险</td><td>保存成功先更新 store/UI 再清缓冲</td></tr>
+<tr><td class="loc">i18n/index.ts:117</td><td><span class="chip mid">中</span></td><td>回退裸 key 可能直接暴露到 UI</td><td>占位符或调试标记</td></tr>
+<tr><td class="loc">CodeWorkbenchPanels.tsx:840</td><td><span class="chip mid">中</span></td><td>路径 split("/").slice(-2) 中文文件名显示过短</td><td>语义化路径显示</td></tr>
+<tr><td class="loc">canvas/EditorCanvas.tsx:742</td><td><span class="chip lo">低</span></td><td>生产代码残留 console.log（调试日志）</td><td>删除或走 logger.debug</td></tr>
+<tr><td class="loc">WorkbenchTerminalPane.tsx:121 等</td><td><span class="chip lo">低</span></td><td>多处 console.log 与项目 logger 不一致</td><td>统一 logger 通道</td></tr>
+<tr><td class="loc">CodeWorkbenchPanels.tsx:111/411/1001</td><td><span class="chip lo">低</span></td><td>定时器清理散落多处，易遗漏</td><td>封装 useTimerCleanup</td></tr>
+<tr><td class="loc">DependencyEdgeRenderer.tsx:5</td><td><span class="chip lo">低</span></td><td>依赖边渲染器 props 未 memo</td><td>样式/坐标/标注缓存</td></tr>
+</tbody></table>
+<p class="note">i18n 双语一致性：zh-CN 与 en-US 顶层键均 63 个、文案键均 5868 个，无单边缺失。（编辑器域上报 5 条「高」中有 3 条实为日志残留与性能类，已在总览注明。）</p>
+
+<h2 id="health"><span class="bar"></span>⑨ 工程健康度与安全横切</h2>
+<table>
+<thead><tr><th>位置</th><th>严重度</th><th>问题</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td class="loc">commands/agent.rs</td><td><span class="chip hi">高</span></td><td>ProviderDto/EndpointDto/ModelDto 将 api_key 直接返回前端</td><td>接口只返回元数据与掩码</td></tr>
+<tr><td class="loc">migration.rs（ai_providers）</td><td><span class="chip mid">中</span></td><td>api_key 以 TEXT 明文落库</td><td>加密策略（keychain 或 AES+机器绑定）</td></tr>
+<tr><td class="loc">tauri.conf.json</td><td><span class="chip hi">高</span></td><td>CSP script-src/style-src 含 unsafe-inline</td><td>收紧 CSP，改 nonce/SRI</td></tr>
+<tr><td class="loc">tauri.conf.json</td><td><span class="chip hi">高</span></td><td>未配置 updater，应用无法自更新（商城分发需要更新链路）</td><td>补 updater 配置与发布签名</td></tr>
+<tr><td class="loc">tauri.conf.json</td><td><span class="chip mid">中</span></td><td>assetProtocol scope 含 $HOME/GithubProSpace/**，范围偏宽</td><td>限定项目本地 assets 目录</td></tr>
+<tr><td class="loc">capabilities/live-window.json</td><td><span class="chip mid">中</span></td><td>live 窗口权限清单过宽</td><td>收缩到实际需要</td></tr>
+<tr><td class="loc">package.json</td><td><span class="chip mid">中</span></td><td>同时引入 base-ui/echarts/three 等多库，运行时膨胀；tokio full features 增体积</td><td>按场景收敛依赖与 features</td></tr>
+<tr><td class="loc">engine.rs / commands/agent.rs</td><td><span class="chip hi">高</span></td><td>Agent 引擎与命令层零测试覆盖（前端 149 个测试文件、Rust 57 处 cfg(test)，但此两处缺失）</td><td>补 Engine 主循环、审批流、命令层测试</td></tr>
+<tr><td class="loc">types/database.ts</td><td><span class="chip mid">中</span></td><td>前端 DB 类型含 password 字段</td><td>请求级敏感输入，避免明文模型属性</td></tr>
+<tr><td class="loc">DataOrchestrator.ts / Icon.tsx</td><td><span class="chip mid">中</span></td><td>as any / as unknown as 热点集中</td><td>类型约束收口</td></tr>
+<tr><td class="loc">git 工作区</td><td><span class="chip hi">高</span></td><td>209 个未提交/未跟踪文件（含 77 个未跟踪），含根目录多份 HTML 报告、Info.plist、resources/，长期不提交有丢失与冲突风险</td><td>按功能分批提交；报告归档 docs/；生成物入 .gitignore</td></tr>
+</tbody></table>
+<p class="note">Windows 交叉编译：cfg(windows) 分支（taskkill / explorer /select 等）语法可用，但 path 参数需白名单；推送前建议按惯例跑 cargo check --target x86_64-pc-windows-gnu。</p>
+
+<h2 id="decision" class="roadmap"><span class="bar"></span>⑩ AI 优化决策建议（基于审核结论修订）</h2>
+<div class="stage">
+  <h4><span class="tag">结论</span>方向不变，顺序修正：先修地基，再上写工具</h4>
+  <p style="font-size:13px; color:var(--ink-2)">审核确认了上轮方案的可行性 —— <b>写工具/动作卡片/计划模式的基础设施大部分已存在</b>（change_ledger 台账、.bak 备份、审批通道、writingStore 标准化 actions）。但也发现 3 类「不修就不能上」的地基问题：审批闸门只覆盖 run_command（写工具会裸奔）、工具输出无预算（写整章会撑爆上下文）、消息模型无块结构（动作卡片没有载体）。因此 P0 从「直接做写工具」调整为「地基加固 → 写工具 MVP」两段式。</p>
+</div>
+<div class="stage">
+  <h4><span class="tag">阶段 0</span>地基加固（约 15 项修复，先于一切 AI 写能力）</h4>
+  <ul>
+    <li><b>安全</b>：datasource SQL 白名单；git cwd 校验；run_command 黑名单换白名单；api_key 加密落库 + 接口掩码；CSP 收紧</li>
+    <li><b>数据完整性</b>：delete_storyline / delete_writing_book 事务化；迁移列清单防漂移</li>
+    <li><b>稳定性</b>：全局锁 unwrap 治理；agentStore 收尾竞态；WritingPage 关窗超时 + 快照兜底防丢稿</li>
+    <li><b>AI 前置</b>：审批闸门泛化（按工具危险等级）；工具输出预算 + 历史滑动窗口；git 工作区分批提交</li>
+  </ul>
+</div>
+<div class="stage">
+  <h4><span class="tag">阶段 1</span>AI 写工具 MVP —— 跑通「写一章 → 审阅 → 一键入稿」闭环</h4>
+  <ul>
+    <li>save_chapter_draft（改前自动快照）+ update_character_card，复用 change_ledger 台账</li>
+    <li>两个工具接入泛化后的审批闸门（写入类低危可会话级记住，删除类高危逐条确认）</li>
+    <li>前端确认卡：writingStore actions 已具备直接调用条件（审核确认签名适配），仅需把 useAiActions 抽出纯函数版</li>
+    <li>同步补 engine.rs / agent.rs 核心路径测试（审核发现零覆盖）</li>
+  </ul>
+</div>
+<div class="stage">
+  <h4><span class="tag">阶段 2</span>动作卡片协议 + 计划模式</h4>
+  <ul>
+    <li>AiMessage 增加 blocks 字段（fenced JSON 嵌入 markdown，兼容历史回放）→ MessageBubble 块渲染器 → store 动作确认通道</li>
+    <li>章节草案卡 / 人设卡 diff 卡 / 大纲提案卡三类卡片</li>
+    <li>长任务先出写作计划卡（目标/节奏/关键事件/预计字数），批准后执行</li>
+    <li>流式中插话排队（解除 isStreaming 全局锁死）</li>
+  </ul>
+</div>
+<div class="stage">
+  <h4><span class="tag">阶段 3</span>体验打磨（可与阶段 2 并行）</h4>
+  <ul>
+    <li>滚动跟随策略 + 回到底部；长章分节渐进渲染；错误完整展示（解除 500 字截断）</li>
+    <li>章节树虚拟化（百章卡顿）；校对引擎 Aho-Corasick + AI 味误报专项治理</li>
+    <li>WritingPage 剩余 2000 行巨石继续拆分；tooles.rs 拆 writing_tools.rs</li>
+    <li>配置 updater 更新链路（商城分发必需）</li>
+  </ul>
+</div>
+<div class="card good">
+  <h4 style="font-size:14px; color:var(--accent-a); margin-bottom:6px">审核中的正面发现（可放心依赖的基础）</h4>
+  <p style="font-size:13px; color:var(--ink-2)">i18n 双语 5868 键完全一致无缺失；前端 149 个测试文件覆盖面广；change_ledger + .bak 备份 + 撤销的写治理基础设施完整；writingStore actions 签名标准化；流式渲染链路（稳定前缀缓存 + 48ms 节流 + 取消令牌）质量良好；语料面板已验证「AI 产出结构化提取」的雏形。这些是 AI 深度整合的坚实起点。</p>
+</div>
+
+<div class="footer">sight-folio 全项目代码审核 · 2026-10-26 · 7 域 132 条发现 · 仅供内部决策使用</div>
+</div>
+</body>
+</html>

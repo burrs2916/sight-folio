@@ -18,7 +18,7 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { useProjectStore } from "../../store/projectStore";
 import { useSceneStore } from "../../store/sceneStore";
 import { useWritingStore } from "../../store/writingStore";
-import { t, resolveFragments } from "../../i18n";
+import { t, resolveFragments, getLang } from "../../i18n";
 import { buildTree, defaultLevels, suggestedChildKind, type TreeNode } from "../../utils/writingTree";
 import { openWritingDesk } from "../../utils/writingDeskWindow";
 
@@ -339,7 +339,11 @@ const VOLUME_STATUS_CYCLE = ["", "draft", "finished"];
 
 /** 字数缩写（≥1 万 → X.X 万），与书架一致 */
 function fmtVolumeWords(n: number): string {
-  return n >= 10000 ? `${(n / 10000).toFixed(1)}万` : `${n}`;
+  if (n >= 10000) {
+    const k = (n / 1000).toFixed(1).replace(/\.0$/, "");
+    return getLang() === "en-US" ? `${k}k` : `${(n / 10000).toFixed(1)}万`;
+  }
+  return `${n}`;
 }
 
 /** 子树统计：章节数 / 字数 / 完稿数（组头进度账） */

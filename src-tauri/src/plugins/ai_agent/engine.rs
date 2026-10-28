@@ -118,9 +118,10 @@ pub fn merge_tool_call_event(list: &mut Vec<ToolCallEvent>, incoming: &ToolCallE
     list.push(incoming.clone());
 }
 
-/// 引擎即将执行需审批的工具（当前仅 `run_command`）时推给前端的审批请求。
+/// 引擎即将执行需审批的工具（run_command / 写入类工具）时推给前端的审批请求。
 /// 字段与 `agent-tool-approval` 事件的 payload 一致；前端据此弹确认框，
 /// 用户点「允许 / 拒绝」后调用 `resolve_tool_approval` 落定。
+/// `command`/`cwd` 仅 run_command 填写；其余工具用 `summary` 展示创作者可读的操作说明。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolApprovalRequest {
@@ -129,9 +130,211 @@ pub struct ToolApprovalRequest {
     pub tool: String,
     pub command: String,
     pub cwd: String,
+    #[serde(default)]
+    pub summary: String,
+    /// true = 写入类低危工具，前端展示「本会话不再询问」选项
+    #[serde(default)]
+    pub session_rememberable: bool,
+}
+
+/// 审批策略（按工具危险等级）：执行类逐条确认，写入类低危可会话级记住，
+/// 只读工具不拦。对标审核结论「写入类低危可会话级记住，删除类高危逐条确认」。
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ApprovalMode {
+    /// 不需要审批（只读工具）
+    Skip,
+    /// 会话级记住：用户勾选后本会话内同类操作不再询问
+    SessionOnce,
+    /// 每次调用都确认（shell 命令）
+    EveryCall,
+}
+
+/// 按工具与入参判定审批策略。context_insight 的 `list` 是只读，只有
+/// `save`/`resolve` 落库，须按 action 区分。写作域写工具（write_chapter /
+/// create_chapter）归写入类低危：正文改写前自动存版本快照、可随时恢复，
+/// 与 apply_change 同级走「会话级记住」，不必每次动笔都打断创作者。
+fn approval_mode(tool_name: &str, args: &Value) -> ApprovalMode {
+    match tool_name {
+        "run_command" => ApprovalMode::EveryCall,
+        // update_character_card 必须列在这里：本函数 default 是 Skip（不拦），
+        // 新写工具忘记登记 = AI 可以静默改写作者的人物卡。
+        "apply_change" | "write_chapter" | "create_chapter" | "update_character_card" => {
+            ApprovalMode::SessionOnce
+        }
+        "context_insight" => match args.get("action").and_then(|v| v.as_str()) {
+            Some("save") | Some("resolve") => ApprovalMode::SessionOnce,
+            _ => ApprovalMode::Skip,
+        },
+        _ => ApprovalMode::Skip,
+    }
+}
+
+/// 审批请求的摘要文案：面向创作者说清「AI 接下来要对什么动手」，不暴露技术日志。
+fn approval_summary(tool_name: &str, args: &Value) -> String {
+    match tool_name {
+        "run_command" => {
+            let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
+            let cwd = args.get("cwd").and_then(|v| v.as_str()).unwrap_or("");
+            if cwd.is_empty() {
+                cmd.to_string()
+            } else {
+                format!("{cwd}> {cmd}")
+            }
+        }
+        "apply_change" => {
+            let file = args.get("file_path").and_then(|v| v.as_str()).unwrap_or("");
+            let reason = args
+                .get("reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            let rewriting = args
+                .get("content")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false);
+            let action = if rewriting {
+                "整文件重写"
+            } else {
+                "替换片段"
+            };
+            if reason.is_empty() {
+                format!("修改文件 {file}（{action}）")
+            } else {
+                format!("修改文件 {file}（{action}）\n原因：{reason}")
+            }
+        }
+        "context_insight" => {
+            let action = args
+                .get("action")
+                .and_then(|v| v.as_str())
+                .unwrap_or("save");
+            if action == "resolve" {
+                let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                format!("关闭已完成的洞察记录：{title}")
+            } else {
+                let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                format!("保存分析结论「{title}」到项目（会展示在画布与导出报告中）")
+            }
+        }
+        "write_chapter" => {
+            let chapter = args
+                .get("chapter_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            let mode = args
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("replace");
+            let verb = if mode == "append" {
+                "续写"
+            } else {
+                "替换正文"
+            };
+            format!(
+                "{}《{}》的内容（约 {} 字）；写入前的原稿会自动存入版本历史",
+                verb,
+                chapter,
+                content.chars().count()
+            )
+        }
+        "create_chapter" => {
+            let book = args.get("book_id").and_then(|v| v.as_str()).unwrap_or("");
+            let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            let with_content = args
+                .get("content")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
+            if with_content {
+                format!("在《{book}》新建章节「{title}」并写入初始正文")
+            } else {
+                format!("在《{book}》新建章节「{title}」（空章）")
+            }
+        }
+        "update_character_card" => {
+            let card = args.get("card").and_then(|v| v.as_str()).unwrap_or("");
+            // 摘要在**执行前**生成，此时拿不到库里的旧值，所以能交代清楚的只有
+            // 「要动哪张卡、动哪几个字段」。旧值改完后由工具回执列出，并同步进修订历史。
+            let mut fields: Vec<&str> = Vec::new();
+            if args.get("name").and_then(Value::as_str).is_some() {
+                fields.push("名字");
+            }
+            if args.get("subtitle").and_then(Value::as_str).is_some() {
+                fields.push("副标题");
+            }
+            if args.get("description").and_then(Value::as_str).is_some() {
+                fields.push("描述");
+            }
+            if args.get("add_aliases").and_then(Value::as_array).is_some() {
+                fields.push("别名");
+            }
+            let reason = args
+                .get("reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            let mut head = format!(
+                "修改设定卡「{card}」的{}；没点名的字段保持原样，原值会自动存入该卡的修改历史",
+                if fields.is_empty() {
+                    "若干字段".to_string()
+                } else {
+                    fields.join("、")
+                }
+            );
+            if !reason.is_empty() {
+                head.push_str(&format!("\n理由：{reason}"));
+            }
+            head
+        }
+        other => format!("执行工具 {other}"),
+    }
 }
 
 // ─── Agent Engine ───
+
+/// 历史滑动窗口：进入本轮对话的历史消息条数上限（不含 system 与本次 user 消息）。
+/// 长对话若全量带入，token 成本与首包延迟都会随轮次线性膨胀；裁剪必须落在 user
+/// 消息边界上（见 `trim_history`），否则会把 assistant(tool_calls) 与其 tool 结果拆开。
+const HISTORY_WINDOW_MESSAGES: usize = 40;
+
+/// 单条工具结果进入上下文前的预算上限（字符数）。各工具内部有自己的截断
+/// （如 run_command 20KB），这里是引擎侧兜底：防止某个工具把整本书正文、
+/// 巨型日志或全量目录树灌进对话，把后续轮次的 token 成本推到不可控。
+const TOOL_OUTPUT_BUDGET_CHARS: usize = 16_000;
+
+/// 历史滑动窗口：超出上限时从最近的消息往回保留，并把起点回退到最近一条
+/// user 消息——OpenAI 协议要求 tool 消息必须紧跟其 assistant(tool_calls) 母消息，
+/// 从 user 消息起裁才能保证配对完整、请求不被 API 拒绝。
+fn trim_history(
+    mut history: Vec<super::provider::ChatMessage>,
+    max_messages: usize,
+) -> Vec<super::provider::ChatMessage> {
+    if history.len() <= max_messages {
+        return history;
+    }
+    let mut start = history.len() - max_messages;
+    while start > 0 && history[start].role != "user" {
+        start -= 1;
+    }
+    history.split_off(start)
+}
+
+/// 工具输出预算：超限截断并附「为什么截断、下一步怎么办」的提示
+/// （同时面向模型与 UI 卡片，禁止只给一个哑的半截字符串）。
+fn clamp_tool_output(result: String) -> String {
+    let total = result.chars().count();
+    if total <= TOOL_OUTPUT_BUDGET_CHARS {
+        return result;
+    }
+    let mut clamped: String = result.chars().take(TOOL_OUTPUT_BUDGET_CHARS).collect();
+    clamped.push_str(&format!(
+        "\n\n[输出已截断：原结果共 {total} 字符，仅保留前 {TOOL_OUTPUT_BUDGET_CHARS} 字符。\
+         如需其余内容，请缩小范围（指定章节 / 文件 / 行区间）分多次获取。]"
+    ));
+    clamped
+}
 
 pub struct AgentEngine {
     provider: Arc<dyn super::provider::LlmProvider>,
@@ -184,7 +387,7 @@ impl AgentEngine {
             tool_call_id: None,
         });
 
-        for msg in history {
+        for msg in trim_history(history, HISTORY_WINDOW_MESSAGES) {
             if msg.role == "system" {
                 continue;
             }
@@ -273,58 +476,76 @@ impl AgentEngine {
                         });
 
                         // ── 审批闸门（human-in-the-loop）──
-                        // 仅 run_command 走此闸门：即便助手已授权该工具，每条 shell 命令仍须用户在 UI
-                        // 确认（对标 VS Code Agent「Run command?」拦截）。其余工具保持原行为，零回归。
-                        let approved = if tool_name == "run_command" {
-                            let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
-                            let sub = args.get("cwd").and_then(|v| v.as_str()).unwrap_or("");
-                            let key = format!("{}:{}", run_id, tc.id);
-                            let mut rx = crate::plugins::ai_agent::register_approval(&key);
-                            on_approval(ToolApprovalRequest {
-                                run_id: run_id.to_string(),
-                                tool_call_id: tc.id.clone(),
-                                tool: tool_name.clone(),
-                                command: cmd.to_string(),
-                                cwd: sub.to_string(),
-                            });
-                            // 等待前端落定；超时(5min)/取消/通道异常一律按「拒绝」（安全默认，绝不静默执行）。
-                            let timeout = Duration::from_secs(300);
-                            let start = tokio::time::Instant::now();
-                            let mut decision = false;
-                            loop {
-                                if let Some(token) = &cancel {
-                                    if token.load(Ordering::SeqCst) {
-                                        break;
-                                    }
-                                }
-                                if start.elapsed() >= timeout {
-                                    break;
-                                }
-                                match rx.try_recv() {
-                                    Ok(d) => {
-                                        decision = d;
-                                        break;
-                                    }
-                                    Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
-                                        // 尚未落定：让出 200ms 再查，期间可响应取消/超时
-                                        tokio::time::sleep(Duration::from_millis(200)).await;
-                                    }
-                                    Err(_) => {
-                                        // 发送端被丢弃（前端异常）：按拒绝处理
-                                        decision = false;
-                                        break;
-                                    }
-                                }
+                        // run_command 每条确认；写入类（apply_change / context_insight 的
+                        // save|resolve）可会话级记住；只读工具不拦。
+                        let mode = approval_mode(tool_name, &args);
+                        let approved = match mode {
+                            ApprovalMode::Skip => true,
+                            ApprovalMode::SessionOnce
+                                if crate::plugins::ai_agent::is_session_granted(tool_name) =>
+                            {
+                                true
                             }
-                            crate::plugins::ai_agent::clear_approval(&key);
-                            decision
-                        } else {
-                            true
+                            ApprovalMode::SessionOnce | ApprovalMode::EveryCall => {
+                                let cmd =
+                                    args.get("command").and_then(|v| v.as_str()).unwrap_or("");
+                                let sub = args.get("cwd").and_then(|v| v.as_str()).unwrap_or("");
+                                let key = format!("{}:{}", run_id, tc.id);
+                                let mut rx = crate::plugins::ai_agent::register_approval(&key);
+                                on_approval(ToolApprovalRequest {
+                                    run_id: run_id.to_string(),
+                                    tool_call_id: tc.id.clone(),
+                                    tool: tool_name.clone(),
+                                    command: cmd.to_string(),
+                                    cwd: sub.to_string(),
+                                    summary: approval_summary(tool_name, &args),
+                                    session_rememberable: mode == ApprovalMode::SessionOnce,
+                                });
+                                // 等待前端落定；超时(5min)/取消/通道异常一律按「拒绝」（安全默认，绝不静默执行）。
+                                let timeout = Duration::from_secs(300);
+                                let start = tokio::time::Instant::now();
+                                let mut decision = false;
+                                loop {
+                                    if let Some(token) = &cancel {
+                                        if token.load(Ordering::SeqCst) {
+                                            break;
+                                        }
+                                    }
+                                    if start.elapsed() >= timeout {
+                                        break;
+                                    }
+                                    match rx.try_recv() {
+                                        Ok(d) => {
+                                            decision = d.approved;
+                                            if d.approved && d.remember_session {
+                                                crate::plugins::ai_agent::grant_tool_for_session(
+                                                    tool_name,
+                                                );
+                                            }
+                                            break;
+                                        }
+                                        Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
+                                            // 尚未落定：让出 200ms 再查，期间可响应取消/超时
+                                            tokio::time::sleep(Duration::from_millis(200)).await;
+                                        }
+                                        Err(_) => {
+                                            // 发送端被丢弃（前端异常）：按拒绝处理
+                                            decision = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                                crate::plugins::ai_agent::clear_approval(&key);
+                                decision
+                            }
                         };
 
                         if !approved {
-                            let denied = "[run_command] DENIED by user — command was not executed."
-                                .to_string();
+                            // 文案同时面向创作者（UI 卡片）与模型（工具结果）：说清发生了什么、下一步怎么办
+                            let denied = format!(
+                                "[{tool_name}] 你没有批准这次操作，操作没有执行。\
+                                 如确需执行，请先向用户说明这次操作的用途，再次发起并等待批准。"
+                            );
                             on_tool_call(ToolCallEvent {
                                 tool_name: tool_name.clone(),
                                 arguments: Value::Null,
@@ -341,22 +562,27 @@ impl AgentEngine {
                             continue;
                         }
 
-                        let tool_result = {
+                        let mut tool_result = {
                             let tools = self.tools.lock().await;
                             if let Some(tool) = tools.get(tool_name) {
                                 tool.execute(args).await.unwrap_or_else(|e| ToolOutput {
                                     success: false,
-                                    result: format!("Error: {}", e),
+                                    result: format!("工具执行出错：{e}"),
                                     metadata: Value::Null,
                                 })
                             } else {
                                 ToolOutput {
                                     success: false,
-                                    result: format!("Tool '{}' not found", tool_name),
+                                    result: format!(
+                                        "工具 {tool_name} 当前不可用（未启用或不存在）。\
+                                         请换用其他工具，或基于已有信息直接回答用户。"
+                                    ),
                                     metadata: Value::Null,
                                 }
                             }
                         };
+                        // 引擎侧兜底预算：无论工具内部是否截断，进入上下文 / UI 卡片的结果都有界
+                        tool_result.result = clamp_tool_output(tool_result.result);
 
                         on_tool_call(ToolCallEvent {
                             tool_name: tool_name.clone(),
@@ -497,5 +723,265 @@ impl AgentEngine {
             },
             cancelled,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plugins::ai_agent::provider::ChatMessage;
+    use serde_json::json;
+
+    fn msg(role: &str, content: &str) -> ChatMessage {
+        ChatMessage {
+            role: role.to_string(),
+            content: content.to_string(),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }
+
+    // ── 历史滑动窗口 ──
+
+    #[test]
+    fn trim_history_keeps_short_history_unchanged() {
+        let history = vec![msg("user", "你好"), msg("assistant", "你好！")];
+        let trimmed = trim_history(history, 40);
+        assert_eq!(trimmed.len(), 2);
+    }
+
+    #[test]
+    fn trim_history_windows_to_recent_and_starts_at_user() {
+        // 45 条历史：u/a 交替。窗口 40 的裸边界落在 assistant 上，
+        // 裁剪必须回退到紧邻的 user 消息（第 4 条，下标 4 起）。
+        let mut history = Vec::new();
+        for i in 0..45 {
+            let role = if i % 2 == 0 { "user" } else { "assistant" };
+            history.push(msg(role, &format!("m{i}")));
+        }
+        let trimmed = trim_history(history, 40);
+        assert_eq!(trimmed.len(), 41); // 40 + 回退到 user 的 1 条
+        assert_eq!(trimmed[0].role, "user");
+        assert_eq!(trimmed[0].content, "m4");
+        assert_eq!(trimmed.last().unwrap().content, "m44");
+    }
+
+    #[test]
+    fn trim_history_never_splits_tool_call_group() {
+        // 窗口裸边界落在 tool 结果中间：u1, a(tool), tool, tool, u2, a
+        let history = vec![
+            msg("user", "u1"),
+            msg("assistant", "a1"),
+            msg("tool", "t1"),
+            msg("tool", "t2"),
+            msg("user", "u2"),
+            msg("assistant", "a2"),
+        ];
+        // 窗口 2：裸边界指向最后一条 a2，回退到 u2 —— tool 组整体保留在窗口外
+        let trimmed = trim_history(history.clone(), 2);
+        assert_eq!(trimmed.len(), 2);
+        assert_eq!(trimmed[0].role, "user");
+        assert_eq!(trimmed[0].content, "u2");
+
+        // 窗口 4：裸边界指向 tool "t1"，回退到 a1？—— 回退目标是「最近一条 user」，
+        // 会把 tool 组连同其 user 母消息一起带回窗口，绝不从 tool/assistant(tool_calls) 中段起裁
+        let trimmed = trim_history(history, 4);
+        assert_eq!(trimmed[0].role, "user");
+        assert_eq!(trimmed[0].content, "u1");
+        assert_eq!(trimmed.len(), 6);
+    }
+
+    #[test]
+    fn trim_history_without_any_user_message_falls_back_to_head() {
+        let history = vec![
+            msg("assistant", "a1"),
+            msg("tool", "t1"),
+            msg("assistant", "a2"),
+        ];
+        let trimmed = trim_history(history, 2);
+        // 找不到 user 边界：保留从头部开始的完整窗口，不产生孤立 tool 消息
+        assert_eq!(trimmed.len(), 3);
+        assert_eq!(trimmed[0].content, "a1");
+    }
+
+    // ── 工具输出预算 ──
+
+    #[test]
+    fn clamp_tool_output_passes_short_result_through() {
+        let out = clamp_tool_output("第一章 初雪".to_string());
+        assert_eq!(out, "第一章 初雪");
+    }
+
+    #[test]
+    fn clamp_tool_output_truncates_with_actionable_notice() {
+        let big = "x".repeat(TOOL_OUTPUT_BUDGET_CHARS + 500);
+        let clamped = clamp_tool_output(big);
+        assert!(clamped.chars().count() < TOOL_OUTPUT_BUDGET_CHARS + 200);
+        assert!(clamped.contains("输出已截断"));
+        assert!(clamped.contains("缩小范围"));
+        // 截断提示必须是「下一步怎么办」，不是干巴巴的报错
+        assert!(clamped.contains("分多次获取"));
+    }
+
+    #[test]
+    fn clamp_tool_output_handles_multibyte_chars_without_panic() {
+        // 中文按字符截断，不能切出非法 UTF-8 或 panic
+        let big = "雪".repeat(TOOL_OUTPUT_BUDGET_CHARS + 10);
+        let clamped = clamp_tool_output(big);
+        assert!(clamped.chars().count() >= TOOL_OUTPUT_BUDGET_CHARS);
+        assert!(clamped.contains("输出已截断"));
+    }
+
+    // ── 审批策略分级 ──
+
+    #[test]
+    fn approval_mode_matches_danger_levels() {
+        let json = |s: &str| serde_json::from_str::<Value>(s).unwrap();
+
+        // 执行类：逐条确认
+        assert_eq!(
+            approval_mode("run_command", &json("{}")),
+            ApprovalMode::EveryCall
+        );
+        // 写入类：可会话级记住
+        assert_eq!(
+            approval_mode("apply_change", &json(r#"{"file_path":"a.ts"}"#)),
+            ApprovalMode::SessionOnce
+        );
+        // context_insight 按 action 区分：save/resolve 落库要审，list 只读不审
+        assert_eq!(
+            approval_mode("context_insight", &json(r#"{"action":"save"}"#)),
+            ApprovalMode::SessionOnce
+        );
+        assert_eq!(
+            approval_mode("context_insight", &json(r#"{"action":"resolve"}"#)),
+            ApprovalMode::SessionOnce
+        );
+        assert_eq!(
+            approval_mode("context_insight", &json(r#"{"action":"list"}"#)),
+            ApprovalMode::Skip
+        );
+        // 只读工具与未知工具：不拦
+        assert_eq!(approval_mode("file_read", &json("{}")), ApprovalMode::Skip);
+        assert_eq!(
+            approval_mode("unknown_tool", &json("{}")),
+            ApprovalMode::Skip
+        );
+        // 写作域写工具：写入类低危（改稿前自动存快照），与 apply_change 同级
+        assert_eq!(
+            approval_mode(
+                "write_chapter",
+                &json(r#"{"chapter_id":"c1","mode":"replace"}"#)
+            ),
+            ApprovalMode::SessionOnce
+        );
+        assert_eq!(
+            approval_mode(
+                "create_chapter",
+                &json(r#"{"book_id":"b1","title":"第二章"}"#)
+            ),
+            ApprovalMode::SessionOnce
+        );
+        // 设定卡写工具（批次③ 增-3）：与正文写同级要审。
+        // 这条断言是**防线本身**——approval_mode 的 default 是 Skip，
+        // 以后再加任何写工具忘记登记，本测试就是最后一道闸。
+        assert_eq!(
+            approval_mode(
+                "update_character_card",
+                &json(r#"{"card":"s1","description":"改设定"}"#)
+            ),
+            ApprovalMode::SessionOnce
+        );
+        // 新增的只读工具必须**不**拦：拦了就是给作者添无意义弹窗
+        assert_eq!(
+            approval_mode("search_corpus", &json(r#"{"query":"孤独"}"#)),
+            ApprovalMode::Skip
+        );
+        assert_eq!(
+            approval_mode("read_character_card", &json("{}")),
+            ApprovalMode::Skip
+        );
+    }
+
+    /// 审批摘要必须说清"要动哪张卡的哪些字段"——这是作者点允许前唯一的依据。
+    #[test]
+    fn approval_summary_for_card_write_names_fields() {
+        let json = |s: &str| serde_json::from_str::<Value>(s).unwrap();
+        let s = approval_summary(
+            "update_character_card",
+            &json(r#"{"card":"沈砚","add_aliases":["沈公子"],"reason":"体检报出未登记别名"}"#),
+        );
+        assert!(s.contains("沈砚"), "{}", s);
+        assert!(s.contains("别名"), "{}", s);
+        // 未点名的字段要明说保持原样，作者才知道这不是整卡覆写
+        assert!(s.contains("没点名的字段保持原样"), "{}", s);
+        assert!(s.contains("修改历史"), "{}", s);
+        assert!(s.contains("体检报出未登记别名"), "{}", s);
+        // 一个字段都没给时也不能印出空话
+        let bare = approval_summary("update_character_card", &json(r#"{"card":"沈砚"}"#));
+        assert!(bare.contains("若干字段"), "{}", bare);
+    }
+
+    #[test]
+    fn approval_summary_is_creator_friendly() {
+        let json = |s: &str| serde_json::from_str::<Value>(s).unwrap();
+
+        let patch = approval_summary(
+            "apply_change",
+            &json(
+                r#"{"file_path":"src/main.rs","old_text":"a","new_text":"b","reason":"修复空指针"}"#,
+            ),
+        );
+        assert!(patch.contains("src/main.rs"));
+        assert!(patch.contains("替换片段"));
+        assert!(patch.contains("修复空指针"));
+
+        let rewrite = approval_summary(
+            "apply_change",
+            &json(r#"{"file_path":"a.md","content":"全新内容正文"}"#),
+        );
+        assert!(rewrite.contains("整文件重写"));
+
+        let save = approval_summary(
+            "context_insight",
+            &json(r#"{"action":"save","title":"循环复杂度过高"}"#),
+        );
+        assert!(save.contains("循环复杂度过高"));
+
+        let cmd = approval_summary(
+            "run_command",
+            &json(r#"{"command":"cargo test","cwd":"src-tauri"}"#),
+        );
+        assert!(cmd.contains("cargo test"));
+
+        // 写作域写工具：说清动哪一章、多大动作、原稿可恢复
+        let write = approval_summary(
+            "write_chapter",
+            &json(r#"{"chapter_id":"第三章 夜行","content":"雨点砸在屋檐上。","mode":"replace"}"#),
+        );
+        assert!(write.contains("替换正文"));
+        assert!(write.contains("第三章 夜行"));
+        assert!(write.contains("约 8 字"));
+        assert!(write.contains("版本历史"));
+
+        let append = approval_summary(
+            "write_chapter",
+            &json(r#"{"chapter_id":"第三章","content":"续写的句子","mode":"append"}"#),
+        );
+        assert!(append.contains("续写"));
+
+        let create = approval_summary(
+            "create_chapter",
+            &json(r#"{"book_id":"长夜余生","title":"第四章 归途"}"#),
+        );
+        assert!(create.contains("长夜余生"));
+        assert!(create.contains("第四章 归途"));
+        assert!(create.contains("空章"));
+
+        let create_with_body = approval_summary(
+            "create_chapter",
+            &json(r#"{"book_id":"长夜余生","title":"第四章","content":"正文若干"}"#),
+        );
+        assert!(create_with_body.contains("初始正文"));
     }
 }

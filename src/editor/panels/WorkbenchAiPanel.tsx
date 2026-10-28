@@ -26,6 +26,7 @@ import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Chip from '@mui/material/Chip';
+import Alert from '@mui/material/Alert';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Dialog from '@mui/material/Dialog';
@@ -39,6 +40,7 @@ import FormControl from '@mui/material/FormControl';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StopIcon from '@mui/icons-material/Stop';
+import ReplayIcon from '@mui/icons-material/Replay';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -952,6 +954,8 @@ export function WorkbenchAiPanel({
     streamingContent,
     isStreaming,
     stoppedConversationId,
+    currentStreamConversationId,
+    lastStreamError,
     toolCalls,
     selectedAgentId,
     selectedConversationId,
@@ -973,6 +977,8 @@ export function WorkbenchAiPanel({
     retryLastTurn,
     editLastRequest,
     copyMessage,
+    msgListRef,
+    handleMsgScroll,
   } = chat;
 
   // 高危工具审批（human-in-the-loop）：引擎即将执行 run_command 前推审批请求，这里弹确认框。
@@ -1625,7 +1631,7 @@ export function WorkbenchAiPanel({
           )}
 
           {/* 消息列表 */}
-          <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: 1 }}>
+          <Box ref={msgListRef} onScroll={handleMsgScroll} sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: 1 }}>
             {!selectedConversationId && messages.length === 0 && !isStreaming && (
               <Box sx={{ textAlign: 'center', color: 'text.secondary', mt: 2, px: 1 }}>
                 <SmartToyIcon sx={{ fontSize: 30, opacity: 0.3, color: 'primary.main' }} />
@@ -1777,14 +1783,14 @@ export function WorkbenchAiPanel({
               </Box>
             ))}
 
-            {isStreaming && (
+            {isStreaming && currentStreamConversationId === selectedConversationId && (
               <Box sx={{ mb: 1 }}>
                 {/* 流式实时轨迹与历史轨迹共用同一渲染：两处必须长得一样，否则流式结束的瞬间界面会「跳形」。
                 流式期间不折叠（collapseOver 给足），用户正盯着 AI 干活。 */}
                 <ToolStepList steps={toolCalls} onOpenPath={onOpenPath} collapseOver={999} />
                 {streamingContent && (
                   <Box sx={{ px: 1, py: 0.5, borderRadius: 1.5, border: 1, borderColor: 'divider', maxWidth: '94%' }}>
-                    <MarkdownView content={streamingContent} canApply={false} />
+                    <MarkdownView content={streamingContent} canApply={false} streaming />
                   </Box>
                 )}
                 {!streamingContent && toolCalls.length === 0 && (
@@ -1797,17 +1803,40 @@ export function WorkbenchAiPanel({
                 )}
               </Box>
             )}
-            {/* 停止回执：后端会保留「已吐出的部分回答」并落库，不标注的话用户分不清是答完了还是被自己截断了 */}
-            {!isStreaming && stoppedConversationId && stoppedConversationId === selectedConversationId && (
-              <Chip
-                size="small"
-                icon={<StopIcon sx={{ fontSize: 12 }} />}
-                label={t('workbench.aiStopped')}
-                color="error"
+            {/* 流错误回执：归属当前会话且不在流式中时，展示最近一轮错误 + 重试（错误优先于停止标注） */}
+            {!isStreaming && lastStreamError && currentStreamConversationId === selectedConversationId && (
+              <Alert
+                severity="error"
                 variant="outlined"
-                sx={{ fontSize: 9.5, height: 20 }}
-              />
+                sx={{ fontSize: 12, mb: 1, '& .MuiAlert-message': { py: 0.25 } }}
+                action={
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<ReplayIcon sx={{ fontSize: 14 }} />}
+                    onClick={() => void retryLastTurn()}
+                  >
+                    {t('ui.retry')}
+                  </Button>
+                }
+              >
+                {lastStreamError === 'timeout' ? t('workbench.aiTimeout') : lastStreamError}
+              </Alert>
             )}
+            {/* 停止回执：后端会保留「已吐出的部分回答」并落库，不标注的话用户分不清是答完了还是被自己截断了 */}
+            {!isStreaming &&
+              !lastStreamError &&
+              stoppedConversationId &&
+              stoppedConversationId === selectedConversationId && (
+                <Chip
+                  size="small"
+                  icon={<StopIcon sx={{ fontSize: 12 }} />}
+                  label={t('workbench.aiStopped')}
+                  color="error"
+                  variant="outlined"
+                  sx={{ fontSize: 9.5, height: 20 }}
+                />
+              )}
             <div ref={listEndRef} />
           </Box>
 
@@ -1934,16 +1963,21 @@ export function WorkbenchAiPanel({
         </>
       }
 
-      {/* 高危工具审批（human-in-the-loop）：引擎即将执行 run_command 前弹确认框，对标 VS Code Agent 的「Run command?」拦截。
-          用户允许才执行，拒绝则命令不落地；超时 / 取消引擎按拒绝处理。 */}
+      {/* 高危工具审批（human-in-the-loop）：run_command 每条确认，写入类工具（修改文件 / 保存洞察）
+          弹确认框并可会话级记住，对标 VS Code Agent 的「Run command?」拦截。
+          用户允许才执行，拒绝则操作不落地；超时 / 取消引擎按拒绝处理。 */}
       <Dialog open={!!pendingToolApproval} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 1 }}>
           <WarningAmberIcon sx={{ fontSize: 18, color: 'warning.main' }} />
-          {t('workbench.aiApproval.title')}
+          {pendingToolApproval?.tool === 'run_command'
+            ? t('workbench.aiApproval.title')
+            : t('workbench.aiApproval.titleWrite')}
         </DialogTitle>
         <DialogContent sx={{ fontSize: 12 }}>
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.75 }}>
-            {t('workbench.aiApproval.warning')}
+            {pendingToolApproval?.tool === 'run_command'
+              ? t('workbench.aiApproval.warning')
+              : t('workbench.aiApproval.warningWrite')}
           </Typography>
           {pendingToolApproval && (
             <Box
@@ -1960,8 +1994,9 @@ export function WorkbenchAiPanel({
                 lineHeight: 1.5,
               }}
             >
-              {pendingToolApproval.cwd ? `$ ${pendingToolApproval.cwd}> ` : '$ '}
-              {pendingToolApproval.command}
+              {pendingToolApproval.tool === 'run_command'
+                ? `${pendingToolApproval.cwd ? `$ ${pendingToolApproval.cwd}> ` : '$ '}${pendingToolApproval.command}`
+                : pendingToolApproval.summary}
             </Box>
           )}
         </DialogContent>
@@ -1969,6 +2004,11 @@ export function WorkbenchAiPanel({
           <Button size="small" color="error" variant="outlined" onClick={() => void resolveToolApproval(false)}>
             {t('workbench.aiApproval.deny')}
           </Button>
+          {pendingToolApproval?.sessionRememberable && (
+            <Button size="small" variant="outlined" onClick={() => void resolveToolApproval(true, true)}>
+              {t('workbench.aiApproval.allowSession')}
+            </Button>
+          )}
           <Button size="small" variant="contained" onClick={() => void resolveToolApproval(true)}>
             {t('workbench.aiApproval.allow')}
           </Button>

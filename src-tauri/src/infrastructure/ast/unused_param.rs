@@ -30,7 +30,7 @@
 //! 输出为纯数据（`Vec<UnusedParam>`），落库与前端呈现由 `commands/dead_code.rs` 负责。
 
 use crate::infrastructure::ast::unused_local::{
-    collect_idents, collect_rust_format_names, in_test_context, is_ref_kind, snippet_of, supported,
+    collect_rust_format_names, in_test_context, is_ref_kind, snippet_of, supported,
 };
 use crate::infrastructure::ast::{dialect_for, Dialect};
 use tree_sitter::{Node, Parser};

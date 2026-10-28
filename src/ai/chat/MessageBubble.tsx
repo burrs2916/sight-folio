@@ -111,7 +111,7 @@ export function MessageBubble({ role, content, createdAt, isStreaming, toolCalls
             </Typography>
           ) : (
             <Box sx={{ '& > *:first-of-type': { mt: 0 }, '& > *:last-child': { mb: 0 } }}>
-              <ChatMarkdown content={content} />
+              <ChatMarkdown content={content} streaming={isStreaming} />
               {isStreaming && <StreamCursor key="cursor" />}
             </Box>
           )}

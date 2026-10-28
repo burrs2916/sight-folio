@@ -1,7 +1,7 @@
 use crate::domain::writing::{
-    CompletedWork, WritingAnnotation, WritingBook, WritingChapter, WritingChapterSnapshot,
-    WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline, WritingSetting,
-    WritingStoryline, WritingTimelineEvent,
+    CompletedWork, ExternalCapture, WritingAnnotation, WritingBook, WritingChapter,
+    WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline,
+    WritingSetting, WritingStoryline, WritingTimelineEvent,
 };
 use crate::error::AppResult;
 use crate::infrastructure::database::analysis_repository::{
@@ -52,11 +52,24 @@ pub fn delete_writing_book(
 ) -> AppResult<()> {
     // 连带清理本书的写作扫描产物（wscan_ 前缀分析记录 + 章节虚拟文件行 +
     // 写作审查发现），避免图鉴 / 分析列表 / 审查面板出现幽灵条目。
-    // 清不到（从未扫描过）不算失败。
+    //
+    // 崩溃安全设计（勿随意改成单一事务）：扫描产物是「可再生的派生数据」，
+    // 必须先清、且清不到（从未扫描过）或清失败都不算失败——真正不可再生的
+    // 核心数据（章节/设定/大纲…）由 repo.delete_book 的单事务原子删除，
+    // 放在最后一步。若反过来把派生清理并进核心事务，派生数据的小故障会
+    // 连累核心删除回滚，方向就错了。顺序错了才会出现「书没了、产物还在」
+    // 的幽灵条目；当前顺序下任何一步失败，最坏结果也只是「书还在、产物
+    // 被清空」，重扫即可自愈。
     let analysis_id = writing_analysis_id(&book_id);
-    let _ = finding_repo.delete_by_analysis(&analysis_id);
-    let _ = file_repo.delete_by_analysis(&analysis_id);
-    let _ = analysis_repo.delete_analysis(&analysis_id);
+    if let Err(e) = finding_repo.delete_by_analysis(&analysis_id) {
+        eprintln!("[writing] delete book {book_id}: cleanup review findings failed (ignored): {e}");
+    }
+    if let Err(e) = file_repo.delete_by_analysis(&analysis_id) {
+        eprintln!("[writing] delete book {book_id}: cleanup scanned files failed (ignored): {e}");
+    }
+    if let Err(e) = analysis_repo.delete_analysis(&analysis_id) {
+        eprintln!("[writing] delete book {book_id}: cleanup analysis run failed (ignored): {e}");
+    }
     repo.delete_book(&book_id)
 }
 
@@ -66,6 +79,16 @@ pub fn list_writing_chapters(
     repo: State<'_, Arc<SqliteWritingRepository>>,
 ) -> AppResult<Vec<WritingChapter>> {
     repo.list_chapters(&book_id)
+}
+
+/// 按 id 取单章最新落库态（含正文）。AI 写工具落库后，前端据此判断
+/// 当前编辑器是否被外部修改（对比 updated_at）并按需重载，避免整书列表全量刷新。
+#[tauri::command]
+pub fn get_writing_chapter(
+    chapter_id: String,
+    repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<Option<WritingChapter>> {
+    repo.get_chapter(&chapter_id)
 }
 
 #[tauri::command]
@@ -141,6 +164,40 @@ pub fn save_writing_chapter_snapshot(
     repo: State<'_, Arc<SqliteWritingRepository>>,
 ) -> AppResult<()> {
     crate::application::writing::save_chapter_snapshot(&snapshot, &*repo)
+}
+
+/// 重命名快照：只更新 name 一列（与 `set_writing_chapter_storyline` /
+/// `rename_writing_chapter` 同一防整行覆写原则）。name 传 null/空白 = 清除自定义名。
+#[tauri::command]
+pub fn rename_writing_chapter_snapshot(
+    snapshot_id: String,
+    name: Option<String>,
+    repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<()> {
+    crate::application::writing::rename_chapter_snapshot(&snapshot_id, name.as_deref(), &repo)
+}
+
+/// 设定卡改写历史（批次③ 增-3）：AI 改卡前存的旧值。
+/// 上限夹到 50，防前端误传大数把整张历史表拖出来。
+#[tauri::command]
+pub fn list_writing_setting_revisions(
+    setting_id: String,
+    limit: Option<i64>,
+    repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<Vec<crate::domain::writing::WritingSettingRevision>> {
+    let cap = limit.unwrap_or(20).clamp(1, 50);
+    crate::application::writing::list_setting_revisions(&setting_id, cap, &repo)
+}
+
+/// 把设定卡恢复到某条修订历史，返回恢复后的卡（前端据此重载编辑草稿）。
+/// 当前值会先存入历史，所以恢复可反复点、每次被顶掉的内容都留得下来。
+#[tauri::command]
+pub fn restore_writing_setting_revision(
+    setting_id: String,
+    revision_id: String,
+    repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<crate::domain::writing::WritingSetting> {
+    crate::application::writing::restore_setting_revision(&setting_id, &revision_id, &repo)
 }
 
 #[tauri::command]
@@ -339,6 +396,14 @@ pub fn delete_writing_annotation(
     repo: State<'_, Arc<SqliteWritingRepository>>,
 ) -> AppResult<()> {
     repo.delete_annotation(&annotation_id)
+}
+
+#[tauri::command]
+pub fn list_writing_annotations_by_setting(
+    setting_id: String,
+    repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<Vec<WritingAnnotation>> {
+    repo.list_annotations_by_setting(&setting_id)
 }
 
 // ─── 灵感/快速笔记（T4）：全局级、跨章、作者心流暂存。 ───
@@ -684,6 +749,34 @@ pub fn import_completed_works(
         imported += 1;
     }
     Ok((imported, skipped))
+}
+
+// ─── 外部素材采集（Writing Phase 1）：图片/文字/记事本片段/链接 → 素材库 ───
+// book_id='' = 全局素材；AI 分析由前端调用 Agent 完成后回填 analysis_json，
+// 此处仅负责持久化与检索（命令层不做 OCR/分析，保持与其它 writing 命令一致）。
+
+#[tauri::command]
+pub fn list_external_captures(
+    book_id: String,
+    repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<Vec<ExternalCapture>> {
+    repo.list_external_captures(&book_id)
+}
+
+#[tauri::command]
+pub fn save_external_capture(
+    item: ExternalCapture,
+    repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<()> {
+    repo.save_external_capture(&item)
+}
+
+#[tauri::command]
+pub fn delete_external_capture(
+    capture_id: String,
+    repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<()> {
+    repo.delete_external_capture(&capture_id)
 }
 
 /// 按扩展名推断导出格式（与前端 FORMAT_META 对齐；未知扩展名回退 "md" 之外 → 用 "" 表示未知）。

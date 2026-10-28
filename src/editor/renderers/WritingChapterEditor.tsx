@@ -123,6 +123,8 @@ export function WritingChapterEditor({
   readOnly = false,
   onSaveStateChange,
   onWordCountChange,
+  jumpAnchor,
+  onJumpAnchorConsumed,
 }: {
   chapterId: string;
   config: Record<string, unknown>;
@@ -136,6 +138,12 @@ export function WritingChapterEditor({
   onSaveStateChange?: (s: SaveState) => void;
   /** 实时字数外报（chrome="embedded" 时外层页签栏显示；纸面卡标题栏直接显示不外报） */
   onWordCountChange?: (n: number) => void;
+  /** T3 正文定位锚点（校对页签点行跳正文）：非空 = 装载完成后滚动高亮到该文本片段。
+   * 口径：聚合行携带 stripHtmlText 文本内首个命中片段，编辑器按 DOM 包含匹配粗定位。 */
+  jumpAnchor?: string | null;
+  /** T3 锚点消费回调：定位尝试完成（命中或降级）后调用，外层借此清空 editorStore
+   * 的 proofreadJumpAnchor（仿 proofreadFocusKey 消费即清空，防二次跳同锚点被去重吞掉）。 */
+  onJumpAnchorConsumed?: () => void;
 }) {
   const filePath = typeof config.filePath === 'string' ? config.filePath : '';
   const bookId = filePath.match(/^writing:\/\/([^/]+)\//)?.[1] ?? '';
@@ -269,6 +277,49 @@ export function WritingChapterEditor({
     setSaveState('idle');
     // 刻意不依赖 chapter 对象身份：装载后保存回写/外部同步都靠内容快照判别，不按引用重置
   }, [editor, chapterId, chapter, readOnly, flushSave, setSaveState]);
+
+  // T3 正文定位：校对页签点行 → 容器打开章页签后，按锚点文本滚动高亮。
+  // 消费语义：jumpAnchor 变化或内容装载完成后各触发一次；定位过一次后由上层清空
+  // proofreadJumpAnchor（store 级消费），本组件不重复定位。
+  const jumpDoneRef = useRef<string | null>(null);
+  // 回调经 ref 转发：不进入 locateJump 依赖（否则每次渲染新闭包会重跑定位 effect）
+  const onJumpAnchorConsumedRef = useRef(onJumpAnchorConsumed);
+  onJumpAnchorConsumedRef.current = onJumpAnchorConsumed;
+  const locateJump = useCallback(() => {
+    if (!editor || !jumpAnchor) return;
+    if (chapterId !== loadedIdRef.current) return; // 内容未装载（切章后等待装载 effect）
+    if (jumpDoneRef.current === jumpAnchor) return; // 同一锚点已定位
+    const dom = editor.view.dom as HTMLElement;
+    if (!dom || !dom.isConnected) return; // 编辑器 DOM 未挂载
+    // 按包含匹配定位首个文本节点（聚合行锚点 = strip 文本片段，DOM 文本节点近似等价）
+    const tree = document.createTreeWalker(dom, NodeFilter.SHOW_TEXT);
+    let hit: Text | null = null;
+    while (tree.nextNode()) {
+      const node = tree.currentNode as Text;
+      if (node.data && node.data.includes(jumpAnchor)) {
+        hit = node;
+        break;
+      }
+    }
+    jumpDoneRef.current = jumpAnchor; // 定位尝试完成（命中或降级），防重复空扫
+    if (!hit || !hit.parentElement) {
+      // 未命中：仅打开章本身可接受（粗定位降级）
+      onJumpAnchorConsumedRef.current?.();
+      return;
+    }
+    // 滚动到所在块级元素（scrollIntoView 由浏览器做居中/最近对齐），并加短暂高亮。
+    // 熄灭定时器刻意不挂在 effect cleanup 上：消费清空（jumpAnchor→null）会触发 effect
+    // 重跑并执行 cleanup，若在此清掉定时器，高亮 class 将永久残留。定时器回调只操作
+    // 已挂载 DOM 的 class，组件卸载后残留调用无害（detached 元素 classList 无副作用）。
+    hit.parentElement.scrollIntoView({ block: 'center' });
+    const flash = hit.parentElement as HTMLElement;
+    flash.classList.add('ps-locate-flash');
+    window.setTimeout(() => flash.classList.remove('ps-locate-flash'), 1800);
+    onJumpAnchorConsumedRef.current?.();
+  }, [editor, jumpAnchor, chapterId]);
+  useEffect(() => {
+    locateJump();
+  }, [locateJump]);
 
   // 卸载前 flush
   useEffect(() => {
@@ -451,7 +502,7 @@ export function WritingChapterEditor({
             flexShrink: 0,
           }}
         >
-          {isEssay ? '篇' : '章'}
+          {isEssay ? t('writingDesign.unitEssay') : t('writingDesign.unitChapter')}
         </div>
         <span
           style={{

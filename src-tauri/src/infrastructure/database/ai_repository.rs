@@ -127,6 +127,32 @@ impl AiProviderRepo {
         Ok(())
     }
 
+    /// 按 id 取单个 Provider（含明文 api_key，仅供后端内部使用；接口层一律走掩码 DTO）。
+    pub fn get_by_id(db: &Arc<Database>, id: &str) -> Result<Option<AiProviderRow>, String> {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT id, name, api_key, color, enabled, created_at, updated_at FROM ai_providers WHERE id = ?1")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt
+            .query_map([id], |row| {
+                let enabled: i32 = row.get(4)?;
+                Ok(AiProviderRow {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    api_key: row.get(2)?,
+                    color: row.get(3)?,
+                    enabled: enabled != 0,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
+                })
+            })
+            .map_err(|e| e.to_string())?;
+        match rows.next() {
+            Some(row) => row.map(Some).map_err(|e| e.to_string()),
+            None => Ok(None),
+        }
+    }
+
     pub fn delete(db: &Arc<Database>, id: &str) -> Result<(), String> {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM ai_models WHERE endpoint_id IN (SELECT id FROM ai_endpoints WHERE provider_id = ?1)", params![id])
@@ -1019,7 +1045,7 @@ impl AnalysisFileSnapshot {
             return Vec::new();
         }
         let mut out: Vec<String> = Vec::new();
-        let mut push = |p: &str, out: &mut Vec<String>| {
+        let push = |p: &str, out: &mut Vec<String>| {
             if out.len() < max && !out.iter().any(|x| x == p) {
                 out.push(p.to_string());
             }

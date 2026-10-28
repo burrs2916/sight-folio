@@ -1,9 +1,11 @@
-// 章统筹工作台（正文页签右栏内嵌，2026-09-19 拍板「统筹不各自为政」）：
+// 章统筹工作台（正文页签右栏内嵌 / 写作台「章详情」九维面板共用同一组件）：
 //
 // 以**当前激活章**为中心聚合八个维度的本章视角——出场人物 / 场景（世界观）/
 // 时间线 / 剧情线 / 伏笔 / 灵感 / 校对 / 统计——每行可点即跳对应页签并选中，
 // 结构动作（转时间线草稿）就地可用。**正文只读**（编辑收敛写作台），本面板只做
 // 设计联动，不做正文编辑。
+// 跳转一律走 writingDeskJump 的 dispatchChapterJump 协议：主窗口就地执行，
+// 写作台独立窗口 emit 事件由主窗口接管并置前——两种挂载形态行为一致。
 // 口径全部复用 utils（castOfChapter / scenesOfChapter /
 // deriveLinesFromEvents / foreshadowingsPlantedIn·PayableIn / chapterTextIssues /
 // chapterOutlier），与右栏本章上下文同一份算法，零第二份。
@@ -13,11 +15,10 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import { useWritingStore } from '../../store/writingStore';
-import { useEditorStore } from '../../store/editorStore';
-import { openTypedCarrierView } from '../../utils/studioBook';
+import { dispatchChapterJump, type ChapterJumpPayload } from '../../utils/writingDeskJump';
 import { t } from '../../i18n';
 import { logger } from '../../utils/logger';
-import { castOfChapter, scenesOfChapter } from '../../utils/writingOutline';
+import { castOfChapter, scenesOfChapter, ideasOfChapter } from '../../utils/writingOutline';
 import { isComplete, deriveLinesFromEvents, LANE_COLORS, hashStr } from '../../utils/writingTimeline';
 import {
   foreshadowingsPlantedIn,
@@ -41,11 +42,13 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
 
   const chapter = chapterId ? (chapters.find((c) => c.id === chapterId) ?? null) : null;
 
-  const openPane = (view: Parameters<typeof openTypedCarrierView>[1]) => {
+  // 跳转统一走 dispatchChapterJump 协议：主窗口就地执行（选中 + 切页签），
+  // 写作台独立窗口由主窗口监听事件接管——与提醒条跳转同一通道。
+  const jump = (p: Omit<ChapterJumpPayload, 'genre'>) => {
     try {
-      openTypedCarrierView(genre, view);
+      dispatchChapterJump({ genre, ...p });
     } catch (e) {
-      logger.warn('ChapterOverviewPanel', 'openPane failed', { view, error: String(e) });
+      logger.warn('ChapterOverviewPanel', 'dispatchChapterJump failed', { p, error: String(e) });
     }
   };
 
@@ -78,7 +81,10 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
     () => (chapter ? foreshadowingsPayableIn(foreshadowings, chapter.id) : []),
     [foreshadowings, chapter],
   );
-  const freshIdeas = 0;
+  // ⑦ 灵感：念头池中与本章节拍挂载的出场人物/场景有交集的未落章拍，
+  // 口径与灵感提醒条/灵感页签同源（ideasOfChapter，utils/writingOutline），
+  // 计数不再硬编码为 0（2026-10-19 审计项）。
+  const freshIdeas = useMemo(() => (chapter ? ideasOfChapter(outlines, chapter.id).length : 0), [outlines, chapter]);
   const proofreadIssues = useMemo(() => (chapter ? chapterTextIssues(chapter) : []), [chapter]);
   const kpi = useMemo(() => {
     const bookChapters = chapters.filter((c) => c.bookId === bookId);
@@ -92,20 +98,6 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
   }, [chapters, bookId, chapter]);
 
   const nameOf = (id: string) => settings.find((s) => s.id === id)?.name ?? id;
-  const selectAndOpen = (
-    fn: (id: string) => void,
-    id: string,
-    view: Parameters<typeof openTypedCarrierView>[1],
-    prep?: () => void,
-  ) => {
-    try {
-      prep?.();
-      fn(id);
-      openPane(view);
-    } catch (e) {
-      logger.warn('ChapterOverviewPanel', 'selectAndOpen failed', { id, view, error: String(e) });
-    }
-  };
 
   const GroupTitle = ({ label, count }: { label: string; count: number }) => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1.25, mb: 0.5 }}>
@@ -171,7 +163,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
               key={id}
               size="small"
               variant="outlined"
-              onClick={() => selectAndOpen(useEditorStore.getState().selectSetting, id, 'characters')}
+              onClick={() => jump({ kind: 'characters', settingId: id })}
               sx={{ ...rowBtnSx, height: 20, minHeight: 0, borderRadius: 3, fontSize: 10.5 }}
             >
               {nameOf(id)}
@@ -191,7 +183,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
               key={id}
               size="small"
               variant="outlined"
-              onClick={() => selectAndOpen(useEditorStore.getState().selectSetting, id, 'worldview')}
+              onClick={() => jump({ kind: 'worldview', settingId: id })}
               sx={{ ...rowBtnSx, height: 20, minHeight: 0, borderRadius: 3, fontSize: 10.5 }}
             >
               {nameOf(id)}
@@ -210,12 +202,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
             key={ev.id}
             size="small"
             variant="text"
-            onClick={() =>
-              selectAndOpen(useEditorStore.getState().selectTimelineEvent, ev.id, 'timeline', () => {
-                const es = useEditorStore.getState();
-                if (es.timelineViewMode !== 'chapter') es.setTimelineViewMode('chapter');
-              })
-            }
+            onClick={() => jump({ kind: 'timeline', timelineView: 'chapter', eventId: ev.id })}
             title={t('writing.chapterTimelineOpen')}
             sx={rowBtnSx}
           >
@@ -275,12 +262,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
             key={sl.id}
             size="small"
             variant="text"
-            onClick={() =>
-              selectAndOpen(useEditorStore.getState().selectStoryline, sl.id, 'timeline', () => {
-                const es = useEditorStore.getState();
-                if (es.timelineViewMode !== 'storyline') es.setTimelineViewMode('storyline');
-              })
-            }
+            onClick={() => jump({ kind: 'timeline', timelineView: 'storyline', storylineId: sl.id })}
             title={t('writing.storylineSelect')}
             sx={rowBtnSx}
           >
@@ -319,7 +301,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
               key={f.id}
               size="small"
               variant="text"
-              onClick={() => selectAndOpen(useEditorStore.getState().selectForeshadowing, f.id, 'foreshadowing')}
+              onClick={() => jump({ kind: 'foreshadowing', selectedId: f.id })}
               sx={rowBtnSx}
             >
               <Box
@@ -346,7 +328,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
               key={f.id}
               size="small"
               variant="text"
-              onClick={() => selectAndOpen(useEditorStore.getState().selectForeshadowing, f.id, 'foreshadowing')}
+              onClick={() => jump({ kind: 'foreshadowing', selectedId: f.id })}
               sx={rowBtnSx}
             >
               <Box
@@ -373,7 +355,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
 
       {/* ⑦ 灵感（念头池未分发计数 → 灵感页签速记/分发） */}
       <GroupTitle label={t('writing.viewKind.inspiration')} count={freshIdeas} />
-      <Button size="small" variant="text" onClick={() => openPane('inspiration')} sx={rowBtnSx}>
+      <Button size="small" variant="text" onClick={() => jump({ kind: 'inspiration' })} sx={rowBtnSx}>
         {freshIdeas > 0 ? t('writing.overviewIdeasFresh', { n: freshIdeas }) : t('writing.overviewIdeasClean')}
       </Button>
 
@@ -389,8 +371,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
               size="small"
               variant="text"
               onClick={() => {
-                useEditorStore.getState().setProofreadFocusKey(iss.key);
-                openPane('proofread');
+                jump({ kind: 'proofread', issueKey: iss.key });
               }}
               title={t('writing.proofreadJumpDetail')}
               sx={{
@@ -411,7 +392,7 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
           <Button
             size="small"
             variant="text"
-            onClick={() => openPane('proofread')}
+            onClick={() => jump({ kind: 'proofread' })}
             sx={{ ...rowBtnSx, color: 'primary.main' }}
           >
             ⇢ {t('writing.viewKind.proofread')}
@@ -435,15 +416,14 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
         variant="text"
         onClick={() => {
           if (chapter) {
-            useEditorStore.getState().setStatsFocusChapterId(chapter.id);
+            jump({ kind: 'stats', chapterId: chapter.id });
           }
-          openPane('stats');
         }}
         sx={rowBtnSx}
       >
         ⇢ {t('writing.viewKind.stats')}
       </Button>
-      <Button size="small" variant="text" onClick={() => openPane('overview')} sx={rowBtnSx}>
+      <Button size="small" variant="text" onClick={() => jump({ kind: 'overview' })} sx={rowBtnSx}>
         ⇢ {t('writing.viewKind.overview')}
       </Button>
 

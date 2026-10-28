@@ -44,7 +44,7 @@ export interface ChapterListPanelProps {
   setActiveSetting: (id: string | null) => void;
   setActiveChapter: (id: string) => void;
   dragChapterIdRef: MutableRefObject<string | null>;
-  flushSave: () => Promise<void>;
+  flushSave: () => Promise<boolean>;
   setDropIndex: (i: number | null) => void;
   reorderChapter: (id: string, toIndex: number) => Promise<void>;
   dropIndex: number | null;

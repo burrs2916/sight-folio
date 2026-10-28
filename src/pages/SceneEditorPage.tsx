@@ -912,7 +912,21 @@ export default function SceneEditorPage() {
         return;
       }
       cards = r.cards;
-      doneMsg = t('editorPage.bookOverview.done', { chapters: r.chapterCount, characters: r.characterCount });
+      doneMsg =
+        r.appearanceEdgesDropped > 0
+          ? t('editorPage.bookOverview.doneEdgesTrimmed', {
+              chapters: r.chapterCount,
+              characters: r.characterCount,
+              edges: r.appearanceEdgeCount,
+              dropped: r.appearanceEdgesDropped,
+            })
+          : r.appearanceEdgeCount > 0
+            ? t('editorPage.bookOverview.doneEdges', {
+                chapters: r.chapterCount,
+                characters: r.characterCount,
+                edges: r.appearanceEdgeCount,
+              })
+            : t('editorPage.bookOverview.done', { chapters: r.chapterCount, characters: r.characterCount });
     } else if (kind === 'storyboard') {
       const r = buildStoryboard(filesNow);
       if (r.chapterCount === 0) {

@@ -96,7 +96,7 @@ function baseProps(over: Partial<ChapterTreePanelProps> = {}): ChapterTreePanelP
     setActiveSetting: vi.fn(),
     setActiveChapter: vi.fn(),
     dragChapterIdRef: { current: null },
-    flushSave: vi.fn(async () => {}),
+    flushSave: vi.fn(async () => true),
     setDropIndex: vi.fn(),
     reorderChapter: vi.fn(async () => {}),
     reparentNode: vi.fn(async () => {}),

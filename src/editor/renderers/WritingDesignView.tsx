@@ -73,7 +73,7 @@ export function WritingDesignView({ config, mode, componentId }: ComponentRender
 
   const isEssay = genre === "essay";
   const accent = isEssay ? ESSAY_ACCENT : NOVEL_ACCENT;
-  const badgeChar = resolveFragments(genreLabelKey(genre)).charAt(0) || "文";
+  const badgeChar = resolveFragments(genreLabelKey(genre)).charAt(0) || t("writingDesign.badgeFallback");
   // 体裁未实装（旧卡 poetry/script）：明示建设中文案，不留空白卡
   const genreReady = isEssay || genre === "novel" || genre === "";
 

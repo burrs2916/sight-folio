@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { t } from "../../i18n";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -21,7 +22,7 @@ export default function TableWidget({
   rows,
   title: _title,
   searchable = true,
-  searchPlaceholder = "搜索...",
+  searchPlaceholder = t("ui.searchPlaceholder"),
   pagination = true,
   rowsPerPageOptions = [10, 25, 50],
   defaultRowsPerPage = 10,
@@ -161,9 +162,11 @@ export default function TableWidget({
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          labelRowsPerPage="每页行数:"
+          labelRowsPerPage={t("ui.rowsPerPage")}
           labelDisplayedRows={({ from, to, count }) =>
-            `${from}-${to} 共 ${count !== -1 ? count : `超过 ${to}`} 条`
+            count !== -1
+              ? t("ui.displayedRows", { from, to, count })
+              : t("ui.displayedRowsOver", { to })
           }
         />
       )}

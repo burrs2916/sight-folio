@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import logger from '../utils/logger';
+import { t } from '../i18n';
 import type {
   SceneComponent,
   LayerNode,
@@ -13,6 +14,11 @@ import type {
 } from '../types/editor';
 import { createDefaultAnalysisComponent, createDefaultLayer, getLayerDescendants } from '../types/editor';
 import { componentRegistry } from '../editor/registry';
+// type-only：writingProofread 不依赖 store（仅 services/tauri + proofreadEngine + utils），
+// 此处只取三个浏览态类型，避免任何循环依赖
+import type { ProofreadGroup, ProofreadSeverityFilter, ProofreadSortMode } from '../utils/writingProofread';
+// type-only：引擎级逐条命中随正文定位请求携带（正文容器「章内逐条闭环」面板用），无运行时耦合
+import type { ProofreadIssue } from '../editor/proofread/proofreadEngine';
 
 interface DirtyState {
   isDirty: boolean;
@@ -234,6 +240,30 @@ export interface EditorState {
   statsFocusChapterId: string | null;
   /** 设置统计定位请求（章检视器点击统计区时调用）；null = 清除。 */
   setStatsFocusChapterId: (id: string | null) => void;
+  /** T3 校对行→正文定位请求（校对页签→正文容器联动）：非空表示校对页签点章行请求打开正文容器
+   * 并滚动高亮到该文本片段（聚合行定位口径 = 章内首个命中片段，粗定位）；
+   * textHits = 该章引擎级逐条命中（聚合行携带，正文容器据此展开「章内逐条闭环」面板）；
+   * 由 WritingDocsRenderer 转发给章编辑器，编辑器定位完成后消费清空。 */
+  proofreadJumpAnchor: { chapterId: string; anchor: string; textHits?: ProofreadIssue[] } | null;
+  /** 设置/清除校对行→正文定位请求。 */
+  setProofreadJumpAnchor: (anchor: { chapterId: string; anchor: string; textHits?: ProofreadIssue[] } | null) => void;
+  /** T3 返回校对上下文（正文容器→校对页签回迁）：非空表示当前正文容器视图是从校对页签跳转而来；
+   * 值 = 校对页签离开时的 组筛选/严重性过滤/排序/列表滚动位置，供「返回校对」入口切回后恢复；由 ProofreadPane 消费清空。 */
+  proofreadReturnCtx: {
+    group: ProofreadGroup;
+    sev: ProofreadSeverityFilter;
+    sort: ProofreadSortMode;
+    scrollTop: number;
+  } | null;
+  /** 设置/清除返回校对上下文。 */
+  setProofreadReturnCtx: (
+    ctx: {
+      group: ProofreadGroup;
+      sev: ProofreadSeverityFilter;
+      sort: ProofreadSortMode;
+      scrollTop: number;
+    } | null,
+  ) => void;
   /**
    * sight-folio 写作台：时间线 pane 的子视图口径（book=全书轴按设定分轨 / chapter=按章轴分轨）。
    * 放 store 而非 pane 本地 state：右栏总览卡的冲突行点选时需要切换口径
@@ -562,6 +592,13 @@ export const useEditorStore = create<EditorStore>()(
     selectedChapterId: null as string | null,
     proofreadFocusKey: null as string | null,
     statsFocusChapterId: null as string | null,
+    proofreadJumpAnchor: null as { chapterId: string; anchor: string; textHits?: ProofreadIssue[] } | null,
+    proofreadReturnCtx: null as {
+      group: ProofreadGroup;
+      sev: ProofreadSeverityFilter;
+      sort: ProofreadSortMode;
+      scrollTop: number;
+    } | null,
     // 时间线 pane 子视图口径（主 pane 与右栏总览共享，默认全书轴）
     timelineViewMode: 'book' as 'book' | 'chapter' | 'storyline',
     // v2.14 目录树符号展开：双击文件展开/收起其符号卡（代码结构画像）
@@ -890,7 +927,7 @@ export const useEditorStore = create<EditorStore>()(
       const newComp: SceneComponent = {
         ...JSON.parse(JSON.stringify(comp)),
         id: `comp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        name: `${comp.name} (副本)`,
+        name: `${comp.name} ${t('editor.copySuffix')}`,
         transform: {
           ...comp.transform,
           x: comp.transform.x + 20,
@@ -1321,6 +1358,18 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
+    setProofreadJumpAnchor: (anchor) => {
+      set((draft: EditorState) => {
+        draft.proofreadJumpAnchor = anchor;
+      });
+    },
+
+    setProofreadReturnCtx: (ctx) => {
+      set((draft: EditorState) => {
+        draft.proofreadReturnCtx = ctx;
+      });
+    },
+
     getSelectedComponents: () => {
       const state = get();
       return state.components.filter((c: SceneComponent) => state.selection.selectedIds.includes(c.id));
@@ -1622,7 +1671,7 @@ export const useEditorStore = create<EditorStore>()(
       const pasted: SceneComponent[] = state.clipboard.map((comp: SceneComponent) => ({
         ...JSON.parse(JSON.stringify(comp)),
         id: `comp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-        name: `${comp.name} (副本)`,
+        name: `${comp.name} ${t('editor.copySuffix')}`,
         transform: {
           ...comp.transform,
           x: comp.transform.x + 20,

@@ -266,39 +266,54 @@ export function chaptersOfSetting(
  * T9：优先查 store 倒排索引（settingInboundIndex），O(1) 命中；
  * 索引未就绪时 fallback 全量扫描。
  */
-export function relatedSettingsOf(
-  settings: WritingSetting[],
-  targetId: string,
-): { setting: WritingSetting; relationType: string }[] {
+export interface SettingRelationRef {
+  setting: WritingSetting;
+  relationType: string;
+}
+
+/**
+ * 反向引用（谁引用了某设定）：targetId 命中即纳入。
+ * A3：返回**全部**匹配关系（同一引用方可有多条不同 type 的关系行），
+ * 不再用 `.find` 只取第一条——多条同向引用不再被吞。
+ */
+export function relatedSettingsOf(settings: WritingSetting[], targetId: string): SettingRelationRef[] {
   if (!targetId) return [];
 
-  // T9: 优先查索引
+  const collect = (s: WritingSetting): SettingRelationRef[] => {
+    if (s.id === targetId) return [];
+    const extra = parseSettingExtra(s.extra);
+    return (extra.relations ?? [])
+      .filter((r: WritingRelation) => r.targetId === targetId)
+      .map((r) => ({ setting: s, relationType: r.type ?? '' }));
+  };
+
+  // T9: 优先查索引（命中集合裁剪扫描范围；仍逐条匹配以保留全部关系）
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useWritingStore } = require('../store/writingStore');
     const idx = useWritingStore.getState().settingInboundIndex.get(targetId);
     if (idx) {
-      const ids = Array.from(idx);
-      return settings
-        .filter((s) => s.id !== targetId && ids.includes(s.id))
-        .map((s) => {
-          const extra = parseSettingExtra(s.extra);
-          const rel = (extra.relations ?? []).find((r: WritingRelation) => r.targetId === targetId);
-          return { setting: s, relationType: rel?.type ?? '' };
-        });
+      const ids = new Set(idx);
+      return settings.filter((s) => ids.has(s.id)).flatMap(collect);
     }
   } catch {
     // 索引不可用，fallback 全量扫描
   }
 
-  const out: { setting: WritingSetting; relationType: string }[] = [];
-  for (const s of settings) {
-    if (s.id === targetId) continue;
-    const extra = parseSettingExtra(s.extra);
-    const rel = (extra.relations ?? []).find((r: WritingRelation) => r.targetId === targetId);
-    if (rel) out.push({ setting: s, relationType: rel.type ?? '' });
+  return settings.flatMap(collect);
+}
+
+/**
+ * 关系目标展示名：targetId 命中时实时取目标设定当前名（改名后正/反向一致），
+ * 未命中（目标已删 / 自由文本旧数据）回退 rel.target 快照。
+ */
+export function relationTargetName(settings: WritingSetting[], rel: WritingRelation | undefined): string {
+  if (!rel) return '';
+  if (rel.targetId) {
+    const hit = settings.find((s) => s.id === rel.targetId);
+    if (hit?.name) return hit.name;
   }
-  return out;
+  return rel.target ?? '';
 }
 
 /** 章在结构树里的路径：根 → 自身（含各级 kind/title）。防环 + 断链兜底，找不到返回 [] */

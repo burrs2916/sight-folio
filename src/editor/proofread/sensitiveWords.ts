@@ -1,7 +1,13 @@
 // sight-folio: 敏感词/违规词库（前端轻量过滤用，非 exhaustive）
 // 场景：写作台自动检测正文，提示作者注意合规风险。
 // 维护：按语境严重程度分为 warning / block 两级；UI 统一标红，block 额外警告。
-export const SENSITIVE_WORDS: { word: string; level: 'warning' | 'block' }[] = [
+/** 敏感词条目。导出以便自定义词库复用同一形状，避免两处各写一份 `{word, level}` 字面量类型 */
+export interface SensitiveEntry {
+  word: string;
+  level: 'warning' | 'block';
+}
+
+export const SENSITIVE_WORDS: SensitiveEntry[] = [
   // 政治敏感
   { word: '法轮功', level: 'block' },
   { word: '台独', level: 'block' },

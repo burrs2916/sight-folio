@@ -99,13 +99,16 @@ pub fn export_pdf(
     for ch in &chapters {
         charset.extend(ch.title.chars());
         charset.extend(clean_text(&ch.content).chars());
+        if let Some(v) = &ch.volume {
+            charset.extend(v.chars());
+        }
     }
     if let Some(d) = &description {
         charset.extend(d.chars());
     }
     charset.extend(title.chars());
-    // 目录/封面固定文案字符（数字、点、书名号、冒号、空格等）
-    for extra in "0123456789.…·，。、：；！？（）《》——· SightFolio导出之目录".chars()
+    // 目录/封面固定文案字符（数字、点、书名号、冒号、空格、页码斜杠、出品字样等）
+    for extra in "0123456789.…·，。、：；！？（）《》——· SightFolio导出之目录出品/ pgt".chars()
     {
         charset.insert(extra);
     }
@@ -199,25 +202,75 @@ pub fn export_pdf(
     let mut baseline = PAGE_H - MARGIN - BODY_FONT_SIZE; // 首行基线
     let mut page_count: u32 = 2; // 已含封面+目录
     let mut chap_start: Vec<u32> = Vec::new();
+    let mut last_volume: String = String::new();
 
     for ch in &chapters {
-        // 章节标题
+        // 章首强制新页（出版惯例：每章起新页；第一章紧随目录页亦从新页开始）
+        if !current.is_empty() {
+            page_streams.push(std::mem::take(&mut current));
+            page_count += 1;
+            baseline = PAGE_H - MARGIN - BODY_FONT_SIZE;
+        }
+        let volume = ch.volume.as_deref().unwrap_or("");
+        let volume = volume.trim();
+        // 卷标题：卷名变化时在新页顶部输出粗体卷标（目录卷层级与正文呼应）
+        let vol_line_h = if !volume.is_empty() && volume != last_volume {
+            13.0 * LINE_HEIGHT_FACTOR + SKIP_GAP
+        } else {
+            0.0
+        };
         ensure_space(
             &mut current,
             &mut baseline,
             &mut page_streams,
             &mut page_count,
-            HEADING_LINE_H(),
+            HEADING_LINE_H() + vol_line_h,
         );
+        if vol_line_h > 0.0 {
+            append_text_line_center(&mut current, volume, 13.0, &glyphs, baseline, true);
+            baseline -= 13.0 * LINE_HEIGHT_FACTOR + SKIP_GAP;
+            last_volume = volume.to_string();
+        }
         chap_start.push(page_count); // 该章起始落在当前页（ensure_space 已翻页则已 +1）
-        append_text_line(&mut current, &ch.title, 15.0, &glyphs, baseline);
+        append_text_line_at(
+            &mut current,
+            &ch.title,
+            15.0,
+            &glyphs,
+            MARGIN,
+            baseline,
+            true,
+        );
         baseline -= 15.0 * LINE_HEIGHT_FACTOR + SKIP_GAP;
 
         let blocks = parse_blocks(&ch.content);
         for block in blocks {
             match block {
                 HtmlBlock::Paragraph(text) => {
-                    for line in layout_text(&text, BODY_FONT_SIZE, BODY_W, &glyphs) {
+                    // 中文出版惯例：段落首行缩进 2 字符（2 × 字号）
+                    let indent = BODY_FONT_SIZE * 2.0;
+                    let (first_line, rest) =
+                        layout_text_first_indent(&text, BODY_FONT_SIZE, BODY_W, indent, &glyphs);
+                    if let Some(fl) = first_line {
+                        ensure_space(
+                            &mut current,
+                            &mut baseline,
+                            &mut page_streams,
+                            &mut page_count,
+                            BODY_LINE_H(),
+                        );
+                        append_text_line_at(
+                            &mut current,
+                            &fl,
+                            BODY_FONT_SIZE,
+                            &glyphs,
+                            MARGIN + indent,
+                            baseline,
+                            false,
+                        );
+                        baseline -= BODY_FONT_SIZE * LINE_HEIGHT_FACTOR;
+                    }
+                    for line in rest {
                         ensure_space(
                             &mut current,
                             &mut baseline,
@@ -239,7 +292,7 @@ pub fn export_pdf(
                         &mut page_count,
                         size * LINE_HEIGHT_FACTOR * 2.0 + SKIP_GAP,
                     );
-                    append_text_line(&mut current, &text, size, &glyphs, baseline);
+                    append_text_line_at(&mut current, &text, size, &glyphs, MARGIN, baseline, true);
                     baseline -= size * LINE_HEIGHT_FACTOR + SKIP_GAP;
                 }
                 HtmlBlock::Image(rel) => {
@@ -293,7 +346,8 @@ pub fn export_pdf(
         page_streams.push(current);
     }
 
-    // 7. 页面对象（目录页 Contents 用真实页码重建）
+    // 7. 页面对象（目录页 Contents 用真实页码重建；非封面页追加页脚页码）
+    let total_pages = page_streams.len();
     let mut page_ids: Vec<Object> = Vec::new();
     for (i, stream) in page_streams.iter().enumerate() {
         let content_obj = if i == 1 {
@@ -301,7 +355,16 @@ pub fn export_pdf(
         } else {
             stream.clone()
         };
-        let content_id = doc.add_object(Stream::new(dictionary! {}, content_obj));
+        let mut content_final = content_obj;
+        if i > 0 {
+            // 页脚页码：正文页从第 2 页（目录）起计；"页码 / 总页数" 持平于页底居中
+            let footer = format!("{} / {}", i, total_pages - 1);
+            let footer_y = MARGIN / 2.0;
+            let mut footer_buf: Vec<u8> = Vec::new();
+            append_text_line_center(&mut footer_buf, &footer, 9.0, &glyphs, footer_y, false);
+            content_final.extend_from_slice(&footer_buf);
+        }
+        let content_id = doc.add_object(Stream::new(dictionary! {}, content_final));
         let mut xobj = lopdf::Dictionary::new();
         for (k, v) in &img_objs {
             xobj.set(k.clone(), v.clone());
@@ -364,21 +427,59 @@ fn ensure_space(
     }
 }
 
-/// 追加一行文本：Identity-H 编码，用十六进制字符串写入 GID 字节（每字 2 字节）。
-fn append_text_line(buf: &mut Vec<u8>, text: &str, size: f64, glyphs: &GlyphTable, baseline: f64) {
+/// 追加一行文本：Identity-H 编码，用十六进制字符串写入 GID 字节（每字 2 字节），
+/// 起点在 (x, baseline)。`bold` 用 TextRenderingMode=2（fill+stroke）描边模拟加粗，
+/// 对嵌入的单一字重 CJK 字体（无 Bold 变体）可用。
+fn append_text_line_at(
+    buf: &mut Vec<u8>,
+    text: &str,
+    size: f64,
+    glyphs: &GlyphTable,
+    x: f64,
+    baseline: f64,
+    bold: bool,
+) {
     let mut hex = String::with_capacity(text.len() * 4);
     for ch in text.chars() {
         let gid = glyphs.glyph(ch);
         hex.push_str(&format!("{:04X}", gid));
     }
+    let stroke = if bold { "2 Tr 0.55 w " } else { "" };
+    let restore = if bold { " 0 Tr" } else { "" };
     let _ = write!(
         buf,
-        "BT /F1 {} Tf 1 0 0 1 {} {} Tm <{}> Tj ET\n",
+        "BT /F1 {} Tf {}1 0 0 1 {} {} Tm <{}> Tj{} ET\n",
         size,
-        format_f64(MARGIN),
+        stroke,
+        format_f64(x),
         format_f64(baseline),
-        hex
+        hex,
+        restore
     );
+}
+
+/// 追加一行文本：默认左页边距、非加粗（兼容旧调用点）。
+fn append_text_line(buf: &mut Vec<u8>, text: &str, size: f64, glyphs: &GlyphTable, baseline: f64) {
+    append_text_line_at(buf, text, size, glyphs, MARGIN, baseline, false)
+}
+
+/// 计算一行文本的按字形宽度（单位：pt，与 font_size 同尺度），供居中排版用。
+fn text_width(text: &str, font_size: f64, glyphs: &GlyphTable) -> f64 {
+    text.chars().map(|c| glyphs.advance_em(c) * font_size).sum()
+}
+
+/// 居中追加一行文本（x 自适应，使文本水平居中于页面）。
+fn append_text_line_center(
+    buf: &mut Vec<u8>,
+    text: &str,
+    size: f64,
+    glyphs: &GlyphTable,
+    baseline: f64,
+    bold: bool,
+) {
+    let w = text_width(text, size, glyphs);
+    let x = (PAGE_W - w) / 2.0;
+    append_text_line_at(buf, text, size, glyphs, x, baseline, bold);
 }
 
 /// 追加一张图：q w 0 0 h x y cm /ImN Do Q（图左下角在绝对坐标）。
@@ -403,6 +504,51 @@ fn append_image(buf: &mut Vec<u8>, obj: &Object, w: f64, h: f64, baseline: f64) 
 fn format_f64(v: f64) -> String {
     let s = format!("{:.2}", v);
     s.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+/// 按字符 advance 累加断行（任意语言都按真实字形宽度换行）。
+/// `first_indent` > 0 时，第一行可用宽度扣除该缩进量（中文首行缩进 2 字符），
+/// 返回 `(首行, 后续行)`；首行需横向偏移 `first_indent` 绘制。
+fn layout_text_first_indent(
+    text: &str,
+    font_size: f64,
+    max_width: f64,
+    first_indent: f64,
+    glyphs: &GlyphTable,
+) -> (Option<String>, Vec<String>) {
+    if text.is_empty() {
+        return (None, Vec::new());
+    }
+    if first_indent <= 0.0 {
+        let lines = layout_text(text, font_size, max_width, glyphs);
+        let mut rest = lines;
+        let first = rest.first().cloned();
+        if !rest.is_empty() {
+            rest.remove(0);
+        }
+        return (first, rest);
+    }
+    // 首行按 first_max 断行
+    let first_max = max_width - first_indent;
+    let mut first = String::new();
+    let mut w = 0.0f64;
+    for ch in text.chars() {
+        let cw = glyphs.advance_em(ch) * font_size;
+        if w + cw > first_max && !first.is_empty() {
+            break;
+        }
+        first.push(ch);
+        w += cw;
+    }
+    if first.len() == text.chars().count() {
+        // 全部容纳在第一行
+        return (Some(first), Vec::new());
+    }
+    let rest_input: String = text.chars().skip(first.chars().count()).collect();
+    (
+        Some(first),
+        layout_text(&rest_input, font_size, max_width, glyphs),
+    )
 }
 
 /// 按字符 advance 累加断行（任意语言都按真实字形宽度换行）。
@@ -568,7 +714,7 @@ fn parse_blocks_into(html: &str, blocks: &mut Vec<HtmlBlock>) {
                     .map(|r| {
                         let cell = r.split("</tr>").next().unwrap_or("");
                         // 行内单元格以 | 拼接（粗化，保证可读）
-                        clean_text(cell)
+                        table_row_to_text(cell)
                     })
                     .collect();
                 blocks.push(HtmlBlock::Table(rows));
@@ -602,6 +748,33 @@ fn clean_text(s: &str) -> String {
         .replace("&nbsp;", " ")
 }
 
+/// 表格行 → "单元格 | 单元格" 文本（仿 DOCX 导出的 extract_cells_text）：
+/// 提取 <td>/<th> 单元格内容并以 " | " 拼接，避免 clean_text 只删尖括号导致的标签残渣。
+fn table_row_to_text(row_html: &str) -> String {
+    let mut cells: Vec<String> = Vec::new();
+    let cursor = row_html;
+    for tag in ["<td", "<th"] {
+        let mut sub = cursor;
+        while let Some(start) = sub.find(tag) {
+            let after = &sub[start..];
+            let Some(gt_rel) = after.find('>') else { break };
+            let after_open = &after[gt_rel + 1..];
+            let end = if tag == "<td" { "</td>" } else { "</th>" };
+            let Some(end_pos) = after_open.find(end) else {
+                break;
+            };
+            cells.push(clean_text(&after_open[..end_pos]));
+            sub = &after_open[end_pos + end.len()..];
+        }
+    }
+    if cells.is_empty() {
+        // 兜底：无标准单元格时退化为纯文本清理
+        clean_text(row_html)
+    } else {
+        cells.join(" | ")
+    }
+}
+
 fn extract_data_asset(tag: &str) -> Option<String> {
     let lower = tag.to_lowercase();
     let key = "data-asset=\"";
@@ -615,21 +788,24 @@ fn extract_data_asset(tag: &str) -> Option<String> {
 
 fn build_cover_stream(title: &str, description: &Option<String>, glyphs: &GlyphTable) -> Vec<u8> {
     let mut buf = Vec::new();
-    // 书名（大字号）
+    // 垂直居中排布：书名、简介（如有）、出品行
     let mut y = PAGE_H / 2.0 + 60.0;
-    for line in layout_text(title, 24.0, BODY_W, glyphs) {
-        append_text_line(&mut buf, &line, 24.0, glyphs, y);
-        y -= 24.0 * 1.4;
+    // 书名（大字号 + 加粗描边）
+    for line in layout_text(title, 26.0, BODY_W, glyphs) {
+        append_text_line_center(&mut buf, &line, 26.0, glyphs, y, true);
+        y -= 26.0 * 1.4;
     }
-    y -= 30.0;
+    y -= 26.0;
     if let Some(d) = description {
         for line in layout_text(d, 12.0, BODY_W, glyphs) {
-            append_text_line(&mut buf, &line, 12.0, glyphs, y);
-            y -= 12.0 * 1.5;
+            append_text_line_center(&mut buf, &line, 12.0, glyphs, y, false);
+            y -= 12.0 * 1.6;
         }
+        y -= 18.0;
+    } else {
+        y -= 40.0;
     }
-    y -= 20.0;
-    append_text_line(&mut buf, "Sight Folio 导出", 10.0, glyphs, y);
+    append_text_line_center(&mut buf, "Sight Folio 出品", 11.0, glyphs, y, false);
     buf
 }
 
@@ -642,18 +818,64 @@ fn build_toc_stream(
     let mut buf = Vec::new();
     let mut y = PAGE_H - MARGIN;
     let head = format!("『{}』· 目录", title);
-    append_text_line(&mut buf, &head, 16.0, glyphs, y);
+    // 目录标题加粗（与正文章标题字重一致）
+    append_text_line_at(&mut buf, &head, 16.0, &glyphs, MARGIN, y, true);
     y -= 40.0;
 
+    // 卷分组：卷名首次出现输出卷标题（粗体），后续章条目相对卷缩进 2 字符；
+    // 无卷的书保持平铺。页码右对齐到页尾（右缩进 = MARGIN），点线自适应填充中间空隙。
+    let page_right = PAGE_W - MARGIN;
+    let mut seen_volume: Option<String> = None;
     for (i, ch) in chapters.iter().enumerate() {
+        let volume = ch.volume.as_deref().filter(|v| !v.is_empty());
+        if volume != seen_volume.as_deref() {
+            if let Some(v) = volume {
+                append_text_line_at(&mut buf, v, 12.0, &glyphs, MARGIN, y, true);
+                y -= 22.0;
+            }
+            seen_volume = volume.map(str::to_string);
+        }
+        let indent = if volume.is_some() { 22.0 } else { 0.0 }; // 卷下章条目缩进（2 × 11pt）
         let p = pages.get(i).copied().unwrap_or(0);
-        let dots = "······".repeat(2);
-        let line = if p > 0 {
-            format!("{} {} {}", ch.title, dots, p)
-        } else {
-            ch.title.clone()
-        };
-        append_text_line(&mut buf, &line, 11.0, glyphs, y);
+
+        // 标题（左起点 = 页边距 + 卷缩进）
+        append_text_line_at(
+            &mut buf,
+            &ch.title,
+            11.0,
+            &glyphs,
+            MARGIN + indent,
+            y,
+            false,
+        );
+        if p > 0 {
+            // 页码右对齐：右端贴页边距
+            let page_text = p.to_string();
+            let page_w = text_width(&page_text, 11.0, &glyphs);
+            let page_x = page_right - page_w;
+            // 点线自适应：从标题末尾到页码左端之间填满
+            let title_w = text_width(&ch.title, 11.0, &glyphs);
+            let dot_w = text_width("·", 11.0, &glyphs);
+            let gap = page_x - (MARGIN + indent + title_w) - 6.0; // 标题与页码的最小间距
+            let dot_count = if gap > 0.0 && dot_w > 0.0 {
+                (gap / dot_w).floor().max(1.0) as usize
+            } else {
+                0
+            };
+            if dot_count > 0 {
+                let dots = "·".repeat(dot_count);
+                append_text_line_at(
+                    &mut buf,
+                    &dots,
+                    11.0,
+                    &glyphs,
+                    MARGIN + indent + title_w,
+                    y,
+                    false,
+                );
+            }
+            append_text_line_at(&mut buf, &page_text, 11.0, &glyphs, page_x, y, false);
+        }
         y -= 18.0;
     }
     buf

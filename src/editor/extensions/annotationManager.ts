@@ -9,6 +9,8 @@ export interface WritingAnnotation {
   text: string;
   /** 被批注选区的文本快照（展示用，不用于定位——定位靠正文 data-annotation-id）。 */
   excerpt: string;
+  /** 关联的人物/世界观设定卡 id（可选；空 = 未关联，设定卡反向视图据此聚合）。 */
+  settingId?: string | null;
   createdAt: number;
   updatedAt: number;
 }

@@ -12,12 +12,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { openWritingDesk } from '../../utils/writingDeskWindow';
 import type { ComponentRendererProps } from '../../types/editor';
 import { useWritingStore } from '../../store/writingStore';
+import { useEditorStore } from '../../store/editorStore';
 import { useWritingDocsStore } from '../../store/writingDocsStore';
 import { resolveFragments, t } from '../../i18n';
 import { CV } from './canvasTheme';
 import { WritingChapterEditor, COLOR_CHAPTER, type SaveState } from './WritingChapterEditor';
 import { ChapterOverviewPanel } from '../panels/ChapterOverviewPanel';
 import { buildTree, treeRowIndent, type TreeNode } from '../../utils/writingTree';
+import { openTypedCarrierView } from '../../utils/studioBook';
+import { stripHtmlText } from '../../utils/writingProofread';
+import type { ProofreadIssue } from '../proofread/proofreadEngine';
 import { logger } from '../../utils/logger';
 
 const ACCENT = COLOR_CHAPTER;
@@ -28,6 +32,14 @@ export function WritingDocsRenderer({ config, componentId, mode }: ComponentRend
 
   const chapters = useWritingStore((s) => s.chapters);
   const createChapter = useWritingStore((s) => s.createChapter);
+  const books = useWritingStore((s) => s.books);
+
+  // T3 校对往返上下文：非空 = 本页签由校对页签跳转而来（返回按钮显示）；跳转锚点
+  // 由 editor 定位消费后清空（onJumpAnchorConsumed），防止二次跳同章同锚点被去重吞掉。
+  const proofreadReturnCtx = useEditorStore((s) => s.proofreadReturnCtx);
+  const proofreadJumpAnchor = useEditorStore((s) => s.proofreadJumpAnchor);
+  const setProofreadJumpAnchor = useEditorStore((s) => s.setProofreadJumpAnchor);
+  const genre = books.find((b) => b.id === bookId)?.genre ?? '';
 
   // tab→chapter 预建索引：每页签渲染不再 chapters.find（每 tab 至多 3 次线性扫），
   // 改为 chapterId → chapter 的 O(1) 查表（2026-09-28 拍板；行为与 find 完全一致）。
@@ -102,6 +114,20 @@ export function WritingDocsRenderer({ config, componentId, mode }: ComponentRend
   }, [bookId, activeEntryForSync]);
 
   const activeEntry = tabs.find((x) => x.tabId === activeTabId) ?? null;
+  // T5「章内逐条闭环」：校对页签跳章行时携带引擎全量 textHits，正文容器在此展开逐条面板。
+  // 必须快照到本地 state：jumpAnchor 由 editor 定位消费（onJumpAnchorConsumed 即清），
+  // 直接依赖 store 值渲染会闪没；快照在「跳转到达活动章」时更新、切章时清空。
+  const [proofreadHits, setProofreadHits] = useState<ProofreadIssue[] | null>(null);
+  useEffect(() => {
+    if (!proofreadJumpAnchor || proofreadJumpAnchor.chapterId !== activeEntry?.chapterId) return;
+    if (proofreadJumpAnchor.textHits?.length) {
+      setProofreadHits(proofreadJumpAnchor.textHits);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proofreadJumpAnchor, activeEntry?.chapterId]);
+  useEffect(() => {
+    if (!activeEntry) setProofreadHits(null);
+  }, [activeEntry]);
   const tabTitle = (chapterId: string, fallback: string) =>
     resolveFragments(chapterById.get(chapterId)?.title ?? fallback);
 
@@ -528,6 +554,29 @@ export function WritingDocsRenderer({ config, componentId, mode }: ComponentRend
             : ''}
           {t('writing.readonlyHint')}
         </span>
+        {mode !== 'preview' && proofreadReturnCtx && (
+          <span
+            title={t('writing.proofreadBackToPane')}
+            onClick={() => {
+              void openTypedCarrierView(genre, 'proofread');
+            }}
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: '#fff',
+              cursor: 'pointer',
+              background: ACCENT,
+              border: `1px solid ${ACCENT}`,
+              padding: '1px 8px',
+              borderRadius: 6,
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+              userSelect: 'none',
+            }}
+          >
+            ← {t('writing.proofreadBackToPane')}
+          </span>
+        )}
         {mode !== 'preview' && activeEntry && (
           <span
             title={t('writing.openInWritingDesk')}
@@ -664,32 +713,117 @@ export function WritingDocsRenderer({ config, componentId, mode }: ComponentRend
 
       {/* 激活页签：左侧只读正文 + 右侧章统筹面板（九维本章上下文，可折叠） */}
       {activeEntry ? (
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
-          <WritingChapterEditor
-            key={activeEntry.tabId}
-            chrome="embedded"
-            chapterId={activeEntry.chapterId}
-            config={config}
-            readOnly
-            onSaveStateChange={getTabCallbacks(activeEntry.tabId).save}
-            onWordCountChange={getTabCallbacks(activeEntry.tabId).words}
-          />
-          {mode !== 'preview' && overviewOpen && (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+          {/* T5 章内逐条闭环：校对跳章行携带的引擎全量命中，逐条横排（点条复用包含匹配定位滚动高亮） */}
+          {mode !== 'preview' && proofreadHits && proofreadHits.length > 0 && (
             <div
               style={{
-                width: 300,
                 flexShrink: 0,
-                overflow: 'hidden',
-                borderLeft: `1px solid ${ACCENT}33`,
-                background: `${ACCENT}08`,
+                borderBottom: `1px solid ${ACCENT}33`,
+                background: `${ACCENT}0a`,
+                padding: '4px 8px 6px',
                 display: 'flex',
                 flexDirection: 'column',
+                gap: 3,
                 minWidth: 0,
               }}
             >
-              <ChapterOverviewPanel bookId={bookId} chapterId={activeEntry.chapterId} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: ACCENT, flexShrink: 0 }}>
+                  ⛭ {t('writing.viewKind.proofread')} · {proofreadHits.length}
+                </span>
+                <span
+                  style={{
+                    fontSize: 9.5,
+                    color: CV.text3,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {chapterById.get(activeEntry.chapterId)?.title ?? ''}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 4, overflowX: 'auto', minWidth: 0 }}>
+                {proofreadHits.map((hit, idx) => {
+                  const kindKey =
+                    hit.kind === 'typo'
+                      ? 'writing.proofreadTypo'
+                      : hit.kind === 'repeat'
+                        ? 'writing.proofreadRepeat'
+                        : hit.kind === 'sensitive'
+                          ? 'writing.proofreadSensitive'
+                          : hit.kind === 'punct'
+                            ? 'writing.proofreadPunct'
+                            : 'writing.proofreadRedundant';
+                  const label = stripHtmlText(hit.excerpt).slice(0, 16);
+                  return (
+                    <button
+                      key={`${hit.kind}-${hit.start}-${idx}`}
+                      type="button"
+                      title={
+                        hit.suggestion ? `${label} · ${t(kindKey)} · ${hit.suggestion}` : `${label} · ${t(kindKey)}`
+                      }
+                      onClick={() => {
+                        if (!label) return;
+                        setProofreadJumpAnchor({
+                          chapterId: activeEntry.chapterId,
+                          anchor: label,
+                          textHits: proofreadHits,
+                        });
+                      }}
+                      style={{
+                        flexShrink: 0,
+                        fontSize: 9.5,
+                        color: CV.text,
+                        background: CV.paper,
+                        border: `1px solid ${ACCENT}33`,
+                        borderRadius: 5,
+                        padding: '2px 6px',
+                        cursor: 'pointer',
+                        maxWidth: 220,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      [{t(kindKey)}] {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
+            <WritingChapterEditor
+              key={activeEntry.tabId}
+              chrome="embedded"
+              chapterId={activeEntry.chapterId}
+              config={config}
+              readOnly
+              jumpAnchor={proofreadJumpAnchor?.chapterId === activeEntry.chapterId ? proofreadJumpAnchor.anchor : null}
+              onJumpAnchorConsumed={() => setProofreadJumpAnchor(null)}
+              onSaveStateChange={getTabCallbacks(activeEntry.tabId).save}
+              onWordCountChange={getTabCallbacks(activeEntry.tabId).words}
+            />
+            {mode !== 'preview' && overviewOpen && (
+              <div
+                style={{
+                  width: 300,
+                  flexShrink: 0,
+                  overflow: 'hidden',
+                  borderLeft: `1px solid ${ACCENT}33`,
+                  background: `${ACCENT}08`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minWidth: 0,
+                }}
+              >
+                <ChapterOverviewPanel bookId={bookId} chapterId={activeEntry.chapterId} />
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div

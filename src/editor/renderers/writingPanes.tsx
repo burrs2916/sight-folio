@@ -28,7 +28,16 @@ import {
 import { openChapterCarrierView, openTypedCarrierView } from '../../utils/studioBook';
 import { logger } from '../../utils/logger';
 import { chaptersOfSetting, toggleSettingOnChapter, settingCompleteness } from '../../utils/writingOutline';
-import { buildTree, defaultLevels, suggestedChildKind, type TreeNode } from '../../utils/writingTree';
+import {
+  buildTree,
+  forestPreorderIndex,
+  treeRowIndent,
+  INDENT_BASE,
+  INDENT_STEP,
+  defaultLevels,
+  suggestedChildKind,
+  type TreeNode,
+} from '../../utils/writingTree';
 import { t } from '../../i18n';
 import { clipSummary } from '../../utils/writingSearch';
 import { CV } from './canvasTheme';
@@ -57,13 +66,16 @@ import {
   buildProofreadReport,
   PROOFREAD_GROUPS,
   filterProofreadIssues,
+  proofreadGroupLabelKey,
   proofreadSeverityColor,
   sortProofreadIssues,
+  stripHtmlText,
+  type ProofreadFinding,
   type ProofreadGroup,
-  type ProofreadIssue,
   type ProofreadSeverityFilter,
   type ProofreadSortMode,
 } from '../../utils/writingProofread';
+import { applyAutoFixesHtml, wordCountOfHtml } from '../proofread/chapterAutoFix';
 import {
   buildChapterWordRows,
   buildVolumeRows,
@@ -87,7 +99,6 @@ import ChapterPicker from './ChapterPicker';
 import EntityPicker from './EntityPicker';
 import { ForeshadowingDetail } from '../panels/ForeshadowingPanels';
 import { InspirationDetail } from '../panels/InspirationPanels';
-import { proofreadGroupLabelKey } from '../panels/ProofreadPanels';
 import { ChapterStatusDot } from '../components/ChapterStatusDot';
 import { DraftInput } from '../components/DraftInput';
 
@@ -1011,7 +1022,7 @@ function NodeRow({
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') openChapterLine(e);
             }}
-            title={`${t('writingDesign.storylineMainTitle')} · ${chapterLine.name}`}
+            title={`${t('writing.storylineMainTitle')} · ${chapterLine.name}`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1569,9 +1580,28 @@ export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId:
 // 右 = 编辑与分发卡（⇢转时间线草稿 / ⇢转伏笔草稿 / 删除）。
 export function InspirationsPane({ accent, bookId }: { accent: string; bookId: string }) {
   const outlines = useWritingStore((s) => s.outlines);
+  const chapters = useWritingStore((s) => s.chapters);
   const createOutline = useWritingStore((s) => s.createOutline);
   const selectedInspirationId = useEditorStore((s) => s.selectedInspirationId);
   const selected = selectedInspirationId ? (outlines.find((o) => o.id === selectedInspirationId) ?? null) : null;
+  // 念头树 = 章节树（与大纲页签同构、同源）：念头本身无 parentId，树形只能来自
+  // chapterId → buildTree 的章节树。与大纲一致的两件事：① 顺序按「绑定章节在章节树
+  // 先序遍历中的位次」（forestPreorderIndex），不再按 outline 的 sortOrder 平铺；
+  // ② 每条念头渲染祖先竖线 + 末层 elbow 引导线（与 NodeRow 同款），把从属关系画出来。
+  // 未绑定 / 章节查不到的游离念头排最前（depth 0 基准，保持原相对顺序）。
+  const forest = useMemo(() => buildTree(chapters), [chapters]);
+  const preorder = useMemo(() => forestPreorderIndex(forest), [forest]);
+  const sortedOutlines = useMemo(() => {
+    const free: WritingOutline[] = [];
+    const bound: WritingOutline[] = [];
+    for (const o of outlines) {
+      const meta = o.chapterId ? preorder.get(o.chapterId) : undefined;
+      if (meta) bound.push(o);
+      else free.push(o);
+    }
+    bound.sort((a, b) => preorder.get(a.chapterId!)!.index - preorder.get(b.chapterId!)!.index);
+    return [...free, ...bound];
+  }, [outlines, preorder]);
   // 零阻力速记：进页签光标即在输入框（capture-first）；回车落池后焦点回到输入框，
   // 连续记多条不断流（右卡标题 autoFocus 会抢焦点，这里显式抢回来）。
   const [capture, setCapture] = useState('');
@@ -1628,51 +1658,86 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
               <span style={{ fontSize: 9, color: CV.text3 }}>{t('writing.inspirationPoolLabel')}</span>
               <span style={{ fontSize: 9, color: CV.text3 }}>{outlines.length}</span>
             </div>
-            {outlines.length === 0 ? (
+            {sortedOutlines.length === 0 ? (
               <EmptyHint text={t('writing.inspirationEmptyHint')} />
             ) : (
-              outlines.map((b) => {
+              sortedOutlines.map((b) => {
                 const active = selectedInspirationId === b.id;
+                // 与大纲 NodeRow 同源同口径：depth 取绑定章节在章节树中的深度（未绑定/查不到 = 0）
+                const depth = b.chapterId ? (preorder.get(b.chapterId)?.depth ?? 0) : 0;
                 return (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => useEditorStore.getState().selectInspiration(b.id)}
-                    title={b.summary && b.summary.trim() ? clipSummary(b.summary, 80) : t('writing.inspirationSelect')}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'stretch',
-                      gap: 1,
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '2px 4px',
-                      borderRadius: 4,
-                      border: 'none',
-                      cursor: 'pointer',
-                      minWidth: 0,
-                      background: active ? 'rgba(25,118,210,0.08)' : 'transparent',
-                      boxShadow: active ? `inset 0 0 0 1px ${accent}` : 'none',
-                    }}
-                  >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-                      <span style={{ fontSize: 8, color: accent, flexShrink: 0 }}>◆</span>
+                  <div key={b.id} style={{ position: 'relative' }}>
+                    {/* 竖向树引导线 + elbow：与 NodeRow 同款，画祖先层级从属关系（缩进只表达层级，
+                        引导线才把「挂在谁下面」画成看得见的分支） */}
+                    {Array.from({ length: depth }).map((_, i) => (
                       <span
+                        key={`v${i}`}
                         style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: CV.text,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          flex: 1,
-                          minWidth: 0,
+                          position: 'absolute',
+                          left: INDENT_BASE + i * INDENT_STEP + INDENT_STEP / 2,
+                          top: 0,
+                          bottom: 0,
+                          width: 1,
+                          background: CV.divider,
+                          pointerEvents: 'none',
                         }}
-                      >
-                        {b.title || b.summary || t('writing.inspirationUntitled')}
+                      />
+                    ))}
+                    {depth >= 1 && (
+                      <span
+                        key="elbow"
+                        style={{
+                          position: 'absolute',
+                          left: INDENT_BASE + (depth - 1) * INDENT_STEP + INDENT_STEP / 2,
+                          top: 9,
+                          width: INDENT_STEP / 2,
+                          height: 1,
+                          background: CV.divider,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => useEditorStore.getState().selectInspiration(b.id)}
+                      title={
+                        b.summary && b.summary.trim() ? clipSummary(b.summary, 80) : t('writing.inspirationSelect')
+                      }
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'stretch',
+                        gap: 1,
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: `2px 4px 2px ${treeRowIndent(depth)}`,
+                        borderRadius: 4,
+                        border: 'none',
+                        cursor: 'pointer',
+                        minWidth: 0,
+                        background: active ? 'rgba(25,118,210,0.08)' : 'transparent',
+                        boxShadow: active ? `inset 0 0 0 1px ${accent}` : 'none',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                        <span style={{ fontSize: 8, color: accent, flexShrink: 0 }}>◆</span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: CV.text,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flex: 1,
+                            minWidth: 0,
+                          }}
+                        >
+                          {b.title || b.summary || t('writing.inspirationUntitled')}
+                        </span>
                       </span>
-                    </span>
-                  </button>
+                    </button>
+                  </div>
                 );
               })
             )}
@@ -1708,24 +1773,43 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
 }
 
 // ─── 校对 pane（校对页签编辑面）：全书体检发现清单（纯本地派生，零新表） ───
-// 六组维度（章文本/章账/伏笔/时间线/剧情线/念头池），算法收拢 utils/writingProofread
+// 七组维度（章文本/章账/伏笔/时间线/剧情线/念头池/一致性），算法收拢 utils/writingProofread
 // （与右栏总览卡同一份）。发现**即点即跳**：章→开章写作视图、伏笔→伏笔页签选中、
-// 时间线事件→时间线选中、念头→灵感选中、汇总行→对应页签。
+// 时间线事件→时间线选中、念头→灵感选中、设定→人物页签、汇总行→对应页签。
 export function ProofreadPane({ accent, bookId }: { accent: string; bookId: string }) {
   const chapters = useWritingStore((s) => s.chapters);
   const outlines = useWritingStore((s) => s.outlines);
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
   const foreshadowings = useWritingStore((s) => s.foreshadowings);
   const storylines = useWritingStore((s) => s.storylines);
+  const settings = useWritingStore((s) => s.settings);
   const books = useWritingStore((s) => s.books);
   const genre = books.find((b) => b.id === bookId)?.genre ?? '';
   const report = useMemo(
-    () => buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines),
-    [chapters, outlines, timelineEvents, foreshadowings, storylines],
+    () => buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings),
+    [chapters, outlines, timelineEvents, foreshadowings, storylines, settings],
   );
-  const [activeGroup, setActiveGroup] = useState<ProofreadGroup>('chapter-text');
-  const [sevFilter, setSevFilter] = useState<ProofreadSeverityFilter>('all');
-  const [sortMode, setSortMode] = useState<ProofreadSortMode>('default');
+  // T3 ③：挂载时从返回上下文取浏览态初值（正文容器「返回校对」切回时恢复；无则默认）。
+  // 消费语义：返回上下文由跳转前写入、本 pane 挂载读取，恢复后立即清空防重复。
+  const returnCtx = useEditorStore((s) => s.proofreadReturnCtx);
+  const [activeGroup, setActiveGroup] = useState<ProofreadGroup>(() => returnCtx?.group ?? 'chapter-text');
+  const [sevFilter, setSevFilter] = useState<ProofreadSeverityFilter>(() => returnCtx?.sev ?? 'all');
+  const [sortMode, setSortMode] = useState<ProofreadSortMode>(() => returnCtx?.sort ?? 'default');
+  // 列表滚动容器（返回上下文中的滚动位置恢复目标）
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!returnCtx) return;
+    useEditorStore.getState().setProofreadReturnCtx(null); // 消费即清，防重复恢复
+    if (returnCtx.scrollTop > 0) {
+      // 列表渲染后再滚动（挂载早期 DOM 未就绪；不抢 flashKey 定位的滚动时机）。
+      // 刻意不挂 effect cleanup：消费清空（returnCtx→null）会让本 effect 重跑并先执行
+      // cleanup，若在此清定时器，返回后的滚动位置将永远无法恢复；定时器回调只操作
+      // 已挂载 DOM，组件卸载后残留调用无害（与 locateJump 高亮熄灭定时器同一决策）。
+      window.setTimeout(() => {
+        if (listRef.current) listRef.current.scrollTop = returnCtx.scrollTop;
+      }, 80);
+    }
+  }, [returnCtx]);
   const groupIssues = useMemo(() => {
     const base = report.issues.filter((i) => i.group === activeGroup);
     return sortProofreadIssues(
@@ -1763,14 +1847,58 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
     };
   }, [flashKey, groupIssues]);
 
+  /** 可一键修复的章集合：从报告派生——章文本聚合行携带引擎全量 textHits，任一命中带 fix 即可修。
+   *  （引擎扫描只跑一次：报告生成时；不再对每章重跑 hasAutoFixableHtml，消除同一章第三遍扫描。） */
+  const autoFixableChapterIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of report.issues) {
+      if (i.group !== 'chapter-text' || !i.textHits) continue;
+      if (i.target?.type === 'chapter' && i.textHits.some((h) => h.fix)) set.add(i.target.id);
+    }
+    return set;
+  }, [report]);
+
+  /** 一键修复：对该章做可自动修复项的全量替换并落库（saveChapterContent 同步 store → 报告自动重算） */
+  const fixChapter = async (chapterId: string) => {
+    try {
+      const c = chapters.find((x) => x.id === chapterId);
+      if (!c || !c.content) return;
+      const { html, fixedCount } = applyAutoFixesHtml(c.content);
+      if (fixedCount === 0) return;
+      await useWritingStore.getState().saveChapterContent(chapterId, html, wordCountOfHtml(html));
+      logger.info('ProofreadPane', 'chapter auto-fix applied', { chapterId, fixedCount });
+    } catch (e) {
+      logger.warn('ProofreadPane', 'fixChapter failed', { chapterId, error: String(e) });
+    }
+  };
+
   /** 发现即点即跳（renderable ≠ useful：每条发现都必须可行动） */
-  const jumpIssue = (issue: ProofreadIssue) => {
+  const jumpIssue = (issue: ProofreadFinding) => {
     try {
       const tg = issue.target;
       if (!tg) return;
       const es = useEditorStore.getState();
       if (tg.type === 'chapter') {
         if (!bookId) return; // openChapterCarrierView 需要有效 bookId
+        // T3 ①：离开校对前保存返回上下文（组/过滤/排序 + 列表滚动位置），
+        // 正文容器「返回校对」切回后由 ProofreadPane 挂载恢复（消费后清空）。
+        es.setProofreadReturnCtx({
+          group: activeGroup,
+          sev: sevFilter,
+          sort: sortMode,
+          scrollTop: listRef.current?.scrollTop ?? 0,
+        });
+        // T3 ②：文本类聚合行携带首个命中片段，正文编辑器按包含匹配滚动高亮（章内粗定位）；
+        // 报告行携引擎全量 textHits（punct/redundant 等也随行带出）→ 正文容器展开「章内逐条闭环」。
+        if (issue.textHits?.length && issue.textHits[0]) {
+          es.setProofreadJumpAnchor({
+            chapterId: tg.id,
+            anchor: issue.locator?.anchor ?? stripHtmlText(issue.textHits[0].excerpt).slice(0, 16),
+            textHits: issue.textHits,
+          });
+        } else if (issue.locator?.anchor) {
+          es.setProofreadJumpAnchor({ chapterId: tg.id, anchor: issue.locator.anchor });
+        }
         const ch = chapters.find((c) => c.id === tg.id);
         openChapterCarrierView(tg.id, ch?.title ?? '', genre, bookId);
       } else if (tg.type === 'foreshadowing') {
@@ -1782,6 +1910,10 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
       } else if (tg.type === 'idea') {
         es.selectInspiration(tg.id);
         openTypedCarrierView(genre, 'inspiration');
+      } else if (tg.type === 'setting') {
+        // 一致性发现：选中那张卡再开人物页签（卡不在画布上，光跳页签看不到重点）
+        es.selectSetting(tg.id);
+        openTypedCarrierView(genre, 'characters');
       } else {
         openTypedCarrierView(genre, tg.id);
       }
@@ -1962,6 +2094,7 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
         </div>
         {/* 右：选中维度的发现明细（行可点即跳） */}
         <div
+          ref={listRef}
           style={{
             flex: 1,
             minWidth: 0,
@@ -1975,69 +2108,121 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
           {groupIssues.length === 0 ? (
             <EmptyHint text={t('writing.proofreadPaneEmpty')} />
           ) : (
-            groupIssues.map((issue) => {
-              const jumpable = !!issue.target;
-              const sevDot = proofreadSeverityColor(issue.severity);
-              const sevLabelKey =
-                issue.severity === 'block'
-                  ? 'proofreadSeverityBlock'
-                  : issue.severity === 'warning'
-                    ? 'proofreadSeverityWarning'
-                    : 'proofreadSeverityNormal';
-              const issueText = t(`writing.proofreadIssue.${issue.messageKey}`, issue.args);
-              const chapterTarget = issue.target && issue.target.type === 'chapter' ? issue.target : undefined;
-              const chapterName = chapterTarget ? (chapters.find((c) => c.id === chapterTarget.id)?.title ?? '') : '';
-              const summary = clipSummary(chapterName ? `${issueText} · 《${chapterName}》` : issueText, 80);
-              return (
-                <button
-                  key={issue.key}
-                  id={`proofread-row-${issue.key}`}
-                  type="button"
-                  onClick={() => jumpIssue(issue)}
-                  title={`${summary}\n${t(`writing.${sevLabelKey}`)}${jumpable ? ' · ' + t('writing.proofreadJump') : ''}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '4px 6px',
-                    borderRadius: 4,
-                    border: 'none',
-                    cursor: jumpable ? 'pointer' : 'default',
-                    minWidth: 0,
-                    background: flashKey === issue.key ? 'rgba(25, 118, 210, 0.14)' : 'transparent',
-                    transition: 'background 0.25s ease',
-                  }}
-                >
-                  <span
-                    title={t(`writing.${sevLabelKey}`)}
+            (() => {
+              // 一键修复按章去重：按钮语义是「修复整章」，同一章多行 issue 只渲染一个按钮（挂在行上）。
+              const fixShown = new Set<string>();
+              return groupIssues.map((issue) => {
+                const jumpable = !!issue.target;
+                const sevDot = proofreadSeverityColor(issue.severity);
+                const sevLabelKey =
+                  issue.severity === 'block'
+                    ? 'proofreadSeverityBlock'
+                    : issue.severity === 'warning'
+                      ? 'proofreadSeverityWarning'
+                      : 'proofreadSeverityNormal';
+                const issueText = t(`writing.proofreadIssue.${issue.messageKey}`, issue.args);
+                const chapterTarget = issue.target && issue.target.type === 'chapter' ? issue.target : undefined;
+                const chapterName = chapterTarget ? (chapters.find((c) => c.id === chapterTarget.id)?.title ?? '') : '';
+                const summary = clipSummary(chapterName ? `${issueText} · 《${chapterName}》` : issueText, 80);
+                const canFix = chapterTarget
+                  ? autoFixableChapterIds.has(chapterTarget.id) && !fixShown.has(chapterTarget.id)
+                  : false;
+                if (canFix && chapterTarget) fixShown.add(chapterTarget.id);
+                return (
+                  <div
+                    key={issue.key}
+                    id={`proofread-row-${issue.key}`}
                     style={{
-                      flexShrink: 0,
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: sevDot,
-                      boxShadow: issue.severity ? `0 0 0 2px ${sevDot}33` : 'none',
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: 11.5,
-                      color: CV.text,
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      width: '100%',
+                      borderRadius: 4,
+                      background: flashKey === issue.key ? 'rgba(25, 118, 210, 0.14)' : 'transparent',
+                      transition: 'background 0.25s ease',
                     }}
                   >
-                    {t(`writing.proofreadIssue.${issue.messageKey}`, issue.args)}
-                  </span>
-                  {jumpable && <span style={{ fontSize: 10, color: accent, flexShrink: 0 }}>⇢</span>}
-                </button>
-              );
-            })
+                    <button
+                      type="button"
+                      onClick={() => jumpIssue(issue)}
+                      title={`${summary}\n${t(`writing.${sevLabelKey}`)}${jumpable ? ' · ' + t('writing.proofreadJump') : ''}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        flex: 1,
+                        minWidth: 0,
+                        textAlign: 'left',
+                        padding: '4px 6px',
+                        borderRadius: 4,
+                        border: 'none',
+                        cursor: jumpable ? 'pointer' : 'default',
+                        background: 'transparent',
+                      }}
+                    >
+                      <span
+                        title={t(`writing.${sevLabelKey}`)}
+                        style={{
+                          flexShrink: 0,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: sevDot,
+                          boxShadow: issue.severity ? `0 0 0 2px ${sevDot}33` : 'none',
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontSize: 11.5,
+                          color: CV.text,
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {t(`writing.proofreadIssue.${issue.messageKey}`, issue.args)}
+                      </span>
+                      {chapterName && (
+                        <span
+                          title={`《${chapterName}》`}
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: accent,
+                            flexShrink: 0,
+                            maxWidth: 240,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            background: 'rgba(25, 118, 210, 0.08)',
+                            borderRadius: 4,
+                            padding: '0 5px',
+                          }}
+                        >
+                          《{chapterName}》
+                        </span>
+                      )}
+                      {jumpable && <span style={{ fontSize: 10, color: accent, flexShrink: 0 }}>⇢</span>}
+                    </button>
+                    {canFix && (
+                      <button
+                        type="button"
+                        title={t('writing.proofreadFix')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void fixChapter(chapterTarget!.id);
+                        }}
+                        style={{ ...miniBtn(accent), fontSize: 9, padding: '1px 6px', flexShrink: 0 }}
+                      >
+                        {t('writing.proofreadFix')}
+                      </button>
+                    )}
+                  </div>
+                );
+              });
+            })()
           )}
         </div>
       </div>
@@ -3939,7 +4124,7 @@ function EventChip({
   /** 来源 lane 名（合并轴 / 待补全里标注事件归属，普通 lane 不传） */
   sourceLabel?: string;
   /** 本书章列表（用于「绑到章」选择器；为空则不显示选择器） */
-  chapters?: { id: string; title: string }[];
+  chapters?: WritingChapter[];
   /** 本书剧情线列表（用于「挂线」选择器；为空则不显示选择器） */
   storylines?: { id: string; name: string }[];
   onJump: () => void;

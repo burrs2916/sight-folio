@@ -128,4 +128,85 @@ describe("buildBookOverview", () => {
     expect(r.characterCount).toBe(0);
     expect(r.cards.filter((c) => c.type === "writing-chapter").length).toBe(1);
   });
+
+  // ─── 出场边（F8-G2/H1）────────────────────────────────────────────
+
+  it("出场边：人物 → 出场章节（depType=appearance），线宽按提及归一", () => {
+    const r = buildBookOverview([
+      chapterFile({
+        id: "wfile_c1",
+        title: "第一章",
+        relPath: "01-第一章.md",
+        size: 100,
+        appearances: [{ id: "s1", name: "林越", count: 3 }],
+      }),
+      chapterFile({
+        id: "wfile_c2",
+        title: "第二章",
+        relPath: "02-第二章.md",
+        size: 100,
+        appearances: [{ id: "s1", name: "林越", count: 5 }],
+      }),
+    ]);
+    const edges = r.cards.filter((c) => c.type === "dependency-edge");
+    expect(edges.length).toBe(2);
+    expect(r.appearanceEdgeCount).toBe(2);
+    expect(r.appearanceEdgesDropped).toBe(0);
+    for (const e of edges) {
+      expect(e.locked).toBe(true);
+      expect(e.config.depType).toBe("appearance");
+      expect(e.config.fromName).toBe("林越");
+      expect(e.config.degree).toBeGreaterThan(0);
+    }
+    // 线宽归一基准 = 最强提及：count=5 的边 degree = 1
+    const strongest = edges.find((e) => e.config.mentions === 5)!;
+    expect(strongest.config.degree).toBe(1);
+    expect(strongest.config.toName).toBe("第二章");
+  });
+
+  it("单人物出场边最多 6 条（取提及最多的章）", () => {
+    const files = Array.from({ length: 8 }, (_, i) =>
+      chapterFile({
+        id: `wfile_c${i + 1}`,
+        title: `第${i + 1}章`,
+        relPath: `${String(i + 1).padStart(2, "0")}-第${i + 1}章.md`,
+        size: 100,
+        appearances: [{ id: "s1", name: "林越", count: i + 1 }],
+      }),
+    );
+    const r = buildBookOverview(files);
+    const edges = r.cards.filter((c) => c.type === "dependency-edge");
+    expect(edges.length).toBe(6);
+    expect(r.appearanceEdgeCount).toBe(6);
+    // 取提及最多的前 6 章（第 3~8 章），第 1、2 章不画边
+    const toNames = edges.map((e) => e.config.toName as string);
+    expect(toNames).not.toContain("第1章");
+    expect(toNames).not.toContain("第2章");
+  });
+
+  it("无人物数据时不出场边，结果字段回零", () => {
+    const r = buildBookOverview([
+      chapterFile({ id: "wfile_c1", title: "第一章", relPath: "01-第一章.md", size: 100 }),
+    ]);
+    expect(r.cards.filter((c) => c.type === "dependency-edge").length).toBe(0);
+    expect(r.appearanceEdgeCount).toBe(0);
+    expect(r.appearanceEdgesDropped).toBe(0);
+  });
+
+  // ─── H6：卡片绑定（双击跳设定卡）──────────────────────────────────
+
+  it("人物卡携带 settingId + bookId：双击跳设定卡不依赖按名匹配", () => {
+    const r = buildBookOverview([
+      chapterFile({
+        id: "wfile_c1",
+        title: "第一章",
+        relPath: "01-第一章.md",
+        size: 100,
+        appearances: [{ id: "wset_a1", name: "林越", count: 3 }],
+      }),
+    ]);
+    const charCard = r.cards.find((c) => c.type === "writing-character")!;
+    expect(charCard.config.settingId).toBe("wset_a1");
+    expect(charCard.config.bookId).toBe("b1");
+  });
 });

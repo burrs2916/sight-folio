@@ -105,3 +105,58 @@ describe('ChatMarkdown', () => {
     expect(host?.querySelector('pre b')).toBeNull(); // 代码块内也是文本渲染
   });
 });
+
+describe('ChatMarkdown streaming 增量渲染', () => {
+  it('流式未断行：正文整体仍可见（tail 按字面渲染不吞内容）', async () => {
+    await act(async () => {
+      root!.render(<ChatMarkdown streaming content={'流式输出中'} />);
+    });
+    expect(textOf()).toContain('流式输出中');
+  });
+
+  it('流式代码块未闭合：围栏内代码按字面等宽渲染，不闪烁不吞内容', async () => {
+    await act(async () => {
+      root!.render(<ChatMarkdown streaming content={'说明\n\n```ts\nconst a = 1;\n'} />);
+    });
+    const pre = host?.querySelector('pre');
+    expect(pre).not.toBeNull();
+    expect(pre?.textContent).toContain('const a = 1;');
+    expect(textOf()).toContain('说明');
+  });
+
+  it('流式稳定前缀 + 尾部标记修补：未闭合加粗实时生效不裸奔星号', async () => {
+    await act(async () => {
+      root!.render(<ChatMarkdown streaming content={'第一段\n\n第二段加粗 **重点'} />);
+    });
+    // 稳定前缀「第一段」正常段落渲染
+    expect(textOf()).toContain('第一段');
+    // 尾部未闭合 ** 被修补闭合，不出现裸奔跑的星号结尾
+    expect(textOf()).toContain('第二段加粗');
+    expect(textOf()).toContain('重点');
+    // 修补逻辑补上闭合符后星号不再裸奔（文本里只剩成对 **）
+    const stars = textOf().match(/\*/g) ?? [];
+    expect(stars.length % 2).toBe(0);
+  });
+
+  it('流式闭合后与静态渲染分段一致（稳定内容按 Markdown 解析，代码块成卡片）', async () => {
+    await act(async () => {
+      root!.render(<ChatMarkdown streaming content={'完\n\n```ts\nconst a = 1;\n```\n收尾\n\n后文'} />);
+    });
+    const pre = host?.querySelector('pre');
+    expect(pre).not.toBeNull();
+    expect(pre?.textContent).toContain('const a = 1;');
+    expect(textOf()).toContain('完');
+    expect(textOf()).toContain('收尾');
+    expect(textOf()).toContain('后文');
+  });
+
+  it('增量缓存隔离：对话页与工作台侧栏不共享缓存（各自样式独立）', async () => {
+    // chatStreamingCache 是模块私有，无法直接断言；此测试保证 streaming 模式可多次挂载渲染不抛错
+    await act(async () => {
+      root!.render(<ChatMarkdown streaming content={'甲段\n\n乙段\n\n丙段'} />);
+    });
+    expect(textOf()).toContain('甲段');
+    expect(textOf()).toContain('乙段');
+    expect(textOf()).toContain('丙段');
+  });
+});

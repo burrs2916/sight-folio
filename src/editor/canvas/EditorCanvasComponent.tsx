@@ -6,6 +6,7 @@ import PanToolAltIcon from "@mui/icons-material/PanToolAlt";
 import { fitTextToBox, measureTextSize } from "../../utils/fitText";
 import { useCallback, useRef, useState, useEffect, memo, useMemo } from "react";
 import Moveable from "react-moveable";
+import { t } from "../../i18n";
 import type { SceneComponent, ComponentRendererProps, EventBinding } from "../../types/editor";
 import { resolveInteractivity } from "../utils/resolveInteractivity";
 import { useEditorStore } from "../../store/editorStore";
@@ -139,7 +140,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
 
       if (component.type === "text") {
         const cfg = component.config;
-        const text = (cfg.content as string) || "文本内容";
+        const text = (cfg.content as string) || t("editor.textContent");
         const fontFamily = (cfg.fontFamily as string) || "inherit";
         const lineHeight = (cfg.lineHeight as number) || 1.5;
         const letterSpacing = (cfg.letterSpacing as number) || 0;
@@ -165,7 +166,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
         const layoutKeys = new Set(["padding", "borderEnabled", "borderWidth", "lineHeight", "letterSpacing", "fontFamily", "content"]);
         if (layoutKeys.has(key)) {
           const newCfg = { ...cfg, [key]: value };
-          const newText = (newCfg.content as string) || "文本内容";
+          const newText = (newCfg.content as string) || t("editor.textContent");
           const newPadding = (newCfg.padding as number) ?? 8;
           const newBorderEnabled = (newCfg.borderEnabled as boolean) || false;
           const newBorderWidth = newBorderEnabled ? ((newCfg.borderWidth as number) || 1) : 0;
@@ -367,7 +368,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
 
       if (component.type === "text") {
         const cfg = component.config;
-        const text = (cfg.content as string) || "文本内容";
+        const text = (cfg.content as string) || t("editor.textContent");
         const fontFamily = (cfg.fontFamily as string) || "inherit";
         const lineHeight = (cfg.lineHeight as number) || 1.5;
         const letterSpacing = (cfg.letterSpacing as number) || 0;
@@ -557,7 +558,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
         </Box>
 
         {!previewMode && isSelected && isCustomFitMode && (
-          <Tooltip title={isCadViewAdjusting ? "退出图纸调整" : "调整图纸视图"}>
+          <Tooltip title={isCadViewAdjusting ? t("editor.canvas.exitCadAdjust") : t("editor.canvas.adjustDrawingView")}>
             <IconButton
               size="small"
               onClick={handleToggleCadViewAdjust}
@@ -579,7 +580,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
                   backgroundColor: isCadViewAdjusting ? "#1565c0" : "#1976d2",
                 },
               }}
-             aria-label={isCadViewAdjusting ? "退出图纸调整" : "调整图纸视图"}>
+             aria-label={isCadViewAdjusting ? t("editor.canvas.exitCadAdjust") : t("editor.canvas.adjustDrawingView")}>
               {isCadViewAdjusting ? <DoneIcon sx={{ fontSize: 15 }} /> : <PanToolAltIcon sx={{ fontSize: 15 }} />}
             </IconButton>
           </Tooltip>

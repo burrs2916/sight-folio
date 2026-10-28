@@ -12,20 +12,21 @@
 // computeApplyDiff / computeInlineEdit 这两个纯函数也从 WorkbenchAiPanel 末尾挪到此处，
 // 并由 WorkbenchAiPanel 再导出，确保 InlineChat 的 import 路径不变（零回归）。
 
-import { useState, useEffect, useRef, useMemo, useCallback, type MutableRefObject } from "react";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useState, useEffect, useRef, useMemo, useCallback, type MutableRefObject } from 'react';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useSmartScrollToBottom } from '../../hooks/useSmartScrollToBottom';
 
-import { t } from "../../i18n";
-import { L } from "../../ai/aiLang";
-import { computeVerifyMarks } from "../../ai/verifyOverlay";
-import { useAgentStore } from "../../store/agentStore";
-import { useProjectStore } from "../../store/projectStore";
-import { useToastStore } from "../../store/toastStore";
-import { useVerifyOverlayStore } from "../../store/verifyOverlayStore";
-import { useEditorDiagnosticsStore, type EditorDiagnostic } from "../../store/editorDiagnosticsStore";
-import { useWritingStore } from "../../store/writingStore";
-import { broadcastVerify } from "../useVerifyOverlaySync";
-import { broadcastImpact } from "../useImpactOverlaySync";
+import { t } from '../../i18n';
+import { L } from '../../ai/aiLang';
+import { computeVerifyMarks } from '../../ai/verifyOverlay';
+import { useAgentStore } from '../../store/agentStore';
+import { useProjectStore } from '../../store/projectStore';
+import { useToastStore } from '../../store/toastStore';
+import { useVerifyOverlayStore } from '../../store/verifyOverlayStore';
+import { useEditorDiagnosticsStore, type EditorDiagnostic } from '../../store/editorDiagnosticsStore';
+import { useWritingStore } from '../../store/writingStore';
+import { broadcastVerify } from '../useVerifyOverlaySync';
+import { broadcastImpact } from '../useImpactOverlaySync';
 import {
   projectScanApi,
   aiContextApi,
@@ -35,9 +36,10 @@ import {
   type ProjectFile,
   type ProjectSymbol,
   type AiInsightDto,
-  type AiModel} from "../../services/tauri";
-import { buildBookOverview, buildBookOverviewCorpus } from "../../utils/writingOverview";
-import { buildCharactersCorpus, buildCatalogCorpus, buildSettingCorpus } from "../../utils/writingAiCorpus";
+  type AiModel,
+} from '../../services/tauri';
+import { buildBookOverview, buildBookOverviewCorpus } from '../../utils/writingOverview';
+import { buildCharactersCorpus, buildCatalogCorpus, buildSettingCorpus } from '../../utils/writingAiCorpus';
 
 import {
   buildWorldBibleCorpus,
@@ -47,9 +49,10 @@ import {
   buildProofreadCorpus,
   buildStatsCorpus,
   buildManuscriptCorpus,
-  buildWorldConsistencyPrompt} from "../../utils/writingCorpus";
-import { useWritingDocsStore } from "../../store/writingDocsStore";
-import type { EditorSelectionInfo, MonacoEditorHandle } from "./MonacoCodeEditor";
+  buildWorldConsistencyPrompt,
+} from '../../utils/writingCorpus';
+import { useWritingDocsStore } from '../../store/writingDocsStore';
+import type { EditorSelectionInfo, MonacoEditorHandle } from './MonacoCodeEditor';
 import {
   buildUserMessage,
   extractUserMessageView,
@@ -59,11 +62,12 @@ import {
   type WorkbenchContextDiagnostic,
   type ContextAttachment,
   type WorkspaceFacts,
-  WORKBENCH_MODE_TOOLS} from "./workbenchContext";
-import { parseBlocks, type CodeBlockMeta } from "./aiMarkdown";
-import { parseSlashCommand } from "./workbenchSlashCommands";
-import { AI_SCOPE_EVENT, type AiScopePayload } from "../utils/canvasWorkbenchLink";
-import { fuzzyScore, snapshotFileFacts, factsSig, type FileFacts, type VerifyEntry } from "./workbenchComponents";
+  WORKBENCH_MODE_TOOLS,
+} from './workbenchContext';
+import { parseBlocks, type CodeBlockMeta } from './aiMarkdown';
+import { parseSlashCommand } from './workbenchSlashCommands';
+import { AI_SCOPE_EVENT, type AiScopePayload } from '../utils/canvasWorkbenchLink';
+import { fuzzyScore, snapshotFileFacts, factsSig, type FileFacts, type VerifyEntry } from './workbenchComponents';
 
 /** AI 面板当前打开的文件（与 WorkbenchAiPanelProps.activeFile 同形） */
 export interface WorkbenchActiveFile {
@@ -83,11 +87,23 @@ interface WorkbenchPanelDeps {
   /** 书场景（novel-zh）：提示词组装切换为写作向，不出现代码分析/构建/lint 术语（零回归：缺省 false = 代码场景） */
   isBookScene?: boolean;
   /** 书场景下 AI 角色随左栏题材 tab 切换（characters/世界观/catalog）；null = 未限定题材。 */
-  bookTopic?: "characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview" | null;
+  bookTopic?:
+    | 'characters'
+    | 'worldview'
+    | 'catalog'
+    | 'timeline'
+    | 'storylines'
+    | 'foreshadowing'
+    | 'inspiration'
+    | 'proofread'
+    | 'stats'
+    | 'writing'
+    | 'overview'
+    | null;
   /** 当前书名（书场景注入上下文，让 AI 知道在写哪本书）。 */
   bookTitle?: string | null;
   /** 当前选中的具体设定项（人物/世界观卡），钻入详情时带上，让 AI 聚焦这一个。 */
-  focusSetting?: { name: string; kind: "character" | "worldbuilding"; setting?: WritingSetting | null } | null;
+  focusSetting?: { name: string; kind: 'character' | 'worldbuilding'; setting?: WritingSetting | null } | null;
 }
 
 interface DiffState {
@@ -120,8 +136,8 @@ export function computeApplyDiff(
   selection: EditorSelectionInfo | null,
   activeRelPath: string,
 ): { modified: string; rangeLabel: string; replacedText: string } | null {
-  const lines = original.split("\n");
-  const snip = meta.code.split("\n");
+  const lines = original.split('\n');
+  const snip = meta.code.split('\n');
   // 目标文件 = 代码块头声明的 path（跨文件锚点补丁），否则落到当前激活文件。
   // 调用方必须保证传入的 `original` 就是目标文件的内容；本函数只按 targetRelPath 做行索引与标签，
   // 不再用 pathMatches 卡「只能改当前文件」——否则跨文件代码块（path:line 指向别的文件）会静默返回 null，
@@ -133,11 +149,11 @@ export function computeApplyDiff(
     const s = meta.line;
     const e = meta.endLine;
     if (s >= 1 && e >= s && e <= lines.length) {
-      const modified = [...lines.slice(0, s - 1), ...snip, ...lines.slice(e)].join("\n");
+      const modified = [...lines.slice(0, s - 1), ...snip, ...lines.slice(e)].join('\n');
       return {
         modified,
         rangeLabel: `${targetRelPath}:${s}-${e}`,
-        replacedText: lines.slice(s - 1, e).join("\n"),
+        replacedText: lines.slice(s - 1, e).join('\n'),
       };
     }
   }
@@ -147,11 +163,11 @@ export function computeApplyDiff(
     const s = meta.line;
     if (s >= 1 && s <= lines.length + 1) {
       const insertAt = s - 1;
-      const modified = [...lines.slice(0, insertAt), ...snip, ...lines.slice(insertAt)].join("\n");
+      const modified = [...lines.slice(0, insertAt), ...snip, ...lines.slice(insertAt)].join('\n');
       return {
         modified,
         rangeLabel: `${targetRelPath}:${s}`,
-        replacedText: "",
+        replacedText: '',
       };
     }
   }
@@ -161,11 +177,11 @@ export function computeApplyDiff(
     const s = selection.startLine;
     const e = selection.endLine;
     if (s >= 1 && e >= s && e <= lines.length) {
-      const modified = [...lines.slice(0, s - 1), ...snip, ...lines.slice(e)].join("\n");
+      const modified = [...lines.slice(0, s - 1), ...snip, ...lines.slice(e)].join('\n');
       return {
         modified,
         rangeLabel: `${activeRelPath}:${s}-${e}`,
-        replacedText: lines.slice(s - 1, e).join("\n"),
+        replacedText: lines.slice(s - 1, e).join('\n'),
       };
     }
   }
@@ -175,11 +191,11 @@ export function computeApplyDiff(
     const s = selection.startLine;
     if (s >= 1 && s <= lines.length + 1) {
       const insertAt = s;
-      const modified = [...lines.slice(0, insertAt), ...snip, ...lines.slice(insertAt)].join("\n");
+      const modified = [...lines.slice(0, insertAt), ...snip, ...lines.slice(insertAt)].join('\n');
       return {
         modified,
         rangeLabel: `${activeRelPath}:${s}`,
-        replacedText: "",
+        replacedText: '',
       };
     }
   }
@@ -259,36 +275,36 @@ export function buildFollowups(args: {
   bookTopic?: string;
 }): FollowupItem[] {
   const { hasActiveFile, relPath, producedCode, hasDiagnostics, hasScope, isBookScene, bookTopic } = args;
-  const file = relPath || "this file";
+  const file = relPath || 'this file';
   const out: FollowupItem[] = [];
-  if (isBookScene && bookTopic === "overview") {
+  if (isBookScene && bookTopic === 'overview') {
     out.push({
-      key: "ovTimeline",
-      labelKey: "workbench.aiFollowup.book.overviewTimeline",
+      key: 'ovTimeline',
+      labelKey: 'workbench.aiFollowup.book.overviewTimeline',
       prompt: L(
         `基于全书总览，列出所有时间线冲突（同一角色 / 事件在不同章节的时间点矛盾、顺序打架），逐条给出理顺建议，并指明涉及的章节。`,
         `From the whole-book overview, list every timeline conflict (same character / event with contradictory timestamps or ordering across chapters); give a fix per conflict and name the chapters involved.`,
       ),
     });
     out.push({
-      key: "ovForeshadow",
-      labelKey: "workbench.aiFollowup.book.overviewForeshadow",
+      key: 'ovForeshadow',
+      labelKey: 'workbench.aiFollowup.book.overviewForeshadow',
       prompt: L(
         `检查全书伏笔的埋设与回收：哪些伏笔尚未回收、哪些回收章与埋设章跨度不合理、有无跨章逻辑漏洞，逐条给出处理建议。`,
         `Check foreshadowing plant/payoff across the book: which are unpayed, which have unreasonable plant-to-payoff gaps, any cross-chapter logic holes; suggest a fix per item.`,
       ),
     });
     out.push({
-      key: "ovOrphan",
-      labelKey: "workbench.aiFollowup.book.overviewOrphan",
+      key: 'ovOrphan',
+      labelKey: 'workbench.aiFollowup.book.overviewOrphan',
       prompt: L(
         `找出尚未被任何章节引用的人物 / 世界观设定（孤儿设定），评估每个是删、补场景还是并入其他设定，给出优先级。`,
         `Find characters / worldbuilding settings never referenced by any chapter (orphan settings); for each, decide drop / add a scene / merge, with priority.`,
       ),
     });
     out.push({
-      key: "ovLoose",
-      labelKey: "workbench.aiFollowup.book.overviewLoose",
+      key: 'ovLoose',
+      labelKey: 'workbench.aiFollowup.book.overviewLoose',
       prompt: L(
         `汇总全书未落章的念头（loose beats）与校对问题，给出优先级排序与处理建议（转时间线 / 挂章 / 转伏笔 / 修正）。`,
         `Consolidate all loose beats (unplaced ideas) and proofread issues; prioritize and suggest handling (timeline / attach to chapter / foreshadowing / fix).`,
@@ -298,24 +314,24 @@ export function buildFollowups(args: {
   }
   if (isBookScene) {
     out.push({
-      key: "improve",
-      labelKey: "workbench.aiFollowup.book.improve",
+      key: 'improve',
+      labelKey: 'workbench.aiFollowup.book.improve',
       prompt: L(
         `请润色上面这段正文：提升文笔、节奏与可读性，保持人设口吻与全文风格一致。`,
         `Polish the passage above: improve the prose, pacing and readability while keeping the character's voice and the overall style consistent.`,
       ),
     });
     out.push({
-      key: "consistency",
-      labelKey: "workbench.aiFollowup.book.consistency",
+      key: 'consistency',
+      labelKey: 'workbench.aiFollowup.book.consistency',
       prompt: L(
         `对照人设卡与世界观设定，检查上面正文是否出现人设 / 设定矛盾，逐条列出并给出修改建议。没有人设卡覆盖到的角色请明确声明「设定缺失」，不要凭空推断。`,
         `Against the character cards and worldbuilding, check the passage above for any character / setting contradictions; list them with revision suggestions. For characters without a card, explicitly say the setting is missing instead of inventing one.`,
       ),
     });
     out.push({
-      key: "continue",
-      labelKey: "workbench.aiFollowup.book.continue",
+      key: 'continue',
+      labelKey: 'workbench.aiFollowup.book.continue',
       prompt: L(
         `基于上面的正文与已有大纲 / 设定，给出接下来 2-3 个可行的情节走向，并说明各自的张力与风险。`,
         `Based on the passage above plus the existing outline / setting, suggest 2-3 viable next plot directions, noting the tension and risk of each.`,
@@ -325,24 +341,24 @@ export function buildFollowups(args: {
   }
   if (producedCode && hasActiveFile) {
     out.push({
-      key: "explainChange",
-      labelKey: "workbench.aiFollowup.explainChange",
+      key: 'explainChange',
+      labelKey: 'workbench.aiFollowup.explainChange',
       prompt: L(
         `请解释你刚才对 ${file} 所做的改动：改了什么、为什么这样改、有没有更优方案。`,
         `Explain the change you just made to ${file}: what changed, why, and whether there is a better approach.`,
       ),
     });
     out.push({
-      key: "writeTests",
-      labelKey: "workbench.aiFollowup.writeTests",
+      key: 'writeTests',
+      labelKey: 'workbench.aiFollowup.writeTests',
       prompt: L(
         `为 ${file} 刚才改动的相关函数编写单元测试，覆盖关键分支与边界情况。`,
         `Write unit tests for the functions affected by the recent change in ${file}, covering key branches and edge cases.`,
       ),
     });
     out.push({
-      key: "checkRisk",
-      labelKey: "workbench.aiFollowup.checkRisk",
+      key: 'checkRisk',
+      labelKey: 'workbench.aiFollowup.checkRisk',
       prompt: L(
         `审查刚才对 ${file} 的改动：是否引入了新的 bug、坏味道或安全隐患，引用 file:line 说明。`,
         `Review the recent change to ${file}: any new bugs, smells or security risks? Cite file:line.`,
@@ -350,24 +366,24 @@ export function buildFollowups(args: {
     });
   } else if (hasDiagnostics && hasActiveFile) {
     out.push({
-      key: "whyError",
-      labelKey: "workbench.aiFollowup.whyError",
+      key: 'whyError',
+      labelKey: 'workbench.aiFollowup.whyError',
       prompt: L(
         `当前文件 ${file} 的这些错误是怎么产生的？给出根因与最小修复方案。`,
         `Why are these errors in ${file} happening? Give the root cause and a minimal fix.`,
       ),
     });
     out.push({
-      key: "minFix",
-      labelKey: "workbench.aiFollowup.minFix",
+      key: 'minFix',
+      labelKey: 'workbench.aiFollowup.minFix',
       prompt: L(
         `请直接修复 ${file} 当前的诊断错误（用 apply_change 工具最小改动），先通过 file_read / project_context 确认上下文再改。`,
         `Fix the current diagnostics in ${file} with a minimal change (use apply_change), confirm context via file_read / project_context first.`,
       ),
     });
     out.push({
-      key: "reviewPath",
-      labelKey: "workbench.aiFollowup.reviewPath",
+      key: 'reviewPath',
+      labelKey: 'workbench.aiFollowup.reviewPath',
       prompt: L(
         `审查 ${file} 当前出错的逻辑路径，指出潜在问题与改进。`,
         `Review the failing logic path in ${file}; point out issues and improvements.`,
@@ -375,24 +391,24 @@ export function buildFollowups(args: {
     });
   } else if (hasScope) {
     out.push({
-      key: "impactFiles",
-      labelKey: "workbench.aiFollowup.impactFiles",
+      key: 'impactFiles',
+      labelKey: 'workbench.aiFollowup.impactFiles',
       prompt: L(
         `列出受此实体改动波及的文件，并说明每个文件为什么要改。`,
         `List the files impacted by editing this entity and explain why each needs a change.`,
       ),
     });
     out.push({
-      key: "refactor",
-      labelKey: "workbench.aiFollowup.refactor",
+      key: 'refactor',
+      labelKey: 'workbench.aiFollowup.refactor',
       prompt: L(
         `给出此实体的重构方案，关注可读性与调用方影响。`,
         `Propose a refactor for this entity, focusing on readability and caller impact.`,
       ),
     });
     out.push({
-      key: "reconfirm",
-      labelKey: "workbench.aiFollowup.reconfirm",
+      key: 'reconfirm',
+      labelKey: 'workbench.aiFollowup.reconfirm',
       prompt: L(
         `用 project_context / file_read 读取真实代码，再确认上面的结论是否成立。`,
         `Re-read the real code via project_context / file_read and confirm whether the conclusion holds.`,
@@ -400,20 +416,17 @@ export function buildFollowups(args: {
     });
   } else {
     out.push({
-      key: "reconfirm",
-      labelKey: "workbench.aiFollowup.reconfirm",
+      key: 'reconfirm',
+      labelKey: 'workbench.aiFollowup.reconfirm',
       prompt: L(
         `用 project_context / file_read 读取真实代码，不要凭空猜测，再确认上面的结论。`,
         `Re-read the real code via project_context / file_read, don't guess, then confirm the conclusion.`,
       ),
     });
     out.push({
-      key: "listImprove",
-      labelKey: "workbench.aiFollowup.listImprove",
-      prompt: L(
-        `列出可以改进的后续事项，按优先级排序。`,
-        `List actionable next improvements, ordered by priority.`,
-      ),
+      key: 'listImprove',
+      labelKey: 'workbench.aiFollowup.listImprove',
+      prompt: L(`列出可以改进的后续事项，按优先级排序。`, `List actionable next improvements, ordered by priority.`),
     });
   }
   return out.slice(0, 3);
@@ -432,8 +445,8 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const currentAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
   // 当前助手是否具备 run_command 能力（决定 @terminal participant 是否可用）：纯前端读 AiAgent.toolIds
-  const hasRunCommand = !!currentAgent?.toolIds?.includes("run_command");
-  const [selectedModelId, setSelectedModelId] = useState<string>(currentAgent?.modelId ?? "");
+  const hasRunCommand = !!currentAgent?.toolIds?.includes('run_command');
+  const [selectedModelId, setSelectedModelId] = useState<string>(currentAgent?.modelId ?? '');
   const [models, setModels] = useState<AiModel[]>([]);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   useEffect(() => {
@@ -478,22 +491,22 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   const activeAnalysisId = useProjectStore((s) => s.activeAnalysisId);
   const callEdges = useProjectStore((s) => s.callEdges);
 
-  const [mode, setMode] = useState<WorkbenchMode>("ask");
+  const [mode, setMode] = useState<WorkbenchMode>('ask');
   const [attachments, setAttachments] = useState<ContextAttachment[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [slashAnchor, setSlashAnchor] = useState<null | HTMLElement>(null);
-  const [slashQuery, setSlashQuery] = useState("");
-  const [slashTarget, setSlashTarget] = useState<"chat" | "edits">("chat");
+  const [slashQuery, setSlashQuery] = useState('');
+  const [slashTarget, setSlashTarget] = useState<'chat' | 'edits'>('chat');
   const [attachOpen, setAttachOpen] = useState(false);
-  const [attachQuery, setAttachQuery] = useState("");
-  const [hashMention, setHashMention] = useState<null | "chat" | "edits">(null);
+  const [attachQuery, setAttachQuery] = useState('');
+  const [hashMention, setHashMention] = useState<null | 'chat' | 'edits'>(null);
   const workspaceFacts = useMemo<WorkspaceFacts>(() => {
     const langMap = new Map<string, number>();
     const dirMap = new Map<string, number>();
     for (const f of files) {
-      const lang = f.language ?? "unknown";
+      const lang = f.language ?? 'unknown';
       langMap.set(lang, (langMap.get(lang) ?? 0) + 1);
-      const seg = f.relPath.includes("/") ? f.relPath.split("/")[0] : "(root)";
+      const seg = f.relPath.includes('/') ? f.relPath.split('/')[0] : '(root)';
       dirMap.set(seg, (dirMap.get(seg) ?? 0) + 1);
     }
     const languages = [...langMap.entries()]
@@ -515,25 +528,27 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   // The user's choice persists across panel open/close via localStorage.
   const [impactCanvasOn, setImpactCanvasOnState] = useState<boolean>(() => {
     try {
-      const v = localStorage.getItem("ps.workbench.impactCanvas");
-      return v === null ? false : v === "1";
+      const v = localStorage.getItem('ps.workbench.impactCanvas');
+      return v === null ? false : v === '1';
     } catch {
       return false;
     }
   });
   const setImpactCanvasOn = useCallback((v: boolean) => {
     try {
-      localStorage.setItem("ps.workbench.impactCanvas", v ? "1" : "0");
+      localStorage.setItem('ps.workbench.impactCanvas', v ? '1' : '0');
     } catch {
       /* ignore persistence failure */
     }
     setImpactCanvasOnState(v);
   }, []);
-  const [pendingSuggestion, setPendingSuggestion] = useState<{ key: string; label: string; prompt: string } | null>(null);
+  const [pendingSuggestion, setPendingSuggestion] = useState<{ key: string; label: string; prompt: string } | null>(
+    null,
+  );
   const [contextOpen, setContextOpen] = useState(false);
   const [canvasScope, setCanvasScope] = useState<{ relPath: string; label: string; fileId: string } | null>(null);
-  const [view, setView] = useState<"chat" | "edits">("chat");
-  const [editInput, setEditInput] = useState("");
+  const [view, setView] = useState<'chat' | 'edits'>('chat');
+  const [editInput, setEditInput] = useState('');
   const [queued, setQueued] = useState<string[]>([]);
 
   const [verifyList, setVerifyList] = useState<VerifyEntry[]>([]);
@@ -542,7 +557,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   const armVerify = useCallback((fileId: string, relPath: string) => {
     const before = snapshotFileFacts(fileId);
     const id = `${fileId}@${Date.now()}`;
-    setVerifyList((prev) => [...prev, { id, relPath, status: "verifying" as const, before }].slice(-3));
+    setVerifyList((prev) => [...prev, { id, relPath, status: 'verifying' as const, before }].slice(-3));
     const start = Date.now();
     const timer = setInterval(() => {
       const cur = snapshotFileFacts(fileId);
@@ -551,7 +566,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       if (changed || elapsed >= 9000) {
         clearInterval(timer);
         verifyTimers.current.delete(id);
-        setVerifyList((prev) => prev.map((e) => (e.id === id ? { ...e, status: "done", after: cur } : e)));
+        setVerifyList((prev) => prev.map((e) => (e.id === id ? { ...e, status: 'done', after: cur } : e)));
         setVerifySettled((prev) => {
           const next = [...prev, { relPath, before, after: cur }].slice(-20);
           const marks = computeVerifyMarks(next);
@@ -587,7 +602,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   }, []);
 
   const [width, setWidth] = useState<number>(() => {
-    const w = Number(localStorage.getItem("workbench.ai.width"));
+    const w = Number(localStorage.getItem('workbench.ai.width'));
     return w >= 260 && w <= 760 ? w : 360;
   });
   const draggingRef = useRef(false);
@@ -605,7 +620,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       if (m.fileId !== fid) continue;
       const meta = parseFileMetricMeta(m);
       for (const f of meta.functions ?? []) {
-        if (typeof f.cc === "number" && f.cc > maxCc) maxCc = f.cc;
+        if (typeof f.cc === 'number' && f.cc > maxCc) maxCc = f.cc;
       }
     }
     if (deadCount === 0 && cloneGroups === 0 && maxCc === 0) return null;
@@ -617,17 +632,15 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   }, [activeFile, deadSymbols, clones, metrics]);
 
   const EMPTY_DIAGS: EditorDiagnostic[] = [];
-  const fileDiagnostics = useEditorDiagnosticsStore(
-    (s) => s.byRelPath[activeFile?.relPath ?? ""] ?? EMPTY_DIAGS,
-  );
+  const fileDiagnostics = useEditorDiagnosticsStore((s) => s.byRelPath[activeFile?.relPath ?? ''] ?? EMPTY_DIAGS);
 
   const factsLabel = useMemo(() => {
-    if (!facts) return "";
+    if (!facts) return '';
     const parts: string[] = [];
-    if (facts.cc != null) parts.push(t("workbench.aiFacts.cc", { cc: facts.cc }));
-    if (facts.deadCount != null) parts.push(t("workbench.aiFacts.dead", { n: facts.deadCount }));
-    if (facts.cloneGroups != null) parts.push(t("workbench.aiFacts.clone", { n: facts.cloneGroups }));
-    return parts.join(" · ");
+    if (facts.cc != null) parts.push(t('workbench.aiFacts.cc', { cc: facts.cc }));
+    if (facts.deadCount != null) parts.push(t('workbench.aiFacts.dead', { n: facts.deadCount }));
+    if (facts.cloneGroups != null) parts.push(t('workbench.aiFacts.clone', { n: facts.cloneGroups }));
+    return parts.join(' · ');
   }, [facts]);
 
   const scopeFacts = useMemo<WorkbenchContextFacts | null>(() => {
@@ -640,11 +653,11 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       if (m.fileId !== fid) continue;
       const meta = parseFileMetricMeta(m);
       for (const f of meta.functions ?? []) {
-        if (typeof f.cc === "number" && f.cc > maxCc) maxCc = f.cc;
+        if (typeof f.cc === 'number' && f.cc > maxCc) maxCc = f.cc;
       }
     }
     const findingsCount = findings.filter(
-      (f) => f.status === "open" && f.targetType === "file" && f.targetId === fid && f.ruleId !== "rule_dead_symbol",
+      (f) => f.status === 'open' && f.targetType === 'file' && f.targetId === fid && f.ruleId !== 'rule_dead_symbol',
     ).length;
     if (deadCount === 0 && cloneGroups === 0 && maxCc === 0 && findingsCount === 0) return null;
     return {
@@ -666,30 +679,30 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
     const out: ScopeSuggestion[] = [];
     if (scopeFacts.cc != null && scopeFacts.cc >= 15) {
       out.push({
-        key: "cc",
-        label: t("workbench.aiSuggest.cc", { n: scopeFacts.cc }),
-        prompt: t("workbench.aiSuggest.ccPrompt", { loc, n: scopeFacts.cc }),
+        key: 'cc',
+        label: t('workbench.aiSuggest.cc', { n: scopeFacts.cc }),
+        prompt: t('workbench.aiSuggest.ccPrompt', { loc, n: scopeFacts.cc }),
       });
     }
     if (scopeFacts.deadCount) {
       out.push({
-        key: "dead",
-        label: t("workbench.aiSuggest.dead", { n: scopeFacts.deadCount }),
-        prompt: t("workbench.aiSuggest.deadPrompt", { loc, n: scopeFacts.deadCount }),
+        key: 'dead',
+        label: t('workbench.aiSuggest.dead', { n: scopeFacts.deadCount }),
+        prompt: t('workbench.aiSuggest.deadPrompt', { loc, n: scopeFacts.deadCount }),
       });
     }
     if (scopeFacts.cloneGroups) {
       out.push({
-        key: "clone",
-        label: t("workbench.aiSuggest.clone", { n: scopeFacts.cloneGroups }),
-        prompt: t("workbench.aiSuggest.clonePrompt", { loc, n: scopeFacts.cloneGroups }),
+        key: 'clone',
+        label: t('workbench.aiSuggest.clone', { n: scopeFacts.cloneGroups }),
+        prompt: t('workbench.aiSuggest.clonePrompt', { loc, n: scopeFacts.cloneGroups }),
       });
     }
     if (scopeFacts.findings) {
       out.push({
-        key: "findings",
-        label: t("workbench.aiSuggest.findings", { n: scopeFacts.findings }),
-        prompt: t("workbench.aiSuggest.findingsPrompt", { loc, n: scopeFacts.findings }),
+        key: 'findings',
+        label: t('workbench.aiSuggest.findings', { n: scopeFacts.findings }),
+        prompt: t('workbench.aiSuggest.findingsPrompt', { loc, n: scopeFacts.findings }),
       });
     }
     return out;
@@ -754,7 +767,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
         un = await listen<AiScopePayload>(AI_SCOPE_EVENT, (e) => {
           const p = e.payload;
           setCanvasScope(
-            p && p.kind === "entity" && p.relPath && p.fileId
+            p && p.kind === 'entity' && p.relPath && p.fileId
               ? { relPath: p.relPath, label: p.label ?? p.relPath, fileId: p.fileId }
               : null,
           );
@@ -777,10 +790,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
     if (!activeFile || insights.length === 0) return [] as AiInsightDto[];
     const rp = activeFile.relPath;
     return insights.filter(
-      (it) =>
-        (it.refs ?? []).some((r) => r.includes(rp)) ||
-        it.title.includes(rp) ||
-        it.body.includes(rp),
+      (it) => (it.refs ?? []).some((r) => r.includes(rp)) || it.title.includes(rp) || it.body.includes(rp),
     );
   }, [activeFile, insights]);
 
@@ -802,7 +812,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
     if (st.agents.length === 0) await st.loadAgents();
     st = useAgentStore.getState();
     if (st.agents.length === 0) {
-      toast(t("workbench.aiNoAgent"), "error");
+      toast(t('workbench.aiNoAgent'), 'error');
       return null;
     }
     if (st.selectedConversationId) {
@@ -814,21 +824,20 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
     }
     const agent = st.agents.find((a) => a.id === st.selectedAgentId) ?? st.agents[0];
     if (st.selectedAgentId !== agent.id) useAgentStore.getState().selectAgent(agent.id);
-    const conv = await useAgentStore.getState().createConversation(
-      agent.id,
-      t("workbench.aiConvTitle", { file: activeFile?.name ?? "?" }),
-    );
+    const conv = await useAgentStore
+      .getState()
+      .createConversation(agent.id, t('workbench.aiConvTitle', { file: activeFile?.name ?? '?' }));
     useAgentStore.getState().selectConversation(conv.id);
     return conv.id;
   }, [activeFile]);
 
   const send = useCallback(
     async (userText: string, opts?: { suppressSelection?: boolean; mode?: WorkbenchMode }) => {
-      const trimmed = userText.trim().replace(/^@(workspace|work)\s*/i, "");
+      const trimmed = userText.trim().replace(/^@(workspace|work)\s*/i, '');
       if (!trimmed || isStreaming) return;
       const slash = parseSlashCommand(trimmed, isBookScene);
       if (slash) setSlashAnchor(null);
-      const effectiveMode = slash ? slash.def.mode : opts?.mode ?? mode;
+      const effectiveMode = slash ? slash.def.mode : (opts?.mode ?? mode);
       const text = slash
         ? slash.def.buildText(slash.args, {
             activeFile: activeFile ? { relPath: activeFile.relPath, language: activeFile.language } : null,
@@ -842,81 +851,83 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       // 题材语料：发消息前实时聚合当前书数据注入 ctx，让 AI 每轮带真实数据作答。
       // worldview=设定库（世界观设定 + 人物卡 + 关系）；timeline=时间线档案（章节骨架 + 事件全表 + 冲突 + 待补全）。
       const bookSettingCorpus =
-        isBookScene && bookTopic === "worldview"
+        isBookScene && bookTopic === 'worldview'
           ? (() => {
               const { activeBookId, settings } = useWritingStore.getState();
               const bookSettings = activeBookId ? settings.filter((s) => s.bookId === activeBookId) : settings;
               return buildWorldBibleCorpus(bookSettings);
             })()
-          : isBookScene && (bookTopic === "timeline" || bookTopic === "storylines")
-          ? (() => {
-              const ws = useWritingStore.getState();
-              const bookId = ws.activeBookId;
-              const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
-              const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
-              const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
-              return buildTimelineCorpus(bookId, ws.timelineEvents, chapters, settings, lines);
-            })()
-          : isBookScene && bookTopic === "foreshadowing"
-          ? (() => {
-              const ws = useWritingStore.getState();
-              const bookId = ws.activeBookId;
-              const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
-              const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
-              return buildForeshadowingCorpus(bookId, ws.foreshadowings, chapters, lines);
-            })()
-          : isBookScene && bookTopic === "inspiration"
-          ? (() => {
-              const ws = useWritingStore.getState();
-              const bookId = ws.activeBookId;
-              const outlines = bookId ? ws.outlines.filter((o) => o.bookId === bookId) : ws.outlines;
-              const events = bookId ? ws.timelineEvents.filter((e) => e.bookId === bookId) : ws.timelineEvents;
-              const shadows = bookId ? ws.foreshadowings.filter((f) => f.bookId === bookId) : ws.foreshadowings;
-              return buildInspirationCorpus(bookId, outlines, events, shadows);
-            })()
-          : isBookScene && bookTopic === "proofread"
-          ? (() => {
-              const ws = useWritingStore.getState();
-              const bookId = ws.activeBookId;
-              const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
-              const outlines = bookId ? ws.outlines.filter((o) => o.bookId === bookId) : ws.outlines;
-              const events = bookId ? ws.timelineEvents.filter((e) => e.bookId === bookId) : ws.timelineEvents;
-              const shadows = bookId ? ws.foreshadowings.filter((f) => f.bookId === bookId) : ws.foreshadowings;
-              const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
-              return buildProofreadCorpus(bookId, chapters, outlines, events, shadows, lines);
-            })()
-          : isBookScene && bookTopic === "stats"
-          ? (() => {
-              const ws = useWritingStore.getState();
-              const bookId = ws.activeBookId;
-              const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
-              const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
-              return buildStatsCorpus(bookTitle ?? null, chapters, settings);
-            })()
-          : isBookScene && bookTopic === "writing"
-          ? (() => {
-              const ws = useWritingStore.getState();
-              const bookId = ws.activeBookId;
-              const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
-              const activeChapterId = useWritingDocsStore.getState().activeChapterByBook[bookId ?? ""] ?? null;
-              return buildManuscriptCorpus(bookTitle ?? null, chapters, activeChapterId);
-            })()
-          : isBookScene && bookTopic === "characters"
-          ? (() => {
-              const ws = useWritingStore.getState();
-              const bookId = ws.activeBookId;
-              const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
-              return buildCharactersCorpus(settings);
-            })()
-          : isBookScene && bookTopic === "catalog"
-          ? (() => {
-              const ws = useWritingStore.getState();
-              const bookId = ws.activeBookId;
-              const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
-              const outlines = bookId ? ws.outlines.filter((o) => o.bookId === bookId) : ws.outlines;
-              return buildCatalogCorpus(chapters, outlines);
-            })()
-          : null;
+          : isBookScene && (bookTopic === 'timeline' || bookTopic === 'storylines')
+            ? (() => {
+                const ws = useWritingStore.getState();
+                const bookId = ws.activeBookId;
+                const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
+                const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
+                const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
+                return buildTimelineCorpus(bookId, ws.timelineEvents, chapters, settings, lines);
+              })()
+            : isBookScene && bookTopic === 'foreshadowing'
+              ? (() => {
+                  const ws = useWritingStore.getState();
+                  const bookId = ws.activeBookId;
+                  const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
+                  const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
+                  return buildForeshadowingCorpus(bookId, ws.foreshadowings, chapters, lines);
+                })()
+              : isBookScene && bookTopic === 'inspiration'
+                ? (() => {
+                    const ws = useWritingStore.getState();
+                    const bookId = ws.activeBookId;
+                    const outlines = bookId ? ws.outlines.filter((o) => o.bookId === bookId) : ws.outlines;
+                    const events = bookId ? ws.timelineEvents.filter((e) => e.bookId === bookId) : ws.timelineEvents;
+                    const shadows = bookId ? ws.foreshadowings.filter((f) => f.bookId === bookId) : ws.foreshadowings;
+                    return buildInspirationCorpus(bookId, outlines, events, shadows);
+                  })()
+                : isBookScene && bookTopic === 'proofread'
+                  ? (() => {
+                      const ws = useWritingStore.getState();
+                      const bookId = ws.activeBookId;
+                      const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
+                      const outlines = bookId ? ws.outlines.filter((o) => o.bookId === bookId) : ws.outlines;
+                      const events = bookId ? ws.timelineEvents.filter((e) => e.bookId === bookId) : ws.timelineEvents;
+                      const shadows = bookId ? ws.foreshadowings.filter((f) => f.bookId === bookId) : ws.foreshadowings;
+                      const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
+                      const cards = bookId ? ws.settings.filter((x) => x.bookId === bookId) : ws.settings;
+                      return buildProofreadCorpus(bookId, chapters, outlines, events, shadows, lines, cards);
+                    })()
+                  : isBookScene && bookTopic === 'stats'
+                    ? (() => {
+                        const ws = useWritingStore.getState();
+                        const bookId = ws.activeBookId;
+                        const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
+                        const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
+                        return buildStatsCorpus(bookTitle ?? null, chapters, settings);
+                      })()
+                    : isBookScene && bookTopic === 'writing'
+                      ? (() => {
+                          const ws = useWritingStore.getState();
+                          const bookId = ws.activeBookId;
+                          const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
+                          const activeChapterId =
+                            useWritingDocsStore.getState().activeChapterByBook[bookId ?? ''] ?? null;
+                          return buildManuscriptCorpus(bookTitle ?? null, chapters, activeChapterId);
+                        })()
+                      : isBookScene && bookTopic === 'characters'
+                        ? (() => {
+                            const ws = useWritingStore.getState();
+                            const bookId = ws.activeBookId;
+                            const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
+                            return buildCharactersCorpus(settings);
+                          })()
+                        : isBookScene && bookTopic === 'catalog'
+                          ? (() => {
+                              const ws = useWritingStore.getState();
+                              const bookId = ws.activeBookId;
+                              const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
+                              const outlines = bookId ? ws.outlines.filter((o) => o.bookId === bookId) : ws.outlines;
+                              return buildCatalogCorpus(chapters, outlines);
+                            })()
+                          : null;
       // 全书总览语料：发消息前实时聚合当前书跨维度数据，注入 ctx。
       // 与右栏《全书总览》仪表盘同一口径（utils/writingOverview，单一事实来源）。
       // 刻意对所有书题材注入——即便在 characters/catalog 等当前无题材语料的视图，
@@ -932,7 +943,15 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
         const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
         const shadows = bookId ? ws.foreshadowings.filter((f) => f.bookId === bookId) : ws.foreshadowings;
         return buildBookOverviewCorpus(
-          buildBookOverview({ bookTitle: bookTitle ?? null, chapters, settings, outlines, timelineEvents: events, storylines: lines, foreshadowings: shadows }),
+          buildBookOverview({
+            bookTitle: bookTitle ?? null,
+            chapters,
+            settings,
+            outlines,
+            timelineEvents: events,
+            storylines: lines,
+            foreshadowings: shadows,
+          }),
         );
       })();
       // 聚焦设定语料：右栏选中某个具体人物/世界观设定（钻入详情）时，
@@ -943,7 +962,13 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       })();
       const ctx: WorkbenchContext = {
         activeFile: activeFile
-          ? { fileId: activeFile.fileId, relPath: activeFile.relPath, language: activeFile.language, name: activeFile.name, totalLines: activeFile.totalLines }
+          ? {
+              fileId: activeFile.fileId,
+              relPath: activeFile.relPath,
+              language: activeFile.language,
+              name: activeFile.name,
+              totalLines: activeFile.totalLines,
+            }
           : null,
         selection: suppressSelection ? null : selection,
         attachments,
@@ -973,9 +998,29 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
         focusSettingCorpus,
       };
       const message = buildUserMessage(ctx, text, isBookScene);
-      await useAgentStore.getState().sendMessage(convId, message, WORKBENCH_MODE_TOOLS[effectiveMode], selectedModelId || null);
+      await useAgentStore
+        .getState()
+        .sendMessage(convId, message, WORKBENCH_MODE_TOOLS[effectiveMode], selectedModelId || null);
     },
-    [activeFile, selection, attachments, mode, facts, canvasScope, scopeFacts, fileDiagnostics, isStreaming, ensureConversation, workspaceFacts, hasRunCommand, selectedModelId, isBookScene, bookTopic, bookTitle, focusSetting],
+    [
+      activeFile,
+      selection,
+      attachments,
+      mode,
+      facts,
+      canvasScope,
+      scopeFacts,
+      fileDiagnostics,
+      isStreaming,
+      ensureConversation,
+      workspaceFacts,
+      hasRunCommand,
+      selectedModelId,
+      isBookScene,
+      bookTopic,
+      bookTitle,
+      focusSetting,
+    ],
   );
 
   const submitInput = useCallback(
@@ -984,7 +1029,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       if (!text) return;
       if (isStreaming) {
         setQueued((q) => [...q, text]);
-        useToastStore.getState().showToast(t("workbench.aiQueue.queued"), "info");
+        useToastStore.getState().showToast(t('workbench.aiQueue.queued'), 'info');
         return;
       }
       void send(text);
@@ -1003,11 +1048,24 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   }, [isStreaming, queued, send]);
 
   const quickAction = useCallback(
-    (kind: "file" | "selection" | "test" | "review" | "fix" | "book-understand" | "book-explain-sel" | "book-polish" | "book-consistency" | "book-plot" | "book-consistency-world") => {
+    (
+      kind:
+        | 'file'
+        | 'selection'
+        | 'test'
+        | 'review'
+        | 'fix'
+        | 'book-understand'
+        | 'book-explain-sel'
+        | 'book-polish'
+        | 'book-consistency'
+        | 'book-plot'
+        | 'book-consistency-world',
+    ) => {
       // 全书世界观/人物设定一致性审查：不依赖当前章节文件，直接读 activeBook 的设定/人物资料。
-      if (kind === "book-consistency-world") {
+      if (kind === 'book-consistency-world') {
         const { activeBookId, books, settings } = useWritingStore.getState();
-        const bookTitle = activeBookId ? (books.find((b) => b.id === activeBookId)?.title ?? "") : "";
+        const bookTitle = activeBookId ? (books.find((b) => b.id === activeBookId)?.title ?? '') : '';
         const bookSettings = activeBookId ? settings.filter((s) => s.bookId === activeBookId) : settings;
         const { zh, en } = buildWorldConsistencyPrompt(bookTitle, bookSettings);
         void send(L(zh, en));
@@ -1018,22 +1076,22 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       let text: string;
       if (isBookScene) {
         // 书场景：写作向快捷动作，不出现「代码 / 单元测试 / 审查」等术语
-        if (kind === "book-explain-sel" && selection) {
+        if (kind === 'book-explain-sel' && selection) {
           text = L(
-            `请解释下面这段正文在情节推进、人设塑造与主题上的作用，并指出可改进处：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ""}\n${selection.text}\n\`\`\``,
-            `Explain what this passage does for plot progression, character and theme, and point out improvements:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ""}\n${selection.text}\n\`\`\``,
+            `请解释下面这段正文在情节推进、人设塑造与主题上的作用，并指出可改进处：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
+            `Explain what this passage does for plot progression, character and theme, and point out improvements:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
           );
-        } else if (kind === "book-polish" && selection) {
+        } else if (kind === 'book-polish' && selection) {
           text = L(
-            `请润色下面这段正文：提升文笔、节奏与可读性，保持人设口吻与全文风格一致，只改必要处：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ""}\n${selection.text}\n\`\`\``,
-            `Polish this passage: improve prose, pacing and readability while keeping the character's voice and overall style consistent; change only what's needed:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ""}\n${selection.text}\n\`\`\``,
+            `请润色下面这段正文：提升文笔、节奏与可读性，保持人设口吻与全文风格一致，只改必要处：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
+            `Polish this passage: improve prose, pacing and readability while keeping the character's voice and overall style consistent; change only what's needed:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
           );
-        } else if (kind === "book-consistency") {
+        } else if (kind === 'book-consistency') {
           text = L(
             `请对照人设卡与世界观设定，审查章节 ${activeFile.relPath} 是否出现人设 / 设定矛盾，逐条列出并给出修改建议。没有人设卡覆盖的角色请明确声明「设定缺失」。`,
             `Against the character cards and worldbuilding, review ${activeFile.relPath} for character / setting contradictions; list them with revision suggestions. For characters without a card, explicitly say the setting is missing.`,
           );
-        } else if (kind === "book-plot") {
+        } else if (kind === 'book-plot') {
           text = L(
             `请基于作品概览（全书章节结构与字数分布）、当前章节正文与世界观设定，审视情节连贯性、伏笔回收与叙事节奏，给出具体到章节的修改建议。`,
             `Based on the book overview (chapter structure and word distribution), the current chapter text and the worldbuilding, review plot coherence, foreshadowing payoff and pacing, with chapter-specific revision suggestions.`,
@@ -1044,27 +1102,36 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
             `Help me understand chapter ${activeFile.relPath}: what plot function it serves in the book, how it connects to the surrounding chapters, and what works versus what could improve.`,
           );
         }
-        void send(text, { suppressSelection: kind === "book-explain-sel" || kind === "book-polish" });
+        void send(text, { suppressSelection: kind === 'book-explain-sel' || kind === 'book-polish' });
         return;
       }
-      if (kind === "selection" && selection) {
+      if (kind === 'selection' && selection) {
         text = L(
-          `请解释下面选中的代码，并说明它的作用、潜在问题与改进点：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ""}\n${selection.text}\n\`\`\``,
-          `Explain the selected code and point out its purpose, issues and improvements:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ""}\n${selection.text}\n\`\`\``,
+          `请解释下面选中的代码，并说明它的作用、潜在问题与改进点：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
+          `Explain the selected code and point out its purpose, issues and improvements:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
         );
-      } else if (kind === "fix" && selection) {
+      } else if (kind === 'fix' && selection) {
         text = L(
-          `请修复下面选中的代码中的问题（bug、坏味道、安全隐患），给出修改后的完整片段并说明改动理由：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ""}\n${selection.text}\n\`\`\``,
-          `Fix the issues (bugs, smells, security risks) in the selected code, give the full corrected snippet and explain the changes:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ""}\n${selection.text}\n\`\`\``,
+          `请修复下面选中的代码中的问题（bug、坏味道、安全隐患），给出修改后的完整片段并说明改动理由：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
+          `Fix the issues (bugs, smells, security risks) in the selected code, give the full corrected snippet and explain the changes:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
         );
-      } else if (kind === "test") {
-        text = L(`请为文件 ${activeFile.relPath} 编写单元测试，覆盖关键函数/分支与边界情况。`, `Write unit tests for ${activeFile.relPath} covering key functions/branches and edge cases.`);
-      } else if (kind === "review") {
-        text = L(`请审查文件 ${activeFile.relPath}，指出 bug、坏味道、安全隐患并引用「file:line」证据。`, `Review ${activeFile.relPath}, citing concrete "file:line" evidence for bugs/smells/risks.`);
+      } else if (kind === 'test') {
+        text = L(
+          `请为文件 ${activeFile.relPath} 编写单元测试，覆盖关键函数/分支与边界情况。`,
+          `Write unit tests for ${activeFile.relPath} covering key functions/branches and edge cases.`,
+        );
+      } else if (kind === 'review') {
+        text = L(
+          `请审查文件 ${activeFile.relPath}，指出 bug、坏味道、安全隐患并引用「file:line」证据。`,
+          `Review ${activeFile.relPath}, citing concrete "file:line" evidence for bugs/smells/risks.`,
+        );
       } else {
-        text = L(`请解释文件 ${activeFile.relPath} 的整体结构、关键逻辑、依赖关系与潜在问题，给出模块级概述。`, `Explain the overall structure, key logic, dependencies and potential issues of ${activeFile.relPath}.`);
+        text = L(
+          `请解释文件 ${activeFile.relPath} 的整体结构、关键逻辑、依赖关系与潜在问题，给出模块级概述。`,
+          `Explain the overall structure, key logic, dependencies and potential issues of ${activeFile.relPath}.`,
+        );
       }
-      void send(text, { suppressSelection: kind === "selection" || kind === "fix" });
+      void send(text, { suppressSelection: kind === 'selection' || kind === 'fix' });
     },
     [activeFile, selection, send, isBookScene],
   );
@@ -1072,8 +1139,8 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   const fixErrors = useCallback(() => {
     if (!activeFile || fileDiagnostics.length === 0) return;
     const list = fileDiagnostics
-      .map((d) => `- L${d.startLine}: ${d.message}${d.source ? ` (${d.source}${d.code ? " " + d.code : ""})` : ""}`)
-      .join("\n");
+      .map((d) => `- L${d.startLine}: ${d.message}${d.source ? ` (${d.source}${d.code ? ' ' + d.code : ''})` : ''}`)
+      .join('\n');
     const text = isBookScene
       ? L(
           `当前章节 ${activeFile.relPath} 存在以下批注，请逐一修正，给出最小改动（优先用 apply_change 工具直接改正文）：\n\n${list}\n\n先通过 file_read 读取真实正文，确认每处上下文后再修改，不要凭空猜测。`,
@@ -1083,7 +1150,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
           `当前文件 ${activeFile.relPath} 存在以下诊断问题，请逐一修复，给出最小改动（优先用 apply_change 工具直接改文件）：\n\n${list}\n\n先通过 project_context / file_read 读取真实的当前代码，确认每处上下文后再修改，不要凭空猜测。`,
           `The file ${activeFile.relPath} currently has these diagnostics. Fix each with a minimal change (prefer the apply_change tool to edit the file directly):\n\n${list}\n\nFirst read the real current code via project_context / file_read to confirm the context of each before editing; do not guess.`,
         );
-    void send(text, { mode: "edit" });
+    void send(text, { mode: 'edit' });
   }, [activeFile, fileDiagnostics, send, isBookScene]);
 
   const startDrag = useCallback((e: React.MouseEvent) => {
@@ -1094,22 +1161,22 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       const nw = window.innerWidth - ev.clientX;
       if (nw >= 260 && nw <= 760) {
         setWidth(nw);
-        localStorage.setItem("workbench.ai.width", String(nw));
+        localStorage.setItem('workbench.ai.width', String(nw));
       }
     };
     const up = () => {
       draggingRef.current = false;
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
     };
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
   }, []);
 
   const attachCandidates = useMemo(() => {
     const q = attachQuery.trim();
     interface AttachItem {
-      type: "file" | "symbol";
+      type: 'file' | 'symbol';
       relPath: string;
       label: string;
       fileId: string;
@@ -1117,11 +1184,17 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       symbolName?: string;
     }
     const fileItems: AttachItem[] = files
-      .map((f: ProjectFile) => ({ type: "file" as const, relPath: f.relPath, label: f.name, fileId: f.id, line: undefined }))
+      .map((f: ProjectFile) => ({
+        type: 'file' as const,
+        relPath: f.relPath,
+        label: f.name,
+        fileId: f.id,
+        line: undefined,
+      }))
       .sort((a, b) => fuzzyScore(b.relPath, q) - fuzzyScore(a.relPath, q));
     const symItems: AttachItem[] = symbols
       .map((s: ProjectSymbol) => ({
-        type: "symbol" as const,
+        type: 'symbol' as const,
         relPath: s.filePath,
         label: s.name,
         fileId: s.fileId,
@@ -1140,18 +1213,18 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       return;
     }
     const att: ContextAttachment =
-      c.type === "symbol"
-        ? { kind: "symbol", label: c.symbolName ?? c.label, refPath: c.relPath, symbolName: c.symbolName, line: c.line }
-        : { kind: "file", label: c.label, refPath: c.relPath };
+      c.type === 'symbol'
+        ? { kind: 'symbol', label: c.symbolName ?? c.label, refPath: c.relPath, symbolName: c.symbolName, line: c.line }
+        : { kind: 'file', label: c.label, refPath: c.relPath };
     setAttachments((prev) => [...prev, att]);
     setAttachOpen(false);
-    setAttachQuery("");
-    if (hashMention === "chat") setInput((prev) => prev.replace(/(^|\s)#\S*$/, "$1"));
-    else if (hashMention === "edits") setEditInput((prev) => prev.replace(/(^|\s)#\S*$/, "$1"));
+    setAttachQuery('');
+    if (hashMention === 'chat') setInput((prev) => prev.replace(/(^|\s)#\S*$/, '$1'));
+    else if (hashMention === 'edits') setEditInput((prev) => prev.replace(/(^|\s)#\S*$/, '$1'));
     if (hashMention) setHashMention(null);
   };
 
-  const detectHashMention = (v: string, origin: "chat" | "edits") => {
+  const detectHashMention = (v: string, origin: 'chat' | 'edits') => {
     const m = v.match(/(?:^|\s)#(\S*)$/);
     if (m) {
       setAttachOpen(true);
@@ -1161,22 +1234,22 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
     } else if (hashMention === origin) {
       setAttachOpen(false);
       setHashMention(null);
-      setAttachQuery("");
+      setAttachQuery('');
     }
   };
 
-  const detectSlashCommand = (v: string, target: "chat" | "edits") => {
+  const detectSlashCommand = (v: string, target: 'chat' | 'edits') => {
     const m = v.match(/^\/(\w*)$/);
     if (m) {
       setSlashTarget(target);
       setSlashQuery(m[1]);
-      setSlashAnchor(target === "edits" ? editInputRef.current : inputRef.current);
-    } else if (slashAnchor && !v.startsWith("/")) {
+      setSlashAnchor(target === 'edits' ? editInputRef.current : inputRef.current);
+    } else if (slashAnchor && !v.startsWith('/')) {
       setSlashAnchor(null);
     }
   };
 
-  const canApply = mode !== "ask";
+  const canApply = mode !== 'ask';
 
   return {
     activeFile,
@@ -1284,15 +1357,15 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
       if (!activeFile) return;
       const ed = editorRef.current;
       if (!ed) {
-        useToastStore.getState().showToast(t("workbench.aiCode.insertNeedEditor"), "info");
+        useToastStore.getState().showToast(t('workbench.aiCode.insertNeedEditor'), 'info');
         return;
       }
       if (meta.path && meta.path !== activeFile.relPath) {
-        useToastStore.getState().showToast(t("workbench.aiCode.applyOnlyCurrent"), "info");
+        useToastStore.getState().showToast(t('workbench.aiCode.applyOnlyCurrent'), 'info');
         return;
       }
       ed.insertAtCursor(meta.code);
-      useToastStore.getState().showToast(t("workbench.aiCode.inserted"), "success");
+      useToastStore.getState().showToast(t('workbench.aiCode.inserted'), 'success');
     },
     [activeFile, editorRef],
   );
@@ -1317,38 +1390,40 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
       if (!meta.path) return false;
       const fileId = await resolveFileId(meta.path);
       if (!fileId) {
-        useToastStore.getState().showToast(t("workbench.aiApply.composerCrossNotFound", { path: meta.path }), "error");
+        useToastStore.getState().showToast(t('workbench.aiApply.composerCrossNotFound', { path: meta.path }), 'error');
         return false;
       }
-      let original = "";
+      let original = '';
       try {
         const sfc = await projectScanApi.readSourceFile(fileId);
         if (sfc.skippedReason) {
-          useToastStore.getState().showToast(t("workbench.aiCode.readSkipped", { reason: sfc.skippedReason }), "error");
+          useToastStore.getState().showToast(t('workbench.aiCode.readSkipped', { reason: sfc.skippedReason }), 'error');
           return false;
         }
-        original = sfc.lines.join("\n");
+        original = sfc.lines.join('\n');
       } catch (e: any) {
-        useToastStore.getState().showToast(t("workbench.aiCode.readFail", { error: e?.message ?? String(e) }), "error");
+        useToastStore.getState().showToast(t('workbench.aiCode.readFail', { error: e?.message ?? String(e) }), 'error');
         return false;
       }
       const res = computeApplyDiff(original, meta, null, meta.path);
       if (!res) {
-        useToastStore.getState().showToast(t("workbench.aiCode.applyNeedRange"), "info");
+        useToastStore.getState().showToast(t('workbench.aiCode.applyNeedRange'), 'info');
         return false;
       }
       try {
         ctx.armVerify(fileId, meta.path);
         await projectScanApi.writeSourceFile(fileId, res.modified, {
-          origin: "ai-apply",
-          reason: t("workbench.aiChanges.reasonApplied", { range: res.rangeLabel ?? meta.path }),
+          origin: 'ai-apply',
+          reason: t('workbench.aiChanges.reasonApplied', { range: res.rangeLabel ?? meta.path }),
           oldText: res.replacedText,
           newText: meta.code,
           conversationId: selectedConversationId ?? undefined,
         });
         return true;
       } catch (e: any) {
-        useToastStore.getState().showToast(t("workbench.aiCode.applyFail", { error: e?.message ?? String(e) }), "error");
+        useToastStore
+          .getState()
+          .showToast(t('workbench.aiCode.applyFail', { error: e?.message ?? String(e) }), 'error');
         return false;
       }
     },
@@ -1365,7 +1440,7 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
       if (ed && target === activeFile.relPath) {
         ed.clearInlineEdit?.();
         setPendingInline(null);
-        const originalLines = ed.getValue().split("\n");
+        const originalLines = ed.getValue().split('\n');
         const range = computeInlineEdit(originalLines, meta, selection, activeFile.relPath);
         if (range) {
           ed.previewInlineEdit(range);
@@ -1374,30 +1449,30 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
         }
         // 无 path/选区无法定位：退化为「在光标处插入」（VS Code 式兜底，apply 不静默失败）。
         ed.insertAtCursor(meta.code);
-        useToastStore.getState().showToast(t("workbench.aiCode.inserted"), "success");
+        useToastStore.getState().showToast(t('workbench.aiCode.inserted'), 'success');
         return;
       }
       // 跨文件：按 path 解析目标文件 → 读盘 → 弹 diff 预览（与改动台账共用，用户确认才落盘）。
       const fileId = await resolveFileId(target);
       if (!fileId) {
-        useToastStore.getState().showToast(t("workbench.aiApply.composerCrossNotFound", { path: target }), "error");
+        useToastStore.getState().showToast(t('workbench.aiApply.composerCrossNotFound', { path: target }), 'error');
         return;
       }
-      let original = "";
+      let original = '';
       try {
         const sfc = await projectScanApi.readSourceFile(fileId);
         if (sfc.skippedReason) {
-          useToastStore.getState().showToast(t("workbench.aiCode.readSkipped", { reason: sfc.skippedReason }), "error");
+          useToastStore.getState().showToast(t('workbench.aiCode.readSkipped', { reason: sfc.skippedReason }), 'error');
           return;
         }
-        original = sfc.lines.join("\n");
+        original = sfc.lines.join('\n');
       } catch (e: any) {
-        useToastStore.getState().showToast(t("workbench.aiCode.readFail", { error: e?.message ?? String(e) }), "error");
+        useToastStore.getState().showToast(t('workbench.aiCode.readFail', { error: e?.message ?? String(e) }), 'error');
         return;
       }
       const res = computeApplyDiff(original, meta, null, target);
       if (!res) {
-        useToastStore.getState().showToast(t("workbench.aiCode.applyNeedRange"), "info");
+        useToastStore.getState().showToast(t('workbench.aiCode.applyNeedRange'), 'info');
         return;
       }
       setDiff({ meta, original, modified: res.modified, rangeLabel: res.rangeLabel, fileId });
@@ -1409,13 +1484,13 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
     if (activeFile) ctx.armVerify(activeFile.fileId, activeFile.relPath);
     editorRef.current?.acceptInlineEdit();
     setPendingInline(null);
-    useToastStore.getState().showToast(t("workbench.aiApply.applied"), "success");
+    useToastStore.getState().showToast(t('workbench.aiApply.applied'), 'success');
   }, [editorRef, activeFile, ctx]);
 
   const rejectInline = useCallback(() => {
     editorRef.current?.rejectInlineEdit();
     setPendingInline(null);
-    useToastStore.getState().showToast(t("workbench.aiApply.rejected"), "info");
+    useToastStore.getState().showToast(t('workbench.aiApply.rejected'), 'info');
   }, [editorRef]);
 
   const applyInlineDirect = useCallback(
@@ -1423,7 +1498,7 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
       const ed = editorRef.current;
       if (!ed || !activeFile) return false;
       ed.clearInlineEdit?.();
-      const originalLines = ed.getValue().split("\n");
+      const originalLines = ed.getValue().split('\n');
       const range = computeInlineEdit(originalLines, meta, selection, activeFile.relPath);
       if (!range) return false;
       ed.previewInlineEdit(range);
@@ -1436,20 +1511,20 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
   const applyDiff = useCallback(async () => {
     if (!diff) return;
     try {
-      const replaced = diff.replacedText ?? "";
-      ctx.armVerify(diff.fileId, diff.meta.path ?? activeFile?.relPath ?? "");
+      const replaced = diff.replacedText ?? '';
+      ctx.armVerify(diff.fileId, diff.meta.path ?? activeFile?.relPath ?? '');
       await projectScanApi.writeSourceFile(diff.fileId, diff.modified, {
-        origin: "ai-apply",
-        reason: t("workbench.aiChanges.reasonApplied", {
-          range: diff.rangeLabel ?? diff.meta.path ?? "",
+        origin: 'ai-apply',
+        reason: t('workbench.aiChanges.reasonApplied', {
+          range: diff.rangeLabel ?? diff.meta.path ?? '',
         }),
         oldText: replaced,
         newText: diff.meta.code,
         conversationId: selectedConversationId ?? undefined,
       });
-      useToastStore.getState().showToast(t("workbench.aiCode.applied"), "success");
+      useToastStore.getState().showToast(t('workbench.aiCode.applied'), 'success');
     } catch (e: any) {
-      useToastStore.getState().showToast(t("workbench.aiCode.applyFail", { error: e?.message ?? String(e) }), "error");
+      useToastStore.getState().showToast(t('workbench.aiCode.applyFail', { error: e?.message ?? String(e) }), 'error');
     }
     setDiff(null);
   }, [diff, selectedConversationId, ctx]);
@@ -1472,8 +1547,11 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
 // useWorkbenchChat：agentStore UI 状态 + 输入框 + 改动清单 Composer
 // ─────────────────────────────────────────────────────────────────────────────
 
-
-export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null; ctx: ReturnType<typeof useWorkbenchContext>; edits: ReturnType<typeof useWorkbenchEdits> }) {
+export function useWorkbenchChat(deps: {
+  activeFile: WorkbenchActiveFile | null;
+  ctx: ReturnType<typeof useWorkbenchContext>;
+  edits: ReturnType<typeof useWorkbenchEdits>;
+}) {
   const { activeFile, ctx, edits } = deps;
 
   const agents = useAgentStore((s) => s.agents);
@@ -1484,6 +1562,10 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
   const isStreaming = useAgentStore((s) => s.isStreaming);
   const interruptRequested = useAgentStore((s) => s.interruptRequested);
   const stoppedConversationId = useAgentStore((s) => s.stoppedConversationId);
+  // 流归属：streamingContent/isStreaming/错误是全局状态，同窗口多 AI 入口共享——
+  // 只有「最新一轮流式属于当前选中会话」时才渲染流式轨迹/错误气泡，防止别处发起的流串台。
+  const currentStreamConversationId = useAgentStore((s) => s.currentStreamConversationId);
+  const lastStreamError = useAgentStore((s) => s.lastStreamError);
   const toolCalls = useAgentStore((s) => s.toolCalls);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const selectedConversationId = useAgentStore((s) => s.selectedConversationId);
@@ -1528,16 +1610,13 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
   selectedConversationIdRef.current = selectedConversationId;
 
   // 写入即落盘（按当前会话 id）。兼容旧用法：可传 Set 或函数更新器。
-  const setComposerSkip = useCallback(
-    (next: Set<string> | ((prev: Set<string>) => Set<string>)) => {
-      _setComposerSkip((prev) => {
-        const resolved = typeof next === "function" ? (next as (p: Set<string>) => Set<string>)(prev) : next;
-        saveComposerSkip(selectedConversationIdRef.current, resolved);
-        return resolved;
-      });
-    },
-    [],
-  );
+  const setComposerSkip = useCallback((next: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+    _setComposerSkip((prev) => {
+      const resolved = typeof next === 'function' ? (next as (p: Set<string>) => Set<string>)(prev) : next;
+      saveComposerSkip(selectedConversationIdRef.current, resolved);
+      return resolved;
+    });
+  }, []);
 
   // 切换会话：从 localStorage 载入该会话的已处理集合。用原始 setter 避免回写，
   // 杜绝「把上一会话的集合误写到新会话 key」的竞态。
@@ -1546,19 +1625,20 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId]);
 
-  useEffect(() => {
-    ctx.listEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent, ctx]);
+  // 流式/消息变化时智能滚底：仅近底时跟随，用户上翻阅读不被拉回；60ms 防抖（对标 AiAgentPage）。
+  // 消息列表容器的 ref 与 onScroll 由 WorkbenchAiPanel 从本返回值挂载。
+  const { containerRef: msgListRef, handleScroll: handleMsgScroll } = useSmartScrollToBottom<HTMLDivElement>([
+    messages,
+    streamingContent,
+    isStreaming,
+  ]);
 
   // 对话后「下一步建议」：最后一条助手消息落定（非流式）后，按其内容 + 当前上下文算出最多 3 条 follow-up。
   // 仅作展示与预填，不自动发送（见 buildFollowups 顶部说明）。流式期间不计算，避免半成品。
-  const lastAssistant = useMemo(
-    () => [...messages].reverse().find((m) => m.role === "assistant"),
-    [messages],
-  );
+  const lastAssistant = useMemo(() => [...messages].reverse().find((m) => m.role === 'assistant'), [messages]);
   const followups = useMemo<FollowupItem[]>(() => {
     if (!lastAssistant || isStreaming) return [];
-    const producedCode = parseBlocks(lastAssistant.content).some((n) => n.type === "code");
+    const producedCode = parseBlocks(lastAssistant.content).some((n) => n.type === 'code');
     return buildFollowups({
       hasActiveFile: !!activeFile,
       relPath: activeFile?.relPath,
@@ -1578,16 +1658,16 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
     const out: Record<string, ComposerItem[]> = {};
     if (!activeFile) return out;
     for (const m of messages) {
-      if (m.role !== "assistant") continue;
+      if (m.role !== 'assistant') continue;
       const blocks = parseBlocks(m.content)
-        .filter((n) => n.type === "code")
+        .filter((n) => n.type === 'code')
         .map((n) => (n as { meta: CodeBlockMeta }).meta);
       const items: ComposerItem[] = [];
       blocks.forEach((meta, idx) => {
         const targetsActive = !meta.path || meta.path === activeFile.relPath;
-        const firstLine = (meta.code.split("\n")[0] ?? "").trim().slice(0, 64);
+        const firstLine = (meta.code.split('\n')[0] ?? '').trim().slice(0, 64);
         const base = meta.path ?? activeFile.relPath;
-        const rangeLabel = meta.line ? `${base}:${meta.line}${meta.endLine ? "-" + meta.endLine : ""}` : base;
+        const rangeLabel = meta.line ? `${base}:${meta.line}${meta.endLine ? '-' + meta.endLine : ''}` : base;
         items.push({ key: `${m.id}#${idx}`, meta, rangeLabel, summary: firstLine, cross: !targetsActive });
       });
       if (items.length > 0) out[m.id] = items;
@@ -1596,37 +1676,35 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
   }, [messages, activeFile]);
 
   const historyList = useMemo(() => {
-    const aid = selectedAgentId ?? "";
-    return conversations
-      .filter((c) => c.agentId === aid)
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    const aid = selectedAgentId ?? '';
+    return conversations.filter((c) => c.agentId === aid).sort((a, b) => b.updatedAt - a.updatedAt);
   }, [conversations, selectedAgentId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const v = e.target.value;
     ctx.setInput(v);
-    ctx.detectHashMention(v, "chat");
-    ctx.detectSlashCommand(v, "chat");
+    ctx.detectHashMention(v, 'chat');
+    ctx.detectSlashCommand(v, 'chat');
   };
 
   const citeIntoInput = (text: string) => {
-    const append = (v: string) => (v ? v + "\n\n" : "") + text;
-    if (ctx.view === "edits") ctx.setEditInput(append);
+    const append = (v: string) => (v ? v + '\n\n' : '') + text;
+    if (ctx.view === 'edits') ctx.setEditInput(append);
     else ctx.setInput(append);
   };
 
   const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const v = e.target.value;
     ctx.setEditInput(v);
-    ctx.detectHashMention(v, "edits");
-    ctx.detectSlashCommand(v, "edits");
+    ctx.detectHashMention(v, 'edits');
+    ctx.detectSlashCommand(v, 'edits');
   };
 
   const applyAllForMsg = useCallback(
     async (msgId: string) => {
       const ed = ctx.inputRef.current;
       if (!ed) {
-        useToastStore.getState().showToast(t("workbench.aiApply.composerNeedEditor"), "info");
+        useToastStore.getState().showToast(t('workbench.aiApply.composerNeedEditor'), 'info');
         return;
       }
       const items = composersByMsg[msgId];
@@ -1646,7 +1724,7 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
           n++;
           if (ctx.activeFile) ctx.armVerify(ctx.activeFile.fileId, ctx.activeFile.relPath);
           if (meta.line != null) {
-            const added = meta.code.split("\n").length;
+            const added = meta.code.split('\n').length;
             const removed = meta.endLine != null ? meta.endLine - meta.line + 1 : 0;
             delta += added - removed;
           }
@@ -1662,7 +1740,7 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
         }
       }
       if (n > 0) {
-        useToastStore.getState().showToast(t("workbench.aiApply.composerApplied", { n }), "success");
+        useToastStore.getState().showToast(t('workbench.aiApply.composerApplied', { n }), 'success');
       }
     },
     [composersByMsg, composerSkip, edits, ctx],
@@ -1677,11 +1755,11 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
   // 破坏面刻意限制在**最后一轮**（面板只在最后一条助手/用户消息上渲染按钮）：
   // 中间某条重试会连带删掉后面所有对话，那种「静默丢历史」不值得为了对齐而做。
   const lastAssistantId = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "assistant") return messages[i].id;
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'assistant') return messages[i].id;
     return null;
   }, [messages]);
   const lastUserId = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "user") return messages[i].id;
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'user') return messages[i].id;
     return null;
   }, [messages]);
 
@@ -1692,7 +1770,10 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
     if (!convId) return;
     let userIdx = -1;
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "user") { userIdx = i; break; }
+      if (messages[i].role === 'user') {
+        userIdx = i;
+        break;
+      }
     }
     if (userIdx < 0) return;
     const target = messages[userIdx];
@@ -1701,9 +1782,11 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
       const content = first?.content ?? target.content;
       // 原始正文已经是 buildUserMessage 拼好的完整提示词，直接重发，
       // 保证「重试」重跑的是同一个请求，而不是被当前上下文改写过的另一个请求。
-      await useAgentStore.getState().sendMessage(convId, content, WORKBENCH_MODE_TOOLS[ctx.mode], ctx.selectedModelId || null);
+      await useAgentStore
+        .getState()
+        .sendMessage(convId, content, WORKBENCH_MODE_TOOLS[ctx.mode], ctx.selectedModelId || null);
     } catch {
-      useToastStore.getState().showToast(t("workbench.aiMsgAction.retryFailed"), "error");
+      useToastStore.getState().showToast(t('workbench.aiMsgAction.retryFailed'), 'error');
     }
   }, [isStreaming, selectedConversationId, messages, ctx.mode, ctx.selectedModelId]);
 
@@ -1716,7 +1799,7 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
     try {
       await useAgentStore.getState().truncateMessagesFrom(target.id);
     } catch {
-      useToastStore.getState().showToast(t("workbench.aiMsgAction.editFailed"), "error");
+      useToastStore.getState().showToast(t('workbench.aiMsgAction.editFailed'), 'error');
       return;
     }
     ctx.setInput(humanText);
@@ -1724,17 +1807,20 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
   }, [isStreaming, lastUserId, messages, ctx]);
 
   /** 复制消息正文：助手消息复制原文，用户消息只复制自己打的那句（不含机器提示词） */
-  const copyMessage = useCallback(async (msgId: string) => {
-    const m = messages.find((x) => x.id === msgId);
-    if (!m) return;
-    const text = m.role === "user" ? extractUserMessageView(m.content).text : m.content;
-    try {
-      await navigator.clipboard.writeText(text);
-      useToastStore.getState().showToast(t("workbench.aiMsgAction.copied"), "success");
-    } catch {
-      useToastStore.getState().showToast(t("workbench.aiMsgAction.copyFailed"), "error");
-    }
-  }, [messages]);
+  const copyMessage = useCallback(
+    async (msgId: string) => {
+      const m = messages.find((x) => x.id === msgId);
+      if (!m) return;
+      const text = m.role === 'user' ? extractUserMessageView(m.content).text : m.content;
+      try {
+        await navigator.clipboard.writeText(text);
+        useToastStore.getState().showToast(t('workbench.aiMsgAction.copied'), 'success');
+      } catch {
+        useToastStore.getState().showToast(t('workbench.aiMsgAction.copyFailed'), 'error');
+      }
+    },
+    [messages],
+  );
 
   const skipComposerItem = useCallback((key: string) => {
     setComposerSkip((s) => new Set(s).add(key));
@@ -1761,6 +1847,8 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
     isStreaming,
     interruptRequested,
     stoppedConversationId,
+    currentStreamConversationId,
+    lastStreamError,
     toolCalls,
     selectedAgentId,
     selectedConversationId,
@@ -1785,5 +1873,7 @@ export function useWorkbenchChat(deps: { activeFile: WorkbenchActiveFile | null;
     retryLastTurn,
     editLastRequest,
     copyMessage,
+    msgListRef,
+    handleMsgScroll,
   };
 }

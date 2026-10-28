@@ -341,5 +341,46 @@ describe("buildStatsBoard", () => {
   });
 });
 
+// ─── H6：预置板卡片绑定（双击直跳设定卡）──────────────────────────────
+
+describe("预置板卡片绑定（H6 跳设定卡）", () => {
+  it("关系板节点携带 settingId + bookId", () => {
+    const r = buildRelationBoard([
+      chapterFile({
+        id: "c1",
+        title: "第一章",
+        relPath: "01-第一章.md",
+        size: 100,
+        appearances: [
+          { id: "wset_a", name: "甲", count: 2, kind: "character" },
+          { id: "wset_b", name: "乙", count: 1, kind: "character" },
+        ],
+      }),
+    ]);
+    const nodes = r.cards.filter((c) => c.type === "writing-character");
+    expect(nodes.length).toBe(2);
+    for (const n of nodes) {
+      expect(typeof n.config.settingId).toBe("string");
+      expect((n.config.settingId as string).startsWith("wset_")).toBe(true);
+      expect(n.config.bookId).toBe("b1");
+    }
+  });
+
+  it("世界观板卡片携带 settingId + bookId", () => {
+    const r = buildWorldviewBoard([
+      chapterFile({
+        id: "c1",
+        title: "第一章",
+        relPath: "01-第一章.md",
+        size: 100,
+        appearances: [{ id: "wset_w1", name: "灵脉", count: 2, kind: "worldbuilding" }],
+      }),
+    ]);
+    expect(r.cards.length).toBe(1);
+    expect(r.cards[0].config.settingId).toBe("wset_w1");
+    expect(r.cards[0].config.bookId).toBe("b1");
+  });
+});
+
 
 

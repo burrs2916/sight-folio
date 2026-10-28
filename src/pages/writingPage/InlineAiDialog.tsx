@@ -11,6 +11,7 @@ import {
   FormLabel,
   Radio,
   RadioGroup,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -35,6 +36,11 @@ export interface InlineAiDialogProps {
   onDirectiveChange: (v: string) => void;
   style: PolishStyle;
   onStyleChange: (v: PolishStyle) => void;
+  /** 文风一致性开关（P0）：开启时生成类任务注入文风指纹 */
+  styleConsistency: boolean;
+  onStyleConsistencyChange: (v: boolean) => void;
+  /** 当前书样本是否足够生成文风指纹（不足时开关禁用并提示） */
+  styleFingerprintAvailable: boolean;
   running: boolean;
   streamText: string;
   /** 流式预览容器的滚动引用（auto-scroll 由调用方 effect 驱动） */
@@ -65,6 +71,9 @@ export function InlineAiDialog({
   onDirectiveChange,
   style,
   onStyleChange,
+  styleConsistency,
+  onStyleConsistencyChange,
+  styleFingerprintAvailable,
   running,
   streamText,
   streamPreviewRef,
@@ -78,17 +87,25 @@ export function InlineAiDialog({
         <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, mb: 1 }}>
           {t('writing.inlineHint')}
         </Typography>
-        {/* B 选区级润色：打开时已选中文本 → 明示本次只改选区 */}
-        {kind === 'polish' && selChars > 0 && (
+        {/* B 选区级任务：打开时已选中文本 → 明示本次只作用于选区（改写/润色） */}
+        {(kind === 'polish' || kind === 'rewrite') && selChars > 0 && (
           <Typography sx={{ fontSize: 12, color: 'primary.main', mb: 1 }}>
             {t('writing.inlineSelectionHint', { n: selChars })}
           </Typography>
         )}
         <FormControl fullWidth sx={{ mb: 1.5 }}>
           <FormLabel sx={{ fontSize: 13 }}>{t('writing.inlineMode')}</FormLabel>
-          <RadioGroup row value={kind} onChange={(e) => onKindChange(e.target.value as InlineWritingKind)}>
+          <RadioGroup
+            row
+            sx={{ flexWrap: 'wrap' }}
+            value={kind}
+            onChange={(e) => onKindChange(e.target.value as InlineWritingKind)}
+          >
             <FormControlLabel value="continue" control={<Radio size="small" />} label={t('writing.inlineContinue')} />
             <FormControlLabel value="polish" control={<Radio size="small" />} label={t('writing.inlinePolish')} />
+            <FormControlLabel value="rewrite" control={<Radio size="small" />} label={t('writing.inlineRewrite')} />
+            <FormControlLabel value="summarize" control={<Radio size="small" />} label={t('writing.inlineSummarize')} />
+            <FormControlLabel value="review" control={<Radio size="small" />} label={t('writing.inlineReview')} />
           </RadioGroup>
         </FormControl>
         <FormControl fullWidth>
@@ -113,7 +130,7 @@ export function InlineAiDialog({
             </RadioGroup>
           )}
         </FormControl>
-        {/* P8 参数化：续写 → 字数/走向；润色 → 风格档 */}
+        {/* P8 参数化：续写 → 字数/走向；改写/润色 → 风格档；总结 → 无参数 */}
         {kind === 'continue' ? (
           <>
             <TextField
@@ -138,7 +155,7 @@ export function InlineAiDialog({
               sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: 12.5 } }}
             />
           </>
-        ) : (
+        ) : kind === 'polish' || kind === 'rewrite' ? (
           <FormControl fullWidth sx={{ mt: 1.5 }}>
             <FormLabel sx={{ fontSize: 13 }}>{t('writing.polishStyle')}</FormLabel>
             <RadioGroup row value={style} onChange={(e) => onStyleChange(e.target.value as PolishStyle)}>
@@ -163,6 +180,40 @@ export function InlineAiDialog({
                 label={<Typography sx={{ fontSize: 12.5 }}>{t('writing.stylePlain')}</Typography>}
               />
             </RadioGroup>
+          </FormControl>
+        ) : kind === 'summarize' ? (
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1.5 }}>
+            {t('writing.inlineSummarizeHint')}
+          </Typography>
+        ) : (
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1.5 }}>
+            {t('writing.inlineReviewHint')}
+          </Typography>
+        )}
+        {/* P0 文风一致性：生成类任务（续写/润色/改写）可开启，让输出贴近已写章节的语言风格 */}
+        {(kind === 'continue' || kind === 'polish' || kind === 'rewrite') && (
+          <FormControl fullWidth sx={{ mt: 1.5 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  checked={styleConsistency}
+                  disabled={!styleFingerprintAvailable || running}
+                  onChange={(e) => onStyleConsistencyChange(e.target.checked)}
+                />
+              }
+              label={
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                  <Typography sx={{ fontSize: 12.5 }}>{t('writing.styleConsistencyLabel')}</Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.5 }}>
+                    {styleFingerprintAvailable
+                      ? t('writing.styleConsistencyHint')
+                      : t('writing.styleConsistencyUnavailable')}
+                  </Typography>
+                </Box>
+              }
+              sx={{ alignItems: 'flex-start', ml: 0 }}
+            />
           </FormControl>
         )}
       </DialogContent>

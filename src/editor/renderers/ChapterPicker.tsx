@@ -1,12 +1,14 @@
-// 章节可搜索选择器（CastPane 绑定入口 / 时间线事件绑章：替换 <select> 下拉）
+// 章节可搜索选择器（灵感挂章 / CastPane 绑定入口 / 时间线事件绑章 / 伏笔埋设·回收：替换 <select> 下拉）
 //
+// 树形口径：与笔记弹窗下拉、大纲树、写作台章节树共用 buildTree + treeRowIndent，
+// 不是各画各的树（见 src/utils/writingTree.ts 文件头注释）。
 // 零 Emotion：纯 div/input/button + inline style + CV 主题。
 // 用 onMouseDown（非 onClick）避免 input onBlur 先于选择触发导致菜单关闭。
 import { useMemo, useState } from 'react';
 import { t } from '../../i18n';
 import { CV } from './canvasTheme';
-
-const MAX_DROPDOWN_ITEMS = 8;
+import { buildTree, treeRowIndent, type TreeNode } from '../../utils/writingTree';
+import type { WritingChapter } from '../../services/writing';
 
 export default function ChapterPicker({
   uniqueKey,
@@ -19,7 +21,7 @@ export default function ChapterPicker({
   onClear,
 }: {
   uniqueKey?: string;
-  chapters: Array<{ id: string; title: string; volume?: string | null }>;
+  chapters: WritingChapter[];
   accent: string;
   onSelect: (chapterId: string) => void;
   compact?: boolean;
@@ -35,13 +37,27 @@ export default function ChapterPicker({
     return chapters.find((c) => c.id === value) || null;
   }, [chapters, value]);
 
+  // 树形展平：buildTree 按 sortOrder 升序建树，深度行走得到 {id,title,volume,depth}[]；
+  // 行缩进统一用 treeRowIndent(depth)，与左侧章节树、写作台绑定下拉同一口径。
+  const treeRows = useMemo(() => {
+    const out: { id: string; title: string; volume: string; depth: number }[] = [];
+    const walk = (nodes: TreeNode[]) => {
+      for (const n of nodes) {
+        out.push({ id: n.node.id, title: n.node.title, volume: n.node.volume, depth: n.depth });
+        walk(n.children);
+      }
+    };
+    walk(buildTree(chapters));
+    return out;
+  }, [chapters]);
+
+  // 无关键字：完整树（列表有滚动容器兜底，不再截断前 8 条）；
+  // 有关键字：按 title/volume 过滤，仍保留真实层级 depth 缩进。
   const filtered = useMemo(() => {
-    if (!query.trim()) return chapters.slice(0, MAX_DROPDOWN_ITEMS);
+    if (!query.trim()) return treeRows;
     const q = query.toLowerCase();
-    return chapters
-      .filter((c) => c.title.toLowerCase().includes(q) || (c.volume ?? '').toLowerCase().includes(q))
-      .slice(0, MAX_DROPDOWN_ITEMS);
-  }, [chapters, query]);
+    return treeRows.filter((c) => c.title.toLowerCase().includes(q) || (c.volume ?? '').toLowerCase().includes(q));
+  }, [treeRows, query]);
 
   const w = width ?? (compact ? '100%' : 180);
 
@@ -124,7 +140,9 @@ export default function ChapterPicker({
                 display: 'block',
                 width: '100%',
                 textAlign: 'left',
-                padding: compact ? '3px 8px' : '5px 10px',
+                padding: compact ? '3px 0' : '5px 0',
+                paddingLeft: treeRowIndent(c.depth),
+                paddingRight: 10,
                 fontSize: compact ? 10 : 11,
                 border: 'none',
                 background: 'transparent',

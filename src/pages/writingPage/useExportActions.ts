@@ -12,6 +12,8 @@ import {
   type CompletedWorkFormat,
   type WritingChapter,
 } from '../../services/tauri';
+import { assetApi } from '../../services/asset';
+import { projectScanApi } from '../../services/projectScan';
 import { newCompletedWorkId } from '../../services/writing';
 import { parseChapterCover } from '../../utils/writingOutline';
 import { useToastStore } from '../../store/toastStore';
@@ -31,9 +33,86 @@ export interface ExportActions {
   handleRestoreBook: () => Promise<void>;
 }
 
+// ─── HTML/Markdown 导出的图片可移植化 ─────────────────────────────────
+// 正文 <img> 的 src 是 asset:// 本地协议 URL（仅本机 Tauri webview 可加载），
+// 导出为独立 HTML/Markdown 后无法异地打开。导出前统一解析图片磁盘路径，
+// 以 data URI 内联回写 src，使产物单文件自包含（data-asset 相对引用是单一事实源）。
+
+/** asset:// URL（convertFileSrc 输出）逆解析回磁盘绝对路径，兼容 v1/v2 编码形态。 */
+function assetUrlToAbs(src: string): string | null {
+  if (!src.startsWith('asset://')) return null;
+  let rest = src.slice('asset://'.length);
+  if (rest.startsWith('localhost')) {
+    rest = rest.slice('localhost'.length);
+    if (rest.startsWith('/')) rest = rest.slice(1);
+  }
+  try {
+    return decodeURIComponent(rest) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** 解析 <img> 的磁盘绝对路径：优先 data-asset 相对引用，退而求其次逆向 asset:// src。 */
+async function resolveImgAbs(img: HTMLImageElement): Promise<string | null> {
+  const rel = img.getAttribute('data-asset');
+  if (rel) {
+    try {
+      return await assetApi.resolveAssetRef(rel);
+    } catch {
+      return null;
+    }
+  }
+  const src = img.getAttribute('src');
+  return src ? assetUrlToAbs(src) : null;
+}
+
+/** 读取磁盘图片并以 data URI 表示（MIME 按扩展名推断）；读失败返回 null。 */
+async function dataUriFromPath(abs: string): Promise<string | null> {
+  try {
+    const buf = await projectScanApi.readFileBytes(abs);
+    const ext = (abs.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? 'png').toLowerCase();
+    const mime =
+      ext === 'jpg' || ext === 'jpeg'
+        ? 'image/jpeg'
+        : ext === 'gif'
+          ? 'image/gif'
+          : ext === 'webp'
+            ? 'image/webp'
+            : ext === 'svg'
+              ? 'image/svg+xml'
+              : 'image/png';
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + CHUNK, bytes.length)));
+    }
+    return `data:${mime};base64,${btoa(binary)}`;
+  } catch {
+    return null;
+  }
+}
+
+/** 把章节 HTML 中可定位的插画 <img> 的 src 替换为 data URI 内联；解析失败的图保持原样。 */
+async function inlineImagesInHtml(html: string): Promise<string> {
+  const doc = new DOMParser().parseFromString(html || '', 'text/html');
+  const imgs = Array.from(doc.querySelectorAll('img'));
+  if (!imgs.length) return html;
+  await Promise.all(
+    imgs.map(async (img) => {
+      const abs = await resolveImgAbs(img);
+      if (!abs) return;
+      const dataUri = await dataUriFromPath(abs);
+      if (dataUri) img.setAttribute('src', dataUri);
+    }),
+  );
+  return doc.body.innerHTML;
+}
+
 /** 标准化「先 flush、再取 fresh chapters、再打包导出」的重复模式 */
 function useFreshChapters() {
-  return useCallback(async (flushSave: () => Promise<void>, flushSettingSave: () => Promise<void>) => {
+  return useCallback(async (flushSave: () => Promise<boolean>, flushSettingSave: () => Promise<boolean>) => {
     await flushSave();
     await flushSettingSave();
     return useWritingStore.getState().chapters;
@@ -43,8 +122,8 @@ function useFreshChapters() {
 /** 整书导出 + 备份恢复 action 集合（T7 批次） */
 export function useExportActions(
   activeBook: { id: string; title: string; description?: string | null } | null,
-  flushSave: () => Promise<void>,
-  flushSettingSave: () => Promise<void>,
+  flushSave: () => Promise<boolean>,
+  flushSettingSave: () => Promise<boolean>,
   loadBooks: () => Promise<void>,
 ): ExportActions {
   const getFreshChapters = useFreshChapters();
@@ -92,7 +171,8 @@ export function useExportActions(
         mdParts.push('', `> ${activeBook.description}`);
       }
       for (const ch of freshChapters) {
-        mdParts.push('', `## ${ch.title}`, '', turndown.turndown(ch.content || ''));
+        const content = await inlineImagesInHtml(ch.content || '');
+        mdParts.push('', `## ${ch.title}`, '', turndown.turndown(content));
       }
       const md = mdParts.join('\n');
       const path = await saveDialog({
@@ -126,6 +206,7 @@ export function useExportActions(
           title: c.title,
           content: c.content || '',
           cover: parseChapterCover(c.extra) ?? null,
+          volume: c.volume || '',
         })),
         path,
       );
@@ -144,12 +225,15 @@ export function useExportActions(
       const freshChapters = await getFreshChapters(flushSave, flushSettingSave);
       const esc = (s: string) =>
         s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-      const body = freshChapters
-        .map((c: WritingChapter) => {
-          const vol = c.volume ? `<p class="volume">${esc(c.volume)}</p>` : '';
-          return `${vol}<h2>${esc(c.title)}</h2>\n${c.content || ''}`;
-        })
-        .join('\n<hr/>\n');
+      const body = (
+        await Promise.all(
+          freshChapters.map(async (c: WritingChapter) => {
+            const content = await inlineImagesInHtml(c.content || '');
+            const vol = c.volume ? `<p class="volume">${esc(c.volume)}</p>` : '';
+            return `${vol}<h2>${esc(c.title)}</h2>\n${content}`;
+          }),
+        )
+      ).join('\n<hr/>\n');
       const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -235,6 +319,7 @@ ${body}
           title: c.title,
           content: c.content || '',
           cover: parseChapterCover(c.extra) ?? null,
+          volume: c.volume || '',
         })),
         path,
       );
@@ -263,6 +348,7 @@ ${body}
           title: c.title,
           content: c.content || '',
           cover: parseChapterCover(c.extra) ?? null,
+          volume: c.volume || '',
         })),
         path,
       );

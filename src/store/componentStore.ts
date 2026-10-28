@@ -337,7 +337,7 @@ export const useComponentStore = create<ComponentStore>((set, get) => ({
       const id = partial?.id ?? `ccat_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const payload = {
         id,
-        name: partial?.name ?? "新分组",
+        name: partial?.name ?? t("compStore.newGroup"),
         icon: partial?.icon,
         color: partial?.color ?? "#90CAF9",
         sortOrder: partial?.sortOrder ?? get().categories.length,

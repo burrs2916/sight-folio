@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>完结作品导出 · 全局分析报告</title>
+    <style>
+      :root {
+        --bg: #f6f7fb;
+        --card: #ffffff;
+        --ink: #1f2430;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --brand: #4f46e5;
+        --brand-soft: #eef0fe;
+        --ok: #16a34a;
+        --ok-soft: #ecfdf3;
+        --warn: #d97706;
+        --warn-soft: #fffbeb;
+        --bad: #dc2626;
+        --bad-soft: #fef2f2;
+        --info: #0e7490;
+        --info-soft: #ecfeff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.75 -apple-system,
+          'PingFang SC',
+          'Microsoft YaHei',
+          'Segoe UI',
+          sans-serif;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 40px 28px 80px;
+      }
+      header.hero {
+        background: linear-gradient(135deg, #312e81 0%, #4f46e5 62%, #6d5df6 100%);
+        color: #fff;
+        border-radius: 18px;
+        padding: 40px 44px;
+        margin-bottom: 28px;
+      }
+      header.hero h1 {
+        margin: 0 0 10px;
+        font-size: 30px;
+        letter-spacing: 0.02em;
+      }
+      header.hero p {
+        margin: 4px 0;
+        opacity: 0.92;
+        font-size: 15px;
+      }
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin: 22px 0 30px;
+      }
+      .kpi {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+      .kpi .num {
+        font-size: 26px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      .kpi .lbl {
+        color: var(--muted);
+        font-size: 12.5px;
+        margin-top: 2px;
+      }
+      .kpi.ok .num {
+        color: var(--ok);
+      }
+      .kpi.warn .num {
+        color: var(--warn);
+      }
+      .kpi.bad .num {
+        color: var(--bad);
+      }
+      .kpi.brand .num {
+        color: var(--brand);
+      }
+      h2 {
+        font-size: 21px;
+        margin: 42px 0 14px;
+        padding-left: 12px;
+        border-left: 4px solid var(--brand);
+      }
+      h3 {
+        font-size: 16.5px;
+        margin: 26px 0 10px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 22px 26px;
+        margin: 16px 0;
+      }
+      .tag {
+        display: inline-block;
+        padding: 1px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 6px;
+        vertical-align: 2px;
+      }
+      .tag.ok {
+        background: var(--ok-soft);
+        color: var(--ok);
+      }
+      .tag.warn {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .tag.bad {
+        background: var(--bad-soft);
+        color: var(--bad);
+      }
+      .tag.info {
+        background: var(--info-soft);
+        color: var(--info);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+        margin: 10px 0;
+      }
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 9px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #f3f4f6;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      td code,
+      p code,
+      li code {
+        background: #f1f2f7;
+        border-radius: 4px;
+        padding: 1px 6px;
+        font:
+          12.5px ui-monospace,
+          'SF Mono',
+          Menlo,
+          Consolas,
+          monospace;
+        color: #4338ca;
+      }
+      .src {
+        color: var(--muted);
+        font-size: 12px;
+        font-family: ui-monospace, Menlo, monospace;
+      }
+      ul.tight {
+        margin: 6px 0;
+        padding-left: 20px;
+      }
+      ul.tight li {
+        margin: 4px 0;
+      }
+      .issue {
+        display: flex;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        margin: 8px 0;
+        border: 1px solid var(--line);
+        background: #fafbfe;
+      }
+      .issue .sev {
+        flex: 0 0 auto;
+        min-width: 52px;
+        text-align: center;
+        border-radius: 8px;
+        padding: 2px 8px;
+        height: fit-content;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .sev.p0 {
+        background: var(--bad-soft);
+        color: var(--bad);
+      }
+      .sev.p1 {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .sev.p2 {
+        background: var(--info-soft);
+        color: var(--info);
+      }
+      .issue .body {
+        flex: 1;
+      }
+      .issue .body .t {
+        font-weight: 600;
+      }
+      .issue .body .d {
+        color: #374151;
+        font-size: 13.5px;
+        margin-top: 2px;
+      }
+      .badge-flow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin: 12px 0;
+      }
+      .step {
+        background: var(--brand-soft);
+        color: #3730a3;
+        border-radius: 8px;
+        padding: 5px 12px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .arrow {
+        color: var(--muted);
+      }
+      .verdict {
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin: 10px 0;
+        font-size: 14px;
+      }
+      .verdict.ok {
+        background: var(--ok-soft);
+        border: 1px solid #bbf7d0;
+        color: #14532d;
+      }
+      .verdict.warn {
+        background: var(--warn-soft);
+        border: 1px solid #fde68a;
+        color: #713f12;
+      }
+      .verdict.bad {
+        background: var(--bad-soft);
+        border: 1px solid #fecaca;
+        color: #7f1d1d;
+      }
+      .note {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 13.5px;
+        color: #713f12;
+        margin: 12px 0;
+      }
+      footer {
+        margin-top: 56px;
+        color: var(--muted);
+        font-size: 12.5px;
+        text-align: center;
+      }
+      @media (max-width: 760px) {
+        .kpis {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        header.hero {
+          padding: 28px 24px;
+        }
+        .card {
+          padding: 16px 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <h1>完结作品导出 · 全局分析报告</h1>
+        <p>sight-folio 写作台全格式导出能力核验与排版审美评估</p>
+        <p style="opacity: 0.75; font-size: 13px">
+          分析日期：2026-10-14 ｜ 分析方式：源码精读 + Rust 测试实跑 + 导出产物解包/解码验证
+        </p>
+      </header>
+
+      <div class="kpis">
+        <div class="kpi brand">
+          <div class="num">6+2</div>
+          <div class="lbl">导出格式 + 备份/恢复</div>
+        </div>
+        <div class="kpi ok">
+          <div class="num">6/6</div>
+          <div class="lbl">格式可正常生成（测试全绿）</div>
+        </div>
+        <div class="kpi warn">
+          <div class="num">10</div>
+          <div class="lbl">排版审美问题（P0–P2）</div>
+        </div>
+        <div class="kpi bad">
+          <div class="num">1</div>
+          <div class="lbl">确定性功能性缺陷（PDF 表格）</div>
+        </div>
+      </div>
+
+      <h2>一、结论速览</h2>
+      <div class="card">
+        <p style="margin-top: 0">
+          <b>导出链路整体可用，六种格式（Markdown / EPUB / HTML / TXT / DOCX / PDF）全部能正常生成完整作品文件，</b
+          >后端三种二进制格式（EPUB / DOCX / PDF）均有 Rust
+          冒烟测试覆盖且实测通过、产物可被标准工具正确解析。备份与恢复功能也在同一链路中工作。
+        </p>
+        <p>
+          <b>但“能导出”不等于“排版合格”。</b>当前三种二进制格式的排版实现均存在明显的审美与规范缺口：PDF
+          无首行缩进/正文页码/粗体标题、封面未居中且无作者；DOCX 缺少
+          <code>styles.xml</code>（标题样式跨端不稳定）、无首行缩进、默认字体依赖打开端；EPUB 无任何
+          CSS、章节无标题层级、缺作者元数据。其中
+          <b>PDF 表格导出一处确定性功能性缺陷</b>（单元格标签残渣混入正文），属必须修复项。
+        </p>
+        <p style="margin-bottom: 0">
+          总体判断：<b>完成度约 70%</b
+          >——功能面已就绪，排版面需一次集中的“出版级排版补齐”方可达到对外展示/正式交付水准。具体问题与修复建议见第四、五章。
+        </p>
+      </div>
+
+      <h2>二、导出入口与支持格式</h2>
+      <div class="card">
+        <h3 style="margin-top: 0">导出入口</h3>
+        <p>
+          导出统一在<b>写作台（WritingPage）顶部工具菜单</b>触发，由 <code>useExportActions.ts</code> 提供 8 个动作（6
+          格式导出 + 备份 + 恢复）。
+        </p>
+        <div class="badge-flow">
+          <span class="step">写作台工具菜单</span><span class="arrow">→</span> <span class="step">useExportActions</span
+          ><span class="arrow">→</span> <span class="step">flush 保存 + 取最新章节</span><span class="arrow">→</span>
+          <span class="step">系统保存对话框</span><span class="arrow">→</span>
+          <span class="step">前端生成 / Rust command</span><span class="arrow">→</span>
+          <span class="step">记录「完结作品」</span>
+        </div>
+        <p class="src">src/pages/writingPage/useExportActions.ts · src/pages/WritingPage.tsx:1650-1658,2620-2670</p>
+        <div class="note">
+          <b>重要说明：</b
+          >「完结作品」页（<code>PublishedScenesPage.tsx</code>）是导出记录的<b>管理页</b>，提供取回定位、撤销、批量撤销、外部文件导入、改名改目录等操作，<b>并非导出触发入口</b>——导出一次后再次导出需回到写作台菜单操作。这是有意设计的职责划分，但若用户预期“在完结作品页里也能再导出”，属于待确认的产品预期差异。
+        </div>
+
+        <h3>支持格式与实现方式</h3>
+        <table>
+          <tr>
+            <th>格式</th>
+            <th>实现位置</th>
+            <th>生成方式</th>
+            <th>字体/样式依赖</th>
+            <th>记录类型</th>
+          </tr>
+          <tr>
+            <td><b>Markdown (.md)</b></td>
+            <td>前端 <code>useExportActions</code> + <code>turndown.ts</code></td>
+            <td>HTML→MD 转换（atx 标题、GFM 表格规则）</td>
+            <td>无（纯文本）</td>
+            <td>md</td>
+          </tr>
+          <tr>
+            <td><b>EPUB (.epub)</b></td>
+            <td>Rust <code>writing/mod.rs export_epub</code></td>
+            <td>zip 打包 OPF/nav/章节 XHTML/图片</td>
+            <td>无 CSS，依赖阅读器默认</td>
+            <td>epub</td>
+          </tr>
+          <tr>
+            <td><b>HTML (.html)</b></td>
+            <td>前端 <code>useExportActions</code></td>
+            <td>手拼单文件（含内联 CSS）</td>
+            <td>内联 CSS + 系统字体栈</td>
+            <td>html</td>
+          </tr>
+          <tr>
+            <td><b>TXT (.txt)</b></td>
+            <td>前端 <code>useExportActions</code></td>
+            <td>DOMParser 去标签 + 卷分隔</td>
+            <td>无（纯文本）</td>
+            <td>txt</td>
+          </tr>
+          <tr>
+            <td><b>DOCX (.docx)</b></td>
+            <td>Rust <code>docx_export.rs</code>（671 行）</td>
+            <td>手写 OOXML zip</td>
+            <td>无 styles.xml，缺默认字体</td>
+            <td>docx</td>
+          </tr>
+          <tr>
+            <td><b>PDF (.pdf)</b></td>
+            <td>Rust <code>pdf_export.rs</code>（783 行）</td>
+            <td>lopdf 手写 + 系统 CJK TTF 嵌入</td>
+            <td>嵌入式 TTF（Arial Unicode 等）</td>
+            <td>pdf</td>
+          </tr>
+          <tr>
+            <td><b>备份 (.db)</b></td>
+            <td>Rust <code>backup_writing_book</code></td>
+            <td>SQLite 整库快照</td>
+            <td>—</td>
+            <td>backup</td>
+          </tr>
+        </table>
+        <p class="src">src/services/writing.ts:472-509 · src-tauri/src/commands/writing.rs:373-453</p>
+        <p>
+          「完结作品」记录落库：导出成功后经 <code>recordCompletedWork</code> 写入
+          <code>completed_works</code>，记录格式、路径、字数、章数，页面可追溯管理；记录失败仅告警不中断导出。
+        </p>
+      </div>
+
+      <h2>三、各格式导出正确性验证</h2>
+
+      <div class="card">
+        <h3 style="margin-top: 0">验证方法</h3>
+        <ul class="tight">
+          <li>
+            <b>Rust 测试实跑</b>：<code>cargo test</code> 导出相关 10 条测试全部通过（EPUB 结构测试×3、DOCX 冒烟×1、PDF
+            冒烟×1 等），覆盖 zip/OPF 合法结构、CJK 字体嵌入、XML 转义、图片重写等。
+          </li>
+          <li>
+            <b>真实产物解包核验</b>：将冒烟测试生成的 smoke.epub / smoke.docx 解包检查内容；对 smoke.pdf
+            解码内容流还原正文文本。
+          </li>
+          <li>
+            <b>前端生成器代码精读</b>：md/html/txt 三条前端路径逐行审查（含 turndown 表格规则、HTML 转义、DOMParser
+            去标签）。
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <table>
+          <tr>
+            <th>格式</th>
+            <th>核心结论</th>
+            <th>验证证据</th>
+          </tr>
+          <tr>
+            <td><b>Markdown</b></td>
+            <td><span class="tag ok">可导出</span> 标题/段落/表格/加粗等结构完整保留；表格走 GFM 规则可复现</td>
+            <td>turndown 规则审查；无自动化测试（缺口①）</td>
+          </tr>
+          <tr>
+            <td><b>EPUB</b></td>
+            <td>
+              <span class="tag ok">正常</span> EPUB3 结构合法：mimetype STORED、container.xml→content.opf、spine
+              顺序、图片重写为包内路径、XML 转义均正确；最小书（无图无简介）通过
+            </td>
+            <td>3 条结构测试通过 + 产物解包核验（OPF/manifest/spine/nav/章节 XHTML 齐全）</td>
+          </tr>
+          <tr>
+            <td><b>HTML</b></td>
+            <td>
+              <span class="tag ok">可导出</span> 单文件含内联样式（居中书名、章节分隔、打印分页），书名/章节标题正确转义
+            </td>
+            <td>源码精读（esc 转义、<code>@media print</code>）；无自动化测试（缺口①）</td>
+          </tr>
+          <tr>
+            <td><b>TXT</b></td>
+            <td><span class="tag ok">可导出</span> 章节标题+正文纯文本，卷变化时插入分隔线，HTML 标签完整剥离</td>
+            <td>源码精读；无自动化测试（缺口①）</td>
+          </tr>
+          <tr>
+            <td><b>DOCX</b></td>
+            <td>
+              <span class="tag warn">可导出但样式残缺</span> OOXML 结构合法，图片确实嵌入 media/；但无
+              styles.xml、无首行缩进、无默认字号字体，标题样式依赖打开端 fallback
+            </td>
+            <td>冒烟测试通过 + 解包核验（document.xml 全文检查：pStyle 引用未定义、无 w:ind、无 docDefaults）</td>
+          </tr>
+          <tr>
+            <td><b>PDF</b></td>
+            <td>
+              <span class="tag bad">可导出但有确定性缺陷</span> 文件结构合法、CJK 字体真实嵌入（15MB
+              实测）、中文换行正确；<b>但表格导出为标签残渣</b>（见下）
+            </td>
+            <td>冒烟测试通过 + 内容流解码还原正文：表格输出 <code>td甲/tdtd乙/td</code></td>
+          </tr>
+          <tr>
+            <td><b>备份</b></td>
+            <td><span class="tag ok">正常</span> SQLite 整库快照，恢复导入可用</td>
+            <td>代码审查（备份非作品形态，字数/章数记 0）</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">★ 确定性功能缺陷：PDF 表格导出损坏</h3>
+        <div class="verdict bad">
+          <b>现象：</b>含表格章节导出 PDF 后，表格内容显示为
+          <code>td甲/tdtd乙/td</code> 等“标签残渣+单元格内容”混排文本；原注释声称“行内单元格以 | 拼接”，但
+          <code>clean_text()</code> 实际只删除了 <code>&lt;</code> 与 <code>&gt;</code> 两个字符，<b>未实现</b>
+          <code>&lt;/td&gt; → |</code> 的替换。
+        </div>
+        <p class="src">src-tauri/src/application/writing/pdf_export.rs:588-603（clean_text）· :565-573（表格行处理）</p>
+        <p>
+          <b>验证过程：</b>① 阅读源码确认 clean_text 仅过滤尖括号；② 运行 Python 精确模拟 clean_text
+          对表格行的处理，复现 <code>td甲/tdtd乙/td</code>；③ 运行冒烟测试实际生成 smoke.pdf，解码其内容流（含 ToUnicode
+          CMap 还原）后，正文中检出真实输出 <code>td甲/tdtd乙/td</code>、<code>td1/tdtd2/td</code>——三条独立证据一致。
+        </p>
+        <p style="margin-bottom: 0">
+          <b>影响：</b>含表格章节（设定集、角色卡数据表等）在 PDF 导出时不可读，属阻断级功能缺陷。<b>修复建议：</b>在
+          <code>clean_text</code> 之前先将 <code>&lt;/td&gt;</code> 替换为 <code> | </code>（DOCX
+          导出的表格展平已正确实现，可对照参照）。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">跨格式补充观察</h3>
+        <ul class="tight">
+          <li>
+            <b>图片资产引用模型</b>：正文插图使用 <code>src=asset://…</code>（Tauri 私有协议）+
+            <code>data-asset</code>（相对引用）双属性。三种后端格式（EPUB/DOCX/PDF）均有
+            <code>resolve_asset_ref</code> 或图片提取逻辑，可将相对引用解析为绝对路径并嵌入/重写，实测 EPUB
+            图片正确进入包内、DOCX 图片进入 media/。<b>前端三种格式未处理图片引用</b>：HTML 将正文原样内联（<code
+              >asset://</code
+            >
+            在外部浏览器不可见）、MD 经 turndown 输出 <code>asset://</code> 原文、TXT 自然丢失图片（纯文本合理）——若导出
+            HTML/MD 后仍在第三方环境打开，配图会裂。属中等优先级一致性问题（见第五章 P2-2）。
+          </li>
+          <li>
+            <b>测试缺口</b>：① 前端三种格式（md/html/txt）无任何自动化测试；② <code>docx_export.rs</code>、<code
+              >pdf_export.rs</code
+            >
+            除冒烟测试外无单元测试（EPUB 有 3 条结构测试）。PDF 表格缺陷未被发现，正是“只验结构不验正文”的测试盲区。
+          </li>
+          <li>
+            <b>异常路径</b>：导出失败会 toast 提示且不落“完结作品”记录；用户取消保存对话框直接 return——流程健壮性良好。
+          </li>
+        </ul>
+      </div>
+
+      <h2>四、排版审美评估（逐格式）</h2>
+
+      <div class="card">
+        <h3 style="margin-top: 0">PDF <span class="tag bad">问题最多（7 项）</span></h3>
+        <div class="issue">
+          <div class="sev p0">P0</div>
+          <div class="body">
+            <div class="t">表格导出为标签残渣</div>
+            <div class="d">正文中出现 <code>td甲/tdtd乙/td</code>，既不可读也破坏排版观感（同第三章缺陷）。</div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p1">P1</div>
+          <div class="body">
+            <div class="t">封面书名左对齐、无居中版式，且无作者信息</div>
+            <div class="d">
+              封面仅有书名+简介+“Sight Folio 导出”标记，全部从左侧 50pt
+              起排；无书名居中、无副标题层级、无作者署名，缺乏正式出版物封面感。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p1">P1</div>
+          <div class="body">
+            <div class="t">正文无首行缩进、无正文页码</div>
+            <div class="d">
+              正文 11pt/1.5 行距、左右 50pt 边距，但段落无 2
+              字符首行缩进（中文小说规范）；页码只出现在目录，正文页没有任何页眉/页码。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p1">P1</div>
+          <div class="body">
+            <div class="t">标题无字重区分</div>
+            <div class="d">
+              章标题 15pt、正文内 h1/h2 为 14/12pt，但仅嵌入单字重 TTF，标题与正文仅靠字号区隔，无加粗或层级色彩。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">目录点线固定、无卷层级</div>
+            <div class="d">
+              目录点线为写死的 <code>"······".repeat(2)</code>（固定 6
+              点×2），不随行宽自适应；卷/章无缩进层级，长书目录呈扁平长列。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">无章节分页控制</div>
+            <div class="d">未见章首强制换页逻辑，章节间连续排布，阅读体感更像连续文档而非图书。</div>
+          </div>
+        </div>
+        <p class="src">
+          pdf_export.rs: build_cover_stream(616) · build_toc_stream(636) · append_text_line(368) · 正文 86 起
+        </p>
+        <p>
+          <b>综合评级：★★☆（2/5）</b>
+          结构正确、字体嵌入可靠，但版式处于“能用”而非“可读悦目”水平，封面与正文排版均需重做。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">DOCX <span class="tag warn">关键问题（5 项）</span></h3>
+        <div class="issue">
+          <div class="sev p0">P0</div>
+          <div class="body">
+            <div class="t">无 word/styles.xml，标题样式引用未定义</div>
+            <div class="d">
+              document.xml 引用 <code>w:pStyle w:val="Heading1/Heading2"</code>，但包内没有任何
+              <code>styles.xml</code> 定义这些样式——Word/WPS/LibreOffice 各自
+              fallback，标题是否加粗/多大字号完全依赖打开端，跨端观感不稳定。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p1">P1</div>
+          <div class="body">
+            <div class="t">无首行缩进、无默认字体与行距</div>
+            <div class="d">
+              正文段落无 <code>w:ind</code> 首行缩进；无
+              <code>docDefaults</code> 设置字号/行距/中西文字体，默认落到打开端默认（如 Calibri 11pt），中文作品观感差。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p1">P1</div>
+          <div class="body">
+            <div class="t">图片固定 4000000×3000000 EMU</div>
+            <div class="d">插图固定约 4.2×3.15 英寸，长图/宽图会被拉伸变形，未按源图宽高比自适应。</div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">表格展平为文本行</div>
+            <div class="d">
+              表格被展平为 <code>甲 | 乙</code> 纯文本段落（可读性尚可），丢失真实表格结构，无法在 Word 中按列处理。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">无页眉页脚/页边距手感</div>
+            <div class="d">
+              sectPr 为 A4 + 1 英寸边距，无页眉页脚；行内样式仅支持 b/i/u/s/mark/br，链接与 code 被忽略。
+            </div>
+          </div>
+        </div>
+        <p class="src">docx_export.rs: document.xml 生成(90-121) · image_paragraph(589) · 行内解析(174 起)</p>
+        <p>
+          <b>综合评级：★★☆（2/5）</b> 文件可打开、内容完整，但“样式未定义”是结构性隐患，Word
+          中打开的标题与正文观感不可控。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">EPUB <span class="tag warn">关键问题（5 项）</span></h3>
+        <div class="issue">
+          <div class="sev p1">P1</div>
+          <div class="body">
+            <div class="t">无任何 CSS：无全局字号/行距/首行缩进</div>
+            <div class="d">
+              章节 XHTML 直接渲染编辑器内联样式，包内无
+              stylesheet；正文字号行距完全由阅读器默认决定，同一书在不同阅读器观感差异大。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p1">P1</div>
+          <div class="body">
+            <div class="t">章节正文无章标题（h1）</div>
+            <div class="d">
+              章标题只存在于 nav 与
+              <code>&lt;head&gt;&lt;title&gt;</code>，章节正文首页直接是正文段落——除非正文内容里自带
+              h1。阅读器进入章节看不到标题。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">元数据缺作者（dc:creator）</div>
+            <div class="d">OPF 元数据只有 title/language/description/identifier，无作者字段，图书信息不完整。</div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">无正式封面页声明</div>
+            <div class="d">无 cover.xhtml / cover-image 元数据声明（书架缩略图缺失），章头图只是嵌在章节内。</div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">目录无卷/层级分组</div>
+            <div class="d">nav.xhtml 为扁平 <code>&lt;ol&gt;</code> 一列到章，长书无卷分组、无二级嵌套。</div>
+          </div>
+        </div>
+        <p class="src">writing/mod.rs: export_epub(271-490)</p>
+        <p>
+          <b>综合评级：★★☆（2/5）</b> 容器结构规范（这点做得好），但阅读体验完全裸奔，缺 CSS 与章标题是影响最大的两项。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">HTML / MD / TXT <span class="tag info">相对均衡</span></h3>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">HTML/MD 图片引用不可外部解析</div>
+            <div class="d">
+              <code>asset://</code> 为 Tauri webview 私有协议，导出 HTML/MD
+              后在浏览器/GitHub/语雀等第三方环境打开时插图无法显示（MD 输出 <code>![](asset://…)</code>，HTML
+              内联原样）。TXT 剥离标签故不受影响。
+            </div>
+          </div>
+        </div>
+        <div class="issue">
+          <div class="sev p2">P2</div>
+          <div class="body">
+            <div class="t">MD 无封面/简介区块增强</div>
+            <div class="d">
+              MD 仅 <code># 书名</code> + <code>&gt; 简介</code> +
+              <code>## 章节</code>，结构合理但不含目录或书籍元信息。
+            </div>
+          </div>
+        </div>
+        <ul class="tight">
+          <li>
+            <b>HTML 亮点：</b>内联 CSS 完整（46em 阅读宽度、16px/1.9
+            行距、系统中文栈、居中书名、章节分隔线、打印分页），是四类“单文件”里版式观感最好的；章节省略号分隔配合卷标注有层次。
+          </li>
+          <li><b>MD 亮点：</b>GFM 表格规则正确（表头分隔行补齐），代码块 fenced，正文结构无损。</li>
+          <li><b>TXT 亮点：</b>卷分隔线 <code>════ … ════</code> 视觉划分清晰，符合纯文本惯例。</li>
+        </ul>
+        <p>
+          <b>综合评级：HTML ★★★☆（3.5/5）· MD ★★★（3/5）· TXT ★★★☆（3.5/5）</b>
+          前端三格式见仁见智，差距主要在后端二进制格式。
+        </p>
+      </div>
+
+      <h2>五、改进建议（按优先级）</h2>
+      <div class="card">
+        <h3 style="margin-top: 0">P0 · 阻断级（必须先修）</h3>
+        <table>
+          <tr>
+            <th>#</th>
+            <th>问题</th>
+            <th>建议方案</th>
+            <th>涉及文件</th>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>PDF 表格导出为标签残渣</td>
+            <td>
+              解析表格行时先做 <code>&lt;/td&gt;→" | "</code> 替换再 clean；并对含表格章节补一条“正文还原比对”测试防回归
+            </td>
+            <td>pdf_export.rs:565-573,588</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>DOCX 引用未定义的 Heading 样式</td>
+            <td>
+              生成 <code>word/styles.xml</code>，定义 Heading1/Heading2 及 Normal
+              样式（含字号、加粗、颜色、间距）；对应加入 zip 与 [Content_Types]
+            </td>
+            <td>docx_export.rs</td>
+          </tr>
+        </table>
+
+        <h3>P1 · 审美核心（出版级观感）</h3>
+        <table>
+          <tr>
+            <th>#</th>
+            <th>问题</th>
+            <th>建议方案</th>
+            <th>涉及文件</th>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>PDF 无首行缩进/正文页无页码</td>
+            <td>正文段落按字号缩进 2 字符（约 <code>size*2</code> 单位），页脚绘制页码（含总页数）</td>
+            <td>pdf_export.rs 正文块</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>PDF 封面过简且未居中</td>
+            <td>书名/简介水平居中排版，增加作者信息（书库可补传）、间距与装饰线，形成封面页版式</td>
+            <td>pdf_export.rs build_cover_stream</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>PDF/DOCX 标题无字重区分</td>
+            <td>PDF 嵌入同字族 Bold 字重按标题引用；DOCX 在样式与 run 中显式加粗</td>
+            <td>pdf_export.rs / docx_export.rs</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>DOCX 无首行缩进/默认字体</td>
+            <td>
+              正文段落加 <code>w:ind w:firstLineChars="200"</code>；docDefaults 指定宋体/思源宋体等中文字体与适宜行距
+            </td>
+            <td>docx_export.rs</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td>EPUB 无 CSS 且缺章标题</td>
+            <td>
+              加入统一 <code>style.css</code>（正文缩进、行距、章标题样式、分页）；导出时章节正文前注入
+              <code>&lt;h1&gt;章名&lt;/h1&gt;</code>
+            </td>
+            <td>writing/mod.rs export_epub</td>
+          </tr>
+        </table>
+
+        <h3>P2 · 增强项（锦上添花）</h3>
+        <table>
+          <tr>
+            <th>#</th>
+            <th>问题</th>
+            <th>建议方案</th>
+            <th>涉及文件</th>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td>PDF 目录点线固定/无层级</td>
+            <td>用空格+点线填充至行尾右对齐页码；按卷分组缩进生成二级目录</td>
+            <td>pdf_export.rs build_toc_stream</td>
+          </tr>
+          <tr>
+            <td>9</td>
+            <td>EPUB 缺作者/封面/卷分组</td>
+            <td>
+              OPF 增加 <code>dc:creator</code> 与 <code>cover-image</code>；生成 cover.xhtml；nav 按卷嵌套
+              <code>&lt;ol&gt;</code>
+            </td>
+            <td>writing/mod.rs export_epub</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td>HTML/MD 图片外部不可见</td>
+            <td>
+              导出前把 <code>asset://</code> 解析为相对路径并复制图片到导出目录（HTML 可同时生成 data URI 内联），或对
+              MD 输出图片所在目录说明
+            </td>
+            <td>useExportActions.ts</td>
+          </tr>
+          <tr>
+            <td>11</td>
+            <td>DOCX 图片固定尺寸/表格展平</td>
+            <td>按源图宽高比计算 EMU；表格用真实 <code>w:tbl</code> 结构（参考 EPUB 测试覆盖度补齐测试）</td>
+            <td>docx_export.rs</td>
+          </tr>
+          <tr>
+            <td>12</td>
+            <td>章节分页控制</td>
+            <td>PDF/DOCX 章首强制新页（PDF 手动换页流；DOCX 用 <code>w:pageBreakBefore</code>）</td>
+            <td>pdf_export.rs / docx_export.rs</td>
+          </tr>
+        </table>
+
+        <h3>测试补强建议</h3>
+        <ul class="tight">
+          <li>为 md/html/txt 三条前端导出路径补 vitest（检查标题、转义、表格 GFM、卷分隔）。</li>
+          <li>
+            为 PDF/DOCX 补“单元格/标题/图片尺寸”等<b>正文级</b>断言（当前冒烟测试只验容器结构，未覆盖正文内容，PDF
+            表格缺陷因此漏网）。
+          </li>
+          <li>
+            建立“导出快照对照”测试：同一章节样本导出各格式后断言关键字符串（如 <code>甲 | 乙</code> 表格形式）存在。
+          </li>
+        </ul>
+      </div>
+
+      <h2>六、附录：验证证据链</h2>
+      <div class="card">
+        <table>
+          <tr>
+            <th>证据</th>
+            <th>来源</th>
+            <th>结果</th>
+          </tr>
+          <tr>
+            <td>Rust 导出测试 10 条</td>
+            <td><code>cargo test --lib application::writing</code></td>
+            <td>10 passed / 0 failed（EPUB 结构×3、DOCX/PDF 冒烟等）</td>
+          </tr>
+          <tr>
+            <td>smoke.docx 解包</td>
+            <td>unzip 检查 5 entries</td>
+            <td>缺 styles.xml；pStyle 引用未定义；无 w:ind；图片已入 media/；表格为 <code>甲 | 乙</code> 文本</td>
+          </tr>
+          <tr>
+            <td>smoke.pdf 内容流解码</td>
+            <td>zlib + ToUnicode CMap 还原正文</td>
+            <td>
+              中文排版正确、换行正常；检出 <code>td甲/tdtd乙/td</code> 与 <code>td1/tdtd2/td</code>；15.2MB
+              含嵌入字体；4 页
+            </td>
+          </tr>
+          <tr>
+            <td>smoke.epub 解包</td>
+            <td>unzip 检查 7 entries</td>
+            <td>mimetype(STORED)/container/OPF/nav/章节 XHTML/图片 结构合法；无 CSS、无 dc:creator、章节无自动 h1</td>
+          </tr>
+          <tr>
+            <td>clean_text 行为复现</td>
+            <td>Python 精确模拟函数逻辑</td>
+            <td>输入表格行 → 输出 <code>trtd甲/tdtd乙/td/tr…</code>，与实产物一致</td>
+          </tr>
+          <tr>
+            <td>前端导出器精读</td>
+            <td>useExportActions.ts 全 325 行 + turndown.ts</td>
+            <td>md/html/txt 生成逻辑完整、转义正确；图片 asset:// 未处理</td>
+          </tr>
+          <tr>
+            <td>WiFi 图片引用模型</td>
+            <td>writingImage.ts + tiptap image renderHTML</td>
+            <td>正文 <code>src=asset://…</code> + <code>data-asset</code>；后端 3 格式有解析、前端 3 格式无</td>
+          </tr>
+        </table>
+        <p style="margin-bottom: 0; color: var(--muted); font-size: 12.5px">
+          说明：HTML/MD/TXT
+          未做端到端产物验证（无前后端集成测试环境），其结论来自源码精读；三种后端格式均有编译通过+测试全绿+真实产物核验的三重证据。
+        </p>
+      </div>
+
+      <footer>sight-folio · 完结作品导出全局分析报告 · 生成于 2026-10-14</footer>
+    </div>
+  </body>
+</html>

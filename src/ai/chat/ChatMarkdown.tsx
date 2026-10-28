@@ -12,7 +12,7 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useTheme } from '@mui/material/styles';
-import { parseBlocks } from '../../editor/panels/aiMarkdown';
+import { parseBlocks, splitStreamingMarkdown, repairStreamingTailInline } from '../../editor/panels/aiMarkdown';
 import { highlightCode } from '../../editor/panels/codeHighlight';
 import { t } from '../../i18n';
 
@@ -254,10 +254,118 @@ function ChatCodeBlock({ lang, code }: { lang: string; code: string }) {
 
 export interface ChatMarkdownProps {
   content: string;
+  /** 流式输出中：稳定前缀走增量缓存（历史节点引用不变），尾部按字面渲染防闪烁 */
+  streaming?: boolean;
+}
+
+/** 流式稳定前缀缓存：key = 已渲染的稳定前缀文本，见 aiMarkdown.tsx 同款设计（对话页 14px 样式独立缓存） */
+const CHAT_STREAMING_CACHE_LIMIT = 8;
+const chatStreamingCache = new Map<string, React.ReactNode[]>();
+
+/** 流式稳定前缀增量渲染：命中最长已渲染前缀时只解析新增片段，历史代码块不高亮重算、树不重建 */
+function renderChatStreamingStable(stable: string): React.ReactNode[] {
+  if (!stable) return [];
+  let best: { key: string; nodes: React.ReactNode[] } | null = null;
+  for (const [key, nodes] of chatStreamingCache) {
+    if (key.length === 0) continue;
+    if (best && key.length <= best.key.length) continue;
+    if (stable.startsWith(key)) best = { key, nodes };
+  }
+  let nodes: React.ReactNode[];
+  if (best) {
+    // 增量：只解析新增片段，keyBase 接着已渲染节点数递增，保证 key 唯一
+    const added = stable.slice(best.key.length);
+    const addedNodes = added ? renderChatBlocks(added, best.nodes.length) : [];
+    nodes = [...best.nodes, ...addedNodes];
+  } else {
+    nodes = renderChatBlocks(stable, 0);
+  }
+  chatStreamingCache.set(stable, nodes);
+  if (chatStreamingCache.size > CHAT_STREAMING_CACHE_LIMIT) {
+    const oldest = chatStreamingCache.keys().next().value;
+    if (oldest !== undefined) chatStreamingCache.delete(oldest);
+  }
+  return nodes;
+}
+
+/** 将正文解析为对话页 React 节点（key 从 keyBase 起递增，供增量缓存合并） */
+function renderChatBlocks(content: string, keyBase: number): React.ReactNode[] {
+  return parseBlocks(content).map((n, idx) => {
+    const key = keyBase + idx;
+    return n.type === 'code' ? (
+      <ChatCodeBlock key={key} lang={n.meta.lang} code={n.meta.code} />
+    ) : (
+      <React.Fragment key={key}>{renderText(n.value, `n${key}`)}</React.Fragment>
+    );
+  });
+}
+
+/** 对话页流式增量渲染：稳定前缀缓存复用 + 尾部按字面渲染（对齐 aiMarkdown.StreamingMarkdown 语义） */
+function ChatStreamingMarkdown({ content }: ChatMarkdownProps) {
+  const { stable, tail, openFence } = React.useMemo(() => splitStreamingMarkdown(content), [content]);
+  const stableNodes = React.useMemo(() => renderChatStreamingStable(stable), [stable]);
+  const tailNode = React.useMemo(() => {
+    if (!tail) return null;
+    if (openFence) {
+      // 未闭合代码围栏：去掉围栏头行，按等宽字面渲染，实时可见且不闪烁
+      const body = tail.replace(/^```[^\n]*\n?/, '');
+      return (
+        <Box
+          component="pre"
+          sx={{
+            m: 0,
+            px: 1.5,
+            py: 1.25,
+            fontSize: 12.5,
+            lineHeight: 1.55,
+            fontFamily: 'monospace',
+            overflowX: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            color: 'text.primary',
+            bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(13,17,23,0.6)' : 'rgba(246,248,250,0.8)'),
+            borderRadius: 1.5,
+            my: 0.75,
+          }}
+        >
+          {body}
+        </Box>
+      );
+    }
+    // 未空行收束的尾段：修补未闭合的行内标记（星号/反引号不闪烁），按字面段落渲染
+    return (
+      <Typography
+        sx={{
+          display: 'block',
+          fontSize: 14,
+          lineHeight: 1.65,
+          color: 'text.primary',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          my: 0.25,
+        }}
+      >
+        {renderInline(repairStreamingTailInline(tail), 'tail')}
+      </Typography>
+    );
+  }, [tail, openFence]);
+
+  return (
+    <Box sx={{ fontSize: 14, minWidth: 0 }}>
+      {stableNodes}
+      {tailNode}
+    </Box>
+  );
 }
 
 /** 对话页 Markdown 渲染入口：切分代码块 + 文本区 */
-export function ChatMarkdown({ content }: ChatMarkdownProps) {
+export function ChatMarkdown({ content, streaming }: ChatMarkdownProps) {
+  if (streaming) return <ChatStreamingMarkdown content={content} />;
+  return <StaticChatMarkdown content={content} />;
+}
+
+/** 静态模式（非流式）：每次 content 变化全量解析（历史消息/终稿） */
+function StaticChatMarkdown({ content }: { content: string }) {
   const nodes = React.useMemo(() => parseBlocks(content), [content]);
   return (
     <Box sx={{ fontSize: 14, minWidth: 0 }}>

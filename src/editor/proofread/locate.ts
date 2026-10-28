@@ -50,3 +50,26 @@ export function textRangeToPos(index: TextIndex, start: number, end: number): { 
   if (from === undefined || lastPos === undefined) return null;
   return { from, to };
 }
+
+/**
+ * 把 doc position（光标/选区锚点）映射回 getText() 文本偏移。
+ * 语义：该 doc pos 之前（左侧）的展平字符数，即 lowerBound(pos, docPos)。
+ * 供「插入前后两次 buildTextIndex」用：
+ * 插入前光标文本偏移 start = docPosToTextOffset(before, from)，
+ * 插入后 end = start + (after.text.length - before.text.length)。
+ */
+export function docPosToTextOffset(index: TextIndex, docPos: number): number {
+  const a = index.pos;
+  let lo = 0;
+  let hi = a.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (a[mid] < docPos) lo = mid + 1;
+    else hi = mid;
+  }
+  // 段落边界（块起点）特判：buildTextIndex 将 '\n\n' 分隔符成对记录在块 pos 上，
+  // 光标停在段首时分隔符左侧字符全部位于光标左，需跳过整组分隔符位（lowerBound 会把它们算进右侧）。
+  // 例：'abc\ndef' 光标停第二段首（docPos=块起点），文本偏移应为 5（'abc'+2 分隔符）而非 3。
+  if (a[lo] === docPos && a[lo + 1] === docPos) return lo + 2;
+  return lo;
+}

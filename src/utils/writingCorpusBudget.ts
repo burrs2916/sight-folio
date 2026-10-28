@@ -57,3 +57,17 @@ export const CHAT_CONTEXT_PROFILE = {
   worldbuildingEntries: MAX_CHAT_WORLDBUILDING_ENTRIES,
   catalogChapterLimit: CHAT_CATALOG_CHAPTER_LIMIT,
 } as const;
+
+// ─── 文风指纹（P0）：writingStyleFingerprint 取样与输出预算 ───
+
+/** 文风指纹：参与统计的章节数（按 sortOrder 取前 N 章） */
+export const STYLE_FINGERPRINT_MAX_CHAPTERS = 8;
+
+/** 文风指纹：统计样本总字符预算（防超长书撑爆统计与注入上下文） */
+export const STYLE_FINGERPRINT_MAX_CHARS = 20000;
+
+/** 文风指纹：高频词输出条数上限（中文/英文各 N 条） */
+export const STYLE_FINGERPRINT_TOP_WORDS = 15;
+
+/** 文风指纹：样本不足该字数时判定无可画像风格（返回空，调用方不注入） */
+export const STYLE_FINGERPRINT_MIN_CHARS = 200;

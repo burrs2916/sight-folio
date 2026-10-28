@@ -81,8 +81,8 @@ pub trait CorpusRepository: Send + Sync {
     /// 检索：≥3 字符走 FTS5 MATCH（BM25 排序），<3 字符走 LIKE 回退。
     /// **重复句在检索时合并**（非破坏，库里不删行）：同 `norm_hash` 的句子只出一条代表 +
     /// `occurrence_count` / `occurrences`；`book_id` 为 `Some` 时统计范围限该书 → 不做跨书合并。
-    /// 注：合并会缩减条数，`limit` 指「合并后条数」（内部按 `MERGE_OVERFETCH` 倍多取原始命中），
-    /// `offset` 仅对未合并的原始命中流有意义。
+    /// 注：合并会缩减条数，`limit` 指「合并后条数」（内部按 `MERGE_OVERFETCH` 倍多取原始命中）。
+    /// `offset`/`limit` 作用于**合并后**结果（翻页不丢句/不重句）。
     fn search(
         &self,
         query: &str,
@@ -90,6 +90,15 @@ pub trait CorpusRepository: Send + Sync {
         limit: i64,
         offset: i64,
     ) -> AppResult<Vec<CorpusSearchHit>>;
+    /// 检索 + 合并后总数（分页 UI 用，语义同 [`Self::search`]）；
+    /// 只返回正文句（章标题不参与命中）。
+    fn search_with_total(
+        &self,
+        query: &str,
+        book_id: Option<i64>,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<(Vec<CorpusSearchHit>, i64)>;
     /// 重复语句组（仅 kind='sentence'）：按归一化指纹分组，返回出现次数 > 1 的组
     /// （按出现次数降序，截断 Top-N）与**组总数**（组总数可能大于返回条数）。
     fn sentence_dup_groups(&self, limit: i64) -> AppResult<(Vec<SentenceDupGroup>, i64)>;
@@ -278,6 +287,8 @@ fn row_to_raw_hit(row: &rusqlite::Row) -> rusqlite::Result<RawHit> {
             kind: row.get("kind")?,
             chapter_title: row.get("chapter_title")?,
             content: row.get("content")?,
+            analysis: None,
+            reference_tier: None,
             occurrence_count: 1,
             occurrences: Vec::new(),
         },
@@ -611,8 +622,7 @@ impl CorpusRepository for SqliteCorpusRepository {
             return Ok(Vec::new());
         }
         let conn = self.db.0.lock().unwrap();
-        let mut rows: Vec<CorpusBook> = Vec::new();
-        if q.chars().count() >= 3 {
+        let mut rows = if q.chars().count() >= 3 {
             // ≥3 字符：书 FTS5 MATCH（trigram 子串，覆盖 title/author/category；与句子分支同口径转义）。
             // 排序保持「最新导入优先」（与旧 LIKE 分支一致）；FTS 仅作候选集，不按 rank 重排。
             let phrase = format!("\"{}\"", q.replace('"', "\"\""));
@@ -622,10 +632,11 @@ impl CorpusRepository for SqliteCorpusRepository {
                  ORDER BY created_at DESC, id DESC
                  LIMIT ?2"
             ))?;
-            rows = stmt
+            let res = stmt
                 .query_map(params![phrase, limit], row_to_book)?
                 .collect::<Result<Vec<_>, _>>()?;
             drop(stmt);
+            res
         } else {
             // <3 字符：LIKE 回退（trigram 无法对 <3 字符建索引词；ESCAPE 转义 % _ \）
             let like = format!(
@@ -642,11 +653,12 @@ impl CorpusRepository for SqliteCorpusRepository {
                  ORDER BY created_at DESC, id DESC
                  LIMIT ?2"
             ))?;
-            rows = stmt
+            let res = stmt
                 .query_map(params![like, limit], row_to_book)?
                 .collect::<Result<Vec<_>, _>>()?;
             drop(stmt);
-        }
+            res
+        };
         let map = load_tags_map(&conn)?;
         for book in &mut rows {
             attach_tags_one(&conn, book, Some(&map))?;
@@ -887,60 +899,87 @@ impl CorpusRepository for SqliteCorpusRepository {
         limit: i64,
         offset: i64,
     ) -> AppResult<Vec<CorpusSearchHit>> {
+        Ok(self.search_with_total(query, book_id, limit, offset)?.0)
+    }
+
+    /// 搜索 + 合并后总数。语义与 [`Self::search`] 一致，另返回句子命中总数
+    /// （重复句合并后）供分页 UI 使用；`offset`/`limit` 作用于**合并后**结果
+    /// （页语义正确：重复句合并发生在翻页之前，翻页不丢句/不重句）。
+    ///
+    /// 只返回正文句（kind='sentence'）：章标题行不参与命中，避免「第二章 斗气大陆」
+    /// 这类标题刷屏——语料参考/写作参考场景只关心句子正文。
+    fn search_with_total(
+        &self,
+        query: &str,
+        book_id: Option<i64>,
+        limit: i64,
+        offset: i64,
+    ) -> AppResult<(Vec<CorpusSearchHit>, i64)> {
         let q = query.trim();
         if q.is_empty() {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), 0));
         }
         let conn = self.db.0.lock().unwrap();
-        // 重复句合并会缩减结果条数 → 原始命中按 MERGE_OVERFETCH 倍多取，再截到 limit
-        let fetch = limit.saturating_mul(MERGE_OVERFETCH).clamp(1, 2000);
+        let limit = limit.max(1);
+        let offset = offset.max(0);
+        // 重复句合并会缩减结果条数 → 原始命中按 (offset+limit) 大窗口倍取
+        // （不再用旧 OFFSET：合并后再内存分页，offset 语义才正确）；
+        // 窗口上限 2000，覆盖语料参考 8 条/页 × 前 250 页。
+        let window = (offset.saturating_add(limit))
+            .saturating_mul(MERGE_OVERFETCH)
+            .clamp(1, 2000);
         // ≥3 字符：FTS5 MATCH（trigram 支持短语子串）+ BM25 排序
-        if q.chars().count() >= 3 {
+        let rows: Vec<RawHit> = if q.chars().count() >= 3 {
             // MATCH 查询需按 FTS 语法转义（双引号包裹短语，内嵌引号翻倍）
             let phrase = format!("\"{}\"", q.replace('"', "\"\""));
-            let rows: Vec<RawHit> = {
-                let mut stmt = conn.prepare(
-                    "SELECT c.id AS chunk_id, c.book_id AS book_id, b.title AS book_title,
-                            c.seq AS seq, c.kind AS kind, c.chapter_title AS chapter_title,
-                            c.content AS content, c.norm_hash AS norm_hash
-                     FROM (SELECT rowid, rank FROM corpus_fts WHERE corpus_fts MATCH ?1) f
-                     JOIN corpus_chunks c ON c.id = f.rowid
-                     JOIN corpus_books b ON b.id = c.book_id
-                     WHERE (?2 IS NULL OR c.book_id = ?2)
-                     ORDER BY f.rank
-                     LIMIT ?3 OFFSET ?4",
-                )?;
-                let hits: Vec<RawHit> = stmt
-                    .query_map(params![phrase, book_id, fetch, offset], row_to_raw_hit)?
-                    .collect::<Result<Vec<_>, _>>()?;
-                hits
-            };
-            return merge_duplicate_hits(&conn, rows, book_id, limit);
-        }
-        // <3 字符：LIKE 回退（ESCAPE 转义 % _ \）
-        let like = format!(
-            "%{}%",
-            q.replace('\\', "\\\\")
-                .replace('%', "\\%")
-                .replace('_', "\\_")
-        );
-        let rows: Vec<RawHit> = {
+            let mut stmt = conn.prepare(
+                "SELECT c.id AS chunk_id, c.book_id AS book_id, b.title AS book_title,
+                        c.seq AS seq, c.kind AS kind, c.chapter_title AS chapter_title,
+                        c.content AS content, c.norm_hash AS norm_hash
+                 FROM (SELECT rowid, rank FROM corpus_fts WHERE corpus_fts MATCH ?1) f
+                 JOIN corpus_chunks c ON c.id = f.rowid
+                 JOIN corpus_books b ON b.id = c.book_id
+                 WHERE c.kind = 'sentence' AND (?2 IS NULL OR c.book_id = ?2)
+                 ORDER BY f.rank
+                 LIMIT ?3",
+            )?;
+            let hits: Vec<RawHit> = stmt
+                .query_map(params![phrase, book_id, window], row_to_raw_hit)?
+                .collect::<Result<Vec<_>, _>>()?;
+            hits
+        } else {
+            // <3 字符：LIKE 回退（ESCAPE 转义 % _ \）
+            let like = format!(
+                "%{}%",
+                q.replace('\\', "\\\\")
+                    .replace('%', "\\%")
+                    .replace('_', "\\_")
+            );
             let mut stmt = conn.prepare(
                 "SELECT c.id AS chunk_id, c.book_id AS book_id, b.title AS book_title,
                         c.seq AS seq, c.kind AS kind, c.chapter_title AS chapter_title,
                         c.content AS content, c.norm_hash AS norm_hash
                  FROM corpus_chunks c
                  JOIN corpus_books b ON b.id = c.book_id
-                 WHERE c.content LIKE ?1 ESCAPE '\\' AND (?2 IS NULL OR c.book_id = ?2)
+                 WHERE c.kind = 'sentence' AND c.content LIKE ?1 ESCAPE '\\'
+                       AND (?2 IS NULL OR c.book_id = ?2)
                  ORDER BY c.book_id, c.seq
-                 LIMIT ?3 OFFSET ?4",
+                 LIMIT ?3",
             )?;
             let hits: Vec<RawHit> = stmt
-                .query_map(params![like, book_id, fetch, offset], row_to_raw_hit)?
+                .query_map(params![like, book_id, window], row_to_raw_hit)?
                 .collect::<Result<Vec<_>, _>>()?;
             hits
         };
-        merge_duplicate_hits(&conn, rows, book_id, limit)
+        // 合并窗口取全（limit=window 不提前截断），再内存分页
+        let merged = merge_duplicate_hits(&conn, rows, book_id, window)?;
+        let total = merged.len() as i64;
+        let page: Vec<CorpusSearchHit> = merged
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect();
+        Ok((page, total))
     }
 
     fn sentence_dup_groups(&self, limit: i64) -> AppResult<(Vec<SentenceDupGroup>, i64)> {
@@ -1500,9 +1539,9 @@ mod tests {
             .unwrap();
         // 2 个章标题 + 2 个正文句（求票注已滤除；「老者说。」有效字符 3 保留）
         assert_eq!(book.chunk_count, 4, "got: {book:?}");
-        // 剥离注后标题可检索；带感叹号的真实标题可检索
+        // 章标题（含剥离作者注后的标题）不参与命中，只返回正文句
         let hits_t = repo.search("异火的吞噬", None, 20, 0).expect("search ok");
-        assert_eq!(hits_t.len(), 1, "got: {hits_t:?}");
+        assert!(hits_t.is_empty(), "章标题不参与命中，got: {hits_t:?}");
         // 正文句归属净标题所在章节
         let hits_body = repo.search("孤独的山谷", None, 20, 0).expect("search ok");
         assert_eq!(hits_body.len(), 1, "got: {hits_body:?}");
@@ -1831,28 +1870,80 @@ mod tests {
         assert!(one[0].occurrences.iter().all(|o| o.book_id == ba.id));
     }
 
-    /// 章标题（kind='chapter'）不参与合并 —— 合并只针对正文句。
+    /// 章标题（kind='chapter'）不参与命中：搜索只返回正文句，标题不刷屏。
     #[test]
-    fn search_does_not_merge_chapter_titles() {
+    fn search_filters_out_chapter_titles() {
         let repo = make_repo();
-        for t in ["甲书", "乙书"] {
-            repo.import_book(
-                t,
-                "",
-                "zh",
-                "",
-                "txt",
-                "",
-                "第一章\n\n正文一句。",
-                &tuples("第一章\n\n正文一句。"),
-            )
-            .unwrap();
+        for (i, t) in ["甲书", "乙书"].iter().enumerate() {
+            let body = format!("第一章 斗气大陆\n\n正文第{}句，山风很冷。", i + 1);
+            repo.import_book(t, "", "zh", "", "txt", "", &body, &tuples(&body))
+                .unwrap();
         }
+        // 章标题行被过滤：搜「第一章」不再返回任何命中；正文句正常命中
         let hits = repo.search("第一章", None, 20, 0).unwrap();
-        assert_eq!(hits.len(), 2, "章标题不应被合并");
-        assert!(hits
+        assert!(hits.is_empty(), "章标题不参与命中");
+        let body = repo.search("山风很冷", None, 20, 0).unwrap();
+        assert_eq!(body.len(), 2);
+        assert!(body.iter().all(|h| h.kind == "sentence"));
+    }
+
+    /// 分页 + 总数：total 为合并后的真实句数；offset 作用于合并后结果，翻页不丢句。
+    #[test]
+    fn search_with_total_paginates_merged_results() {
+        let repo = make_repo();
+        // 两本书各含一句共享句（合并为 1 条）+ 各 4 句独有句 → 合并后 9 条；
+        // 全部句子都含「的」，保证 LIKE 查询 "的" 恰好覆盖 9 个目标句（章标题被过滤）
+        let shared = "山风的呼啸很大，他回头望了一眼。";
+        let mk = |title: &str, extra: Vec<&str>| {
+            let body = [shared, "第一章", ""]
+                .iter()
+                .chain(extra.iter())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n");
+            repo.import_book(title, "", "zh", "", "txt", "", &body, &tuples(&body))
+                .unwrap();
+        };
+        mk(
+            "甲书",
+            vec![
+                "独自的前行，一路无人作伴。",
+                "万籁的寂静笼罩夜空。",
+                "远方的灯火渐渐明灭。",
+                "他握紧了手中的剑。",
+            ],
+        );
+        mk(
+            "乙书",
+            vec![
+                "向着山野的深处前行。",
+                "月光洒在雪地的微光里。",
+                "风过林梢的沙沙声响起。",
+                "她默默收起的行囊很轻。",
+            ],
+        );
+
+        // 每页 4 条：第 1 页 4 条 + total 9
+        let (p1, total) = repo.search_with_total("的", None, 4, 0).unwrap();
+        assert_eq!(total, 9, "重复句合并后应为 9 条");
+        assert_eq!(p1.len(), 4);
+        // 三页内容拼接后恰好覆盖全部且无重复（合并后分页不丢句/重句）
+        let (p2, _) = repo.search_with_total("的", None, 4, 4).unwrap();
+        let (p3, _) = repo.search_with_total("的", None, 4, 8).unwrap();
+        assert_eq!(p2.len(), 4);
+        assert_eq!(p3.len(), 1);
+        let all: Vec<i64> = p1
             .iter()
-            .all(|h| h.kind == "chapter" && h.occurrence_count == 1 && h.occurrences.is_empty()));
+            .chain(p2.iter())
+            .chain(p3.iter())
+            .map(|h| h.chunk_id)
+            .collect();
+        let uniq: std::collections::HashSet<&i64> = all.iter().collect();
+        assert_eq!(uniq.len(), 9, "翻页不丢句也不重句");
+        // 「山风的呼啸…」跨书重复句合并为 1 条，出现次数统计正确
+        let merged_shared = repo.search("山风的呼啸", None, 20, 0).unwrap();
+        assert_eq!(merged_shared.len(), 1);
+        assert_eq!(merged_shared[0].occurrence_count, 2);
     }
 
     /// 唯一句：count = 1、occurrences 为空（LIKE 短查询路径同样适用）。

@@ -1333,11 +1333,32 @@ pub struct GitRepoInfo {
     is_repo: bool,
 }
 
+/// 规范化并校验项目目录：必须存在、是目录、绝对路径。
+/// 外部命令（git 等）的 cwd 一律经此校验，杜绝相对路径与不存在路径直接进入子进程。
+fn canonical_dir(path: &str) -> AppResult<std::path::PathBuf> {
+    let p = std::path::Path::new(path);
+    if !p.is_absolute() {
+        return Err(crate::error::AppError::Internal(format!(
+            "路径必须是绝对路径: {path}"
+        )));
+    }
+    let canonical = p.canonicalize().map_err(|e| {
+        crate::error::AppError::Internal(format!("路径不存在或无法访问: {path} ({e})"))
+    })?;
+    if !canonical.is_dir() {
+        return Err(crate::error::AppError::Internal(format!(
+            "路径不是目录: {path}"
+        )));
+    }
+    Ok(canonical)
+}
+
 #[tauri::command(async)]
 pub fn get_git_repo_info(path: String) -> AppResult<GitRepoInfo> {
     use std::process::Command;
 
-    let git_dir = std::path::Path::new(&path).join(".git");
+    let root = canonical_dir(&path)?;
+    let git_dir = root.join(".git");
     if !git_dir.exists() {
         return Ok(GitRepoInfo {
             url: path,
@@ -1347,9 +1368,10 @@ pub fn get_git_repo_info(path: String) -> AppResult<GitRepoInfo> {
             is_repo: false,
         });
     }
+    let root_str = root.to_string_lossy().to_string();
 
     let branch = Command::new("git")
-        .args(["-C", &path, "rev-parse", "--abbrev-ref", "HEAD"])
+        .args(["-C", &root_str, "rev-parse", "--abbrev-ref", "HEAD"])
         .output()
         .ok()
         .and_then(|o| {
@@ -1361,7 +1383,7 @@ pub fn get_git_repo_info(path: String) -> AppResult<GitRepoInfo> {
         });
 
     let last_commit = Command::new("git")
-        .args(["-C", &path, "rev-parse", "--short", "HEAD"])
+        .args(["-C", &root_str, "rev-parse", "--short", "HEAD"])
         .output()
         .ok()
         .and_then(|o| {
@@ -1373,7 +1395,7 @@ pub fn get_git_repo_info(path: String) -> AppResult<GitRepoInfo> {
         });
 
     let last_commit_message = Command::new("git")
-        .args(["-C", &path, "log", "-1", "--format=%s"])
+        .args(["-C", &root_str, "log", "-1", "--format=%s"])
         .output()
         .ok()
         .and_then(|o| {

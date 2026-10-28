@@ -235,7 +235,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const duplicated: AnalysisDSL = {
       ...source,
       id: `scene_${now}_${Math.random().toString(36).substring(2, 8)}`,
-      name: `${source.name} (副本)`,
+      name: `${source.name} ${t('scene.copySuffix')}`,
       status: "draft",
       createdAt: Math.floor(now / 1000),
       updatedAt: Math.floor(now / 1000),
@@ -262,7 +262,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const now = Math.floor(Date.now() / 1000);
     const category: AnalysisCategory = {
       id: `cat_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-      name: "新分组",
+      name: t("scene.newGroup"),
       icon: "folder",
       sortOrder: get().categories.length,
       createdAt: now,

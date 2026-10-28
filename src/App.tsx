@@ -64,6 +64,12 @@ function isWritingDeskWindow(pathname: string): boolean {
   );
 }
 
+// ─── 封存域开关（2026-10-22 产品决策：遗留资产封存降级）───
+// 代码分析工作台 + 数据源集成保留代码、停止投入；应用启动不再初始化这两个域
+// （数据源 loadFromBackend 会对已配置连接真实建连，文件监视挂的是代码分析域监听）。
+// 恢复方式：改回 false 即恢复原启动行为；画布数据绑定等能力代码原样保留。
+const SEAL_LEGACY_DOMAINS = true;
+
 function AppLayout() {
   // 全局语言订阅：切换语言时强制整棵树重渲染。
   // 项目里绝大多数组件只调用模块级 t()（读 current），本身不订阅
@@ -234,9 +240,11 @@ export default function App() {
     themeInit();
     appearanceInit();
     authInit();
-    loadDataSources();
-    // 注册文件变更监视事件监听（幂等）；写作台独立窗口不挂代码分析域的文件监视
-    if (!isWritingDeskWindow(window.location.pathname)) initFileWatcher();
+    if (!SEAL_LEGACY_DOMAINS) {
+      loadDataSources();
+      // 注册文件变更监视事件监听（幂等）；写作台独立窗口不挂代码分析域的文件监视
+      if (!isWritingDeskWindow(window.location.pathname)) initFileWatcher();
+    }
   }, [layoutInit, themeInit, appearanceInit, authInit, loadDataSources, initFileWatcher]);
 
   // 自动分析调度心跳。

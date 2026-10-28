@@ -4,7 +4,7 @@
  * 双栏布局：左侧对话列表 + 右侧聊天区域
  * 专为全页面设计，不复用侧边栏的 AiAgentPanel
  */
-import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, Component, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -13,6 +13,11 @@ import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContentText from '@mui/material/DialogContentText';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
@@ -20,6 +25,7 @@ import Tooltip from '@mui/material/Tooltip';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
 import Paper from '@mui/material/Paper';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -38,6 +44,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import Popover from '@mui/material/Popover';
 import ChatBubbleOutlinedIcon from '@mui/icons-material/ChatBubbleOutlined';
 import StopIcon from '@mui/icons-material/Stop';
+import ReplayIcon from '@mui/icons-material/Replay';
 import LinkIcon from '@mui/icons-material/Link';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -58,6 +65,8 @@ import { t } from '../i18n';
 import type { QuickActionKind } from '../ai/WelcomeView';
 import { PROVIDER_COLORS, randomProviderColor, colorForProvider } from '../utils/providerColors';
 import { stripHtmlText } from '../utils/writingProofread';
+import { textToParagraphHtml } from '../ai/writingAssistant';
+import { chapterWordCountFromHtml } from './writingPage/editorUtils';
 import { AiInsightsPanel } from '../ai/AiInsightsPanel';
 import { WritingBookInsights } from '../ai/WritingBookInsights';
 import { WelcomeView } from '../ai/WelcomeView';
@@ -68,10 +77,23 @@ import { ToolCallCard } from '../ai/chat/ToolCallCard';
 /**
  * 写作场景专用工具白名单（P1：写作工具集）。
  * 作为 allowedTools 单次传入 run_agent（additive override，不污染 Agent 持久配置）：
- * 当用户在写作页有激活书籍时，/ai 全页助手的每次发送都自动附带这三个写作工具，
- * 让 AI 能按需读取章节全文 / 章节目录 / 人设卡，而不是被代码分析工具牵引。
+ * 当用户在写作页有激活书籍时，/ai 全页助手的每次发送都自动附带这七个写作工具，
+ * 让 AI 能按需读取章节全文 / 章节目录 / 人设卡 / **作者自己的语料库**，
+ * 并在审批闸门确认后直接写入正文、新建章节——写入一律先存版本快照，可随时恢复。
+ *
+ * search_corpus 排在这里的理由值得说明：语料库是作者亲手挑的参考句集合，
+ * 助手谈「文风」时如果查不到它，就只能凭印象编一句「示例」——那是幻觉最容易被
+ * 作者发现的场合，也是本产品最不该失手的场合。
  */
-const WRITING_TOOLS = ['list_chapters', 'read_chapter', 'read_character_card'] as const;
+const WRITING_TOOLS = [
+  'list_chapters',
+  'read_chapter',
+  'read_character_card',
+  'search_corpus',
+  'update_character_card',
+  'write_chapter',
+  'create_chapter',
+] as const;
 
 // ─── 顶部通栏：品牌 + Agent 选择 + 配置入口 ───
 function AgentTopBar({ onOpenSettings, settingsOpen }: { onOpenSettings: () => void; settingsOpen: boolean }) {
@@ -579,6 +601,13 @@ function ConversationSidebar() {
 // ═══════════════════════════════════════════════
 
 function ChatArea({ settingsOpen, onCloseSettings }: { settingsOpen: boolean; onCloseSettings: () => void }) {
+  // 润色快捷动作的目标：{conversationId, chapterId, chapterTitle}；无目标时为 null。
+  // 消息视图据此在最后一条完整润色回复下方展示「覆盖到当前章节」入口。
+  const [polishTarget, setPolishTarget] = useState<{
+    conversationId: string;
+    chapterId: string;
+    chapterTitle: string;
+  } | null>(null);
   const {
     selectedConversationId,
     selectedAgentId,
@@ -677,7 +706,12 @@ function ChatArea({ settingsOpen, onCloseSettings }: { settingsOpen: boolean; on
 输出格式：
 1. 先给一页「诊断摘要」：各维度评分（1-10）+ 最优先修复的 3 项。
 2. 再逐维展开具体发现，每项含：章节、原文摘要、问题描述、修改建议。
-3. 如需查阅其他章节正文或角色卡，可调用 list_chapters、read_chapter、read_character_card。`,
+3. 如需查阅其他章节正文或角色卡，可调用 list_chapters、read_chapter、read_character_card。
+4. 谈「文风 / 句式 / 用词」时要给出示例，必须先调用 search_corpus 查作者自己的语料库；
+   查不到就直说没有，**绝不可自己编一句当作参考示例**。
+5. 需要修订人设 / 世界观卡时调用 update_character_card：只传你确实要改的字段（未传的字段保持原样），
+   登记别名一律用 add_aliases。卡上的性格、经历、关系**只能写作者给过的、或正文可证的**，
+   不得自行补全；该操作需作者审批，作者拒绝后不要重复提交同一改动。`,
           `Please conduct a structured five-dimension writing diagnostic:
 
 [Dimension 1 · Plot Holes]
@@ -696,7 +730,13 @@ Compare narrative voice, sentence length, adjective density, and tone between th
 List planted hooks and their payoff state (pending / paid-off / possibly lost).
 
 Output: one-page summary with scores, then chapter-by-chapter findings.
-If you need to read other chapter text or character cards, call list_chapters / read_chapter / read_character_card.`,
+If you need to read other chapter text or character cards, call list_chapters / read_chapter / read_character_card.
+When discussing style, phrasing or diction you MUST ground any example in the author's own library via
+search_corpus; if nothing matches, say so plainly - never invent example lines.
+5. To revise a character / worldview card call update_character_card: pass ONLY the fields you really
+mean to change (anything omitted keeps its current value) and always register alternative names via
+add_aliases. Never invent traits, backstories or relations - write only what the author supplied or
+what the manuscript proves. The author must approve the write; if they decline, do not retry it.`,
         );
         content = `${ctx}\n\n---\n\n${diagnose}`;
         break;
@@ -747,6 +787,17 @@ If you need to read other chapter text or character cards, call list_chapters / 
     const conv = await createConversation(selectedAgentId, title);
     selectConversation(conv.id);
     await sendMessage(conv.id, content, WRITING_TOOLS as unknown as string[]);
+
+    // 润色快捷动作：记录目标会话 + 目标章节，供结果消息下方展示「覆盖到当前章节」
+    if (kind === 'polish' && activeChapterId) {
+      setPolishTarget({
+        conversationId: conv.id,
+        chapterId: activeChapterId,
+        chapterTitle: currentChapter?.title ?? '',
+      });
+    } else if (kind !== 'polish') {
+      setPolishTarget(null);
+    }
   };
 
   const currentAgent = agents.find((a) => a.id === selectedAgentId);
@@ -782,7 +833,7 @@ If you need to read other chapter text or character cards, call list_chapters / 
     );
   }
 
-  return <MessageView settingsOpen={settingsOpen} onCloseSettings={onCloseSettings} />;
+  return <MessageView settingsOpen={settingsOpen} onCloseSettings={onCloseSettings} polishTarget={polishTarget} />;
 }
 
 // ─── AI 配置抽屉 ───
@@ -791,14 +842,16 @@ If you need to read other chapter text or character cards, call list_chapters / 
 function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <>
-      {/* 遮罩：只在抽屉所在容器内生效 */}
+      {/* 遮罩：只在抽屉所在容器内生效
+          背景用标准遮断级（MUI backdrop 0.5）：原 0.18 过淡，下层欢迎区/书籍洞察整块透出，
+          与面板叠印成「元素重合」（2026-10-10 修复，同 ChapterTreePanel 行尾浮层） */}
       <Box
         onClick={onClose}
         sx={{
           position: 'absolute',
           inset: 0,
           zIndex: 10,
-          bgcolor: 'rgba(0,0,0,0.18)',
+          bgcolor: 'rgba(0,0,0,0.5)',
           transition: 'opacity 0.2s',
           opacity: open ? 1 : 0,
           pointerEvents: open ? 'auto' : 'none',
@@ -860,7 +913,15 @@ function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void 
 
 // ─── 消息视图 ───
 
-function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean; onCloseSettings: () => void }) {
+function MessageView({
+  settingsOpen,
+  onCloseSettings,
+  polishTarget,
+}: {
+  settingsOpen: boolean;
+  onCloseSettings: () => void;
+  polishTarget?: { conversationId: string; chapterId: string; chapterTitle: string } | null;
+}) {
   const {
     messages,
     selectedConversationId,
@@ -872,7 +933,40 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
     agents,
     selectedAgentId,
     loading,
+    // 流归属：streamingContent/isStreaming/错误是全局状态，同窗口多 AI 入口共享——
+    // 只有「最新一轮流式属于当前选中会话」时才渲染流式轨迹/错误气泡，防止别处发起的流串台。
+    currentStreamConversationId,
+    lastStreamError,
+    stoppedConversationId,
   } = useAgentStore();
+
+  // 润色覆盖到章节：目标会话消息下方提供「覆盖到当前章节」，确认后整章替换
+  const saveChapterContent = useWritingStore((s) => s.saveChapterContent);
+  const [polishApplyOpen, setPolishApplyOpen] = useState(false);
+  const [polishApplying, setPolishApplying] = useState(false);
+  const [polishApplyTarget, setPolishApplyTarget] = useState<{ chapterId: string; chapterTitle: string } | null>(null);
+  const applyPolishChapter = useCallback(async () => {
+    if (!polishApplyTarget || polishApplying) return;
+    // 取目标会话最后一条完整 assistant 回复作为替换内容
+    const last = [...messages]
+      .reverse()
+      .find((m) => m.role === 'assistant' && m.conversationId === selectedConversationId && m.content.trim());
+    if (!last) return;
+    setPolishApplying(true);
+    try {
+      const html = textToParagraphHtml(last.content);
+      const wordCount = chapterWordCountFromHtml(html);
+      await saveChapterContent(polishApplyTarget.chapterId, html, wordCount);
+      setPolishApplyOpen(false);
+      useToastStore.getState().success(t('agent.chat.polishApplied', { title: polishApplyTarget.chapterTitle }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.warn('AiAgentPage', 'apply polish to chapter failed', { error: e });
+      useToastStore.getState().error(t('agent.chat.polishApplyFailed', { msg }));
+    } finally {
+      setPolishApplying(false);
+    }
+  }, [messages, polishApplyTarget, polishApplying, saveChapterContent, selectedConversationId]);
 
   // 写作上下文注入：订阅当前激活书籍/章节/设定/大纲
   const writingBooks = useWritingStore((s) => s.books);
@@ -902,6 +996,8 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollTimer = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
+  /** 最近一次本页发起的请求（实际发送全文），供错误态「重试」原样重发 */
+  const lastSentRef = useRef<string | null>(null);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     if (!scrollContainerRef.current) return;
@@ -913,12 +1009,15 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
 
   useEffect(() => {
     if (scrollTimer.current) clearTimeout(scrollTimer.current);
-    scrollTimer.current = window.setTimeout(() => scrollToBottom('smooth'), 60);
+    // 流式中用瞬时滚动（对齐 openclaw scrollToEnd({behavior:'auto'})）：
+    // smooth 动画在 48ms 级高频 flush 下会不断被打断重启动画，造成滚轮追尾抖动；
+    // 结束/新消息时才恢复平滑滚动。
+    scrollTimer.current = window.setTimeout(() => scrollToBottom(isStreaming ? 'auto' : 'smooth'), 60);
     return () => {
       if (scrollTimer.current) clearTimeout(scrollTimer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, streamingContent]);
+    // scrollToBottom 只读 ref（scrollContainerRef/isNearBottomRef），函数引用变化无需重跑
+  }, [messages.length, streamingContent, isStreaming]);
 
   const handleSend = () => {
     if (!input.trim() || !selectedConversationId || isStreaming) return;
@@ -928,10 +1027,12 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
     // 自动注入写作上下文（仅当用户在写作页有激活书籍时）
     if (currentBook) {
       const ctxLines: string[] = [];
+      // 作品 id 必须随上下文给出：写作域工具（章节目录/人设卡）按 id 取数，
+      // 只给书名的话模型会把书名当 book_id 传，触发查无此书。
       ctxLines.push(
         L(
-          `【当前作品】${currentBook.title}${currentBook.genre ? `（${currentBook.genre}）` : ''}`,
-          `[Current Book] ${currentBook.title}${currentBook.genre ? ` (${currentBook.genre})` : ''}`,
+          `【当前作品】《${currentBook.title}》${currentBook.genre ? `（${currentBook.genre}）` : ''}（作品 id：${currentBook.id}）`,
+          `[Current Book] "${currentBook.title}"${currentBook.genre ? ` (${currentBook.genre})` : ''} (book id: ${currentBook.id})`,
         ),
       );
 
@@ -939,8 +1040,8 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
         const vol = currentChapter.volume ? `${currentChapter.volume} · ` : '';
         ctxLines.push(
           L(
-            `【当前章节】${vol}${currentChapter.title}${currentChapter.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
-            `[Current Chapter] ${vol}${currentChapter.title}${currentChapter.wordCount ? ` (${currentChapter.wordCount} chars)` : ''}`,
+            `【当前章节】${vol}${currentChapter.title}${currentChapter.wordCount ? `（${currentChapter.wordCount}字）` : ''}（章节 id：${currentChapter.id}）`,
+            `[Current Chapter] ${vol}${currentChapter.title}${currentChapter.wordCount ? ` (${currentChapter.wordCount} chars)` : ''} (chapter id: ${currentChapter.id})`,
           ),
         );
       }
@@ -973,9 +1074,35 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
     }
 
     // 写作场景：有激活书籍时附带写作工具白名单（additive，不污染 Agent 配置）
+    lastSentRef.current = content;
     sendMessage(selectedConversationId, content, currentBook ? (WRITING_TOOLS as unknown as string[]) : undefined);
     setInput('');
   };
+
+  // 错误态「重试」：原样重发最近一次内容；先重拉消息刷新乐观态，再发起
+  const handleRetry = useCallback(() => {
+    const convId = selectedConversationId;
+    if (!convId || !lastSentRef.current || isStreaming) return;
+    void useAgentStore.getState().loadMessages(convId);
+    sendMessage(convId, lastSentRef.current);
+  }, [selectedConversationId, isStreaming, sendMessage]);
+
+  // 本页会话「正在进行中的流」：全局闸门外再加归属校验，防止别处流串台
+  const isOwnStreaming = isStreaming && currentStreamConversationId === selectedConversationId;
+
+  // 润色覆盖目标：polish 快捷动作的会话、且最新一条完整 assistant 回复已就绪时，
+  // 在该回复下方展示「覆盖到当前章节」。流式/中断/错误期间不展示，避免覆盖半截结果。
+  const polishApplyMessageId = useMemo(() => {
+    if (!polishTarget || polishTarget.conversationId !== selectedConversationId) return null;
+    if (isOwnStreaming || stoppedConversationId === selectedConversationId) return null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === 'assistant' && m.conversationId === selectedConversationId && m.content.trim()) {
+        return m.id;
+      }
+    }
+    return null;
+  }, [polishTarget, selectedConversationId, isOwnStreaming, stoppedConversationId, messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1104,7 +1231,7 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
         <Box sx={{ flex: 1 }}>
           <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{currentAgent?.name || t('agent.panel.chat')}</Typography>
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
-            {isStreaming ? t('agent.chat.thinking') : t('agent.chat.ready')}
+            {isOwnStreaming ? t('agent.chat.thinking') : t('agent.chat.ready')}
           </Typography>
         </Box>
         {!isStreaming && (
@@ -1123,7 +1250,7 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
             </IconButton>
           </Tooltip>
         )}
-        {isStreaming && <CircularProgress size={18} />}
+        {isOwnStreaming && <CircularProgress size={18} />}
       </Box>
 
       {/* 消息列表 */}
@@ -1213,21 +1340,36 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
         )}
 
         {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            role={msg.role}
-            content={msg.content}
-            createdAt={msg.createdAt}
-            toolCalls={msg.toolCalls}
-          />
+          <Box key={msg.id}>
+            <MessageBubble role={msg.role} content={msg.content} createdAt={msg.createdAt} toolCalls={msg.toolCalls} />
+            {msg.id === polishApplyMessageId && polishTarget && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start', px: 2, pb: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+                  onClick={() => {
+                    setPolishApplyTarget({
+                      chapterId: polishTarget.chapterId,
+                      chapterTitle: polishTarget.chapterTitle,
+                    });
+                    setPolishApplyOpen(true);
+                  }}
+                >
+                  {t('agent.chat.polishApplyTitle', { title: polishTarget.chapterTitle })}
+                </Button>
+              </Box>
+            )}
+          </Box>
         ))}
 
-        {/* 流式响应：与确认消息统一间距，无额外包裹层 */}
-        {isStreaming && toolCalls.map((tc, i) => <ToolCallCard key={`tc-${i}`} toolCall={tc} />)}
-        {isStreaming && streamingContent && (
+        {/* 流式响应：与确认消息统一间距，无额外包裹层（仅归属本会话的流才渲染，防止别处串台） */}
+        {isOwnStreaming && toolCalls.map((tc, i) => <ToolCallCard key={`tc-${i}`} toolCall={tc} />)}
+        {isOwnStreaming && streamingContent && (
           <MessageBubble key="streaming" role="assistant" content={streamingContent} isStreaming />
         )}
-        {isStreaming && !streamingContent && toolCalls.length === 0 && (
+        {isOwnStreaming && !streamingContent && toolCalls.length === 0 && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1 }}>
             <CircularProgress size={14} />
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: 13 }}>
@@ -1236,8 +1378,70 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
           </Box>
         )}
 
+        {/* 流错误回执：归属当前会话且不在流式中时，展示最近一轮错误 + 重试（错误优先于停止标注） */}
+        {!isStreaming && lastStreamError && currentStreamConversationId === selectedConversationId && (
+          <Alert
+            severity="error"
+            variant="outlined"
+            sx={{ fontSize: 12, mt: 1, '& .MuiAlert-message': { py: 0.25 } }}
+            action={
+              <Button size="small" color="error" startIcon={<ReplayIcon sx={{ fontSize: 14 }} />} onClick={handleRetry}>
+                {t('ui.retry')}
+              </Button>
+            }
+          >
+            {lastStreamError === 'timeout' ? t('agent.chat.timeout') : lastStreamError}
+          </Alert>
+        )}
+        {/* 停止回执：后端会保留「已吐出的部分回答」并落库，不标注的话用户分不清是答完了还是被自己截断了 */}
+        {!isStreaming && !lastStreamError && stoppedConversationId === selectedConversationId && (
+          <Chip
+            size="small"
+            icon={<StopIcon sx={{ fontSize: 12 }} />}
+            label={t('agent.chat.stopped')}
+            color="error"
+            variant="outlined"
+            sx={{ fontSize: 10.5, height: 20, mt: 1 }}
+          />
+        )}
+
         <div ref={messagesEndRef} />
       </Box>
+
+      {/* 润色覆盖回正文：整章替换属高影响操作，必须二次确认后才落库 */}
+      <Dialog
+        open={polishApplyOpen}
+        onClose={() => {
+          if (!polishApplying) setPolishApplyOpen(false);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontSize: 15 }}>{t('agent.chat.polishApplyConfirmTitle')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: 13 }}>
+            {t('agent.chat.polishApplyHint', { title: polishApplyTarget?.chapterTitle ?? '' })}
+          </DialogContentText>
+          <DialogContentText sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>
+            {t('agent.chat.polishApplyCrossWindow')}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" disabled={polishApplying} onClick={() => setPolishApplyOpen(false)}>
+            {t('agent.chat.cancel')}
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            color="primary"
+            disabled={polishApplying}
+            startIcon={polishApplying ? <CircularProgress size={12} /> : undefined}
+            onClick={() => void applyPolishChapter()}
+          >
+            {t('agent.chat.polishApplyConfirm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 输入区 */}
       <Box
@@ -1389,7 +1593,7 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
                 },
               }}
             />
-            {isStreaming ? (
+            {isOwnStreaming ? (
               <Tooltip title={t('agent.chat.stopTip')}>
                 <IconButton
                   color="error"
@@ -1406,7 +1610,7 @@ function MessageView({ settingsOpen, onCloseSettings }: { settingsOpen: boolean;
                   <IconButton
                     color="primary"
                     onClick={handleSend}
-                    disabled={!input.trim()}
+                    disabled={!input.trim() || isStreaming}
                     sx={{
                       width: 48,
                       height: 48,
@@ -2438,10 +2642,14 @@ function AgentForm({ initial, models, endpoints, onSave, onCancel }: any) {
     { id: 'scan_records', name: t('agent.form.tools.scan_records') },
     { id: 'apply_change', name: t('agent.form.tools.apply_change') },
     { id: 'run_command', name: t('agent.form.tools.run_command') },
-    // 写作场景工具（P1）：/ai 全页助手在写作场景下按需读取章节/人设
+    // 写作场景工具（P1）：/ai 全页助手在写作场景下按需读取章节/人设，写入需审批
     { id: 'list_chapters', name: t('agent.form.tools.list_chapters') },
     { id: 'read_chapter', name: t('agent.form.tools.read_chapter') },
     { id: 'read_character_card', name: t('agent.form.tools.read_character_card') },
+    { id: 'search_corpus', name: t('agent.form.tools.search_corpus') },
+    { id: 'update_character_card', name: t('agent.form.tools.update_character_card') },
+    { id: 'write_chapter', name: t('agent.form.tools.write_chapter') },
+    { id: 'create_chapter', name: t('agent.form.tools.create_chapter') },
   ];
   // 新助手默认即拥有全部工具能力（含 run_command 终端权限），与「导入项目即默认可用工作区、
   // 助手默认具备终端能力、无需手动勾选」的产品定位一致；仅在编辑已有助手时沿用其已保存的 toolIds。

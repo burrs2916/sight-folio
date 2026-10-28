@@ -89,14 +89,20 @@ export interface AgentToolCallEvent {
   toolCall: ToolCallEvent;
 }
 
-/** `agent-tool-approval` 事件的 payload：引擎在即将执行高危工具（run_command）前推送，等用户确认 */
+/** `agent-tool-approval` 事件的 payload：引擎即将执行高危工具（run_command / 写入类）前推送，等用户确认 */
 export interface AgentToolApprovalEvent {
   conversationId: string;
   runId: string;
   toolCallId: string;
   tool: string;
+  /** 仅 run_command 填写 */
   command: string;
+  /** 仅 run_command 填写 */
   cwd: string;
+  /** 面向创作者的操作摘要（写入类工具没有 command，用 summary 展示） */
+  summary?: string;
+  /** true = 写入类低危工具，弹窗提供「本会话不再询问」选项 */
+  sessionRememberable?: boolean;
 }
 
 export interface AgentChunkEvent {
@@ -290,14 +296,21 @@ export const agentApi = {
   },
 
   /**
-   * 落定一次待审批的高危工具调用（run_command 的 human-in-the-loop 确认）。
+   * 落定一次待审批的高危工具调用（human-in-the-loop 确认）。
+   * `rememberSession`：写入类低危工具勾选「本会话不再询问」时传 true。
    * 引擎在审批闸门里 await 此结果；超时 / 取消一律按拒绝处理。
    */
-  async resolveToolApproval(runId: string, toolCallId: string, approved: boolean): Promise<boolean> {
+  async resolveToolApproval(
+    runId: string,
+    toolCallId: string,
+    approved: boolean,
+    rememberSession = false,
+  ): Promise<boolean> {
     return invoke<boolean>('resolve_tool_approval', {
       runId,
       toolCallId,
       approved,
+      remember: rememberSession,
     });
   },
 };

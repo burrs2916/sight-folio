@@ -33,6 +33,7 @@ use infrastructure::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
+use tauri::webview::{PermissionKind, PermissionResponse};
 use tauri::{Emitter, Manager};
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -86,9 +87,57 @@ async fn spawn_code_workbench(
         .map_err(|e| e.to_string())
 }
 
+/// macOS：dev 模式（非 .app bundle）下 Dock 无应用图标。
+///
+/// 根因：macOS 的 Dock 图标由 `.app` bundle 内 Info.plist（`CFBundleIconFile`）
+/// 指向的 icon.icns 提供；`tauri dev` 直接运行裸二进制、不生成 bundle，
+/// 因此 Dock/程序坞显示通用二进制图标。而 `Window::set_icon` 在 macOS 是
+/// no-op（底层 tao 0.37 未实现该方法，仅 Linux 有实现）。
+///
+/// 唯一可靠的运行时路径是给 `NSApplication` 调用 `setApplicationIconImage:`：
+/// 这里把 `tauri.conf.json bundle.icon` 同源的 PNG 编译期嵌入，启动时构造
+/// NSImage 设为 Dock 图标。打包版（.app）由 bundle 机制提供图标，本调用仅在
+/// debug（dev）构建下执行，互不干扰。
+#[cfg(target_os = "macos")]
+fn apply_dev_dock_icon() {
+    use objc2::AnyThread;
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
+
+    // setup 钩子运行在主线程；拿不到 marker 时直接返回，图标问题不阻塞启动。
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let ns_app = NSApplication::sharedApplication(mtm);
+
+    // 与 bundle.icon 同源的 512×512 PNG（icons/icon.png），编译期嵌入，
+    // 运行时不依赖任何路径，dev 与打包环境均可用。
+    let png: &[u8] = include_bytes!("../icons/icon.png");
+    let data = NSData::with_bytes(png);
+    if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
+        // setApplicationIconImage: 为 AppKit 消息发送，objc2 绑定标注 unsafe
+        unsafe {
+            ns_app.setApplicationIconImage(Some(&*image));
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // ─── WebView 权限处理器（tauri 2.12+）───
+        // 默认情况下（tauri 2.11 及以前）宿主不注册 WebView 的权限请求事件，
+        // Windows WebView2 / macOS WKWebView 会对 getUserMedia（麦克风/摄像头）等
+        // 请求直接"默认拒绝"，表现为点击语音后报错而不弹授权窗。
+        // 这里对媒体权限返回 Default，交给内核继续走默认授权流程：
+        //   - Windows: WebView2 弹默认权限提示 UI
+        //   - macOS:   WKWebView 经系统弹麦克风/摄像头授权窗
+        //   - Linux:   Default 等价 Deny（见 PermissionResponse 文档）
+        .on_permission_request(|_, kind| match kind {
+            PermissionKind::Microphone | PermissionKind::Camera => PermissionResponse::Default,
+            _ => PermissionResponse::Deny,
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -97,8 +146,8 @@ pub fn run() {
 
             {
                 let conn = db.0.lock().unwrap();
-                init_tables(&conn).expect("Failed to initialize tables");
-                migrate(&conn).expect("Failed to migrate database");
+                init_tables(&conn)?;
+                migrate(&conn)?;
             }
 
             let db_arc = Arc::new(db);
@@ -147,7 +196,8 @@ pub fn run() {
             // （历史教训：这里的 `.expect()` 曾因 schema 升级失败让应用启动即 SIGABRT。）
             let corpus_state = match CorpusDatabase::new() {
                 Ok(corpus_db) => {
-                    CorpusState::ready(Arc::new(SqliteCorpusRepository::new(Arc::new(corpus_db))))
+                    let repo = Arc::new(SqliteCorpusRepository::new(Arc::new(corpus_db)));
+                    CorpusState::ready(repo)
                 }
                 Err(e) => {
                     eprintln!("[sight-folio] corpus database unavailable, degrading: {e}");
@@ -235,6 +285,13 @@ pub fn run() {
 
             let window = app.get_webview_window("main").unwrap();
             window.set_title("Sight Folio")?;
+
+            // macOS dev 模式 Dock 图标（debug 构建才需要；打包版由 .app bundle 提供）
+            #[cfg(target_os = "macos")]
+            if cfg!(debug_assertions) {
+                apply_dev_dock_icon();
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -455,6 +512,8 @@ pub fn run() {
             commands::terminal_replay,
             // ─── 操作系统级辅助命令（Reveal in File Manager 等）───
             commands::reveal_in_file_manager,
+            // ─── macOS 语音识别权限主动请求（Web Speech API 依赖）───
+            commands::request_speech_authorization,
             // ─── ACP Host WebSocket 桥（P0.1）：外部 ACP Agent 经 ws 驱动本工作台 ───
             commands::start_acp_ws_server,
             commands::send_acp_ws,
@@ -464,11 +523,17 @@ pub fn run() {
             commands::save_writing_book,
             commands::delete_writing_book,
             commands::list_writing_chapters,
+            commands::get_writing_chapter,
             commands::save_writing_chapter,
             commands::rename_writing_chapter,
             commands::save_writing_chapter_content,
+            // 章→剧情线挂线/解绑：后端早已实现，此处曾漏注册（调用必失败）。
+            commands::set_writing_chapter_storyline,
             commands::save_writing_chapter_snapshot,
             commands::list_writing_chapter_snapshots,
+            commands::rename_writing_chapter_snapshot,
+            commands::list_writing_setting_revisions,
+            commands::restore_writing_setting_revision,
             commands::delete_writing_chapter,
             commands::list_corpus_books,
             commands::import_corpus_file,
@@ -510,6 +575,8 @@ pub fn run() {
             commands::list_writing_annotations,
             commands::save_writing_annotation,
             commands::delete_writing_annotation,
+            // 按设定卡反查正文批注（人物卡「正文批注引用」）：后端早已实现，此处曾漏注册。
+            commands::list_writing_annotations_by_setting,
             commands::list_writing_notes,
             commands::save_writing_note,
             commands::delete_writing_note,
@@ -527,6 +594,10 @@ pub fn run() {
             commands::move_completed_work,
             commands::import_completed_works,
             commands::query_completed_work_count,
+            // ─── 写作域 Phase 1：外部素材采集（图片/文字/记事本/链接 → 素材库） ───
+            commands::list_external_captures,
+            commands::save_external_capture,
+            commands::delete_external_capture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -163,6 +163,10 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
     return { cards: [], nodeCount: all.length, edgeCount: 0, maxCo: 0, dropped: 0, edges: [] };
   }
 
+  // 书 id：从章节虚拟文件路径反解，随节点卡携带 —— 双击跳设定卡时画布层直接用，
+  // 不依赖工作室窗口里 writingStore 是否装载过这本书（activeBookId 兜底会开错窗口）。
+  const bookId = chapters[0]?.file.path.match(/^writing:\/\/([^/]+)\//)?.[1] ?? '';
+
   // 1) 共现统计：两卡在同一章都被提及 → 该章记 1 次（同章提及多次也只算 1 次「同场」）
   const pair = new Map<string, number>();
   for (const ch of chapters) {
@@ -208,10 +212,14 @@ export function buildRelationBoard(files: ProjectFile[]): RelationBoardResult {
         appearances: c.total,
         chapterCount: c.chapters,
         kind: c.kind,
+        // 设定卡 id（F2 扫描 appearances[].id = WritingSetting.id）：双击直跳设定卡，
+        // 不依赖画布层按名匹配 setting 兜底（工作室窗口里设定未必装载过）。
+        settingId: c.id,
         // 主出场章节：双击跳正文的落点（设定卡本身不是文件，没有它双击就是死节点）。
         // 无主出场章时不写 fileId/filePath —— 空串会被通用兜底当成有效 id 去跳。
         topChapter: c.top?.file.name ?? '',
         ...(c.top ? { fileId: c.top.file.id, filePath: c.top.file.path } : {}),
+        ...(bookId ? { bookId } : {}),
       },
     });
   });
@@ -277,6 +285,7 @@ const WV_COLS = 5;
 export function buildWorldviewBoard(files: ProjectFile[]): WorldviewBoardResult {
   const chapters = parseWritingChapters(files);
   const all = aggregateCards(chapters).filter((c) => c.kind === 'worldbuilding');
+  const bookId = chapters[0]?.file.path.match(/^writing:\/\/([^/]+)\//)?.[1] ?? '';
   const cards: BoardCard[] = all.map((c, i) => {
     const col = i % WV_COLS;
     const row = Math.floor(i / WV_COLS);
@@ -293,9 +302,12 @@ export function buildWorldviewBoard(files: ProjectFile[]): WorldviewBoardResult 
         appearances: c.total,
         chapterCount: c.chapters,
         kind: c.kind,
+        // 设定卡 id + 书 id：双击直跳设定卡（与关系板节点同一约定）
+        settingId: c.id,
         // 主出场章节：双击跳正文的落点（与关系板节点同一约定，无则不写避免空串误跳）
         topChapter: c.top?.file.name ?? '',
         ...(c.top ? { fileId: c.top.file.id, filePath: c.top.file.path } : {}),
+        ...(bookId ? { bookId } : {}),
       },
     };
   });

@@ -8,7 +8,7 @@ import { persist, clearCanvas, place } from './canvas';
 import { type PortraitOutcome } from './types';
 import { t } from '../../../i18n';
 import { useProjectStore } from '../../../store/projectStore';
-import { buildFunctionHotspots, HOTSPOT_COLORS, HOTSPOT_LABELS } from '.././functionHotspots';
+import { buildFunctionHotspots, HOTSPOT_COLORS } from '.././functionHotspots';
 
 
 /**
@@ -106,7 +106,7 @@ function renderHotspotLayout(analysisId: string, layout: ReturnType<typeof build
         lines: n.lines,
         risk: n.risk,
         level: n.level,
-        levelLabel: HOTSPOT_LABELS[n.level],
+        levelLabel: t(`canvasTip.hotspot.${n.level}`),
         reasons: n.reasons,
         callIn: n.callIn,
         churnScore: n.churnScore,

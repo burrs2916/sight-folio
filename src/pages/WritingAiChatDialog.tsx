@@ -21,15 +21,19 @@ import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
+import Chip from '@mui/material/Chip';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import { agentApi, type AiMessage } from '../services/tauri';
 import { useAgentStore } from '../store/agentStore';
 import { useToastStore } from '../store/toastStore';
 import { t } from '../i18n';
 import { logger } from '../utils/logger';
+import { sanitizeDisplayMessages } from '../utils/aiCorpusChat';
 
 export interface WritingAiChatDialogProps {
   open: boolean;
@@ -42,6 +46,8 @@ export interface WritingAiChatDialogProps {
   onAgentChange: (agentId: string) => void;
   /** 未配置任何 agent 时的「去配置」出口（desk 窗口内走 open-ai-settings 事件由主窗口接管） */
   onOpenSettings?: () => void;
+  /** C3：外部预填消息——打开后自动作为一条用户消息发送（仅当值变化时触发一次，成功后消费） */
+  initialMessage?: string;
 }
 
 const CHAT_MAX_HEIGHT = 460;
@@ -54,9 +60,15 @@ export function WritingAiChatDialog({
   agentId,
   onAgentChange,
   onOpenSettings,
+  initialMessage,
 }: WritingAiChatDialogProps) {
   const agents = useAgentStore((s) => s.agents);
   const isStreaming = useAgentStore((s) => s.isStreaming);
+  // 流归属：streamingContent/isStreaming 是全局状态，同窗口多 AI 入口共享——
+  // 只有「最新一轮流式属于本面板会话」时才渲染气泡/停止/错误，防止别处发起的流串台。
+  const currentStreamConversationId = useAgentStore((s) => s.currentStreamConversationId);
+  const lastStreamError = useAgentStore((s) => s.lastStreamError);
+  const stoppedConversationId = useAgentStore((s) => s.stoppedConversationId);
   const noAgent = agents.length === 0;
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [convId, setConvId] = useState<string | null>(null);
@@ -64,6 +76,8 @@ export function WritingAiChatDialog({
   const [input, setInput] = useState('');
   const [streamText, setStreamText] = useState('');
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  /** 最近一次本面板发起的请求（用户原文 + 实际发送内容），供错误态「重试」原样重发 */
+  const lastSendRef = useRef<{ text: string; content: string } | null>(null);
 
   // 流式预览：open 期间常驻订阅（isStreaming 才渲染气泡，避免残留文本误显）
   useEffect(() => {
@@ -79,15 +93,14 @@ export function WritingAiChatDialog({
     (async () => {
       try {
         const convs = await agentApi.listConversations(agentId);
-        const mine = convs
-          .filter((c) => c.title === chatTitle)
-          .sort((a, b) => b.updatedAt - a.updatedAt);
+        const mine = convs.filter((c) => c.title === chatTitle).sort((a, b) => b.updatedAt - a.updatedAt);
         const conv = mine[0] ?? (await agentApi.createConversation(agentId, chatTitle));
         if (cancelled) return;
         setConvId(conv.id);
         const rows = await agentApi.listMessages(conv.id);
         if (cancelled) return;
-        setMessages(rows.filter((m) => m.role === 'user' || m.role === 'assistant'));
+        // 展示层剥离：user 消息含首轮注入的写作上下文前缀，仅渲染用户原文与助手输出
+        setMessages(sanitizeDisplayMessages(rows));
       } catch (e) {
         logger.warn('WritingPage', 'chat open failed', { error: e });
         useToastStore.getState().error(String(e));
@@ -100,41 +113,107 @@ export function WritingAiChatDialog({
     };
   }, [open, agentId, chatTitle]);
 
-  // 新内容到达自动滚底
+  // 新内容到达自动滚底（智能：仅近底时跟随，用户上翻阅读不被拉回；60ms 防抖）
+  const isNearBottomRef = useRef(true);
+  const scrollTimerRef = useRef<number | null>(null);
+  const handleListScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = window.setTimeout(() => {
+      const el = scrollRef.current;
+      if (el && isNearBottomRef.current) el.scrollTop = el.scrollHeight;
+    }, 60);
+    return () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
   }, [messages, streamText, isStreaming]);
+
+  /** 发送一条用户消息：乐观插入 + 首轮注入上下文 + sendMessage + 刷新历史（输入框写入由调用方负责） */
+  const sendText = useCallback(
+    async (text: string): Promise<void> => {
+      const trimmed = text.trim();
+      if (!trimmed || !convId || isStreaming) return;
+      // 本地乐观插入用户消息（显示原始输入；上下文前缀只在真正发出的消息里）
+      setMessages((m) => [
+        ...m,
+        {
+          id: `local_${Date.now()}`,
+          conversationId: convId,
+          role: 'user',
+          content: trimmed,
+          toolCalls: null,
+          createdAt: Date.now(),
+        },
+      ]);
+      try {
+        // 首轮（无历史）自动注入写作上下文；后续轮次靠对话历史延续
+        const content = messages.length === 0 ? `${buildContextBlock()}\n\n---\n\n${trimmed}` : trimmed;
+        lastSendRef.current = { text: trimmed, content };
+        // 直读 API 建会话不进 store.conversations、写作台窗口不设置 selectedAgentId——
+        // 必须显式传 agentId（本对话框自己在 props 里持有），否则 store 无法推导 agent 归属会放弃发送
+        await useAgentStore.getState().sendMessage(convId, content, undefined, undefined, agentId);
+        const after = useAgentStore.getState();
+        if (after.stoppedConversationId === convId) {
+          setStreamText('');
+          const rows = await agentApi.listMessages(convId);
+          setMessages(sanitizeDisplayMessages(rows));
+          return;
+        }
+        const rows = await agentApi.listMessages(convId);
+        setMessages(sanitizeDisplayMessages(rows));
+        setStreamText('');
+      } catch (e) {
+        logger.warn('WritingPage', 'chat send failed', { error: e });
+        useToastStore.getState().error(String(e));
+      }
+    },
+    [convId, isStreaming, messages.length, buildContextBlock, agentId],
+  );
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || !convId || isStreaming) return;
     setInput('');
-    // 本地乐观插入用户消息（显示原始输入；上下文前缀只在真正发出的消息里）
-    setMessages((m) => [
-      ...m,
-      { id: `local_${Date.now()}`, conversationId: convId, role: 'user', content: text, toolCalls: null, createdAt: Date.now() },
-    ]);
+    await sendText(text);
+  }, [input, convId, isStreaming, sendText]);
+
+  // C3 外部预填：initialMessage 值变化且会话就绪时自动发送一次（sentInitialRef 防对相同内容重复发）。
+  // 会话未就绪（convId 未建立/在流式中）时不消费，等依赖变化后重试；发送成功才记入 sentInitialRef。
+  const sentInitialRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    if (!initialMessage || initialMessage === sentInitialRef.current) return;
+    if (!convId || isStreaming) return;
+    sentInitialRef.current = initialMessage;
+    void sendText(initialMessage);
+  }, [open, initialMessage, convId, isStreaming, sendText]);
+
+  // 错误态「重试」：原样重发最近一次内容（首轮含上下文注入；不重复乐观插入）
+  const retryLastTurn = useCallback(async () => {
+    if (!lastSendRef.current || !convId || isStreaming) return;
     try {
-      // 首轮（无历史）自动注入写作上下文；后续轮次靠对话历史延续
-      const content = messages.length === 0 ? `${buildContextBlock()}\n\n---\n\n${text}` : text;
-      await useAgentStore.getState().sendMessage(convId, content);
+      // 重试同样显式传 agentId（见 handleSend 注释：直读 API 面板不能依赖 store 推导）
+      await useAgentStore.getState().sendMessage(convId, lastSendRef.current.content, undefined, undefined, agentId);
       const after = useAgentStore.getState();
       if (after.stoppedConversationId === convId) {
         setStreamText('');
-        const rows = await agentApi.listMessages(convId);
-        setMessages(rows.filter((m) => m.role === 'user' || m.role === 'assistant'));
         return;
       }
       const rows = await agentApi.listMessages(convId);
-      setMessages(rows.filter((m) => m.role === 'user' || m.role === 'assistant'));
+      setMessages(sanitizeDisplayMessages(rows));
       setStreamText('');
     } catch (e) {
-      logger.warn('WritingPage', 'chat send failed', { error: e });
+      logger.warn('WritingPage', 'chat retry failed', { error: e });
       useToastStore.getState().error(String(e));
     }
-  }, [input, convId, isStreaming, messages.length, buildContextBlock]);
+  }, [convId, isStreaming, agentId]);
+
+  // 本面板会话「正在进行中的流」：全局闸门外再加归属校验，防止别处流串台
+  const isOwnStreaming = isStreaming && currentStreamConversationId === convId;
 
   const handleCreateNew = useCallback(async () => {
     if (!agentId) return;
@@ -174,15 +253,60 @@ export function WritingAiChatDialog({
             </MenuItem>
           ))}
         </Select>
-        <IconButton size="small" onClick={isStreaming ? undefined : handleNewChat} title={t('writing.aiChatNew')} data-testid="ai-chat-new" aria-label={t('writing.aiChatNew')}>
+        <IconButton
+          size="small"
+          onClick={isStreaming ? undefined : handleNewChat}
+          title={t('writing.aiChatNew')}
+          data-testid="ai-chat-new"
+          aria-label={t('writing.aiChatNew')}
+        >
           <AddRoundedIcon sx={{ fontSize: 17 }} />
         </IconButton>
-        <IconButton size="small" onClick={onClose} aria-label={t("writing.aiChatClose")}>
+        <IconButton size="small" onClick={onClose} aria-label={t('writing.aiChatClose')}>
           <CloseRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </DialogTitle>
       <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
-        <Box ref={scrollRef} sx={{ height: CHAT_MAX_HEIGHT, overflowY: 'auto', px: 2, py: 1.5 }}>
+        <Box
+          ref={scrollRef}
+          onScroll={handleListScroll}
+          sx={{ height: CHAT_MAX_HEIGHT, overflowY: 'auto', px: 2, py: 1.5 }}
+        >
+          {/* 流错误 / 停止回执（本面板会话专属；错误优先于停止） */}
+          {!loading && !noAgent && !isStreaming && lastStreamError && currentStreamConversationId === convId && (
+            <Box sx={{ mb: 1 }}>
+              <Alert
+                severity="error"
+                variant="outlined"
+                sx={{ fontSize: 12, '& .MuiAlert-message': { py: 0.25 } }}
+                action={
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<ReplayRoundedIcon sx={{ fontSize: 14 }} />}
+                    onClick={() => void retryLastTurn()}
+                    data-testid="ai-chat-error-retry"
+                  >
+                    {t('ui.retry')}
+                  </Button>
+                }
+              >
+                {lastStreamError === 'timeout' ? t('writing.aiTimeout') : lastStreamError}
+              </Alert>
+            </Box>
+          )}
+          {!loading && !noAgent && !isStreaming && !lastStreamError && stoppedConversationId === convId && (
+            <Box sx={{ mb: 1 }}>
+              <Chip
+                size="small"
+                icon={<StopRoundedIcon sx={{ fontSize: 12 }} />}
+                label={t('writing.aiStopped')}
+                color="error"
+                variant="outlined"
+                sx={{ fontSize: 10.5, height: 20 }}
+              />
+            </Box>
+          )}
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
               <CircularProgress size={22} />
@@ -202,7 +326,10 @@ export function WritingAiChatDialog({
           ) : (
             <>
               {messages.map((m) => (
-                <Box key={m.id} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', mb: 1 }}>
+                <Box
+                  key={m.id}
+                  sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', mb: 1 }}
+                >
                   <Box
                     sx={{
                       maxWidth: '86%',
@@ -217,7 +344,7 @@ export function WritingAiChatDialog({
                   </Box>
                 </Box>
               ))}
-              {isStreaming && streamText && (
+              {isOwnStreaming && streamText && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1 }}>
                   <Box sx={{ maxWidth: '86%', px: 1.25, py: 0.75, borderRadius: 2, bgcolor: 'action.hover' }}>
                     <Typography sx={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{streamText}</Typography>
@@ -229,34 +356,49 @@ export function WritingAiChatDialog({
         </Box>
         {!noAgent && (
           <Box sx={{ display: 'flex', gap: 1, px: 2, pb: 1.5, pt: 0.5, alignItems: 'flex-end' }}>
-          <TextField
-            fullWidth
-            size="small"
-            multiline
-            minRows={1}
-            maxRows={4}
-            placeholder={t('writing.aiChatPlaceholder')}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              // Enter 发送 / Shift+Enter 换行（聊天惯例）
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (canSend) void handleSend();
-              }
-            }}
-            sx={{ '& .MuiInputBase-input': { fontSize: 13 } }}
-          />
-          {isStreaming ? (
-            <IconButton color="error" onClick={() => useAgentStore.getState().requestInterrupt()} size="small" sx={{ flexShrink: 0 }} data-testid="ai-chat-stop" aria-label={t("writing.aiChatStop")}>
-              <StopRoundedIcon />
-            </IconButton>
-          ) : (
-            <IconButton color="primary" disabled={!canSend} onClick={() => void handleSend()} size="small" sx={{ flexShrink: 0 }} data-testid="ai-chat-send" aria-label={t("writing.aiChatSend")}>
-              <SendRoundedIcon />
-            </IconButton>
-          )}
-        </Box>
+            <TextField
+              fullWidth
+              size="small"
+              multiline
+              minRows={1}
+              maxRows={4}
+              placeholder={t('writing.aiChatPlaceholder')}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter 发送 / Shift+Enter 换行（聊天惯例）
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (canSend) void handleSend();
+                }
+              }}
+              sx={{ '& .MuiInputBase-input': { fontSize: 13 } }}
+            />
+            {isOwnStreaming ? (
+              <IconButton
+                color="error"
+                onClick={() => useAgentStore.getState().requestInterrupt()}
+                size="small"
+                sx={{ flexShrink: 0 }}
+                data-testid="ai-chat-stop"
+                aria-label={t('writing.aiChatStop')}
+              >
+                <StopRoundedIcon />
+              </IconButton>
+            ) : (
+              <IconButton
+                color="primary"
+                disabled={!canSend}
+                onClick={() => void handleSend()}
+                size="small"
+                sx={{ flexShrink: 0 }}
+                data-testid="ai-chat-send"
+                aria-label={t('writing.aiChatSend')}
+              >
+                <SendRoundedIcon />
+              </IconButton>
+            )}
+          </Box>
         )}
         {convId === null && !loading && !noAgent && (
           <Box sx={{ px: 2, pb: 1.5 }}>

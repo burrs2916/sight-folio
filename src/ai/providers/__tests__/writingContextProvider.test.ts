@@ -202,6 +202,51 @@ describe('writingContextProvider', () => {
     }
   });
 
+  it('P1·A1 审校预设扩展：新增情感浓度/AI 味/节奏张力/逻辑连续性四档，prompt 双语且带评分约束', () => {
+    const presets = writingContextProvider.presets ?? [];
+    const keys = presets.map((p) => p.key);
+    expect(keys).toContain('emotional-intensity');
+    expect(keys).toContain('ai-flavor');
+    expect(keys).toContain('pacing-tension');
+    expect(keys).toContain('logical-continuity');
+
+    const byKey = new Map(presets.map((p) => [p.key, p]));
+
+    // 情感浓度：要求 1-5 分、原文证据句、提升方向
+    const emotion = byKey.get('emotional-intensity')!;
+    expect(emotion.title['zh-CN']).toContain('情感');
+    expect(emotion.prompt['zh-CN']).toContain('1-5');
+    expect(emotion.prompt['zh-CN']).toContain('证据');
+    expect(emotion.prompt['en-US']).toContain('1-5');
+    expect(emotion.prompt['en-US']).toContain('evidence');
+
+    // AI 味：识别模板套话/节奏单调/情绪直述等 AI 腔
+    const aiFlavor = byKey.get('ai-flavor')!;
+    expect(aiFlavor.prompt['zh-CN']).toContain('模板');
+    expect(aiFlavor.prompt['zh-CN']).toContain('节奏单调');
+    expect(aiFlavor.prompt['en-US']).toContain('template');
+    expect(aiFlavor.prompt['en-US']).toContain('told emotions');
+
+    // 节奏张力：张力值分档 + 与全书字数分布对照
+    const pacing = byKey.get('pacing-tension')!;
+    expect(pacing.prompt['zh-CN']).toContain('张力');
+    expect(pacing.prompt['zh-CN']).toContain('字数分布');
+    expect(pacing.sectionKeys ?? []).toContain('active-chapter');
+
+    // 逻辑连续性：场景衔接/时间线/动机/设定遵守/伏笔衔接
+    const logic = byKey.get('logical-continuity')!;
+    expect(logic.prompt['zh-CN']).toContain('时间线');
+    expect(logic.prompt['zh-CN']).toContain('伏笔');
+    const logicSections = logic.sectionKeys ?? [];
+    expect(logicSections).toContain('timeline-storylines');
+    expect(logicSections).toContain('foreshadowing');
+
+    // 四档都走既有写作 group，加入自动轮转池
+    for (const key of ['emotional-intensity', 'ai-flavor', 'pacing-tension', 'logical-continuity']) {
+      expect(byKey.get(key)!.group).toBe('writing');
+    }
+  });
+
   it('相同内容两次构建 digest 一致（增量闸门的前提）', () => {
     useWritingStore.setState({ activeChapterId: 'chap_a', chapters: [makeChapter({ id: 'chap_a' })] });
     const p1 = writingContextProvider.buildPack(BOOK_ID, { now: 5000 })!;

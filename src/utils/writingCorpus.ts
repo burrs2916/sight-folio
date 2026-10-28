@@ -428,9 +428,11 @@ export function buildProofreadCorpus(
   timelineEvents: WritingTimelineEvent[],
   foreshadowings: WritingForeshadowing[],
   storylines: WritingStoryline[] = [],
+  /** 设定卡：传入才会带上一致性组（人物账本 vs 正文）。缺省跳过，向后兼容。 */
+  settings: { id: string; name: string; extra: string }[] = [],
 ): { zh: string; en: string } {
   void bookId; // 与其他 corpus 同签名惯例：调用方已按书过滤
-  const report = buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines);
+  const report = buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings);
   const total = report.issues.length;
 
   const emptyZh = chapters
@@ -570,8 +572,9 @@ export function buildStatsCorpus(
   return { zh: linesZh.join('\n'), en: linesEn.join('\n') };
 }
 
-/** 把章节 content（TipTap HTML）拍平成纯文本段落（语料注入用，标签噪声不进模型上下文） */
-function stripChapterHtml(html: string): string {
+/** 把章节 content（TipTap HTML）拍平成纯文本段落（语料注入用，标签噪声不进模型上下文）
+ *  文风指纹引擎（writingStyleFingerprint）复用同一实现，保证「注入样本」与「统计样本」口径一致。 */
+export function stripChapterHtml(html: string): string {
   return html
     .replace(/<\/(p|div|h[1-6]|li)>/gi, '\n')
     .replace(/<[^>]+>/g, '')

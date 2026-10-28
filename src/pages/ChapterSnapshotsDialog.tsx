@@ -23,6 +23,7 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import PreviewRoundedIcon from '@mui/icons-material/PreviewRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { writingSnapshotsApi, type WritingChapterSnapshot } from '../services/tauri';
+import { useToastStore } from '../store/toastStore';
 import { t } from '../i18n';
 
 function fmtTime(sec: number): string {
@@ -100,7 +101,9 @@ function SnapshotName({
     ? displayName
     : snapshot.origin === 'manual'
       ? t('writing.snapshots.originManual')
-      : t('writing.snapshots.originAuto');
+      : snapshot.origin === 'ai'
+        ? t('writing.snapshots.originAi')
+        : t('writing.snapshots.originAuto');
 
   if (isEditing) {
     return (
@@ -130,6 +133,7 @@ function SnapshotName({
       <Tooltip title={t('writing.snapshots.rename')}>
         <IconButton
           size="small"
+          aria-label={t('writing.snapshots.rename')}
           onClick={(e) => {
             e.stopPropagation();
             onStartEdit(snapshot);
@@ -225,6 +229,8 @@ export function ChapterSnapshotsDialog({
 }) {
   const [items, setItems] = useState<WritingChapterSnapshot[]>([]);
   const [loading, setLoading] = useState(false);
+  /** 拉取失败标记：失败时必须与「真的没有快照」区分开，否则用户误判没存过版本 */
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState<WritingChapterSnapshot | null>(null);
 
   // Diff 预览状态
@@ -239,8 +245,12 @@ export function ChapterSnapshotsDialog({
     setLoading(true);
     try {
       setItems(await writingSnapshotsApi.list(chapterId));
-    } catch {
-      setItems([]);
+      setLoadError(null);
+    } catch (e) {
+      // 失败不置空列表：保留上次结果并显式提示（与正文保存链路口径一致）
+      const msg = e instanceof Error ? e.message : String(e);
+      setLoadError(msg);
+      useToastStore.getState().showToast(t('writing.snapshots.loadFailed', { msg }), 'error');
     } finally {
       setLoading(false);
     }
@@ -268,25 +278,24 @@ export function ChapterSnapshotsDialog({
     setDraftName(s.name || '');
   }, []);
 
-  const handleSaveRename = useCallback(async (id: string, name: string | null) => {
-    setEditingId(null);
-    // 先乐观更新 UI
-    setItems((prev) => prev.map((s) => (s.id === id ? { ...s, name: name ?? undefined } : s)));
-    try {
-      await writingSnapshotsApi.rename(id, name);
-    } catch (_e) {
-      // 后端未实现 rename API 时静默回退到 localStorage
+  const handleSaveRename = useCallback(
+    async (id: string, name: string | null) => {
+      setEditingId(null);
+      setDraftName('');
+      // 先记住旧值用于失败回滚，再乐观更新 UI
+      const prevName = items.find((s) => s.id === id)?.name ?? null;
+      setItems((prev) => prev.map((s) => (s.id === id ? { ...s, name: name ?? undefined } : s)));
       try {
-        const key = `sf_snapshot_names`;
-        const raw = localStorage.getItem(key);
-        const map: Record<string, string | null> = raw ? JSON.parse(raw) : {};
-        map[id] = name;
-        localStorage.setItem(key, JSON.stringify(map));
-      } catch {
-        // 忽略 localStorage 错误
+        await writingSnapshotsApi.rename(id, name);
+      } catch (e) {
+        // 绝不降级到 localStorage：那会让名字看起来存住了、换设备就丢。
+        setItems((prev) => prev.map((s) => (s.id === id ? { ...s, name: prevName ?? undefined } : s)));
+        const msg = e instanceof Error ? e.message : String(e);
+        useToastStore.getState().showToast(t('writing.snapshots.renameFailed', { msg }), 'error');
       }
-    }
-  }, []);
+    },
+    [items],
+  );
 
   const handleCancelRename = useCallback(() => {
     setEditingId(null);
@@ -300,20 +309,6 @@ export function ChapterSnapshotsDialog({
     setEditingId(null);
     onClose();
   }, [onClose]);
-
-  // 合并 localStorage 中的重命名（后端未支持时）
-  const mergedItems = useMemo(() => {
-    try {
-      const raw = localStorage.getItem('sf_snapshot_names');
-      const map: Record<string, string | null> = raw ? JSON.parse(raw) : {};
-      return items.map((s) => {
-        if (map[s.id] !== undefined) return { ...s, name: map[s.id] ?? undefined };
-        return s;
-      });
-    } catch {
-      return items;
-    }
-  }, [items]);
 
   const [currentSnapshotNow] = useState(() => Math.floor(Date.now() / 1000));
   const currentSnapshot: WritingChapterSnapshot = useMemo(
@@ -430,7 +425,7 @@ export function ChapterSnapshotsDialog({
               </ListItemButton>
               <Divider sx={{ my: 0.5 }} />
 
-              {mergedItems.map((s) => (
+              {items.map((s) => (
                 <ListItemButton
                   key={s.id}
                   onClick={() => setPending(s)}
@@ -472,7 +467,17 @@ export function ChapterSnapshotsDialog({
                   </Tooltip>
                 </ListItemButton>
               ))}
-              {!loading && mergedItems.length === 0 && (
+              {!loading && items.length === 0 && loadError && (
+                <Box sx={{ py: 2, px: 1, textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: 12, color: 'error.main', mb: 1 }}>
+                    {t('writing.snapshots.loadError', { msg: loadError })}
+                  </Typography>
+                  <Button size="small" onClick={() => void refresh()}>
+                    {t('writing.snapshots.retry')}
+                  </Button>
+                </Box>
+              )}
+              {!loading && items.length === 0 && !loadError && (
                 <Typography sx={{ fontSize: 12, color: 'text.disabled', textAlign: 'center', py: 2, px: 1 }}>
                   {t('writing.snapshots.empty')}
                 </Typography>

@@ -33,10 +33,13 @@ pub mod project_scan;
 pub mod review;
 pub mod settings;
 pub mod source_view;
+/// macOS 语音识别权限主动请求（Web Speech API 依赖 SFSpeechRecognizer 授权）
+pub mod speech;
 pub mod tech_debt;
 /// 代码工作台集成终端（IDE 标准可交互 shell：portable_pty + 前端 xterm.js）
 pub mod terminal;
 pub use os::*;
+pub use speech::*;
 /// ACP Host WebSocket 桥（P0.1）：外部 ACP Agent 经 ws 驱动本工作台（传输层，无业务逻辑）
 pub mod acp_ws;
 pub use acp_ws::*;

@@ -148,7 +148,7 @@ export function buildBookOverview(input: BookOverviewInput): BookOverview {
     overdue: foreshadowings.filter((f) => isOverdue(f, chapters)).length,
   };
 
-  const report = buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines);
+  const report = buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings);
   const proofread = {
     issues: report.issues.length,
     byGroup: PROOFREAD_GROUPS.map((g) => ({ group: g, count: report.counts[g] ?? 0 })).filter((x) => x.count > 0),

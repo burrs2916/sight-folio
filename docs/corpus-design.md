@@ -31,11 +31,11 @@ L4 消费端       AI 分析运行器、聊天首轮注入、工作台右栏 AI 
 
 ### L2 纯函数生产层
 
-| 文件 | 职责 |
-| --- | --- |
-| `src/utils/writingCorpus.ts` | 主题材语料 builder（世界观/时间线/伏笔/灵感/校对/统计/正文/一致性审查）+ 共享字段位模板 + `resolveRefs`/`buildRefIndex`/`buildChapterIndexCorpus` |
-| `src/utils/writingAiCorpus.ts` | 补充题材（人物卡/大纲骨架/聚焦设定） |
-| `src/utils/writingCorpusBudget.ts` | **预算单一真源**：截断上限常量 + 端 profile |
+| 文件                               | 职责                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/utils/writingCorpus.ts`       | 主题材语料 builder（世界观/时间线/伏笔/灵感/校对/统计/正文/一致性审查）+ 共享字段位模板 + `resolveRefs`/`buildRefIndex`/`buildChapterIndexCorpus` |
+| `src/utils/writingAiCorpus.ts`     | 补充题材（人物卡/大纲骨架/聚焦设定）                                                                                                              |
+| `src/utils/writingCorpusBudget.ts` | **预算单一真源**：截断上限常量 + 端 profile                                                                                                       |
 
 - 所有 builder 都是**纯函数**，输入输出确定、零依赖（只依赖 tauri 类型与其它 utils），可单测直跑。
 - 输出形态：`{ zh: string; en: string }`（多行文本）；`corpusLines()` 在 L3 按 UI 语言拆成行数组交给 `makeSection`。
@@ -154,14 +154,15 @@ AI analysisRunner / 聊天面板 / 工作台右栏   （L4 只读消费）
 
 ## 6. 现状速查（2026-09 修复后）
 
-| 项 | 位置 | 说明 |
-| --- | --- | --- |
-| 主题材 builder | `src/utils/writingCorpus.ts` | 12 个导出 + 共享字段模板 + resolveRefs/buildRefIndex/buildChapterIndexCorpus |
-| 补充题材 builder | `src/utils/writingAiCorpus.ts` | 人物/大纲/聚焦设定（复用 writingCorpus 解析口径） |
-| 预算常量 | `src/utils/writingCorpusBudget.ts` | 语料片段上限 + `CHAT_CONTEXT_PROFILE` |
-| provider overview 章节表 | `buildChapterIndexCorpus` | 已替换手工 mdTable（缺省行为不变） |
-| 关系化引用解析 | `resolveRefs` / `buildRefIndex` | 已接入 timeline/foreshadowing/setting；工作台四个调用点保持缺省（文档第 3 节：可选启用） |
-| 单测 | `src/utils/__tests__/writingCorpus*.test.ts` 等 | builder 直跑 + provider / 面板契约 |
+| 项                       | 位置                                            | 说明                                                                                     |
+| ------------------------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 主题材 builder           | `src/utils/writingCorpus.ts`                    | 12 个导出 + 共享字段模板 + resolveRefs/buildRefIndex/buildChapterIndexCorpus             |
+| 补充题材 builder         | `src/utils/writingAiCorpus.ts`                  | 人物/大纲/聚焦设定（复用 writingCorpus 解析口径）                                        |
+| 预算常量                 | `src/utils/writingCorpusBudget.ts`              | 语料片段上限 + `CHAT_CONTEXT_PROFILE`                                                    |
+| provider overview 章节表 | `buildChapterIndexCorpus`                       | 已替换手工 mdTable（缺省行为不变）                                                       |
+| 关系化引用解析           | `resolveRefs` / `buildRefIndex`                 | 已接入 timeline/foreshadowing/setting；工作台四个调用点保持缺省（文档第 3 节：可选启用） |
+| 单测                     | `src/utils/__tests__/writingCorpus*.test.ts` 等 | builder 直跑 + provider / 面板契约                                                       |
+
 ---
 
 ## 7. 语料库存储与维护（书库层）
@@ -173,12 +174,12 @@ AI analysisRunner / 聊天面板 / 工作台右栏   （L4 只读消费）
 
 ### 7.1 表结构与建表铁律
 
-| 表 | 用途 | 关键约束 |
-| --- | --- | --- |
-| `corpus_books` | 书目主表（来源/指纹/统计/镜像关联） | `content_hash` + `simhash` 指纹列；`source_path` 记录原文件路径 |
-| `corpus_chunks` | 句级索引（含 FTS5 trigram 倒排镜像） | 删除/替换由事务内同步触发器维护 FTS，索引不残留 |
-| `corpus_book_tags` | 多标签表 | `(book_id, tag)` 复合主键 + `idx_corpus_book_tags_tag` 索引；空标签不落库 |
-| `corpus_book_sources` | 全文镜像归档（P0-1） | 导入即归档抽取后的全文；重建优先用镜像 |
+| 表                    | 用途                                 | 关键约束                                                                  |
+| --------------------- | ------------------------------------ | ------------------------------------------------------------------------- |
+| `corpus_books`        | 书目主表（来源/指纹/统计/镜像关联）  | `content_hash` + `simhash` 指纹列；`source_path` 记录原文件路径           |
+| `corpus_chunks`       | 句级索引（含 FTS5 trigram 倒排镜像） | 删除/替换由事务内同步触发器维护 FTS，索引不残留                           |
+| `corpus_book_tags`    | 多标签表                             | `(book_id, tag)` 复合主键 + `idx_corpus_book_tags_tag` 索引；空标签不落库 |
+| `corpus_book_sources` | 全文镜像归档（P0-1）                 | 导入即归档抽取后的全文；重建优先用镜像                                    |
 
 **建表铁律（只增不改，历史库必须可由升级脚本一路 CREATE/ALTER 升上来）**：
 
@@ -252,11 +253,11 @@ AI analysisRunner / 聊天面板 / 工作台右栏   （L4 只读消费）
 
 **判级规则（保守优先，宁可保留不误伤）**：
 
-| 层 | 判定 | 是否入库 |
-| --- | --- | --- |
-| `High` | 含对话引号对 / 叙事动词 / 描写意象 / 修辞词 | 入库 |
-| `Medium` | 无显著信号但有效字符 ≥ 4 的普通完整句 | 入库 |
-| `Low` | 有效字符 < [`MIN_INDEX_CHARS`](=3)（长度门槛优先，带信号也不豁免）；或无信号且有效字符 < 4 的碎片；**或纯感叹词**（多字感叹短语整体命中 `EXCLAMATION_PHRASES`，如 `“我的天！”`、`“老天爷！”`、`“哎呀妈呀！”`） | **不入库** |
+| 层       | 判定                                                                                                                                                                                                           | 是否入库   |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `High`   | 含对话引号对 / 叙事动词 / 描写意象 / 修辞词                                                                                                                                                                    | 入库       |
+| `Medium` | 无显著信号但有效字符 ≥ 4 的普通完整句                                                                                                                                                                          | 入库       |
+| `Low`    | 有效字符 < [`MIN_INDEX_CHARS`](=3)（长度门槛优先，带信号也不豁免）；或无信号且有效字符 < 4 的碎片；**或纯感叹词**（多字感叹短语整体命中 `EXCLAMATION_PHRASES`，如 `“我的天！”`、`“老天爷！”`、`“哎呀妈呀！”`） | **不入库** |
 
 **最小索引长度门槛（`MIN_INDEX_CHARS = 3`，有效字符口径）**：
 
@@ -394,9 +395,9 @@ sentence chunk 残留 220 条）。新增 `is_noise_text` ⑤ 分支（不依赖
 **⑤e 电子书版权门户行**（行首前缀模板）：
 
 - `t.starts_with("本书版权由") || t.starts_with("版权所有，未经书面许可") ||
-  t.starts_with("此电子书由")`——存量 4 条门户行（`此电子书由公众号：三秋君分享`×2、
+t.starts_with("此电子书由")`——存量 4 条门户行（`此电子书由公众号：三秋君分享`×2、
   `本书版权由上海阅文信息技术有限公司提供。`、`版权所有，未经书面许可，不得转载、
-  复制，违者必究`），与运营词 0 重叠，合计净增量 **380 条**；
+复制，违者必究`），与运营词 0 重叠，合计净增量 **380 条**；
 - **根因闭环**：纯数字 chunk `2016`（id=318505，版权页「…提供。2016」同行
   句号破句产物，整行非纯数字放行 → 切句后才出现 `2016`、不复检）。加
   `本书版权由` 行首前缀后整行拦截，`2016` 随行消失，**无需单独处理纯数字**；
@@ -409,3 +410,35 @@ sentence chunk 残留 220 条）。新增 `is_noise_text` ⑤ 分支（不依赖
 `月票`/`推荐票`/`订阅`/`票票`/`本书版权由`/`此电子书由`/`版权所有，未经
 书面许可` 与 `2016` 破句残留全部 **0**；`打包票` 等正文"票"字用法检索不缩水
 （FTS 与业务表 row 数一致，tokenizer 行为与重建前基线相同）。
+
+## 8. mobi 解析链路修复与重导基线（2026-10-08）
+
+### 8.1 问题与修复
+
+- **根因**：mobi `palmdoc_decompress` 移植自上游（LZ77 变种），其对畸形输入
+  `offset % text_pos`（text_pos == 0）会除零 panic → 异常记录被截断为 3% 尾块，
+  全书 18,993,859 解压字节只取到 ~48.9 万字节（约 15.7 万字 / 445 chunk）。
+- **修复点**（`src-tauri/src/commands/corpus.rs`）：
+  - `palmdoc_decompress`：text_pos == 0 时按距离 0 处理（防御，不 panic）；
+    去除 record 头部残留尾字节（UTF-8 半字符污染）。
+  - `decode_mobi_text`：容错 UTF-8 —— 合法 UTF-8 直接返回；跨 record 截断造成的
+    lossy 替换字符占比 ≤5% 判为 UTF-8 并清洗 `\u{FFFD}` 残片；GBK（CJK 占比 ≥20%）
+    与 CP1252 依次兜底；不可解码时明确报错而非静默乱码。
+  - `html_to_text`：逐字符剔除 CR（HTML 空白归一化，旧实现残留 `\r` 并污染尾部
+    分句）；遇 `</body>`/`</html>` 闭合后停止收集文本（丢弃源文件在文档边界后的
+    尾部垃圾，如 `\x00d Bbody>` 残杂质）。
+
+### 8.2 重导实测（斗破苍穹 mobi，全书 26 卷）
+
+- 解压字节 18,993,859（与修复前基线一致）→ 正文文本 14,695,811 字符。
+- 切分：**chunk 90,680 = chapter 4,537 + sentence 86,143**，word_count 5,117,274；
+  over_5000chars=0 无超长块；min=5 / avg=58 / max=407，无 ≤2 字碎片。
+- 质量校验：无 `\u{FFFD}` 替换符、无 NUL/CR 控制字符残留、无 `Bbody` 垃圾句；
+  章标题覆盖至 1,6xx 章（含目录页/卷目录重复识别，为 mobi 结构固有现象）；
+  正文结尾为作者完本感言，内容完整无截断。
+- **与 7.9 节 100,400 / 96,317 / 5,109,253 的差异说明**：7.9 基线为修复前旧源
+  （txt 物理行粒度 / 旧切分规则）实证；本版为 mobi（HTML 块级标签补行粒度）+
+  修复后链路 + 章标题识别增强（目录行/无单位短标题进 chapter）的实测结果，
+  同书同位（字量差 0.16%），chunk 差异属来源与规则口径不同，**非丢章/丢文**。
+- 语料检索口径（FTS5 trigram）：≥3 字走 FTS 命中正常（如「斗气大陆」346 条）；
+  2 字及以内须走 LIKE 子串兜底（trigram 对 2 字查询必然 0 命中，属预期）。

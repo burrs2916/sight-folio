@@ -1,9 +1,11 @@
 // 章级跳转分发（正文/写作台 → 主窗口 L2 页签的精确联动）
 //
 // 背景：正文写作卡（chrome="paper" 旧模型）与写作台独立窗口（/writing?desk=1）
-// 顶部都可渲染章级提醒条（伏笔待回收 / 灵感待分发 / 校对发现问题 / 统计离群）。
-// 跳转目标页签（伏笔/灵感/校对/统计）在**主窗口**的 L2 视图体系里，而写作台是
-// 独立 OS 窗口（各自独立 JS 运行时与 Zustand store）——因此跳转必须按窗口形态分发：
+// 顶部都可渲染章级提醒条（伏笔待回收 / 灵感待分发 / 校对发现问题 / 统计离群），
+// 写作台「章详情」九维章统筹面板（ChapterOverviewPanel）的每行跳转也复用本协议。
+// 跳转目标页签（伏笔/灵感/校对/统计/人物/世界观/时间线/概览）在**主窗口**的 L2
+// 视图体系里，而写作台是独立 OS 窗口（各自独立 JS 运行时与 Zustand store）——
+// 因此跳转必须按窗口形态分发：
 //
 //   主窗口    → 就地执行（选中实体 / 设置 focusKey + openTypedCarrierView）
 //   写作台窗口 → emit desk-goto-view 事件，主窗口 App 监听后按同一语义执行 + 置前
@@ -16,8 +18,16 @@ import { openTypedCarrierView, type WritingViewKind } from './studioBook';
 import { isWritingDeskWindow } from './writingDeskWindow';
 import { logger } from './logger';
 
-/** 提醒条可跳转的页签子集 */
-export type ChapterJumpKind = 'foreshadowing' | 'inspiration' | 'proofread' | 'stats';
+/** 提醒条 / 九维章统筹可跳转的页签子集（WritingViewKind 的子集；timeline 兼作剧情线视角） */
+export type ChapterJumpKind =
+  | 'foreshadowing'
+  | 'inspiration'
+  | 'proofread'
+  | 'stats'
+  | 'characters'
+  | 'worldview'
+  | 'timeline'
+  | 'overview';
 
 /** 章级跳转载荷：kind 决定页签，附带对应精确选中字段。 */
 export interface ChapterJumpPayload {
@@ -29,6 +39,14 @@ export interface ChapterJumpPayload {
   issueKey?: string | null;
   /** 统计：定位到当前章（S4 statsFocusChapterId 语义，值为 chapter.id） */
   chapterId?: string | null;
+  /** 人物/世界观：跳转前先选中该设定卡（与画布右栏 selectSetting 同语义） */
+  settingId?: string | null;
+  /** 时间线事件：本章视角下选中具体事件（selectTimelineEvent + viewMode='chapter'） */
+  eventId?: string | null;
+  /** 剧情线视角：选中剧情线（selectStoryline + viewMode='storyline'），kind 取 'timeline' */
+  storylineId?: string | null;
+  /** timeline 视角口径：chapter=本章事件视角（配 eventId），storyline=剧情线视角（配 storylineId） */
+  timelineView?: 'chapter' | 'storyline';
 }
 
 /** 跨窗口事件名（写作台 → 主窗口）：主窗口 App 监听后按 applyDeskGotoView 执行。 */
@@ -54,6 +72,19 @@ export function applyDeskGotoView(p: ChapterJumpPayload): void {
     if (p.kind === 'stats' && p.chapterId) {
       es.setStatsFocusChapterId(p.chapterId);
     }
+    if ((p.kind === 'characters' || p.kind === 'worldview') && p.settingId) {
+      es.selectSetting(p.settingId);
+    }
+    if (p.kind === 'timeline') {
+      if (p.timelineView === 'storyline' && p.storylineId) {
+        if (es.timelineViewMode !== 'storyline') es.setTimelineViewMode('storyline');
+        es.selectStoryline(p.storylineId);
+      } else {
+        if (es.timelineViewMode !== 'chapter') es.setTimelineViewMode('chapter');
+        if (p.eventId) es.selectTimelineEvent(p.eventId);
+      }
+    }
+    // characters/worldview/timeline/overview 与既有四类同为 WritingViewKind 合法键
     openTypedCarrierView(p.genre, p.kind as WritingViewKind);
   } catch (e) {
     logger.warn('writingDeskJump', 'applyDeskGotoView failed', { error: String(e) });

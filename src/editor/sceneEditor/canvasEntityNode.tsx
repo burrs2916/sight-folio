@@ -258,7 +258,13 @@ export const CanvasEntityNode = memo(function CanvasEntityNode({
             // toast 明说，绝不静默 no-op。
             const ws = useWritingStore.getState();
             const cfgBook =
-              typeof cfg.filePath === 'string' ? (cfg.filePath.match(/^writing:\/\/([^/]+)\//)?.[1] ?? null) : null;
+              // 预置板卡片直接携带 bookId（H1/H5/H6）：设定卡节点可能没有 filePath
+              // （无主出场章时不写），路径反解兜不住，回退 activeBookId 会开错窗口
+              typeof cfg.bookId === 'string' && (cfg.bookId as string)
+                ? (cfg.bookId as string)
+                : typeof cfg.filePath === 'string'
+                  ? (cfg.filePath.match(/^writing:\/\/([^/]+)\//)?.[1] ?? null)
+                  : null;
             const bookId = cfgBook ?? ws.activeBookId;
             if (comp.type === 'writing-chapter' || comp.type === 'writing-workbench') {
               let chapterId: string | null =

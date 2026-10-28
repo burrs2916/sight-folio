@@ -708,6 +708,8 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
             >
               <EditIcon sx={{ fontSize: 10 }} />
             </Box>
+            {/* 写作台 ✎（2026-10-09 拍板）：常显 + 放大 + primary 色，作为作品级开窗入口；
+                保持作品级定位（不放全局右上角），hover 增亮即可 */}
             <Tooltip title={t('studio.openWritingTip')}>
               <Box
                 component="span"
@@ -722,13 +724,14 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   p: 0.15,
-                  opacity: 0.3,
+                  opacity: 0.75,
                   cursor: 'pointer',
                   borderRadius: 0.5,
-                  '&:hover': { opacity: 1 },
+                  color: 'primary.main',
+                  '&:hover': { opacity: 1, bgcolor: 'action.hover' },
                 }}
               >
-                <EditNoteOutlinedIcon sx={{ fontSize: 11 }} />
+                <EditNoteOutlinedIcon sx={{ fontSize: 15 }} />
               </Box>
             </Tooltip>
             {/* 删除 ×（2026-09-19 拍板）：任何作品都可删——含唯一一本。

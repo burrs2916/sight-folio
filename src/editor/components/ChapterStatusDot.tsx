@@ -52,7 +52,7 @@ export function ChapterStatusDot({ status, depth, onClick }: { status: string; d
         flexShrink: 0,
         cursor: onClick ? 'pointer' : 'default',
       }}
-      title={`${depth === 0 ? '父级' : '子级'} · ${nodeStatusLabel(status)}`}
+      title={`${depth === 0 ? t('writingTree.parent') : t('writingTree.child')} · ${nodeStatusLabel(status)}`}
     />
   );
 }
