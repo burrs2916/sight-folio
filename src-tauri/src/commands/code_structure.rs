@@ -1303,35 +1303,6 @@ pub fn extract_c_like_symbols_ast(
     Some((out, tree.root_node().has_error()))
 }
 
-/// C/C++ 符号抽取：优先 AST；解析有错时与逐行正则取**并集**（只增不减）。
-///
-/// 与 `parser::symbol_imports_ast::extract_symbol_imports_with_fallback` 同一形态：
-/// tree-sitter 遇到预处理密集的 C 代码常报 error，此时正则补集能救回一部分
-/// 大括号换行风格不一致的声明。
-pub fn extract_c_like_symbols_with_fallback(
-    dialect: Dialect,
-    content: &str,
-) -> Vec<SymbolCandidate> {
-    let Some((ast, has_error)) = extract_c_like_symbols_ast(dialect, content) else {
-        return extract_c_like_symbols(content);
-    };
-    if !has_error {
-        return ast;
-    }
-    let mut out = ast;
-    let seen: HashSet<(String, usize, String)> = out
-        .iter()
-        .map(|s| (s.name.clone(), s.line, s.kind.clone()))
-        .collect();
-    for s in extract_c_like_symbols(content) {
-        if !seen.contains(&(s.name.clone(), s.line, s.kind.clone())) {
-            out.push(s);
-        }
-    }
-    out.sort_by(|a, b| a.line.cmp(&b.line).then(a.name.cmp(&b.name)));
-    out
-}
-
 // ─── 设计模式检测 ───
 //
 // 检测逻辑已整体迁移到 `commands::design_patterns`（证据加权打分引擎）。

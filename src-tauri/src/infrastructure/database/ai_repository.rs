@@ -1000,8 +1000,6 @@ pub struct AiInsightRow {
 pub mod insight_status {
     pub const OPEN: &str = "open";
     pub const RESOLVED: &str = "resolved";
-    /// 部分解决：多证据/多行问题里有一部分已消失，但还没彻底干净
-    pub const PARTIAL: &str = "partial";
 }
 
 /// 某次分析当前的文件快照：路径 → 内容哈希，外加目录集合与唯一 basename 索引。

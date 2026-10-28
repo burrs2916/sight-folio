@@ -251,11 +251,6 @@ pub fn dialect_for(lang: &str, rel_path: &str) -> Option<Dialect> {
     registry().get(lang)?.dialect(rel_path)
 }
 
-/// 兼容入口：语言是否有 AST 能力
-pub fn supports_ast(lang: &str, rel_path: &str) -> bool {
-    dialect_for(lang, rel_path).is_some()
-}
-
 /// 兼容入口：结构分析（原 code_structure::extract_symbols）
 pub fn extract_symbols(lang: &str, content: &str) -> Vec<SymbolCandidate> {
     match registry().get(lang) {
