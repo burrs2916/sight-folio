@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildCommentHealthSection } from "../scanSectionBuilders";
+import { countCommentedCode } from "../../../editor/utils/portraits";
 import type { ScanSnapshot } from "../scanSections";
 
 function snapshot(overrides: Partial<ScanSnapshot> = {}): ScanSnapshot {
@@ -48,5 +49,36 @@ describe("buildCommentHealthSection（R42 注释卫生分节）", () => {
     // 无 doc 的导出符号被点名
     expect(sec.content).toContain("src/a.ts");
     expect(sec.facts?.lowCount).toBe(0); // a.ts 恰 5% 不 <5%，b.ts 健康
+  });
+});
+
+describe("countCommentedCode（R42 注释掉的死代码检测）", () => {
+  it("识别注释掉的代码行", () => {
+    const lines = [
+      "// if (user) {",
+      "//   doSomething();",
+      "// }",
+      "const a = 1;",
+    ];
+    expect(countCommentedCode(lines)).toBe(3);
+  });
+
+  it("忽略文档型与中文说明注释", () => {
+    const lines = [
+      "// TODO 修复边界",
+      "// 这里是中文说明",
+      "// 增加缓存以提升性能",
+      "const a = 1;",
+    ];
+    expect(countCommentedCode(lines)).toBe(0);
+  });
+
+  it("识别行尾代码式注释（含分号/大括号）", () => {
+    const lines = [
+      "// return null;",
+      "// console.log(x);",
+      "const a = 1;",
+    ];
+    expect(countCommentedCode(lines)).toBe(2);
   });
 });

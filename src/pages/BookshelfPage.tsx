@@ -135,7 +135,7 @@ export default function BookshelfPage() {
       setOpening(book.id);
       try {
         await openBookInStudio(book.id, book.title);
-        await openWritingDeskWindow({ bookId: book.id });
+        navigate('/analyzer');
       } catch (e) {
         showToast(t('dashboard.openFail', { msg: String(e) }), 'error');
       } finally {
@@ -280,7 +280,21 @@ export default function BookshelfPage() {
                       opacity: 0,
                       transition: 'opacity 0.15s',
                     }}
-                  >                    <Tooltip title={t('dashboard.openWritingDesk')}>
+                  >
+                    <Tooltip title={t('dashboard.openStudio')}>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void openStudio(b);
+                        }}
+                        sx={{ bgcolor: 'background.paper', '&:hover': { bgcolor: 'background.paper' } }}
+                        aria-label={t('dashboard.openStudio')}
+                      >
+                        <DashboardRoundedIcon sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('dashboard.openWritingDesk')}>
                       <IconButton
                         size="small"
                         onClick={(e) => {

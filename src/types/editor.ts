@@ -178,6 +178,7 @@ export interface SpatialRendererContext {
   coordinateEngine: import("../editor/spatial/CoordinateEngine").CoordinateEngine;
   viewportSyncService: import("../editor/spatial/ViewportSyncService").ViewportSyncService;
   clock: { subscribe: (listener: (time: { elapsed: number; delta: number }) => void) => (() => void); setSpeed: (speed: number) => void; getTime: () => { elapsed: number; delta: number; tick: number; timestamp: number; isPaused: boolean; speed: number } };
+  dataBridge: import("../datasource/orchestration/DataOrchestrator").ComponentDataBridge;
   crs: import("./spatial").CRSType;
 }
 

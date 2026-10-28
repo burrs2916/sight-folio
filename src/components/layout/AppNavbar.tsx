@@ -25,6 +25,7 @@ import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
+import CodeIcon from '@mui/icons-material/Code';
 import ClearIcon from '@mui/icons-material/Clear';
 import { useLayoutStore } from '../../store/layoutStore';
 import { useSceneStore } from '../../store/sceneStore';
@@ -35,6 +36,8 @@ import { useWritingStore } from '../../store/writingStore';
 import { t } from '../../i18n';
 import { aiButtonSx } from '../../ai/aiBrand';
 import LanguageToggle from '../i18n/LanguageToggle';
+import { projectScanApi, type ProjectSymbol, type CodeIndexEntry } from '../../services/tauri';
+import { navigateToSourceByPath } from '../../editor/utils/sourceNavigate';
 import { openWritingDesk } from '../../utils/writingDeskWindow';
 
 interface AppNavbarProps {
@@ -55,7 +58,25 @@ interface FileSearchResult {
   sublabel: string;
   language?: string | null;
 }
-type SearchResult = AnalysisSearchResult | FileSearchResult;
+interface SymbolSearchResult {
+  type: 'symbol';
+  id: string;
+  label: string; // 符号名
+  sublabel: string; // 文件路径
+  lineNo: number;
+  kind: string;
+  analysisId: string;
+}
+interface CodeSearchResult {
+  type: 'code';
+  id: string;
+  label: string; // 代码片段
+  sublabel: string; // 文件路径
+  lineNo: number;
+  analysisId: string;
+}
+
+type SearchResult = AnalysisSearchResult | FileSearchResult | SymbolSearchResult | CodeSearchResult;
 
 export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
   const config = useLayoutStore((s) => s.config);
@@ -68,7 +89,11 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
   const requestAiPanel = useEditorStore((s) => s.requestAiPanel);
   // 全局 AI 助手入口：编辑器内直接切到右侧 AI 面板（tab5），其他页跳 AI 全页
   const handleAiClick = () => {
-    navigate('/ai');
+    if (location.pathname.startsWith('/analyzer')) {
+      requestAiPanel();
+    } else {
+      navigate('/ai');
+    }
   };
 
   // 写作台全局入口：拉起独立写作台窗口，打开当前主窗口选定的作品；
@@ -90,6 +115,44 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
   const setActiveScene = useSceneStore((s) => s.setActiveScene);
   const showToast = useToastStore((s) => s.showToast);
 
+  // ─── 符号索引搜索（当前分析，250ms 防抖，最多 8 条）───
+  const [symbolResults, setSymbolResults] = useState<ProjectSymbol[]>([]);
+  useEffect(() => {
+    const q = searchText.trim();
+    if (!q || !activeAnalysisId) {
+      setSymbolResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const results = await projectScanApi.searchSymbols(activeAnalysisId, q, 8);
+        setSymbolResults(results);
+      } catch {
+        setSymbolResults([]);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchText, activeAnalysisId]);
+
+  // ─── 代码全文索引搜索（内容片段 → 定位文件 + 行号，最多 6 条）───
+  const [codeResults, setCodeResults] = useState<CodeIndexEntry[]>([]);
+  useEffect(() => {
+    const q = searchText.trim();
+    if (!q || !activeAnalysisId) {
+      setCodeResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const results = await projectScanApi.searchCodeContent(activeAnalysisId, q, 6);
+        setCodeResults(results);
+      } catch {
+        setCodeResults([]);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchText, activeAnalysisId]);
+
   // 搜索过滤：分析名 + 文件名 + 符号索引
   const searchResults = useMemo<SearchResult[]>(() => {
     if (!searchText.trim()) return [];
@@ -110,8 +173,34 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
       }
     });
 
+    // 搜索符号索引（后端 LIKE，kind 权重排序）
+    if (activeAnalysisId) {
+      symbolResults.forEach((sym) => {
+        results.push({
+          type: 'symbol',
+          id: sym.id,
+          label: sym.name,
+          sublabel: sym.filePath,
+          lineNo: sym.lineStart,
+          kind: sym.kind,
+          analysisId: activeAnalysisId,
+        });
+      });
+      // 搜索代码内容索引（全文检索 → 定位文件 + 行号）
+      codeResults.forEach((c) => {
+        results.push({
+          type: 'code',
+          id: c.id,
+          label: c.content.length > 46 ? c.content.slice(0, 45) + '…' : c.content,
+          sublabel: c.filePath,
+          lineNo: c.lineNo,
+          analysisId: activeAnalysisId,
+        });
+      });
+    }
+
     return results.slice(0, 30); // 最多 30 条
-  }, [searchText, scenes, files]);
+  }, [searchText, scenes, files, symbolResults, codeResults, activeAnalysisId]);
 
   const handleSearchSelect = useCallback(
     (result: SearchResult) => {
@@ -120,6 +209,37 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
       if (result.type === 'analysis') {
         setActiveScene(result.id);
         navigate('/analyzer');
+      } else if (result.type === 'symbol') {
+        // 符号 → 打开分析页并跳到定义那一行（等 store 数据加载后执行）
+        setActiveScene(result.analysisId);
+        navigate('/analyzer');
+        setTimeout(() => {
+          const r = navigateToSourceByPath(
+            result.sublabel,
+            result.lineNo ?? null,
+            t('search.symbolHit', { label: result.label }),
+          );
+          if (!r.opened) {
+            showToast(
+              t('search.symbolNotFound', { label: result.label, path: result.sublabel, line: result.lineNo }),
+              'info',
+            );
+          }
+        }, 900);
+      } else if (result.type === 'code') {
+        // 代码内容 → 打开分析页并跳到命中行
+        setActiveScene(result.analysisId);
+        navigate('/analyzer');
+        setTimeout(() => {
+          const r = navigateToSourceByPath(
+            result.sublabel,
+            result.lineNo ?? null,
+            t('search.codeHit', { label: result.label }),
+          );
+          if (!r.opened) {
+            showToast(t('search.codeNotFound', { path: result.sublabel, line: result.lineNo }), 'info');
+          }
+        }, 900);
       } else {
         // 文件结果不适合导航，尝试在编辑器中选中
         inputRef.current?.blur();
@@ -248,6 +368,10 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
                     <ListItemIcon sx={{ minWidth: 0 }}>
                       {r.type === 'analysis' ? (
                         <DescriptionRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                      ) : r.type === 'symbol' ? (
+                        <DataObjectIcon sx={{ fontSize: 16, color: '#06B6D4' }} />
+                      ) : r.type === 'code' ? (
+                        <CodeIcon sx={{ fontSize: 16, color: '#8B5CF6' }} />
                       ) : (
                         <InsertDriveFileIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                       )}
@@ -260,13 +384,27 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
                       }
                       secondary={
                         <Typography variant="caption" sx={{ fontSize: 10, color: 'text.disabled' }}>
-                          {r.sublabel}
+                          {r.type === 'symbol'
+                            ? `${r.sublabel}:${r.lineNo} · ${r.kind}`
+                            : r.type === 'code'
+                              ? `${r.sublabel}:${r.lineNo} · ${t('search.jump')}`
+                              : r.sublabel}
                         </Typography>
                       }
                     />
                     {r.type === 'analysis' && (
                       <Typography variant="caption" sx={{ fontSize: 9, color: 'primary.main', flexShrink: 0 }}>
                         {t('search.open')}
+                      </Typography>
+                    )}
+                    {r.type === 'symbol' && (
+                      <Typography variant="caption" sx={{ fontSize: 9, color: '#06B6D4', flexShrink: 0 }}>
+                        {t('search.locate')}
+                      </Typography>
+                    )}
+                    {r.type === 'code' && (
+                      <Typography variant="caption" sx={{ fontSize: 9, color: '#8B5CF6', flexShrink: 0 }}>
+                        {t('search.jump')}
                       </Typography>
                     )}
                   </ListItemButton>

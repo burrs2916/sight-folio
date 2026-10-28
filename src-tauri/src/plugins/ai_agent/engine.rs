@@ -62,6 +62,18 @@ impl ToolRegistry {
             })
             .collect()
     }
+
+    pub fn list_names(&self) -> Vec<String> {
+        self.tools.keys().cloned().collect()
+    }
+
+    /// 单次调用工具白名单：只保留 `keep` 中（大小写不敏感）已注册的工具。
+    /// 与 Agent 配置里的 `tool_ids` 取交集——本函数只在此基础上进一步收窄，
+    /// 不会凭空启用 Agent 未授权的工具。
+    pub fn filter_keep(&mut self, keep: &[String]) {
+        self.tools
+            .retain(|name, _| keep.iter().any(|k| k.eq_ignore_ascii_case(name)));
+    }
 }
 
 // ─── 工具调用事件（通过 Tauri event 推送前端）───

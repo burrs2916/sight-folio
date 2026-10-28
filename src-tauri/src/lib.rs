@@ -7,22 +7,27 @@ mod parser;
 mod plugins;
 
 use application::{
+    DeleteGroupUseCase, DeleteIconUseCase, GetAllGroupsUseCase, GetAllIconsUseCase,
+    GetGroupUseCase, GetIconUseCase, GetIconsByGroupUseCase, SaveGroupUseCase, SaveIconUseCase,
+};
+use application::{
     DeletePresetConfigUseCase, GetConfigUseCase, GetPresetConfigUseCase, ResetConfigUseCase,
     SavePresetConfigUseCase, UpdateConfigUseCase,
 };
 use commands::{
     init_logger_state, AnalysisState, AuthState, ComponentPluginState, CorpusState,
-    DatasourceState, FileWatcherState, SettingsState, TerminalManager,
+    DatasourceState, FileWatcherState, IconsState, SettingsState, TerminalManager,
 };
 use infrastructure::database::{init_tables, migrate};
 use infrastructure::{
     CorpusDatabase, Database, SqliteAnalysisRepository, SqliteAuthRepository,
-    SqliteCorpusRepository, SqliteDatasourceRepository, SqliteProjectCallEdgeRepository,
-    SqliteProjectChangeCouplingRepository, SqliteProjectCodeCloneRepository,
-    SqliteProjectCodeIndexRepository, SqliteProjectDataFlowRepository,
-    SqliteProjectDependencyRepository, SqliteProjectFileMetricRepository,
-    SqliteProjectFileRepository, SqliteProjectGitChurnRepository, SqliteProjectLayerRepository,
-    SqliteProjectModuleRepository, SqliteProjectSymbolRefRepository, SqliteProjectSymbolRepository,
+    SqliteCorpusRepository, SqliteDatasourceRepository, SqliteIconRepository,
+    SqliteProjectCallEdgeRepository, SqliteProjectChangeCouplingRepository,
+    SqliteProjectCodeCloneRepository, SqliteProjectCodeIndexRepository,
+    SqliteProjectDataFlowRepository, SqliteProjectDependencyRepository,
+    SqliteProjectFileMetricRepository, SqliteProjectFileRepository,
+    SqliteProjectGitChurnRepository, SqliteProjectLayerRepository, SqliteProjectModuleRepository,
+    SqliteProjectSymbolRefRepository, SqliteProjectSymbolRepository,
     SqliteProjectTechDebtRepository, SqliteReviewFindingRepository, SqliteReviewRuleRepository,
     SqliteScanJobRepository, SqliteSettingsRepository, SqliteWritingRepository,
 };
@@ -149,6 +154,7 @@ pub fn run() {
 
             let auth_repo = SqliteAuthRepository::new(db_arc.clone());
             let settings_repo = SqliteSettingsRepository::new(db_arc.clone());
+            let icon_repo = SqliteIconRepository::new(db_arc.clone());
             let datasource_repo = SqliteDatasourceRepository::new(db_arc.clone());
             let analysis_repo = Arc::new(SqliteAnalysisRepository::new(db_arc.clone()));
 
@@ -212,6 +218,18 @@ pub fn run() {
                 repository: settings_repo,
             };
 
+            let icons_state = IconsState {
+                get_all_groups_use_case: GetAllGroupsUseCase::new(icon_repo.clone()),
+                get_group_use_case: GetGroupUseCase::new(icon_repo.clone()),
+                save_group_use_case: SaveGroupUseCase::new(icon_repo.clone()),
+                delete_group_use_case: DeleteGroupUseCase::new(icon_repo.clone()),
+                get_all_icons_use_case: GetAllIconsUseCase::new(icon_repo.clone()),
+                get_icons_by_group_use_case: GetIconsByGroupUseCase::new(icon_repo.clone()),
+                get_icon_use_case: GetIconUseCase::new(icon_repo.clone()),
+                save_icon_use_case: SaveIconUseCase::new(icon_repo.clone()),
+                delete_icon_use_case: DeleteIconUseCase::new(icon_repo),
+            };
+
             let datasource_state = DatasourceState {
                 repository: datasource_repo,
             };
@@ -226,6 +244,7 @@ pub fn run() {
 
             app.manage(auth_state);
             app.manage(settings_state);
+            app.manage(icons_state);
             app.manage(datasource_state);
             app.manage(analysis_state);
             app.manage(component_plugin_state);
@@ -285,6 +304,18 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::delete_setting,
+            commands::get_all_groups,
+            commands::get_group,
+            commands::save_group,
+            commands::delete_group,
+            commands::get_all_icons,
+            commands::get_icons_by_group,
+            commands::get_icon,
+            commands::save_icon,
+            commands::delete_icon,
+            commands::upload_icon,
+            commands::get_icon_file_url,
+            commands::get_icon_file_urls,
             commands::get_all_datasources,
             commands::get_datasource,
             commands::save_datasource,

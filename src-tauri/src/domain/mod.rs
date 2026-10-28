@@ -3,6 +3,7 @@ pub mod auth;
 pub mod component_plugin;
 pub mod corpus;
 pub mod datasource;
+pub mod icons;
 pub mod project_call_edges;
 pub mod project_change_coupling;
 pub mod project_code_clones;

@@ -62,6 +62,23 @@ fn default_one() -> i64 {
     1
 }
 
+/// 语料句（检索单元）。导入管线把整本切分为句序列；章标题行以 kind='chapter' 保留，
+/// 检索命中时可回溯「第几章的哪一句」。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CorpusChunk {
+    pub id: i64,
+    pub book_id: i64,
+    /// 全书内顺序号（0 起，含章标题行）。
+    pub seq: i64,
+    /// chapter = 章标题行；sentence = 正文句。
+    pub kind: String,
+    pub content: String,
+    /// 该句所属章标题（章标题行自身此列为空）。
+    #[serde(default)]
+    pub chapter_title: String,
+}
+
 /// 检索命中（KWIC 展示单元）：句子原文 + 归属上下文。
 ///
 /// 重复句合并在**检索时**进行（非破坏——库里数据一字不删）：同一归一化指纹的句子

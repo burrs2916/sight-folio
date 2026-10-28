@@ -10,8 +10,10 @@ import SettingsDrawer from './components/layout/SettingsDrawer';
 import GlobalToast from './components/ui/GlobalToast';
 import {
   BookshelfPage,
-  AiAgentPage,
+  SceneEditorPage,
   PublishedScenesPage,
+  ScenePreviewPage,
+  AiAgentPage,
   WritingPage,
   LibraryPage,
 } from './pages';
@@ -20,10 +22,13 @@ import { useSceneStore } from './store/sceneStore';
 import { useI18n } from './i18n';
 import { useLayoutStore } from './store/layoutStore';
 import { useAppearanceStore } from './store/appearanceStore';
+import { useDataSourceStore } from './store/datasourceStore';
 import { useAuthStore } from './store/authStore';
 import { useProjectStore } from './store/projectStore';
 import { useWritingStore, WRITING_CONTENT_SAVED_EVENT, type WritingContentSavedPayload } from './store/writingStore';
 import { DESK_GOTO_VIEW_EVENT, applyDeskGotoView, type ChapterJumpPayload } from './utils/writingDeskJump';
+import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
+import { useCanvasWorkbenchLink, useWorkbenchFocusCanvasListener } from './editor/utils/canvasWorkbenchLink';
 import { startAnalysisScheduler, stopAnalysisScheduler } from './ai/analysisScheduler';
 import type { ThemeMode } from './store/themeStore';
 import { useEffect, useMemo } from 'react';
@@ -43,7 +48,7 @@ function resolveMode(mode: ThemeMode): 'light' | 'dark' {
 // 独立页面（无侧边栏）：预览 / 组件预览。
 // 写作台不进本表：主窗口 /writing 保持原布局（侧边栏+导航栏）；
 // 仅写作台独立窗口（query 带 desk=1 标记）走下方沉浸分支。
-const STANDALONE_ROUTES: string[] = [];
+const STANDALONE_ROUTES = ['/preview'];
 
 function isStandaloneRoute(pathname: string): boolean {
   return STANDALONE_ROUTES.some((r) => pathname.startsWith(r));
@@ -58,6 +63,12 @@ function isWritingDeskWindow(pathname: string): boolean {
     new URLSearchParams(window.location.search).has('desk')
   );
 }
+
+// ─── 封存域开关（2026-10-22 产品决策：遗留资产封存降级）───
+// 代码分析工作台 + 数据源集成保留代码、停止投入；应用启动不再初始化这两个域
+// （数据源 loadFromBackend 会对已配置连接真实建连，文件监视挂的是代码分析域监听）。
+// 恢复方式：改回 false 即恢复原启动行为；画布数据绑定等能力代码原样保留。
+const SEAL_LEGACY_DOMAINS = true;
 
 function AppLayout() {
   // 全局语言订阅：切换语言时强制整棵树重渲染。
@@ -119,6 +130,7 @@ function AppLayout() {
   // AI 助手页（/ai）同样要求不留边距（用户 2026-10-05 点名）。
   // 这三条路由全出血，其余页面维持原内容壳不动。
   const isFullBleedRoute =
+    location.pathname.startsWith('/analyzer') ||
     location.pathname.startsWith('/library') ||
     location.pathname.startsWith('/ai');
 
@@ -142,6 +154,7 @@ function AppLayout() {
   if (standalone) {
     return (
       <Routes>
+        <Route path="/preview/:sceneId" element={<ScenePreviewPage />} />
         {/* 写作台独立窗口：沉浸无 chrome，消费 query 定位参数（见 WritingPage） */}
         <Route path="/writing" element={<WritingPage />} />
       </Routes>
@@ -185,6 +198,7 @@ function AppLayout() {
           >
             <Routes>
               <Route path="/" element={<BookshelfPage />} />
+              <Route path="/analyzer" element={<SceneEditorPage />} />
               <Route path="/published" element={<PublishedScenesPage />} />
               <Route path="/ai" element={<AiAgentPage />} />
               <Route path="/library" element={<LibraryPage />} />
@@ -212,6 +226,12 @@ export default function App() {
   const layoutInit = useLayoutStore((state) => state.init);
   const appearanceInit = useAppearanceStore((state) => state.init);
   const authInit = useAuthStore((state) => state.init);
+  const loadDataSources = useDataSourceStore((state) => state.loadFromBackend);
+  const initFileWatcher = useProjectStore((state) => state.initFileWatcher);
+
+  // 画布 ↔ 代码工作台 双向联动（主窗口侧：订阅选中态 + 监听工作台反向聚焦）
+  useCanvasWorkbenchLink();
+  useWorkbenchFocusCanvasListener();
 
   const resolvedMode = useMemo(() => resolveMode(themeConfig.mode), [themeConfig.mode]);
 
@@ -220,7 +240,12 @@ export default function App() {
     themeInit();
     appearanceInit();
     authInit();
-  }, [layoutInit, themeInit, appearanceInit, authInit]);
+    if (!SEAL_LEGACY_DOMAINS) {
+      loadDataSources();
+      // 注册文件变更监视事件监听（幂等）；写作台独立窗口不挂代码分析域的文件监视
+      if (!isWritingDeskWindow(window.location.pathname)) initFileWatcher();
+    }
+  }, [layoutInit, themeInit, appearanceInit, authInit, loadDataSources, initFileWatcher]);
 
   // 自动分析调度心跳。
   //
@@ -257,6 +282,19 @@ export default function App() {
     return <Box sx={{ width: 0, height: 0 }} />;
   }
 
+  // 独立原生代码工作台窗口：URL 带 workbench=1 query 时只渲染工作台，不加载主布局。
+  const isWorkbenchWindow =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('workbench');
+  if (isWorkbenchWindow) {
+    return (
+      <BrowserRouter>
+        <AppTheme config={themeConfig}>
+          <CssBaseline enableColorScheme />
+          <CodeWorkbenchStandalone />
+        </AppTheme>
+      </BrowserRouter>
+    );
+  }
 
   return (
     <BrowserRouter>

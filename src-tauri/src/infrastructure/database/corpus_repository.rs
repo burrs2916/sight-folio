@@ -1,5 +1,5 @@
 use crate::domain::corpus::{
-    fingerprint, CorpusBook, CorpusBookSource, CorpusHitOccurrence, CorpusSearchHit,
+    fingerprint, CorpusBook, CorpusBookSource, CorpusChunk, CorpusHitOccurrence, CorpusSearchHit,
     CorpusStorageReport, SentenceDupGroup,
 };
 use crate::error::{AppError, AppResult};
@@ -1068,6 +1068,25 @@ impl CorpusRepository for SqliteCorpusRepository {
             fts_rows_after,
         })
     }
+}
+
+/// chunk 行读取（按列名），供测试断言用。
+pub fn read_chunk(conn: &rusqlite::Connection, id: i64) -> AppResult<CorpusChunk> {
+    conn.query_row(
+        &format!("SELECT {CHUNK_COLS} FROM corpus_chunks WHERE id = ?1"),
+        params![id],
+        |row| {
+            Ok(CorpusChunk {
+                id: row.get("id")?,
+                book_id: row.get("book_id")?,
+                seq: row.get("seq")?,
+                kind: row.get("kind")?,
+                content: row.get("content")?,
+                chapter_title: row.get("chapter_title")?,
+            })
+        },
+    )
+    .map_err(|e| AppError::Database(e.to_string()))
 }
 
 #[cfg(test)]
