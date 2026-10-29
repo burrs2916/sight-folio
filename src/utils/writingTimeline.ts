@@ -135,8 +135,32 @@ export type ConflictOptions = {
  * 2) 跨章时间倒挂（仅 chapter 视图）：早读章的解析时点整体晚于晚读章 → 标黄；仅 at 为纯整数时触发，避免混合单位误报。
  * 仅对完整事件检测（与 lane 构建口径一致：lane 只含 completeEvents）。
  */
-export function computeTimelineConflicts(events: WritingTimelineEvent[], opts: ConflictOptions): Set<string> {
-  const set = new Set<string>();
+/** 一条冲突：`kind` 说清是哪种，`with` 给出与之相撞的事件 id。 */
+export type TimelineConflict = { kind: 'sameAt' | 'reversed'; with: string[] };
+
+/**
+ * 冲突判定**唯一**算法：eventId → 冲突详情。
+ *
+ * 下面那个 `computeTimelineConflicts` 只是它取键的投影。判定逻辑绝不允许有第二份：
+ * 一旦分叉，画布标黄与体检报告就会各执一词，而作者看到的两个颜色都得信。
+ *
+ * 为什么要连 `with` 一起返回：block 级发现只说「某事件冲突」而不讲和谁撞、撞在哪个时点，
+ * 作者跳过去仍要自己找一遍，等于没报。
+ */
+export function collectTimelineConflicts(
+  events: WritingTimelineEvent[],
+  opts: ConflictOptions,
+): Map<string, TimelineConflict> {
+  const out = new Map<string, TimelineConflict>();
+  /** 同一事件可能同时中两种（chapter 视图）：保留先命中的 kind，`with` 取并集 */
+  const mark = (id: string, kind: TimelineConflict['kind'], others: string[]) => {
+    const hit = out.get(id);
+    if (hit) {
+      for (const o of others) if (o !== id && !hit.with.includes(o)) hit.with.push(o);
+      return;
+    }
+    out.set(id, { kind, with: others.filter((o) => o !== id) });
+  };
   const complete = events.filter(isComplete);
 
   const collideByAt = (group: WritingTimelineEvent[]) => {
@@ -148,39 +172,32 @@ export function computeTimelineConflicts(events: WritingTimelineEvent[], opts: C
       if (arr) arr.push(ev.id);
       else byAt.set(at, [ev.id]);
     }
-    for (const ids of byAt.values()) if (ids.length > 1) ids.forEach((id) => set.add(id));
+    for (const ids of byAt.values()) {
+      if (ids.length < 2) continue;
+      ids.forEach((id) => mark(id, 'sameAt', ids));
+    }
+  };
+
+  const groupBy = (key: (ev: WritingTimelineEvent) => string) => {
+    const byTrack = new Map<string, WritingTimelineEvent[]>();
+    for (const ev of complete) {
+      const k = key(ev);
+      const arr = byTrack.get(k);
+      if (arr) arr.push(ev);
+      else byTrack.set(k, [ev]);
+    }
+    return byTrack;
   };
 
   if (opts.view === 'storyline') {
     // storyline 视图：按剧情线分轨（storylineId=null 归并到「未挂线」组），同轨 at 碰撞
-    const byTrack = new Map<string, WritingTimelineEvent[]>();
-    for (const ev of complete) {
-      const k = ev.storylineId ?? '__unlined__';
-      const arr = byTrack.get(k);
-      if (arr) arr.push(ev);
-      else byTrack.set(k, [ev]);
-    }
-    for (const group of byTrack.values()) collideByAt(group);
+    for (const group of groupBy((ev) => ev.storylineId ?? '__unlined__').values()) collideByAt(group);
   } else if (opts.view === 'book') {
-    // 按设定分轨（settingId=null 归并到全书组）
-    const byTrack = new Map<string, WritingTimelineEvent[]>();
-    for (const ev of complete) {
-      const k = ev.settingId ?? '__book__';
-      const arr = byTrack.get(k);
-      if (arr) arr.push(ev);
-      else byTrack.set(k, [ev]);
-    }
-    for (const group of byTrack.values()) collideByAt(group);
+    // 全书视图：按设定分轨（settingId=null 归并到全书组），同轨 at 碰撞
+    for (const group of groupBy((ev) => ev.settingId ?? '__book__').values()) collideByAt(group);
   } else {
     // chapter 视图：按章分轨（未绑章自成一组），同轨 at 碰撞
-    const byTrack = new Map<string, WritingTimelineEvent[]>();
-    for (const ev of complete) {
-      const k = ev.chapterId ?? '__unbound__';
-      const arr = byTrack.get(k);
-      if (arr) arr.push(ev);
-      else byTrack.set(k, [ev]);
-    }
-    for (const group of byTrack.values()) collideByAt(group);
+    for (const group of groupBy((ev) => ev.chapterId ?? '__unbound__').values()) collideByAt(group);
 
     // 跨章时间倒挂：章按 sortOrder 排，两两比较纯整数时点
     const chapters = (opts.chapters ?? []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
@@ -198,13 +215,23 @@ export function computeTimelineConflicts(events: WritingTimelineEvent[], opts: C
         const a = chItems[i];
         const b = chItems[j];
         if (Math.min(...a.items.map((x) => x.t)) > Math.max(...b.items.map((x) => x.t))) {
-          a.items.forEach((x) => set.add(x.id));
-          b.items.forEach((x) => set.add(x.id));
+          const aIds = a.items.map((x) => x.id);
+          const bIds = b.items.map((x) => x.id);
+          aIds.forEach((id) => mark(id, 'reversed', bIds));
+          bIds.forEach((id) => mark(id, 'reversed', aIds));
         }
       }
     }
   }
-  return set;
+  return out;
+}
+
+/** 冲突 id 集合（画布标黄用）。判定见 `collectTimelineConflicts`，此处只做投影。 */
+export function computeTimelineConflicts(
+  events: WritingTimelineEvent[],
+  opts: ConflictOptions,
+): Set<string> {
+  return new Set(collectTimelineConflicts(events, opts).keys());
 }
 
 /** beat（大纲节拍）→ 时间线草稿文本：title+summary 合并为「标题：摘要」；空串 = 无可导入内容。 */

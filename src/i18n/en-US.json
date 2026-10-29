@@ -7055,7 +7055,7 @@
       "EmptyChapter": "\"{title}\" is still empty",
       "FinishedNoWords": "\"{title}\" marked finished but 0 words",
       "ForeshadowOverdueRow": "Foreshadowing \"{title}\" is past its payoff point",
-      "TimelineConflictRow": "Timeline conflict: {text}",
+      "TimelineConflictRow": "Timeline conflict: {text} (moment {at}) collides with {others} on the same moment",
       "TimelineDraftRow": "{n} draft(s) to complete",
       "StorylineUnlinedRow": "{n} unlined event(s)",
       "StorylineEmptyOne": "Storyline \"{name}\" has no events attached",

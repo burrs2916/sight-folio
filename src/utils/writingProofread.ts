@@ -20,7 +20,7 @@
 //   本模块 computeSettingAppearances = 就地派生的正文提及（= 服务体检，永远新鲜）。
 import type { WritingChapter, WritingForeshadowing, WritingOutline, WritingTimelineEvent } from '../services/tauri';
 import { isOverdue } from './writingForeshadowing';
-import { computeTimelineConflicts, isComplete } from './writingTimeline';
+import { collectTimelineConflicts, isComplete } from './writingTimeline';
 import { looseBeats } from './writingOutline';
 import { beatEventText, beatImported } from './writingTimeline';
 import { beatPlantedAsForeshadowing } from './writingInspiration';
@@ -449,14 +449,31 @@ export function buildProofreadReport(
   }
 
   // ④ 时间线：冲突逐行（跳选中事件）+ 待补全草稿汇总行（跳时间线页签）
-  const conflictIds = computeTimelineConflicts(timelineEvents, { view: 'book' });
-  for (const evId of conflictIds) {
-    const ev = timelineEvents.find((e) => e.id === evId);
+  //
+  // 冲突是全书体检里**唯一的 block 级**发现，所以它必须自证：只报「某事件有冲突」而不说
+  // 和谁撞、撞在哪个时点，作者跳过去还得自己找一遍，等于没报。判定复用 collectTimeline
+  // Conflicts（与画布标黄同一份算法，禁第二份）。
+  // 注：book 视图按设定分轨只会产生「同轨同时点」，不会产生跨章倒挂（那要 chapter 视图）。
+  const conflicts = collectTimelineConflicts(timelineEvents, { view: 'book' });
+  const evById = new Map(timelineEvents.map((e) => [e.id, e] as const));
+  for (const [evId, hit] of conflicts) {
+    const ev = evById.get(evId);
+    // 相撞对象最多列 2 个：报告一行塞不下整条轨，且 2 个已足够定位
+    const others = hit.with
+      .map((id) => evById.get(id))
+      .filter((e): e is WritingTimelineEvent => !!e)
+      .slice(0, 2)
+      .map((e) => `「${(e.event || '…').slice(0, 16)}」`)
+      .join('、');
     issues.push({
       key: `ev:${evId}`,
       group: 'timeline',
       messageKey: 'TimelineConflictRow',
-      args: { text: (ev?.event || '').slice(0, 24) || '…' },
+      args: {
+        text: (ev?.event || '').slice(0, 24),
+        at: ev?.at?.trim() || '…',
+        others: others || '同轨另一事件',
+      },
       target: { type: 'timeline-event', id: evId },
       severity: 'block',
     });

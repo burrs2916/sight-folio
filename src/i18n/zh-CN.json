@@ -7055,7 +7055,7 @@
       "EmptyChapter": "《{title}》还是空章",
       "FinishedNoWords": "《{title}》标记完稿但 0 字",
       "ForeshadowOverdueRow": "伏笔《{title}》回收点已过仍未回收",
-      "TimelineConflictRow": "时间线冲突：{text}",
+      "TimelineConflictRow": "时间线冲突：{text}（时点 {at}）与 {others} 撞在同一时点",
       "TimelineDraftRow": "待补全草稿 {n} 条",
       "StorylineUnlinedRow": "未挂线事件 {n} 条",
       "StorylineEmptyOne": "剧情线「{name}」上一个事件都没挂",
