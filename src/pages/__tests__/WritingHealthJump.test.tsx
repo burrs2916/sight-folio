@@ -199,6 +199,44 @@ describe('写作台体检报告跳转', () => {
   });
 });
 
+describe('发现行的结构位置（卷 · 章）', () => {
+  /** 带层级名的结构节点：卷节点 + 挂在它下面的章 */
+  const node = (
+    id: string,
+    title: string,
+    kind: string,
+    parentId: string | null,
+    sortOrder: number,
+  ) =>
+    ({
+      id,
+      bookId: 'b1',
+      title,
+      content: '',
+      sortOrder,
+      wordCount: 0,
+      status: 'draft',
+      volume: '',
+      kind,
+      parentId,
+      timeKey: null,
+    }) as never;
+
+  it('书分了卷 → 行上带出「卷 1 · 章 1」，标题重名的章也能定位', () => {
+    state.chapters = [node('v1', '第一卷', '卷', null, 0), node('c1', '玄武门', '章', 'v1', 1)];
+    render();
+    expect(row('c1:empty')).toBeTruthy();
+    expect(document.body.textContent).toContain('卷 1');
+  });
+
+  it('没分卷的书不显示位置：单层的「章 1」相对标题是纯噪音', () => {
+    state.chapters = [ch('c1', { content: '', wordCount: 0 })];
+    render();
+    expect(row('c1:empty')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('章 1');
+  });
+});
+
 describe('报告内就地重排回收章', () => {
   const fs = (id: string, plantChapterId: string | null, payoffChapterId: string | null) =>
     ({

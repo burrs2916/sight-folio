@@ -35,6 +35,7 @@ import {
 } from '../../utils/writingProofread';
 import { dispatchChapterJump, type ChapterJumpKind } from '../../utils/writingDeskJump';
 import { payoffCandidateChapters } from '../../utils/writingForeshadowing';
+import { buildTree, chapterPathLabelMap } from '../../utils/writingTree';
 import ChapterPicker from '../../editor/renderers/ChapterPicker';
 import { TimelineDraftDialog } from './TimelineDraftDialog';
 import { t } from '../../i18n';
@@ -99,6 +100,18 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
 
   const chapterOrder = useMemo(() => [...chapters].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => c.id), [chapters]);
   const chapterTitle = useMemo(() => new Map(chapters.map((c) => [c.id, c.title])), [chapters]);
+  // 结构位置（「卷 3 · 章 12」）：口径一律走 writingTree，仓里明写卷章号只从这里出，
+  // 不在界面另推一遍。用 Map 版而不是逐行 chapterPathLabels——后者每次重建全树，
+  // 报告几十行就是 O(n²)（该函数注释自己警告过这点）。
+  const chapterLocation = useMemo(() => {
+    const labels = chapterPathLabelMap(buildTree(chapters));
+    const out = new Map<string, string>();
+    for (const [id, path] of labels) {
+      // 只有一层（本书没分卷）就别显示：「章 12」相对章节标题是纯噪音
+      if (path.length > 1) out.set(id, path.join(' · '));
+    }
+    return out;
+  }, [chapters]);
 
   const rows = useMemo(() => {
     const byGroup = group === 'all' ? report.issues : report.issues.filter((i) => i.group === group);
@@ -282,6 +295,8 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
                   const local = !!tg && (tg.type === 'chapter' || tg.type === 'setting');
                   const jumpable = !!tg;
                   const chapterName = tg?.type === 'chapter' ? (chapterTitle.get(tg.id) ?? '') : '';
+                  // 分卷的书上「第12章」重名极常见，光给标题作者仍要翻目录；带上卷号才算定位
+                  const chapterLoc = tg?.type === 'chapter' ? (chapterLocation.get(tg.id) ?? '') : '';
                   return (
                     <Tooltip
                       key={issue.key}
@@ -352,6 +367,23 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
                         <Box sx={{ fontSize: 11, color: 'text.disabled', flexShrink: 0 }}>
                           {t(proofreadGroupLabelKey(issue.group))}
                         </Box>
+                        {chapterLoc && (
+                          // 结构位置用次要色压在小号位：它是定位线索，不该和标题抢注意力
+                          <Box
+                            component="span"
+                            sx={{
+                              fontSize: 11,
+                              color: 'text.disabled',
+                              flexShrink: 0,
+                              maxWidth: 130,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {chapterLoc}
+                          </Box>
+                        )}
                         {chapterName && (
                           <Box
                             sx={{
