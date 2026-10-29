@@ -51,7 +51,12 @@ vi.mock('../../store/writingStore', () => ({
 vi.mock('../../utils/writingDeskJump', () => ({
   dispatchChapterJump: (p: unknown) => dispatched.push(p),
 }));
-vi.mock('../../i18n', () => ({ t: (key: string) => key }));
+vi.mock('../../i18n', () => ({
+  // 报告里新挂了草稿补全工作台，它用 useI18n()（切语言要重渲染）；
+  // mock 只供 t 会让整个面板渲染失败，所以两个具名导出都得给。
+  t: (key: string) => key,
+  useI18n: () => ({ t: (key: string) => key, lang: 'zh-CN' }),
+}));
 vi.mock('../../store/toastStore', () => ({
   useToastStore: { getState: () => ({ success: toastSuccess, error: toastError }) },
 }));

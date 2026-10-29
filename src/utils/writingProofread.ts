@@ -78,6 +78,12 @@ export interface ProofreadFinding {
   target?: ProofreadTarget;
   severity?: 'warning' | 'block';
   /**
+   * 就地处理动作：这行不只是"跳到某个页签自己找"，而是能在这里直接干完。
+   * 由体检引擎声明、界面照做出入口——界面不该去比 `key === 'tl:drafts'` 这种内部编码，
+   * 改个 key 前缀就会静默失灵。
+   */
+  action?: 'draftWorkbench';
+  /**
    * 正文定位锚点（T3：点行跳正文容器后滚动高亮到该文本）。
    * 章文本类聚合行携带**首个命中片段**（stripHtmlText 口径内的原文，可能含全角空格缩进），
    * 由正文编辑器按包含匹配定位；无片段（纯结构类问题）不携带。
@@ -499,6 +505,9 @@ export function buildProofreadReport(
       args: { n: drafts.length },
       target: { type: 'view', id: 'timeline' },
       severity: 'warning',
+      // 声明"这行有就地工作台"：界面据此出按钮。用类型字段而不是让界面去比
+      // `key === 'tl:drafts'`，是因为 key 属于本模块的内部编码，改个前缀界面就静默失灵。
+      action: 'draftWorkbench',
     });
   }
 

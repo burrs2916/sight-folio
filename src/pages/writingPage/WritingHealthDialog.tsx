@@ -36,6 +36,7 @@ import {
 import { dispatchChapterJump, type ChapterJumpKind } from '../../utils/writingDeskJump';
 import { payoffCandidateChapters } from '../../utils/writingForeshadowing';
 import ChapterPicker from '../../editor/renderers/ChapterPicker';
+import { TimelineDraftDialog } from './TimelineDraftDialog';
 import { t } from '../../i18n';
 
 export interface WritingHealthDialogProps {
@@ -142,6 +143,7 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
   // 为什么做在这里：体检报告报出「伏笔 X 的回收章排在了埋设章之前」后，以前的终点是
   // 「跳到伏笔页签、自己翻到那条、自己改」。作者是带着"我这章要写完了"的上下文打开体检的，
   // 处理动作离发现越近，越可能真的被处理掉。
+  const [draftWorkbench, setDraftWorkbench] = useState(false);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const rescheduleItem = rescheduleId ? foreshadowings.find((f) => f.id === rescheduleId) : undefined;
   const payoffCandidates = rescheduleItem
@@ -317,6 +319,21 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
                         <Box sx={{ flex: 1, minWidth: 0, fontSize: 12.5 }}>
                           {t(`writing.proofreadIssue.${issue.messageKey}`, issue.args)}
                         </Box>
+                        {issue.action === 'draftWorkbench' && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            data-testid="health-draft-workbench"
+                            onClick={(e) => {
+                              // 打开工作台，同时也别触发整行的跳转（同伏笔那颗按钮的理由）
+                              e.stopPropagation();
+                              setDraftWorkbench(true);
+                            }}
+                            sx={{ fontSize: 11, py: 0, px: 1, flexShrink: 0 }}
+                          >
+                            {t('writing.healthFixDrafts')}
+                          </Button>
+                        )}
                         {tg?.type === 'foreshadowing' && (
                           <Button
                             size="small"
@@ -410,6 +427,9 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 草稿事件补全工作台（`tl:drafts` 汇总行的就地出口） */}
+      <TimelineDraftDialog open={draftWorkbench} onClose={() => setDraftWorkbench(false)} />
     </>
   );
 }
