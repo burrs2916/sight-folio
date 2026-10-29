@@ -4,12 +4,18 @@
 // 所以最要紧的三条是：
 // ① 一致性组真的出现在清单里（不传 settings 就整组消失）；
 // ② 能在写作台内跳过去的（章 / 设定卡）要真跳；
-// ③ 落点在画布的（时间线/念头/页签汇总行）**必须不可点** ——
-//    与其跳到一个作者找不到的界面，不如这行压根不响应。
+// ③ 落点在别的页签的发现（时间线/念头/伏笔/剧情线/页签汇总行）必须能一键送到那个页签，
+//    并且带着具体对象 id——体检报告是"只能看"还是"能修"，分水岭就在这条跳路上。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ReactElement } from 'react';
+
+// 跳转协议本身另有单测；这里只关心本面板有没有把载荷组对
+const dispatched: unknown[] = [];
+vi.mock('../../utils/writingDeskJump', () => ({
+  dispatchChapterJump: (p: unknown) => dispatched.push(p),
+}));
 
 import { WritingHealthDialog } from '../writingPage/WritingHealthDialog';
 import { useWritingStore } from '../../store/writingStore';
@@ -99,6 +105,7 @@ function seed(withSettings: boolean) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dispatched.length = 0;
   setLang('zh-CN');
 });
 
@@ -144,19 +151,24 @@ describe('WritingHealthDialog', () => {
     expect(onJumpChapter).not.toHaveBeenCalled();
   });
 
-  it('落点在画布的行不可点，点了不产生任何跳转', async () => {
+  it('落点在别的页签的行：交给跳转协议精确联动，不再整行禁点', async () => {
     seed(false);
     await mount(dialog());
 
     const r = row('sl:unlined');
     expect(r).toBeTruthy();
-    expect(r!.getAttribute('data-jumpable')).toBe('0');
+    // 旧契约是 data-jumpable="0"（"宁可不可点也不要跳到作者找不到的界面"）。
+    // 写作台是作者主要工作区，"只能看不能修"代价更高，而跳转协议本就支持跨窗口
+    // emit + 主窗口接管并置前，所以改为代跳。见 utils/writingDeskJump。
+    expect(r!.getAttribute('data-jumpable')).toBe('1');
     await act(async () => {
       r!.click();
     });
+    expect(dispatched.length).toBe(1);
+    expect(dispatched[0]).toMatchObject({ kind: 'storylines' });
     expect(onJumpChapter).not.toHaveBeenCalled();
     expect(onOpenSetting).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('切到「严重」过滤后，警告级行不再出现', async () => {

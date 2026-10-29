@@ -60,6 +60,9 @@ export type ProofreadTarget =
   | { type: 'idea'; id: string }
   /** 直接指向某张设定卡（一致性发现必须可定位到卡，而不是泛泛的「人物页签」） */
   | { type: 'setting'; id: string }
+  /** 指向某一条剧情线。线级发现（悬空/搁置）说的是这条线本身，跳到「剧情线页签」等于
+   *  把找线的活又还给作者，所以必须能定位到线。 */
+  | { type: 'storyline'; id: string }
   | { type: 'view'; id: 'timeline' | 'storylines' | 'inspiration' | 'foreshadowing' | 'characters' };
 
 /** 报告级发现条目（全书体检清单的一行；与引擎级 ProofreadIssue 同名不同构的问题已通过
@@ -280,6 +283,15 @@ const ABSENCE_GAP_CHAPTERS = 30;
 const ABSENCE_MIN_CHAPTERS = 40;
 
 /**
+ * 剧情线「搁置」判定门槛：与人物缺席同一尺度，理由相同——短书报断档纯属噪音。
+ *
+ * 刻意保守：长期不推进的支线常常是作者有意留到后面，所以这里只报**事实与数字**
+ * （最后一条事件在哪、停了多少章），不替作者下"这条线废了"的结论。
+ */
+const DORMANT_GAP_CHAPTERS = 30;
+const DORMANT_MIN_CHAPTERS = 40;
+
+/**
  * 一致性发现：此前完全检不出的一类——人物账本与正文对不上。
  *
  * 四条规则，互斥不重复报：
@@ -484,7 +496,8 @@ export function buildProofreadReport(
         group: 'storyline',
         messageKey: 'StorylineEmptyOne',
         args: { name: emptyLines[0]?.name?.trim() || '…' },
-        target: { type: 'view', id: 'storylines' },
+        // 只有一条空线时直接指到它，不必让作者再去列表里找
+        target: emptyLines[0] ? { type: 'storyline', id: emptyLines[0].id } : { type: 'view', id: 'storylines' },
         severity: 'warning',
       });
     } else if (emptyLines.length > 1) {
@@ -494,6 +507,50 @@ export function buildProofreadReport(
         messageKey: 'StorylineEmptyRow',
         args: { n: emptyLines.length },
         target: { type: 'view', id: 'storylines' },
+        severity: 'warning',
+      });
+    }
+
+    // ⑤″ 逐条线体检：悬空（有事件但都没落到章节）与搁置（很久没推进）。
+    // 章序口径与体检清单列表一致（按 sortOrder），不另起一套。
+    const orderedChapters = [...chapters].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const chapterIndex = new Map<string, number>(orderedChapters.map((c, i) => [c.id, i]));
+    const lastIndex = orderedChapters.length - 1;
+
+    for (const line of storylines) {
+      const events = timelineEvents.filter((e) => e.storylineId === line.id);
+      if (events.length === 0) continue; // 空线已由 ⑤′ 报过，这里不重复
+      const name = line.name?.trim() || '…';
+      const anchored = events
+        .map((e) => (e.chapterId ? chapterIndex.get(e.chapterId) : undefined))
+        .filter((i): i is number => i !== undefined);
+      if (anchored.length === 0) {
+        // 一条都挂不上章：这条线只存在于设定里，读者永远不会读到它
+        issues.push({
+          key: `sl:${line.id}:unanchored`,
+          group: 'storyline',
+          messageKey: 'StorylineUnanchoredOne',
+          args: { name, n: events.length },
+          target: { type: 'storyline', id: line.id },
+          severity: 'warning',
+        });
+        continue;
+      }
+      // 只有 1 条事件且很久没动，更可能是「计划中的线」而非写丢了，不报。
+      if (anchored.length < 2 || orderedChapters.length < DORMANT_MIN_CHAPTERS) continue;
+      const last = Math.max(...anchored);
+      const gap = lastIndex - last;
+      if (gap < DORMANT_GAP_CHAPTERS) continue;
+      issues.push({
+        key: `sl:${line.id}:dormant`,
+        group: 'storyline',
+        messageKey: 'StorylineDormant',
+        args: {
+          name,
+          title: orderedChapters[last]?.title?.trim() || '…',
+          gap,
+        },
+        target: { type: 'storyline', id: line.id },
         severity: 'warning',
       });
     }

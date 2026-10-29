@@ -19,6 +19,9 @@ const selectForeshadowing = vi.fn();
 const selectInspiration = vi.fn();
 const setProofreadFocusKey = vi.fn();
 const setStatsFocusChapterId = vi.fn();
+// 剧情线页签：体检报告的线级发现要落到具体那条线上（切视角 + 选中）
+const selectStoryline = vi.fn();
+const setTimelineViewMode = vi.fn();
 vi.mock('../../store/editorStore', () => ({
   useEditorStore: {
     getState: () => ({
@@ -26,6 +29,9 @@ vi.mock('../../store/editorStore', () => ({
       selectInspiration,
       setProofreadFocusKey,
       setStatsFocusChapterId,
+      selectStoryline,
+      setTimelineViewMode,
+      timelineViewMode: 'chapter',
     }),
   },
 }));
@@ -48,6 +54,24 @@ beforeEach(() => {
   selectInspiration.mockClear();
   setProofreadFocusKey.mockClear();
   setStatsFocusChapterId.mockClear();
+  selectStoryline.mockClear();
+  setTimelineViewMode.mockClear();
+});
+
+describe('剧情线页签跳转（体检报告线级发现）', () => {
+  it('kind=storylines 带着线 id：切剧情线视角 + 选中该线 + 开剧情线页签', () => {
+    dispatchChapterJump({ genre: 'novel', kind: 'storylines', storylineId: 'sl1' });
+    expect(setTimelineViewMode).toHaveBeenCalledWith('storyline');
+    expect(selectStoryline).toHaveBeenCalledWith('sl1');
+    expect(mockedOpen).toHaveBeenCalledWith('novel', 'storylines');
+  });
+
+  it('只开页签不带线 id 时不乱设视角（否则主窗口会出现无端切换）', () => {
+    dispatchChapterJump({ genre: 'novel', kind: 'storylines' });
+    expect(setTimelineViewMode).not.toHaveBeenCalled();
+    expect(selectStoryline).not.toHaveBeenCalled();
+    expect(mockedOpen).toHaveBeenCalledWith('novel', 'storylines');
+  });
 });
 
 describe('dispatchChapterJump（窗口形态分发）', () => {

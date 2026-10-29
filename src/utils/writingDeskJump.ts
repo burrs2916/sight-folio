@@ -27,6 +27,8 @@ export type ChapterJumpKind =
   | 'characters'
   | 'worldview'
   | 'timeline'
+  /** 剧情线页签：体检报告的线级发现（悬空/搁置）要落到具体那条线上 */
+  | 'storylines'
   | 'overview';
 
 /** 章级跳转载荷：kind 决定页签，附带对应精确选中字段。 */
@@ -74,6 +76,11 @@ export function applyDeskGotoView(p: ChapterJumpPayload): void {
     }
     if ((p.kind === 'characters' || p.kind === 'worldview') && p.settingId) {
       es.selectSetting(p.settingId);
+    }
+    if (p.kind === 'storylines' && p.storylineId) {
+      // 线级发现带着具体那条线：切剧情线视角再选中，否则主窗口里看不出任何变化
+      if (es.timelineViewMode !== 'storyline') es.setTimelineViewMode('storyline');
+      es.selectStoryline(p.storylineId);
     }
     if (p.kind === 'timeline') {
       if (p.timelineView === 'storyline' && p.storylineId) {

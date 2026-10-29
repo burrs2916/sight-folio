@@ -33,6 +33,7 @@ import {
   type ProofreadSeverityFilter,
   type ProofreadSortMode,
 } from '../../utils/writingProofread';
+import { dispatchChapterJump, type ChapterJumpKind } from '../../utils/writingDeskJump';
 import { t } from '../../i18n';
 
 export interface WritingHealthDialogProps {
@@ -55,6 +56,23 @@ const SORT_MODES: { value: ProofreadSortMode; labelKey: string }[] = [
   { value: 'chapter', labelKey: 'writing.proofreadSortChapter' },
   { value: 'default', labelKey: 'writing.proofreadSortDefault' },
 ];
+
+/**
+ * 页签类发现（只说「这一组有问题」、不指向具体对象）的去向。
+ *
+ * 单独列成表是为了让「新增一类页签目标」必须在这里表态，而不是静默落到 undefined 上。
+ * `storylines` 走跳转协议的剧情线页签（timeline 只是它的另一种视角，不是同一个页签）。
+ */
+const HEALTH_VIEW_KIND: Record<
+  'timeline' | 'storylines' | 'inspiration' | 'foreshadowing' | 'characters',
+  ChapterJumpKind
+> = {
+  timeline: 'timeline',
+  storylines: 'storylines',
+  inspiration: 'inspiration',
+  foreshadowing: 'foreshadowing',
+  characters: 'characters',
+};
 
 export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSetting }: WritingHealthDialogProps) {
   const chapters = useWritingStore((s) => s.chapters);
@@ -83,18 +101,37 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
     return sortProofreadIssues(filterProofreadIssues(byGroup, severity), sort, chapterOrder);
   }, [report.issues, group, severity, sort, chapterOrder]);
 
+  // 跳转协议的入参：页签按载体类型（genre）定位，缺它就只能落到别的书上
+  const genre = books.find((b) => b.id === activeBookId)?.genre ?? '';
+
   const act = (issue: ProofreadFinding) => {
     const tg = issue.target;
     if (!tg) return;
     if (tg.type === 'chapter') {
       onJumpChapter(tg.id);
       onClose();
-    } else if (tg.type === 'setting') {
+      return;
+    }
+    if (tg.type === 'setting') {
       onOpenSetting(tg.id);
       onClose();
+      return;
     }
-    // 其余目标（伏笔/时间线事件/念头/页签）落点在场景画布，写作台不代跳：
-    // 宁可这行不可点，也不要跳到一个作者找不到的界面。
+    // 其余目标的落点在主窗口 L2 页签。跨窗口由跳转协议自己分发（写作台 emit、主窗口
+    // 接管并置前），所以这里一律代跳。此前这些行整行不可点、只提示「请到画布中处理」，
+    // 等于体检报告只能看不能修——而作者绝大多数时间就在写作台这个窗口里。
+    if (tg.type === 'foreshadowing') {
+      dispatchChapterJump({ genre, kind: 'foreshadowing', selectedId: tg.id });
+    } else if (tg.type === 'idea') {
+      dispatchChapterJump({ genre, kind: 'inspiration', selectedId: tg.id });
+    } else if (tg.type === 'timeline-event') {
+      dispatchChapterJump({ genre, kind: 'timeline', timelineView: 'chapter', eventId: tg.id });
+    } else if (tg.type === 'storyline') {
+      dispatchChapterJump({ genre, kind: 'storylines', storylineId: tg.id });
+    } else {
+      dispatchChapterJump({ genre, kind: HEALTH_VIEW_KIND[tg.id] });
+    }
+    onClose();
   };
 
   /**
@@ -201,22 +238,20 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
                 {rows.map((issue) => {
                   const color = proofreadSeverityColor(issue.severity);
                   const tg = issue.target;
+                  // 有目标就能跳：章节/设定卡在写作台就地打开，其余由跳转协议送到主窗口页签
                   const local = !!tg && (tg.type === 'chapter' || tg.type === 'setting');
+                  const jumpable = !!tg;
                   const chapterName = tg?.type === 'chapter' ? (chapterTitle.get(tg.id) ?? '') : '';
                   return (
                     <Tooltip
                       key={issue.key}
                       title={
-                        local
-                          ? t('writing.proofreadJump')
-                          : tg
-                            ? t('writing.healthJumpInCanvas')
-                            : ''
+                        !tg ? '' : local ? t('writing.proofreadJump') : t('writing.healthJumpInView')
                       }
                     >
                       <Box
                         data-testid={`health-row-${issue.key}`}
-                        data-jumpable={local ? '1' : '0'}
+                        data-jumpable={jumpable ? '1' : '0'}
                         onClick={() => act(issue)}
                         sx={{
                           display: 'flex',

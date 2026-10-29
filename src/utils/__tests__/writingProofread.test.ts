@@ -140,7 +140,12 @@ describe('buildProofreadReport —— 六组分组与跳转', () => {
     expect(report.counts['chapter-account']).toBe(2); // ch1 空章 + ch3 完稿 0 字
     expect(report.counts['foreshadow']).toBe(1);
     expect(report.counts['timeline']).toBe(3); // 冲突 e1/e2 两行 + 草稿 e3 汇总 1 行
-    expect(report.counts['storyline']).toBe(1); // e1/e2/e3 未挂线汇总 1 行
+    // e1/e2/e3 未挂线汇总 1 行 + sl1 唯一的事件(e4)没落到章节 → 悬空线 1 行（⑤″ 线级体检）
+    expect(report.counts['storyline']).toBe(2);
+    expect(report.issues.find((i) => i.key === 'sl:sl1:unanchored')?.target).toEqual({
+      type: 'storyline',
+      id: 'sl1',
+    });
     expect(report.counts['idea']).toBe(1);
 
     // 伏笔行 → 跳伏笔实体；冲突行 → 跳时间线事件

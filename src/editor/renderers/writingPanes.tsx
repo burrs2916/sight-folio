@@ -1914,6 +1914,12 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
         // 一致性发现：选中那张卡再开人物页签（卡不在画布上，光跳页签看不到重点）
         es.selectSetting(tg.id);
         openTypedCarrierView(genre, 'characters');
+      } else if (tg.type === 'storyline') {
+        // 线级发现（悬空/搁置）：切剧情线视角并选中这条线，与写作台跳转同语义。
+        // 不切视角的话 selectStoryline 在主窗口里可能根本没有可见效果。
+        if (es.timelineViewMode !== 'storyline') es.setTimelineViewMode('storyline');
+        es.selectStoryline(tg.id);
+        openTypedCarrierView(genre, 'storylines');
       } else {
         openTypedCarrierView(genre, tg.id);
       }
