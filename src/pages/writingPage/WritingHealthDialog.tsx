@@ -34,6 +34,8 @@ import {
   type ProofreadSortMode,
 } from '../../utils/writingProofread';
 import { dispatchChapterJump, type ChapterJumpKind } from '../../utils/writingDeskJump';
+import { payoffCandidateChapters } from '../../utils/writingForeshadowing';
+import ChapterPicker from '../../editor/renderers/ChapterPicker';
 import { t } from '../../i18n';
 
 export interface WritingHealthDialogProps {
@@ -83,6 +85,7 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
   const settings = useWritingStore((s) => s.settings);
   const books = useWritingStore((s) => s.books);
   const activeBookId = useWritingStore((s) => s.activeBookId);
+  const updateForeshadowing = useWritingStore((s) => s.updateForeshadowing);
 
   const [group, setGroup] = useState<ProofreadGroup | 'all'>('all');
   const [severity, setSeverity] = useState<ProofreadSeverityFilter>('all');
@@ -134,6 +137,40 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
     onClose();
   };
 
+  // ── 就地排期：逾期未回收的伏笔，直接在报告里重排回收章 ──
+  //
+  // 为什么做在这里：体检报告报出「伏笔 X 的回收章排在了埋设章之前」后，以前的终点是
+  // 「跳到伏笔页签、自己翻到那条、自己改」。作者是带着"我这章要写完了"的上下文打开体检的，
+  // 处理动作离发现越近，越可能真的被处理掉。
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const rescheduleItem = rescheduleId ? foreshadowings.find((f) => f.id === rescheduleId) : undefined;
+  const payoffCandidates = rescheduleItem
+    ? payoffCandidateChapters(chapters, rescheduleItem.plantChapterId)
+    : [];
+
+  const applyReschedule = async (chapterId: string) => {
+    const item = rescheduleItem;
+    if (!item) return;
+    const title = item.title?.trim() || '…';
+    try {
+      await updateForeshadowing(item.id, { payoffChapterId: chapterId });
+      // 落库后回读确认：store 的 updateForeshadowing 在实体已不存在时是静默 return，
+      // 不核对就会给作者弹一个"已改到第 N 章"的成功提示，而实际什么都没写。
+      const saved = useWritingStore.getState().foreshadowings.find((f) => f.id === item.id);
+      if (!saved || saved.payoffChapterId !== chapterId) {
+        useToastStore.getState().error(t('writing.healthRescheduleFailed', { msg: t('writing.healthRescheduleGone') }));
+        return;
+      }
+      // 清单是从 store 派生的：foreshadowings 一变，这一行自己就从报告里消失
+      setRescheduleId(null);
+      useToastStore.getState().success(t('writing.healthRescheduleDone', { title }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('WritingHealthDialog', 'reschedule payoff failed', { error: msg, id: item.id });
+      useToastStore.getState().error(t('writing.healthRescheduleFailed', { msg }));
+    }
+  };
+
   /**
    * 导出一页体检报告（Markdown / 自包含 HTML）。
    *
@@ -172,6 +209,7 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
   };
 
   return (
+    <>
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>
         {t('writing.healthDialog')}
@@ -260,8 +298,10 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
                           px: 1,
                           py: 0.75,
                           borderRadius: 1,
-                          cursor: local ? 'pointer' : 'default',
-                          '&:hover': local ? { bgcolor: 'action.hover' } : {},
+                          // 用 jumpable 而不是 local：上一版把跨窗口的行改成可点后忘了同步
+                          // 手型与 hover，结果"能点却看不出能点"
+                          cursor: jumpable ? 'pointer' : 'default',
+                          '&:hover': jumpable ? { bgcolor: 'action.hover' } : {},
                         }}
                       >
                         <Box
@@ -277,6 +317,21 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
                         <Box sx={{ flex: 1, minWidth: 0, fontSize: 12.5 }}>
                           {t(`writing.proofreadIssue.${issue.messageKey}`, issue.args)}
                         </Box>
+                        {tg?.type === 'foreshadowing' && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            data-testid={`health-reschedule-${issue.key}`}
+                            onClick={(e) => {
+                              // 不拦住就会连带触发整行的 act()（跳到伏笔页签），框还没开就关了
+                              e.stopPropagation();
+                              setRescheduleId(tg.id);
+                            }}
+                            sx={{ fontSize: 11, py: 0, px: 1, flexShrink: 0 }}
+                          >
+                            {t('writing.healthReschedulePayoff')}
+                          </Button>
+                        )}
                         <Box sx={{ fontSize: 11, color: 'text.disabled', flexShrink: 0 }}>
                           {t(proofreadGroupLabelKey(issue.group))}
                         </Box>
@@ -318,5 +373,43 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
         </Button>
       </DialogActions>
     </Dialog>
+
+      {/* 就地排期回收章。承载在独立 Dialog 里而不是把选择器塞进行内：
+          清单容器是 maxHeight 420 + overflowY auto，ChapterPicker 的下拉会被裁掉。
+          候选章只给埋设章之后的（口径见 payoffCandidateChapters），选完立即落库。 */}
+      <Dialog open={!!rescheduleItem} onClose={() => setRescheduleId(null)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>
+          {t('writing.healthRescheduleTitle', { title: rescheduleItem?.title?.trim() || '…' })}
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {t('writing.healthRescheduleHint', {
+              plant: chapterTitle.get(rescheduleItem?.plantChapterId ?? '') || '…',
+              payoff: chapterTitle.get(rescheduleItem?.payoffChapterId ?? '') || '…',
+            })}
+          </Typography>
+          {payoffCandidates.length > 0 ? (
+            <ChapterPicker
+              uniqueKey={`health-payoff-${rescheduleItem?.id ?? ''}`}
+              chapters={payoffCandidates}
+              accent="#1976d2"
+              width="100%"
+              value={null}
+              onSelect={(id: string) => void applyReschedule(id)}
+            />
+          ) : (
+            // 埋设章已是最后一章（或已被删）：没有合法去处，直说，不要摆一个空选择器
+            <Typography variant="body2" sx={{ color: 'warning.main' }}>
+              {t('writing.healthRescheduleNoCandidate')}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={() => setRescheduleId(null)}>
+            {t('ui.cancel')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }

@@ -59,6 +59,27 @@ export function isOverdue(item: WritingForeshadowing, chapters: WritingChapter[]
   return payoff <= plant;
 }
 
+/**
+ * 「重排回收章」的候选：只给埋设章**之后**的章，按章序返回。
+ *
+ * 为什么把非法选项直接拿掉而不是事后拦：体检报出来的这条发现本身就是
+ * 「回收章排在埋设章同一章或更早」（见 isOverdue），选择器里继续列出这些章，
+ * 等于把作者刚踩的坑再摆一次。
+ *
+ * 埋设章不存在（已被删）时返回空数组：那种情况该先修埋设章，不在这里替作者猜一章。
+ */
+export function payoffCandidateChapters(
+  chapters: WritingChapter[],
+  plantChapterId: string | null | undefined,
+): WritingChapter[] {
+  if (!plantChapterId) return [];
+  const plant = chapters.find((c) => c.id === plantChapterId);
+  if (!plant) return [];
+  return chapters
+    .filter((c) => (c.sortOrder ?? 0) > (plant.sortOrder ?? 0))
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+}
+
 /** 章右栏「本章伏笔」：埋设于本章（在任何状态都算——已回收也该回看当初怎么埋的）。 */
 export function foreshadowingsPlantedIn(items: WritingForeshadowing[], chapterId: string): WritingForeshadowing[] {
   return items.filter((f) => f.plantChapterId === chapterId);
