@@ -38,7 +38,6 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Select from '@mui/material/Select';
 import FormControl from '@mui/material/FormControl';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import StopIcon from '@mui/icons-material/Stop';
 import ReplayIcon from '@mui/icons-material/Replay';
 import CloseIcon from '@mui/icons-material/Close';
@@ -982,8 +981,6 @@ export function WorkbenchAiPanel({
   } = chat;
 
   // 高危工具审批（human-in-the-loop）：引擎即将执行 run_command 前推审批请求，这里弹确认框。
-  const pendingToolApproval = useAgentStore((s) => s.pendingToolApproval);
-  const resolveToolApproval = useAgentStore((s) => s.resolveToolApproval);
   // 模型归属（endpoint · provider）：运行时要选的模型能一眼看出属于哪个端点/供应商，
   // 多个供应商都有同名模型（如都叫 "gpt-4o"）时可区分，避免选错端点把调用打到错误的 base_url/api_key。
   const endpoints = useAgentStore((s) => s.endpoints);
@@ -1963,57 +1960,8 @@ export function WorkbenchAiPanel({
         </>
       }
 
-      {/* 高危工具审批（human-in-the-loop）：run_command 每条确认，写入类工具（修改文件 / 保存洞察）
-          弹确认框并可会话级记住，对标 VS Code Agent 的「Run command?」拦截。
-          用户允许才执行，拒绝则操作不落地；超时 / 取消引擎按拒绝处理。 */}
-      <Dialog open={!!pendingToolApproval} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningAmberIcon sx={{ fontSize: 18, color: 'warning.main' }} />
-          {pendingToolApproval?.tool === 'run_command'
-            ? t('workbench.aiApproval.title')
-            : t('workbench.aiApproval.titleWrite')}
-        </DialogTitle>
-        <DialogContent sx={{ fontSize: 12 }}>
-          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.75 }}>
-            {pendingToolApproval?.tool === 'run_command'
-              ? t('workbench.aiApproval.warning')
-              : t('workbench.aiApproval.warningWrite')}
-          </Typography>
-          {pendingToolApproval && (
-            <Box
-              sx={{
-                bgcolor: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 1,
-                p: 1,
-                fontFamily: 'monospace',
-                fontSize: 12,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-all',
-                lineHeight: 1.5,
-              }}
-            >
-              {pendingToolApproval.tool === 'run_command'
-                ? `${pendingToolApproval.cwd ? `$ ${pendingToolApproval.cwd}> ` : '$ '}${pendingToolApproval.command}`
-                : pendingToolApproval.summary}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button size="small" color="error" variant="outlined" onClick={() => void resolveToolApproval(false)}>
-            {t('workbench.aiApproval.deny')}
-          </Button>
-          {pendingToolApproval?.sessionRememberable && (
-            <Button size="small" variant="outlined" onClick={() => void resolveToolApproval(true, true)}>
-              {t('workbench.aiApproval.allowSession')}
-            </Button>
-          )}
-          <Button size="small" variant="contained" onClick={() => void resolveToolApproval(true)}>
-            {t('workbench.aiApproval.allow')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* 高危工具审批弹窗已上移到 App 层（`components/ui/ToolApprovalDialog`）：
+          两处同时绑 `pendingToolApproval` 会双弹，故此处只留说明不再渲染。 */}
     </Box>
   );
 }

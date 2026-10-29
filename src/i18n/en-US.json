@@ -2402,7 +2402,8 @@
       "warningWrite": "The AI assistant wants to write to your project (edit a file or save a conclusion). Writes are backed up automatically, but review the details before allowing.",
       "allow": "Allow",
       "allowSession": "Allow, don't ask again this session",
-      "deny": "Deny"
+      "deny": "Deny",
+      "timeoutNote": "If you make no choice, this request expires in 5 minutes and nothing is written."
     },
     "aiEmpty": "Pick a file or type a question to start",
     "aiNoAgent": "No AI Agent configured yet. Create one in AI settings first.",

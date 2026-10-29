@@ -8,6 +8,7 @@ import { AppTheme } from './theme';
 import { SideMenu, AppNavbar, AppFooter } from './components/layout';
 import SettingsDrawer from './components/layout/SettingsDrawer';
 import GlobalToast from './components/ui/GlobalToast';
+import ToolApprovalDialog from './components/ui/ToolApprovalDialog';
 import {
   BookshelfPage,
   SceneEditorPage,
@@ -214,6 +215,10 @@ function AppLayout() {
 
       {/* 全局 Toast 通知 */}
       <GlobalToast />
+
+      {/* 高危工具审批：主窗口与写作台独立窗口都走这里（AppLayout 覆盖两者）。
+          绝不能只挂在某个 AI 面板里，否则那条路径的写入会静默超时被拒。 */}
+      <ToolApprovalDialog />
     </Box>
   );
 }
@@ -291,6 +296,8 @@ export default function App() {
         <AppTheme config={themeConfig}>
           <CssBaseline enableColorScheme />
           <CodeWorkbenchStandalone />
+          {/* 独立工作台窗口不走 AppLayout，审批弹窗须在此另挂一份 */}
+          <ToolApprovalDialog />
         </AppTheme>
       </BrowserRouter>
     );
