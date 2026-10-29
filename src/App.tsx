@@ -26,7 +26,13 @@ import { useAppearanceStore } from './store/appearanceStore';
 import { useDataSourceStore } from './store/datasourceStore';
 import { useAuthStore } from './store/authStore';
 import { useProjectStore } from './store/projectStore';
-import { useWritingStore, WRITING_CONTENT_SAVED_EVENT, type WritingContentSavedPayload } from './store/writingStore';
+import {
+  useWritingStore,
+  WRITING_CONTENT_SAVED_EVENT,
+  WRITING_NARRATIVE_CHANGED_EVENT,
+  type WritingContentSavedPayload,
+  type WritingNarrativeChangedPayload,
+} from './store/writingStore';
 import { DESK_GOTO_VIEW_EVENT, applyDeskGotoView, type ChapterJumpPayload } from './utils/writingDeskJump';
 import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
 import { useCanvasWorkbenchLink, useWorkbenchFocusCanvasListener } from './editor/utils/canvasWorkbenchLink';
@@ -99,6 +105,18 @@ function AppLayout() {
     let un: (() => void) | undefined;
     listen<WritingContentSavedPayload>(WRITING_CONTENT_SAVED_EVENT, (e) => {
       void useWritingStore.getState().applyExternalChapterContent(e.payload);
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, []);
+
+  // 跨窗口叙事数据同步：任一窗口改了时间线 / 伏笔 / 剧情线，其它打开同一本书的窗口
+  // 按组重载。这三张表是全书体检的数据源，两边不一致会让人怀疑检测结论本身。
+  // 所有窗口（含写作台自己）都要消费：写的人是自己、看的人也是自己时的重复重载由
+  // store 内部按 activeBookId 判定，且重载幂等。
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen<WritingNarrativeChangedPayload>(WRITING_NARRATIVE_CHANGED_EVENT, (e) => {
+      void useWritingStore.getState().applyExternalNarrativeChange(e.payload);
     }).then((u) => (un = u));
     return () => un?.();
   }, []);

@@ -42,6 +42,25 @@ export interface WritingContentSavedPayload {
 }
 
 /**
+ * 跨窗口「叙事数据已变更」广播：覆盖时间线事件 / 伏笔 / 剧情线三张表。
+ *
+ * 这三张表都是全书体检的数据源，而写作台与场景画布各持一份 store。在此之前，在写作台
+ * 改了伏笔回收章或时间线序号，画布那边仍显示旧值——作者看到两个界面不一致，就会开始
+ * 怀疑所有体检结论（包括那些是对的）。
+ *
+ * 载荷只带"哪几张表变了"，不带行数据：接收方按组重载。小表重载的成本远低于手工合并
+ * 出错的成本（合并要覆盖增/改/删与排序，漏一种就是静默错数据）。
+ */
+export const WRITING_NARRATIVE_CHANGED_EVENT = 'writing-narrative-changed';
+
+export type NarrativeGroup = 'timeline' | 'foreshadowing' | 'storyline';
+
+export interface WritingNarrativeChangedPayload {
+  bookId: string | null;
+  groups: NarrativeGroup[];
+}
+
+/**
  * 写作域 store（Sight Folio）
  *
  * 结构：books（书架）+ chaptersByBook（按书缓存的章节列表）。
@@ -126,6 +145,8 @@ interface WritingState {
    * 等下次 loadChapters 自然拿到全量最新值。
    */
   applyExternalChapterContent: (payload: WritingContentSavedPayload) => void;
+  /** 并入另一窗口的叙事数据变更（只重载受影响分组，且不再广播，见类型注释） */
+  applyExternalNarrativeChange: (payload: WritingNarrativeChangedPayload) => Promise<void>;
 
   loadSettings: () => Promise<void>;
   createSetting: (kind: WritingSettingKind, name: string) => Promise<WritingSetting | null>;
@@ -804,6 +825,36 @@ export const useWritingStore = create<WritingState>()(
       });
     },
 
+    /**
+     * 并入另一窗口的叙事数据变更。
+     *
+     * 为什么是"重载"而不是把对方发来的行直接 upsert：这三张表都是小表，重载天生能处理
+     * 增/改/删三种情况，而手工合并要处理插入、删除、排序，任一处漏掉就是静默的错数据。
+     *
+     * `narrativeBroadcastSuppressed` 是防回声的关键：重载必然让本地数组换引用，
+     * 若不加抑制，两个窗口会就同一次修改互相广播下去。
+     */
+    applyExternalNarrativeChange: async (payload) => {
+      const { bookId, groups } = payload;
+      // 只处理当前打开这本书的窗口；没打开该书的窗口下次加载自然拿到新数据
+      if (!bookId || get().activeBookId !== bookId) return;
+      narrativeBroadcastSuppressed += 1;
+      try {
+        await Promise.all(
+          groups.map((g) => {
+            if (g === 'timeline') return get().loadTimelineEvents();
+            if (g === 'foreshadowing') return get().loadForeshadowings();
+            return get().loadStorylines();
+          }),
+        );
+      } finally {
+        // 重载是异步的，而订阅者在 set() 当时就可能被排到；留一个宏任务边界再解除抑制
+        setTimeout(() => {
+          narrativeBroadcastSuppressed = Math.max(0, narrativeBroadcastSuppressed - 1);
+        }, 0);
+      }
+    },
+
     loadSettings: async () => {
       const bookId = get().activeBookId;
       if (!bookId) return;
@@ -1416,3 +1467,49 @@ export const useWritingStore = create<WritingState>()(
     },
   })),
 );
+
+/**
+ * 叙事数据跨窗口广播：订阅 store，按**数组引用是否变化**判定哪张表动了。
+ *
+ * 为什么用订阅者而不是在每个写入动作末尾各 emit 一次：这三张表的写动作有 10 个
+ * （增 / 改 / 删 × 3 域 + 批量推演序号）。漏挂一个不会报错，只会偶发地让另一个窗口
+ * 显示旧数据——正是这类"静默不一致"最贵。挂在唯一写入者上，将来新增写动作也自动覆盖。
+ *
+ * 只比引用：immer 下任何真实修改都会换掉数组引用，而改别的字段（章节正文、统计数据）
+ * 这三个引用不动，因此早退是 O(1)，不会给高频 set() 增加开销。
+ */
+let narrativeBroadcastSuppressed = 0;
+
+const narrativeRefs = (() => {
+  const s = useWritingStore.getState();
+  return { timeline: s.timelineEvents, foreshadowing: s.foreshadowings, storyline: s.storylines };
+})();
+
+useWritingStore.subscribe((s) => {
+  const groups: NarrativeGroup[] = [];
+  if (s.timelineEvents !== narrativeRefs.timeline) groups.push('timeline');
+  if (s.foreshadowings !== narrativeRefs.foreshadowing) groups.push('foreshadowing');
+  if (s.storylines !== narrativeRefs.storyline) groups.push('storyline');
+  if (groups.length === 0) return;
+
+  // 引用快照无论是否广播都要更新：抑制期间变化的就是"刚从远端并进来的数据"，
+  // 留着旧快照会让下一次无关的 set() 误判成变更。
+  narrativeRefs.timeline = s.timelineEvents;
+  narrativeRefs.foreshadowing = s.foreshadowings;
+  narrativeRefs.storyline = s.storylines;
+
+  if (narrativeBroadcastSuppressed > 0) return;
+  if (!s.activeBookId) return;
+  // 广播只是副作用，**绝不允许打断用户的写入**。两种失败都得挡，缺一不可：
+  //   · 异步 rejection —— `emit()` 返回 promise。只写 `void emit(...)` 不挂 catch，
+  //     拒绝就成了 unhandled rejection（实测在本仓打出 28 个未捕获错误；`void` 只表意
+  //     "不等待"，既不吞抛也不吞拒）。
+  //   · 同步抛出 —— 该环境里 event 模块整体不可用时直接抛。try/catch 才挡得住。
+  try {
+    emit(WRITING_NARRATIVE_CHANGED_EVENT, { bookId: s.activeBookId, groups }).catch((e) => {
+      logger.warn('writingStore', '叙事变更广播被拒绝（本地写入不受影响）', { error: e });
+    });
+  } catch (e) {
+    logger.warn('writingStore', '叙事变更广播抛异常（本地写入不受影响）', { error: e });
+  }
+});
