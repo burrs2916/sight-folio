@@ -26,6 +26,17 @@ pub trait AgentTool: Send + Sync {
     fn description(&self) -> &str;
     fn parameters(&self) -> Value;
     async fn execute(&self, params: Value) -> Result<ToolOutput, String>;
+
+    /// 审批预告：工具自己说清「将把什么改成什么」，追加在 `approval_summary` 之后。
+    ///
+    /// 为什么放在工具上而不是 `approval_summary` 里：摘要是纯函数（只看得见入参），
+    /// 而 before 值在库里。让工具自己回答，一是它能复用自己的读取与校验口径，
+    /// 二是新增写工具时不会漏掉这个能力。默认 `None` = 无额外内容。
+    ///
+    /// **约定**：实现必须只读、不得落库——它在用户批准之前就会被调用。
+    async fn approval_preview(&self, _params: &Value) -> Option<String> {
+        None
+    }
 }
 
 // ─── 工具注册表 ───
@@ -135,6 +146,24 @@ pub struct ToolApprovalRequest {
     /// true = 写入类低危工具，前端展示「本会话不再询问」选项
     #[serde(default)]
     pub session_rememberable: bool,
+}
+
+/// 组装审批摘要：静态部分（纯函数，只看得见入参）+ 工具自己算的 before→after 预告。
+///
+/// 为什么单独成函数：预告的数据在库里（工具去读）、文案骨架在这里。两头都有测试，
+/// 但若中间这段拼装没有测试，把调用点删掉也不会翻红——而作者的盲批就会回来。
+async fn build_approval_summary(tools: &ToolRegistry, tool_name: &str, args: &Value) -> String {
+    let mut summary = approval_summary(tool_name, args);
+    if let Some(tool) = tools.get(tool_name) {
+        if let Some(extra) = tool.approval_preview(args).await {
+            let extra = extra.trim_end();
+            if !extra.is_empty() {
+                summary.push('\n');
+                summary.push_str(extra);
+            }
+        }
+    }
+    summary
 }
 
 /// 审批策略（按工具危险等级）：执行类逐条确认，写入类低危可会话级记住，
@@ -492,13 +521,20 @@ impl AgentEngine {
                                 let sub = args.get("cwd").and_then(|v| v.as_str()).unwrap_or("");
                                 let key = format!("{}:{}", run_id, tc.id);
                                 let mut rx = crate::plugins::ai_agent::register_approval(&key);
+                                // 审批预告：把库里的 before 值一并给作者看，否则他只能凭
+                                // AI 自述批准一次覆盖。这里刻意不等用户点按钮——等按钮最长
+                                // 5 分钟，绝不能抱着 tools 锁干等（会把整条工具链堵死）。
+                                let summary = {
+                                    let tools = self.tools.lock().await;
+                                    build_approval_summary(&tools, tool_name, &args).await
+                                };
                                 on_approval(ToolApprovalRequest {
                                     run_id: run_id.to_string(),
                                     tool_call_id: tc.id.clone(),
                                     tool: tool_name.clone(),
                                     command: cmd.to_string(),
                                     cwd: sub.to_string(),
-                                    summary: approval_summary(tool_name, &args),
+                                    summary,
                                     session_rememberable: mode == ApprovalMode::SessionOnce,
                                 });
                                 // 等待前端落定；超时(5min)/取消/通道异常一律按「拒绝」（安全默认，绝不静默执行）。
@@ -920,6 +956,85 @@ mod tests {
         // 一个字段都没给时也不能印出空话
         let bare = approval_summary("update_character_card", &json(r#"{"card":"沈砚"}"#));
         assert!(bare.contains("若干字段"), "{}", bare);
+    }
+
+    // ── 审批预告的拼装接线 ──
+    //
+    // 数据在工具里读、文案骨架在 approval_summary 里，中间这段拼装若被删掉，作者的
+    // 盲批就会悄悄回来，而两侧各自的测试都发现不了。所以这里用双件把接线本身锁住。
+
+    struct PreviewDouble {
+        preview: Option<String>,
+    }
+
+    #[async_trait]
+    impl AgentTool for PreviewDouble {
+        fn name(&self) -> &str {
+            "preview_double"
+        }
+        fn description(&self) -> &str {
+            "test double"
+        }
+        fn parameters(&self) -> Value {
+            json!({})
+        }
+        async fn execute(&self, _params: Value) -> Result<ToolOutput, String> {
+            Ok(ToolOutput {
+                success: true,
+                result: "ok".to_string(),
+                metadata: Value::Null,
+            })
+        }
+        async fn approval_preview(&self, _params: &Value) -> Option<String> {
+            self.preview.clone()
+        }
+    }
+
+    /// 完全不实现 `approval_preview` 的工具：用来锁 trait 的默认实现。
+    struct PlainDouble;
+
+    #[async_trait]
+    impl AgentTool for PlainDouble {
+        fn name(&self) -> &str {
+            "plain_double"
+        }
+        fn description(&self) -> &str {
+            "test double"
+        }
+        fn parameters(&self) -> Value {
+            json!({})
+        }
+        async fn execute(&self, _params: Value) -> Result<ToolOutput, String> {
+            Ok(ToolOutput {
+                success: true,
+                result: "ok".to_string(),
+                metadata: Value::Null,
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn approval_summary_appends_the_tools_preview() {
+        let mut reg = ToolRegistry::new();
+        reg.register(Arc::new(PreviewDouble {
+            preview: Some("现在：描述 8 字".to_string()),
+        }));
+        let s = build_approval_summary(&reg, "preview_double", &json!({})).await;
+        assert!(s.contains("现在：描述 8 字"), "预告没拼进摘要：{s}");
+    }
+
+    #[tokio::test]
+    async fn approval_summary_ignores_blank_and_unimplemented_preview() {
+        let mut reg = ToolRegistry::new();
+        reg.register(Arc::new(PreviewDouble {
+            preview: Some("   ".to_string()),
+        }));
+        reg.register(Arc::new(PlainDouble));
+        // 空白预告不许留下悬空换行；没实现预告的工具（走 trait 默认 None）摘要不许多出内容
+        let blank = build_approval_summary(&reg, "preview_double", &json!({})).await;
+        assert!(!blank.ends_with('\n'), "空白预告留下悬空换行：[{blank}]");
+        let plain = build_approval_summary(&reg, "plain_double", &json!({})).await;
+        assert_eq!(plain, approval_summary("plain_double", &json!({})));
     }
 
     #[test]

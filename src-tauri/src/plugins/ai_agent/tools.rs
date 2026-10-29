@@ -3763,6 +3763,61 @@ impl AgentTool for WriteChapterTool {
         })
     }
 
+    /// 审批预告：这一章现在多少字、批准后变成多少字、原稿会不会丢。
+    ///
+    /// `replace` 与 `append` 对作者是两种完全不同的操作（一个是整章覆盖），所以这句话
+    /// 必须出现在批准之前，而不是事后从工具回执里看到。
+    async fn approval_preview(&self, params: &Value) -> Option<String> {
+        let chapter_ref = params
+            .get("chapter_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        if chapter_ref.trim().is_empty() {
+            return None;
+        }
+        let content = params
+            .get("content")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let mode = params
+            .get("mode")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let repo = SqliteWritingRepository::new(self.db.clone());
+        let Ok(Some(chapter)) = resolve_chapter_ref(&repo, chapter_ref.trim()) else {
+            return Some("库里找不到这一章，批准后也不会写入。".to_string());
+        };
+        let add = content.chars().count() as i64;
+        let mut lines = vec![format!(
+            "现在：《{}》{} 字",
+            chapter.title, chapter.word_count
+        )];
+        if mode == "append" {
+            lines.push(format!(
+                "将改为：约 {} 字（原稿保留，新内容接在末尾）",
+                chapter.word_count + add
+            ));
+        } else {
+            lines.push(format!(
+                "将改为：约 {} 字（整章覆盖，现在这 {} 字可从本章版本历史取回）",
+                add, chapter.word_count
+            ));
+        }
+        if content.is_empty() {
+            lines.push("这次要写的内容是空的，批准后会被取消。".to_string());
+        }
+        if add > WRITING_CHAPTER_MAX_WRITE_CHARS as i64 {
+            lines.push(format!(
+                "警告：超过单次上限 {WRITING_CHAPTER_MAX_WRITE_CHARS} 字，批准后依然会被拒绝——请拆成多次 append。"
+            ));
+        }
+        Some(lines.join("\n"))
+    }
+
     async fn execute(&self, params: Value) -> Result<ToolOutput, String> {
         let chapter_ref = params["chapter_id"]
             .as_str()
@@ -4038,6 +4093,24 @@ pub type SettingChangeNotifier = Arc<dyn Fn(&str, &str) + Send + Sync>;
 
 /// 审批摘要与工具回执里展示字段旧值用的短文本：空值显示成「（空）」而不是空白，
 /// 否则作者在看审批对话框时分不清"本来是空的"和"这行没印出来"。
+/// 审批预告里「这张卡现在有几个别名」。
+///
+/// 解析不出来时返回「扩展字段异常」而不是「0 个」：卡的别名与关系网都存在 extra JSON 里，
+/// 报 0 个会让作者以为关系网已经没了，进而批准一次并不必要的"修复"。
+fn card_alias_brief(extra: &str) -> String {
+    match serde_json::from_str::<Value>(extra) {
+        Ok(v) => {
+            let n = v
+                .get("aliases")
+                .and_then(Value::as_array)
+                .map(Vec::len)
+                .unwrap_or_default();
+            format!("{n} 个")
+        }
+        Err(_) => "扩展字段异常".to_string(),
+    }
+}
+
 fn brief_or_empty(s: &str) -> String {
     let t = s.trim();
     if t.is_empty() {
@@ -4081,7 +4154,124 @@ fn resolve_setting_ref(
     Ok(None)
 }
 
-/// update_character_card：AI 维护设定卡的唯一合法入口。
+/// 读-改-写合并的**唯一口径**。
+///
+/// 为什么必须抽出来：审批摘要在**执行前**生成，作者就是凭它点「允许」的。如果预览
+/// 自己再算一遍「要改哪些字段」，一旦与真实写入逻辑漂移（比如别名上限、单字别名
+/// 过滤、extra 脏数据拒写），作者批准的就是一个不会发生的改动。所以 `execute` 与
+/// `approval_preview` 共用这份计划，谁都不许另算。
+struct CardPlan {
+    /// 合并后的目标卡（尚未落库）。
+    next: WritingSetting,
+    /// 人可读的逐项变更，形如 `名字：沈砚 → 沈砚之`。空表示没有要改的。
+    changed: Vec<String>,
+    /// 被忽略/被拒绝的部分原因，必须一并告诉作者，不许静默丢弃。
+    notes: Vec<String>,
+    /// 超硬上限的字段：`(字段名, 标签, 本次字数)`。execute 据此拒绝写入。
+    over_limit: Option<(String, String, usize)>,
+}
+
+fn plan_card_merge(current: &WritingSetting, params: &Value) -> CardPlan {
+    let mut next = current.clone();
+    let mut changed: Vec<String> = Vec::new();
+    let mut notes: Vec<String> = Vec::new();
+    let mut over_limit = None;
+
+    if let Some(v) = params.get("name").and_then(Value::as_str) {
+        let t = v.trim();
+        if t.is_empty() {
+            notes.push("名字给了空串：卡必须有名字，未改".to_string());
+        } else if t != current.name.trim() {
+            changed.push(format!("名字：{} → {}", current.name, t));
+            next.name = t.to_string();
+        }
+    }
+
+    for (key, label, slot) in [
+        ("subtitle", "副标题", &mut next.subtitle),
+        ("description", "描述", &mut next.description),
+    ] {
+        let Some(v) = params.get(key).and_then(Value::as_str) else {
+            continue;
+        };
+        if v.chars().count() > SETTING_MAX_WRITE_CHARS {
+            if over_limit.is_none() {
+                over_limit = Some((key.to_string(), label.to_string(), v.chars().count()));
+            }
+            continue;
+        }
+        if v != *slot {
+            changed.push(format!(
+                "{label}：{} → {}",
+                brief_or_empty(slot),
+                brief_or_empty(v)
+            ));
+            *slot = v.to_string();
+        }
+    }
+
+    // ── 别名：并入而不是替换；extra 脏数据时拒绝动它 ──
+    if let Some(arr) = params.get("add_aliases").and_then(Value::as_array) {
+        match serde_json::from_str::<Value>(&current.extra) {
+            Ok(v) if v.is_object() => {
+                let mut obj = match v.as_object().cloned() {
+                    Some(o) => o,
+                    // match 分支已保证是 object；真取不到就当作无扩展字段
+                    None => serde_json::Map::new(),
+                };
+                let mut list: Vec<String> = obj
+                    .get("aliases")
+                    .and_then(Value::as_array)
+                    .map(|a: &Vec<Value>| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect::<Vec<String>>()
+                    })
+                    .unwrap_or_default();
+                let mut added: Vec<String> = Vec::new();
+                for raw in arr.iter().filter_map(Value::as_str) {
+                    let a = raw.trim();
+                    // 长度 <2 的“别名”必然与体检的提及口径打架（那边也忽略单字），
+                    // 这里收下只会造出一个永远检不出来的假别名。
+                    if a.chars().count() < 2 {
+                        notes.push(format!("别名「{a}」太短（<2 字）已忽略"));
+                        continue;
+                    }
+                    if list.iter().any(|x| x == a) {
+                        continue;
+                    }
+                    if list.len() >= SETTING_MAX_ALIASES {
+                        notes.push(format!("别名已达 {SETTING_MAX_ALIASES} 个上限，后续未加"));
+                        break;
+                    }
+                    list.push(a.to_string());
+                    added.push(a.to_string());
+                }
+                if !added.is_empty() {
+                    obj.insert(
+                        "aliases".to_string(),
+                        Value::Array(list.into_iter().map(Value::from).collect()),
+                    );
+                    changed.push(format!("别名：+{}", added.join("、")));
+                    next.extra = serde_json::Value::Object(obj).to_string();
+                }
+            }
+            _ => {
+                // 关键保守点：卡上的关系网/扩展字段都在 extra 里。解析不了就重写，
+                // 等于把作者的关系网整段抹掉。拒绝这一次，而不是猜一个空对象盖上去。
+                notes.push("卡上的扩展字段(extra)无法解析，本次未改别名".to_string());
+            }
+        }
+    }
+
+    CardPlan {
+        next,
+        changed,
+        notes,
+        over_limit,
+    }
+}
 ///
 /// 三条安全设计，缺一不可：
 /// 1. **读-改-写合并**：`save_setting` 是整行 upsert，模型只传它想改的字段，
@@ -4150,6 +4340,59 @@ impl AgentTool for UpdateCharacterCardTool {
         })
     }
 
+    /// 审批预告：把库里的当前值取出来，按**与 `execute` 同一份合并口径**算出真实
+    /// before→after。作者批准的依据就是这段，所以宁可多写两行也不能让他盲批。
+    ///
+    /// 只读，不落库：这个方法在用户点「允许」之前就会被引擎调用。
+    async fn approval_preview(&self, params: &Value) -> Option<String> {
+        let raw = params
+            .get("card")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let card_ref = raw.trim();
+        if card_ref.is_empty() {
+            return None;
+        }
+        let repo = SqliteWritingRepository::new(self.db.clone());
+        let Ok(Some(current)) = resolve_setting_ref(&repo, card_ref) else {
+            // 卡名找不到也必须说清：摘要只会写「修订设定卡」，作者会以为批准就能改成功。
+            return Some(
+                "库里找不到这张卡，批准后也不会写入——先让 AI 用 read_character_card 核对卡名或 id。"
+                    .to_string(),
+            );
+        };
+        let plan = plan_card_merge(&current, params);
+        // 未被改动的字段也给一眼截断后的现值：作者若只看到「描述 8 字」，仍然不知道
+        // 卡上写着什么，等于还是盲批。brief_or_empty 自带 24 字截断 + 总字数，不会撑爆弹窗。
+        let mut lines: Vec<String> = vec![format!(
+            "现在：名字「{}」· 身份「{}」· 描述 {} · 别名 {}",
+            current.name,
+            current.subtitle.trim(),
+            brief_or_empty(&current.description),
+            card_alias_brief(&current.extra),
+        )];
+        if let Some((_, label, chars)) = plan.over_limit.as_ref() {
+            lines.push(format!(
+                "警告：{label} 这次要写 {chars} 字，超过 {SETTING_MAX_WRITE_CHARS} 字硬上限，批准后依然会被拒绝。"
+            ));
+        }
+        if plan.changed.is_empty() {
+            lines.push(
+                "没有任何实际改动：AI 传的内容与现值相同，或被上面的原因挡掉了。".to_string(),
+            );
+        } else {
+            lines.push("将改为：".to_string());
+            for c in &plan.changed {
+                lines.push(format!("· {c}"));
+            }
+        }
+        for n in &plan.notes {
+            lines.push(format!("注意：{n}"));
+        }
+        Some(lines.join("\n"))
+    }
+
     async fn execute(&self, params: Value) -> Result<ToolOutput, String> {
         let card_ref = params["card"].as_str().map(str::trim).unwrap_or_default();
         if card_ref.is_empty() {
@@ -4173,104 +4416,24 @@ impl AgentTool for UpdateCharacterCardTool {
             });
         };
 
-        // ── 读-改-写合并：只有模型显式给的字段才动 ──
-        let mut next = current.clone();
-        let mut changed: Vec<String> = Vec::new();
-        let mut notes: Vec<String> = Vec::new();
-
-        if let Some(v) = params.get("name").and_then(Value::as_str) {
-            let t = v.trim();
-            if t.is_empty() {
-                notes.push("名字给了空串：卡必须有名字，未改".to_string());
-            } else if t != current.name.trim() {
-                changed.push(format!("名字：{} → {}", current.name, t));
-                next.name = t.to_string();
-            }
+        // ── 读-改-写合并：口径在 plan_card_merge，与审批预览共用一份 ──
+        let plan = plan_card_merge(&current, &params);
+        if let Some((field, label, chars)) = plan.over_limit {
+            return Ok(ToolOutput {
+                success: false,
+                result: format!(
+                    "[update_character_card] {label} 超过 {SETTING_MAX_WRITE_CHARS} 字上限（本次 {chars} 字）。\
+                     设定卡是账本不是正文，请精简后重发。"
+                ),
+                metadata: json!({ "cardId": current.id, "field": field }),
+            });
         }
-
-        for (key, label, slot) in [
-            ("subtitle", "副标题", &mut next.subtitle),
-            ("description", "描述", &mut next.description),
-        ] {
-            let Some(v) = params.get(key).and_then(Value::as_str) else {
-                continue;
-            };
-            if v.chars().count() > SETTING_MAX_WRITE_CHARS {
-                return Ok(ToolOutput {
-                    success: false,
-                    result: format!(
-                        "[update_character_card] {label} 超过 {SETTING_MAX_WRITE_CHARS} 字上限（本次 {} 字）。\
-                         设定卡是账本不是正文，请精简后重发。",
-                        v.chars().count()
-                    ),
-                    metadata: json!({ "cardId": current.id, "field": key }),
-                });
-            }
-            if v != *slot {
-                changed.push(format!(
-                    "{label}：{} → {}",
-                    brief_or_empty(slot),
-                    brief_or_empty(v)
-                ));
-                *slot = v.to_string();
-            }
-        }
-
-        // ── 别名：并入而非替换；extra 脏数据时拒绝动它 ──
-        if let Some(arr) = params.get("add_aliases").and_then(Value::as_array) {
-            match serde_json::from_str::<Value>(&current.extra) {
-                Ok(v) if v.is_object() => {
-                    let mut obj = match v.as_object().cloned() {
-                        Some(o) => o,
-                        // match 分支已保证是 object；真取不到就当作无扩展字段
-                        None => serde_json::Map::new(),
-                    };
-                    let mut list: Vec<String> = obj
-                        .get("aliases")
-                        .and_then(Value::as_array)
-                        .map(|a| {
-                            a.iter()
-                                .filter_map(Value::as_str)
-                                .map(str::to_string)
-                                .collect::<Vec<String>>()
-                        })
-                        .unwrap_or_default();
-                    let mut added: Vec<String> = Vec::new();
-                    for raw in arr.iter().filter_map(Value::as_str) {
-                        let a = raw.trim();
-                        // 长度 <2 的"别名"必然与体检的提及口径打架（那边也忽略单字），
-                        // 这里收下只会制造一个永远检不出来的假别名。
-                        if a.chars().count() < 2 {
-                            notes.push(format!("别名「{a}」太短（<2 字）已忽略"));
-                            continue;
-                        }
-                        if list.iter().any(|x| x == a) {
-                            continue;
-                        }
-                        if list.len() >= SETTING_MAX_ALIASES {
-                            notes.push(format!("别名已达 {SETTING_MAX_ALIASES} 个上限，后续未加"));
-                            break;
-                        }
-                        list.push(a.to_string());
-                        added.push(a.to_string());
-                    }
-                    if !added.is_empty() {
-                        obj.insert(
-                            "aliases".to_string(),
-                            Value::Array(list.into_iter().map(Value::from).collect()),
-                        );
-                        let merged = serde_json::Value::Object(obj);
-                        changed.push(format!("别名：+{}", added.join("、")));
-                        next.extra = merged.to_string();
-                    }
-                }
-                _ => {
-                    // 关键保守点：卡上的关系网/扩展字段都在 extra 里。解析不了就重写，
-                    // 等于把作者的关系网整段抹掉。拒绝这一次，而不是猜一个空对象覆盖上去。
-                    notes.push("卡上的扩展字段(extra)无法解析，本次未改别名".to_string());
-                }
-            }
-        }
+        let CardPlan {
+            mut next,
+            changed,
+            notes,
+            ..
+        } = plan;
 
         if changed.is_empty() {
             return Ok(ToolOutput {
@@ -6012,6 +6175,169 @@ mod tests {
         assert!(
             registry.get("update_character_card").is_some(),
             "写卡工具没接进 registry，等于这个能力不存在"
+        );
+    }
+
+    // ── 审批预告 approval_preview ──
+    //
+    // 审批框里的 before 值是作者点「允许」的唯一依据，所以这里锁三个致命性质：
+    // 批准前一个字节都不许改、必须真把现值说出来、列出的改动必须与 execute 实际改动一致。
+
+    #[tokio::test]
+    async fn card_preview_shows_current_values_from_db() {
+        let db = writing_db();
+        let repo = SqliteWritingRepository::new(db.clone());
+        seed_book(&repo, "b1", "长夜将尽");
+        seed_setting(&repo, "s1", "b1", "沈砚", r#"{"aliases":["沈公子"]}"#);
+
+        let p = card_tool(&db)
+            .approval_preview(&json!({"card": "s1", "name": "沈砚之"}))
+            .await
+            .expect("有卡又有改动，必须给出预告");
+        assert!(p.contains("沈砚之"), "预告要含新值：{p}");
+        assert!(p.contains("1 个"), "别名当前条数要如实报出：{p}");
+        assert!(
+            p.contains("沉默寡言"),
+            "没被改的字段也应展示现值，作者才知道全貌：{p}"
+        );
+    }
+
+    #[tokio::test]
+    async fn card_preview_never_writes_before_approval() {
+        // 这个方法在用户批准之前就被引擎调用。落库等于绕过整个审批闸门。
+        let db = writing_db();
+        let repo = SqliteWritingRepository::new(db.clone());
+        seed_book(&repo, "b1", "长夜将尽");
+        seed_setting(&repo, "s1", "b1", "沈砚", "{}");
+
+        let _ = card_tool(&db)
+            .approval_preview(
+                &json!({"card": "s1", "description": "不该被写进去", "add_aliases": ["二哥"]}),
+            )
+            .await;
+
+        let after = repo
+            .list_settings("b1", "character")
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id == "s1")
+            .unwrap();
+        assert_eq!(
+            after.description, "沉默寡言，善剑。",
+            "预告改到了库里的描述"
+        );
+        assert!(
+            !after.extra.contains("二哥"),
+            "预告写入了别名：{}",
+            after.extra
+        );
+        assert_eq!(
+            repo.list_setting_revisions("s1", 10).unwrap().len(),
+            0,
+            "预告不得留下修订记录"
+        );
+    }
+
+    #[tokio::test]
+    async fn card_preview_and_execute_agree_on_every_change() {
+        // 预览与写入共用 plan_card_merge。这条断言把「共用」钉住：哪天有人给预览另算
+        // 一套口径（或 execute 加了新字段而预览没跟上），这里立刻翻红。
+        let db = writing_db();
+        let repo = SqliteWritingRepository::new(db.clone());
+        seed_book(&repo, "b1", "长夜将尽");
+        seed_setting(&repo, "s1", "b1", "沈砚", r#"{"aliases":["沈公子"]}"#);
+
+        let args = json!({
+            "card": "s1",
+            "name": "沈砚之",
+            "description": "沉默寡言，善剑，左眼下有疤。",
+            "add_aliases": ["二哥", "沈", "沈公子"]
+        });
+        let preview = card_tool(&db)
+            .approval_preview(&args)
+            .await
+            .expect("必须有预告");
+        let out = card_tool(&db).execute(args.clone()).await.unwrap();
+        assert!(out.success, "{}", out.result);
+
+        let mut checked = 0;
+        for line in out
+            .result
+            .lines()
+            .filter(|l| l.trim_start().starts_with("- "))
+        {
+            let item = line.trim().trim_start_matches("- ");
+            assert!(
+                preview.contains(item),
+                "execute 改了「{item}」但预览没提：{preview}"
+            );
+            checked += 1;
+        }
+        assert!(checked >= 2, "本例应当至少产生两条变更，否则这条断言是空的");
+    }
+
+    #[tokio::test]
+    async fn card_preview_admits_it_cannot_do_the_write() {
+        // 批准一个注定失败的操作，比看不到摘要更浪费作者的一次判断。
+        let db = writing_db();
+        let repo = SqliteWritingRepository::new(db.clone());
+        seed_book(&repo, "b1", "长夜将尽");
+        seed_setting(&repo, "s1", "b1", "沈砚", "{}");
+
+        let missing = card_tool(&db)
+            .approval_preview(&json!({"card": "查无此卡", "description": "x"}))
+            .await
+            .expect("找不到卡也要说话，不许静默");
+        assert!(missing.contains("找不到"), "{missing}");
+
+        let oversize = card_tool(&db)
+            .approval_preview(&json!({"card": "s1", "description": "字".repeat(5_000)}))
+            .await
+            .expect("超限也要说话");
+        assert!(
+            oversize.contains("上限"),
+            "要提前说明批准后仍会被拒：{oversize}"
+        );
+    }
+
+    #[tokio::test]
+    async fn chapter_preview_tells_replace_from_append() {
+        // 「整章覆盖」和「接在末尾」对作者是两种风险，必须在批准前就分开。
+        let db = writing_db();
+        let repo = SqliteWritingRepository::new(db.clone());
+        seed_book(&repo, "b1", "长夜将尽");
+        seed_chapter(&repo, "c1", "b1", "第一章 初雪");
+
+        let replace = WriteChapterTool::new(db.clone())
+            .approval_preview(
+                &json!({"chapter_id": "c1", "content": "新的正文内容", "mode": "replace"}),
+            )
+            .await
+            .expect("replace 需要预告");
+        assert!(replace.contains("整章覆盖"), "{replace}");
+        assert!(replace.contains("2 字"), "当前字数要如实报出：{replace}");
+        assert!(
+            replace.contains("版本历史"),
+            "要让作者知道原稿不会丢：{replace}"
+        );
+
+        let append = WriteChapterTool::new(db.clone())
+            .approval_preview(
+                &json!({"chapter_id": "c1", "content": "新的正文内容", "mode": "append"}),
+            )
+            .await
+            .expect("append 需要预告");
+        assert!(append.contains("原稿保留"), "{append}");
+        assert!(
+            !append.contains("整章覆盖"),
+            "append 不该吓唬作者：{append}"
+        );
+
+        // 预告只读：不许留下版本快照
+        assert_eq!(
+            repo.list_chapter_snapshots("c1", 20).unwrap().len(),
+            0,
+            "预告不得写版本历史"
         );
     }
 }
