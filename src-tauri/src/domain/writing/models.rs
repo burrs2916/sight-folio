@@ -241,6 +241,13 @@ pub struct WritingTimelineEvent {
     /// 所属剧情线（NULL = 未挂线）：多线叙事维度，与 setting_id（谁）/chapter_id（在哪）正交。
     #[serde(default)]
     pub storyline_id: Option<String>,
+    /// 可排序时点（NULL = 作者没填）。
+    ///
+    /// `at` 是给人看的自由文本（「武德九年六月初四」），机器没法比大小，所以另存一个单调
+    /// 数值（第 N 天、或归一化后的年月日）。只有填了它，这条事件才会参与
+    /// 「跨章时间倒挂」判定——没填宁可漏检，也绝不对任意历法文本瞎猜。
+    #[serde(default)]
+    pub time_key: Option<i64>,
     #[serde(default)]
     pub sort_order: i64,
     pub created_at: i64,

@@ -57,6 +57,8 @@ function ev(id: string, at: string, over: Partial<WritingTimelineEvent> = {}): W
     bookId: 'b1',
     settingId: null,
     at,
+    // 默认没填可排序时点；要测倒挂的用例自己 over.timeKey 覆盖
+    timeKey: null,
     event: `事件 ${id}`,
     chapterId: null,
     storylineId: null,

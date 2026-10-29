@@ -4136,7 +4136,7 @@ function EventChip({
   onJump: () => void;
   onDelete: () => void;
   onUpdate: (
-    patch: Partial<Pick<WritingTimelineEvent, 'at' | 'event' | 'chapterId' | 'storylineId'>>,
+    patch: Partial<Pick<WritingTimelineEvent, 'at' | 'event' | 'chapterId' | 'storylineId' | 'timeKey'>>,
   ) => void | Promise<unknown>;
   /** 冲突提示（同轨 at 碰撞 / 跨章时间倒挂）：仅琥珀色软提示，不强制 */
   warn?: boolean;
@@ -4210,6 +4210,21 @@ function EventChip({
           placeholder={t('writing.timelineAtPh')}
           style={{ ...inputStyle, flex: 1, minWidth: 0, fontSize: 10, color, fontWeight: 600 }}
         />
+        {/* 可排序时点：填了才参与「跨章时间往回走」检查（口径见 eventSortKey）。
+            非整数的提交直接丢弃——把「初五」存成 0 会凭空造出一个假冲突。 */}
+        <span title={t('writing.timelineTimeKeyTip')} style={{ flexShrink: 0 }}>
+          <DraftInput
+            entityKey={`${ev.id}-tk`}
+            value={ev.timeKey === null || ev.timeKey === undefined ? '' : String(ev.timeKey)}
+            onCommit={(v) => {
+              const raw = v.trim();
+              if (raw === '') onUpdate({ timeKey: null });
+              else if (/^-?\d+$/.test(raw)) onUpdate({ timeKey: Number(raw) });
+            }}
+            placeholder="#"
+            style={{ ...inputStyle, width: 34, fontSize: 10, color }}
+          />
+        </span>
         <button
           type="button"
           onClick={onJump}

@@ -343,9 +343,22 @@ describe('体检文案键的词典审计（不经过 mock）', () => {
   // 另一轮事故的教训：t() 被 mock 成恒等函数时，凭空写的键 6 条 UI 测试全绿，
   // 界面上显示的却是裸 key。所以键的存在性必须绕过 mock 直接查词典。
   it('引擎里每个 messageKey 都能在双语词典查到文案', () => {
-    const keys = [...new Set([...src.matchAll(/messageKey:\s*'([A-Za-z0-9_]+)'/g)].map((m) => m[1]))];
+    // 逐行取 messageKey，把该行所有字符串字面量都算进来：写成三元式
+    // `messageKey: cond ? 'A' : 'B'` 后，只认 `messageKey: 'X'` 的正则会让两个键
+    // 同时悄悄脱离审计（本门槛曾以 15→14 抓到过一次）。
+    const keys = new Set<string>();
+    for (const line of src.split('\n')) {
+      const i = line.indexOf('messageKey:');
+      if (i < 0) continue;
+      // 只取 `?` 之后的字面量：`messageKey: x.kind === 'reversed' ? 'A' : 'B'` 里
+      // 'reversed' 是比较用的字符串，不是文案键（收紧前审计会把它误当键报缺）
+      const afterTernary = line.slice(i);
+      const q = afterTernary.indexOf('?');
+      const tail = q >= 0 ? afterTernary.slice(q + 1) : afterTernary;
+      for (const m of tail.matchAll(/'([A-Za-z0-9_]+)'/g)) keys.add(m[1]);
+    }
     // 门槛只要「正则真的抓到了东西」即可：少于这个数说明写法变了、审计已经空转
-    expect(keys.length).toBeGreaterThanOrEqual(15);
+    expect(keys.size).toBeGreaterThanOrEqual(16);
     for (const file of ['zh-CN', 'en-US']) {
       const dict = JSON.parse(readFileSync(`${ROOT}/src/i18n/${file}.json`, 'utf8'));
       for (const k of keys) {

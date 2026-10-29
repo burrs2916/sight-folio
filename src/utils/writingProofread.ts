@@ -454,7 +454,17 @@ export function buildProofreadReport(
   // 和谁撞、撞在哪个时点，作者跳过去还得自己找一遍，等于没报。判定复用 collectTimeline
   // Conflicts（与画布标黄同一份算法，禁第二份）。
   // 注：book 视图按设定分轨只会产生「同轨同时点」，不会产生跨章倒挂（那要 chapter 视图）。
+  // 两段式（writingCorpus 早就是这么用的）：book 视图按设定分轨，只看得见「同轨同一时点」；
+  // 「时间往回走」是跨章性质，只有带 chapters 的 chapter 视图算得出来。以前全书报告只跑
+  // book 那一段，等于对连载最致命的那类时间错误完全不检。
   const conflicts = collectTimelineConflicts(timelineEvents, { view: 'book' });
+  for (const [id, hit] of collectTimelineConflicts(timelineEvents, {
+    view: 'chapter',
+    chapters,
+  })) {
+    // 同轨撞车先到先得：它更具体（点名了相撞对象），不被宽泛的倒挂覆盖掉
+    if (!conflicts.has(id)) conflicts.set(id, hit);
+  }
   const evById = new Map(timelineEvents.map((e) => [e.id, e] as const));
   for (const [evId, hit] of conflicts) {
     const ev = evById.get(evId);
@@ -468,7 +478,9 @@ export function buildProofreadReport(
     issues.push({
       key: `ev:${evId}`,
       group: 'timeline',
-      messageKey: 'TimelineConflictRow',
+      // 两种冲突的成因完全不同（撞车 = 时点重复；倒挂 = 后写的章时间反而更早），
+      // 合成一句会让作者按错的思路去改
+      messageKey: hit.kind === 'reversed' ? 'TimelineReversedRow' : 'TimelineConflictRow',
       args: {
         text: (ev?.event || '').slice(0, 24),
         at: ev?.at?.trim() || '…',

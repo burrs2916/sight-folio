@@ -5,7 +5,11 @@
 // 不该长这样。这里锁两件事：详情给得出来，且投影出去仍是原来那份判定（画布标黄
 // 与报告必须同源，见 writingTimeline 里的注释）。
 import { describe, it, expect } from 'vitest';
-import { collectTimelineConflicts, computeTimelineConflicts } from '../writingTimeline';
+import {
+  collectTimelineConflicts,
+  computeTimelineConflicts,
+  eventSortKey,
+} from '../writingTimeline';
 import { buildProofreadReport } from '../writingProofread';
 import type { WritingTimelineEvent } from '../../services/tauri';
 
@@ -77,6 +81,85 @@ describe('collectTimelineConflicts 详情', () => {
     expect(m.get('a')!.kind).toBe('reversed');
     expect(m.get('a')!.with).toEqual(['b']);
     expect(m.get('b')!.with).toEqual(['a']);
+  });
+});
+
+describe('eventSortKey：可排序时点', () => {
+  it('作者填了 timeKey 就用它，优先于 from-text 解析', () => {
+    const e = { ...ev('a', '武德九年六月初四', 's1'), timeKey: 621 } as WritingTimelineEvent;
+    expect(eventSortKey(e)).toBe(621);
+  });
+
+  it('没填 timeKey 时退回解析 at 的纯整数（老数据不留空白）', () => {
+    expect(eventSortKey({ ...ev('a', '2024', 's1'), timeKey: null } as WritingTimelineEvent)).toBe(2024);
+  });
+
+  it('两者都拿不到 → null，即不参与倒挂判定', () => {
+    // 这是有意的漏检：对「武德九年六月初四」这类任意历法瞎猜，会造出假的 block 级冲突
+    expect(eventSortKey({ ...ev('a', '武德九年六月初四', 's1'), timeKey: null } as WritingTimelineEvent)).toBeNull();
+  });
+});
+
+describe('跨章时间倒挂进得来全书报告', () => {
+  const chapters = [{ id: 'c1', sortOrder: 0 }, { id: 'c2', sortOrder: 1 }] as never;
+
+  /** 先读 c1、后读 c2，但 c2 的时点更早 —— 时间往回走。at 用任意历法文本，
+   *  正是 pureInt 解析不出来的那种，只有 timeKey 能救回来 */
+  const reversedEvents = [
+    { ...ev('early', '武德九年六月初四', 's1', 'c1'), event: '开篇之战', timeKey: 100 },
+    { ...ev('late', '武德九年五月初一', 's1', 'c2'), event: '终局之战', timeKey: 10 },
+  ] as WritingTimelineEvent[];
+
+  it('at 是任意历法文本时，只要填了 timeKey 就能检出倒挂', () => {
+    const m = collectTimelineConflicts(reversedEvents, { view: 'chapter', chapters });
+    expect(m.get('early')!.kind).toBe('reversed');
+    expect(m.get('early')!.with).toEqual(['late']);
+  });
+
+  it('没填 timeKey 且 at 非纯整数 → 检不出来（已知漏检，不许假装在查）', () => {
+    const m = collectTimelineConflicts([ev('early', '开篇之战', 's1', 'c1'), ev('late', '终局之战', 's1', 'c2')], {
+      view: 'chapter',
+      chapters,
+    });
+    expect(m.size).toBe(0);
+  });
+
+  it('时间顺序正常就不报（不误伤）', () => {
+    const ok = [
+      { ...ev('early', '第一战', 's1', 'c1'), timeKey: 10 },
+      { ...ev('late', '第二战', 's1', 'c2'), timeKey: 100 },
+    ] as WritingTimelineEvent[];
+    expect(collectTimelineConflicts(ok, { view: 'chapter', chapters }).size).toBe(0);
+  });
+
+  it('体检报告：book 视图看不见的倒挂，现在会作为 block 行进报告', () => {
+    const withChapters = [
+      { id: 'c1', bookId: 'b1', title: '第一章', sortOrder: 0 },
+      { id: 'c2', bookId: 'b1', title: '第二章', sortOrder: 1 },
+    ] as never;
+    const report = buildProofreadReport(withChapters, [], reversedEvents, [], [], []);
+    const hit = report.issues.find((i) => i.key === 'ev:early');
+    expect(hit).toBeTruthy();
+    expect(hit!.group).toBe('timeline');
+    expect(hit!.severity).toBe('block');
+    expect(hit!.messageKey).toBe('TimelineReversedRow');
+    expect(String(hit!.args?.others)).toContain('终局之战');
+  });
+
+  it('同轨撞车与倒挂同时命中时，报告用更具体的撞车说法（先到先得，不被覆盖）', () => {
+    const withChapters = [
+      { id: 'c1', bookId: 'b1', title: '第一章', sortOrder: 0 },
+      { id: 'c2', bookId: 'b1', title: '第二章', sortOrder: 1 },
+    ] as never;
+    // 撞车按 at 文本判定（不是 timeKey）：a 与 b 必须写同一个 at 才算撞在同一时点
+    const both = [
+      { ...ev('a', '武德九年六月初四', 's1', 'c1'), timeKey: 100 },
+      { ...ev('b', '武德九年六月初四', 's1', 'c1'), timeKey: 100 }, // 与 a 同轨同点 → 撞车
+      { ...ev('z', '武德九年五月初一', 's1', 'c2'), timeKey: 1 }, // 与 a/b 构成倒挂
+    ] as WritingTimelineEvent[];
+    const report = buildProofreadReport(withChapters, [], both, [], [], []);
+    expect(report.issues.find((i) => i.key === 'ev:a')!.messageKey).toBe('TimelineConflictRow');
+    expect(report.issues.find((i) => i.key === 'ev:z')!.messageKey).toBe('TimelineReversedRow');
   });
 });
 

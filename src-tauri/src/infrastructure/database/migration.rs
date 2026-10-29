@@ -1440,6 +1440,7 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             event TEXT NOT NULL DEFAULT '',
             chapter_id TEXT,
             storyline_id TEXT,
+            time_key INTEGER,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
             updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
@@ -1451,6 +1452,12 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
          ON writing_timeline_events(book_id, setting_id)",
         [],
     )?;
+    // 旧库升级：新增可排序时点 time_key（只 ALTER 不 DROP，符合铁律）。
+    // 新库建表已含该列，ALTER 报 duplicate column 是预期的，`let _ =` 吞掉。
+    let _ = conn.execute(
+        "ALTER TABLE writing_timeline_events ADD COLUMN time_key INTEGER",
+        [],
+    );
     // 剧情线（多线叙事实体）：事件通过 storyline_id 挂线（见上方 timeline 表）。
     conn.execute(
         "CREATE TABLE IF NOT EXISTS writing_storylines (

@@ -226,7 +226,7 @@ const SETTING_COLS: &str =
 const OUTLINE_COLS: &str =
     "id, book_id, title, summary, chapter_id, extra, sort_order, created_at, updated_at";
 const TIMELINE_EVENT_COLS: &str =
-    "id, book_id, setting_id, at, event, chapter_id, storyline_id, sort_order, created_at, updated_at";
+    "id, book_id, setting_id, at, event, chapter_id, storyline_id, time_key, sort_order, created_at, updated_at";
 const STORYLINE_COLS: &str =
     "id, book_id, name, color, description, sort_order, created_at, updated_at";
 const FORESHADOWING_COLS: &str =
@@ -389,6 +389,7 @@ fn row_to_timeline_event(row: &rusqlite::Row) -> rusqlite::Result<WritingTimelin
         event: row.get("event")?,
         chapter_id: row.get("chapter_id")?,
         storyline_id: row.get("storyline_id")?,
+        time_key: row.get("time_key")?,
         sort_order: row.get("sort_order")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
@@ -1124,8 +1125,8 @@ impl WritingRepository for SqliteWritingRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO writing_timeline_events
-             (id, book_id, setting_id, at, event, chapter_id, storyline_id, sort_order, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+             (id, book_id, setting_id, at, event, chapter_id, storyline_id, time_key, sort_order, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
             rusqlite::params![
                 event.id,
                 event.book_id,
@@ -1134,6 +1135,7 @@ impl WritingRepository for SqliteWritingRepository {
                 event.event,
                 event.chapter_id,
                 event.storyline_id,
+                event.time_key,
                 event.sort_order,
                 event.created_at,
                 event.updated_at,
@@ -1940,6 +1942,8 @@ mod tests {
             event: "主角登基".into(),
             chapter_id: Some("ch1".into()),
             storyline_id: None,
+            // 给非 NULL 值：往返测试要能证明这一列真的存进去、也真读得出来
+            time_key: Some(3),
             sort_order: 0,
             created_at: 1_700_000_000,
             updated_at: 1_700_000_000,
@@ -1953,7 +1957,10 @@ mod tests {
         repo.save_book(&book).unwrap();
 
         let bound = sample_timeline_event("book_tl", "ev_bound", Some("set1"));
-        let book_level = sample_timeline_event("book_tl", "ev_book", None);
+        let mut book_level = sample_timeline_event("book_tl", "ev_book", None);
+        // 时间线事件「没填可排序时点」是常态，必须能原样读回 NULL：
+        // 存成 0 会让这条事件被当成"第 0 天"参与倒挂判定，凭空造出一个假冲突。
+        book_level.time_key = None;
         repo.save_timeline_event(&bound).unwrap();
         repo.save_timeline_event(&book_level).unwrap();
 
@@ -1964,7 +1971,9 @@ mod tests {
         assert_eq!(got_bound.at, "第3年");
         assert_eq!(got_bound.event, "主角登基");
         assert_eq!(got_bound.chapter_id.as_deref(), Some("ch1"));
+        assert_eq!(got_bound.time_key, Some(3), "可排序时点存取往返不能丢");
         let got_book = listed.iter().find(|e| e.id == "ev_book").unwrap();
+        assert_eq!(got_book.time_key, None, "没填时点必须读回 NULL，不能变成 0");
         assert!(
             got_book.setting_id.is_none(),
             "书级事件 setting_id 必须为 NULL"

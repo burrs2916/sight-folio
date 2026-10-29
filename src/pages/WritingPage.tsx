@@ -1742,7 +1742,20 @@ export default function WritingPage() {
       e.relations = (e.relations ?? []).filter((_, i) => i !== idx);
       syncLinkedTo(e);
     });
-  const setTimelineRow = (eventId: string, field: 'at' | 'event' | 'chapterId' | 'storylineId', value: string) => {
+  const setTimelineRow = (
+    eventId: string,
+    field: 'at' | 'event' | 'chapterId' | 'storylineId' | 'timeKey',
+    value: string,
+  ) => {
+    // timeKey 三态要分开：空串 = 作者没填（null，该条不参与倒挂检查）；纯整数才落库。
+    // 输入过程中的 "-"、"1e" 这类半成品直接忽略，别把作者正在敲的东西存成 0——
+    // 存成 0 会让这条事件被当成"第 0 天"，凭空造出一个假的时间倒挂。
+    if (field === 'timeKey') {
+      const raw = value.trim();
+      if (raw === '') void updateTimelineEvent(eventId, { timeKey: null });
+      else if (/^-?\d+$/.test(raw)) void updateTimelineEvent(eventId, { timeKey: Number(raw) });
+      return;
+    }
     const patch: Partial<Pick<WritingTimelineEvent, 'at' | 'event' | 'chapterId' | 'storylineId'>> =
       field === 'chapterId' || field === 'storylineId' ? { [field]: value || null } : { [field]: value };
     void updateTimelineEvent(eventId, patch);
@@ -3568,6 +3581,23 @@ export default function WritingPage() {
                                   value={ev.at}
                                   onChange={(e) => setTimelineRow(ev.id, 'at', e.target.value)}
                                 />
+                                {/* 可排序时点：at 是给人看的任意历法文本，机器比不出先后。
+                                    填了这个数字，这条事件才会参与「跨章时间往回走」检查。
+                                    口径见 utils/writingTimeline 的 eventSortKey。 */}
+                                <Tooltip title={t('writing.timelineTimeKeyTip')} placement="top">
+                                  <span>
+                                    <TextField
+                                      size="small"
+                                      type="number"
+                                      sx={{ width: 104, ml: 1, flexShrink: 0 }}
+                                      label={t('writing.timelineTimeKey')}
+                                      placeholder={t('writing.timelineTimeKeyHint')}
+                                      slotProps={{ inputLabel: { shrink: true } }}
+                                      value={ev.timeKey ?? ''}
+                                      onChange={(e) => setTimelineRow(ev.id, 'timeKey', e.target.value)}
+                                    />
+                                  </span>
+                                </Tooltip>
                                 <TextField
                                   size="small"
                                   select
@@ -3680,6 +3710,23 @@ export default function WritingPage() {
                                   value={ev.at}
                                   onChange={(e) => setTimelineRow(ev.id, 'at', e.target.value)}
                                 />
+                                {/* 可排序时点：at 是给人看的任意历法文本，机器比不出先后。
+                                    填了这个数字，这条事件才会参与「跨章时间往回走」检查。
+                                    口径见 utils/writingTimeline 的 eventSortKey。 */}
+                                <Tooltip title={t('writing.timelineTimeKeyTip')} placement="top">
+                                  <span>
+                                    <TextField
+                                      size="small"
+                                      type="number"
+                                      sx={{ width: 104, ml: 1, flexShrink: 0 }}
+                                      label={t('writing.timelineTimeKey')}
+                                      placeholder={t('writing.timelineTimeKeyHint')}
+                                      slotProps={{ inputLabel: { shrink: true } }}
+                                      value={ev.timeKey ?? ''}
+                                      onChange={(e) => setTimelineRow(ev.id, 'timeKey', e.target.value)}
+                                    />
+                                  </span>
+                                </Tooltip>
                                 <TextField
                                   size="small"
                                   select

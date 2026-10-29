@@ -167,7 +167,10 @@ interface WritingState {
   updateTimelineEvent: (
     eventId: string,
     patch: Partial<
-      Pick<WritingTimelineEvent, 'at' | 'event' | 'chapterId' | 'settingId' | 'sortOrder' | 'storylineId'>
+      Pick<
+        WritingTimelineEvent,
+        'at' | 'event' | 'chapterId' | 'settingId' | 'sortOrder' | 'storylineId' | 'timeKey'
+      >
     >,
   ) => Promise<void>;
   deleteTimelineEvent: (eventId: string) => Promise<void>;
@@ -1117,6 +1120,7 @@ export const useWritingStore = create<WritingState>()(
         chapterId: opts.chapterId ?? null,
         storylineId: opts.storylineId ?? null,
         outlineId: opts.outlineId ?? null,
+        timeKey: null,
         sortOrder: timelineEvents.reduce((max, ev) => Math.max(max, ev.sortOrder), 0) + 1,
         createdAt: now,
         updatedAt: now,

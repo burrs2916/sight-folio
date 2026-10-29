@@ -32,6 +32,20 @@ export function pureInt(at?: string | null): number | null {
   return s && /^\d+$/.test(s) ? parseInt(s, 10) : null;
 }
 
+/**
+ * 跨章倒挂判定用的时点数值：优先作者填的 `timeKey`，退回解析 `at` 里的纯整数。
+ *
+ * 为什么要新增 `timeKey`：`at` 是给人看的自由文本，「武德九年六月初四」这种写法
+ * `pureInt` 一律返回 null，于是**用书中历法的长篇根本检不出"时间往回走"**——而这恰恰是
+ * 连载最致命的时间线事故。填一个单调数值（第 N 天 / 归一化年月日）就能纳入检查。
+ *
+ * 返回 null = 不参与判定。宁可漏检，也不对任意历法文本瞎猜，猜错会造出假 block 级冲突。
+ */
+export function eventSortKey(ev: WritingTimelineEvent): number | null {
+  if (ev.timeKey !== null && ev.timeKey !== undefined) return ev.timeKey;
+  return pureInt(ev.at);
+}
+
 /** 完整事件（同时有 at 与 event）才进主时间轴 / 合并轴；空 at 或空 event 的草稿归入「待补全」。 */
 export function isComplete(ev: WritingTimelineEvent): boolean {
   return !!(ev.at?.trim() && ev.event?.trim());
@@ -206,7 +220,7 @@ export function collectTimelineConflicts(
         order: c.sortOrder,
         items: complete
           .filter((e) => e.chapterId === c.id)
-          .map((e) => ({ id: e.id, t: pureInt(e.at) }))
+          .map((e) => ({ id: e.id, t: eventSortKey(e) }))
           .filter((x): x is { id: string; t: number } => x.t !== null),
       }))
       .filter((l) => l.items.length > 0);
