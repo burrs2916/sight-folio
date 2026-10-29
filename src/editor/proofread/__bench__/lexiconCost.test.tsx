@@ -122,10 +122,11 @@ describe('校对词库扫描成本', { timeout: 120_000 }, () => {
       const ms = bench(`5,000 字 + ${n} 条自定义（全 miss）`, () => runProofread(TEXT_5K, lex));
       results.push({ n, ms });
     }
-    // 单调递增：词数越多越慢，没有任何"免费"的平台期
-    for (let i = 1; i < results.length; i++) {
-      expect(results[i].ms).toBeGreaterThan(results[i - 1].ms);
-    }
+    // 只锁「成本随词数增长」这一条，用首尾对比 + 大余量。
+    // 不再做相邻档严格递增：词数 200→1,000 的耗时差只有零点几毫秒，机器一忙就会倒挂
+    // （实测过 3,000 条"快过"1,000 条），那种断言只会训练出"红了就 skip"。
+    // 真回归照样抓得住：词库规模差 30 倍，任何数量级退化都远超这个余量。
+    expect(results[results.length - 1].ms).toBeGreaterThan(results[0].ms * 1.5);
     const perTerm = results.map((r) => (r.ms / r.n) * 1000);
   
     console.log(

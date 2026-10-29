@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
   collectTimelineConflicts,
   computeTimelineConflicts,
+  deriveTimeKeys,
   eventSortKey,
 } from '../writingTimeline';
 import { buildProofreadReport } from '../writingProofread';
@@ -160,6 +161,71 @@ describe('跨章时间倒挂进得来全书报告', () => {
     const report = buildProofreadReport(withChapters, [], both, [], [], []);
     expect(report.issues.find((i) => i.key === 'ev:a')!.messageKey).toBe('TimelineConflictRow');
     expect(report.issues.find((i) => i.key === 'ev:z')!.messageKey).toBe('TimelineReversedRow');
+  });
+});
+
+describe('批量推演 timeKey（deriveTimeKeys）', () => {
+  const evk = (id: string, at: string, timeKey: number | null = null) =>
+    ({ ...ev(id, at, 's1'), timeKey }) as WritingTimelineEvent;
+
+  it('格式统一时按现有排序口径填序号，且数字感知（第10年 排在 第3年 之后）', () => {
+    const r = deriveTimeKeys([evk('a', '第3年6月'), evk('b', '第10年1月'), evk('c', '第4年2月')]);
+    expect(r.kind).toBe('applied');
+    if (r.kind !== 'applied') return;
+    expect(r.filled).toBe(3);
+    // 字典序会把「第10年」排到「第3年」前面，那样填出来的序号就是错的时间先后
+    expect(r.assignments.get('a')!).toBeLessThan(r.assignments.get('c')!);
+    expect(r.assignments.get('c')!).toBeLessThan(r.assignments.get('b')!);
+  });
+
+  it('留了插空余地（间隔 1000），作者之后能往中间补事件', () => {
+    const r = deriveTimeKeys([evk('a', '第1年'), evk('b', '第2年')]);
+    if (r.kind !== 'applied') throw new Error('应为 applied');
+    expect(r.assignments.get('b')! - r.assignments.get('a')!).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('作者手填过的绝不覆盖', () => {
+    const r = deriveTimeKeys([evk('a', '第1年', 7), evk('b', '第2年')]);
+    if (r.kind !== 'applied') throw new Error('应为 applied');
+    expect(r.assignments.has('a')).toBe(false);
+    expect(r.alreadySet).toBe(1);
+  });
+
+  it('格式混着来：只推最大的同格式一组，其余报成待手填（不瞎排跨格式的序）', () => {
+    const r = deriveTimeKeys([
+      evk('a', '第1年5月'),
+      evk('b', '第2年5月'),
+      evk('c', '第3年5月'),
+      evk('d', '2024-06'),
+    ]);
+    if (r.kind !== 'applied') throw new Error('应为 applied');
+    expect(r.filled).toBe(3);
+    expect(r.assignments.has('d')).toBe(false);
+    expect(r.needsManual).toBe(1);
+  });
+
+  it('全是纯汉字历法（无任何数字）→ 明说推不出来，而不是硬排一个序', () => {
+    const r = deriveTimeKeys([evk('a', '武德九年六月初四'), evk('b', '武德九年五月初一')]);
+    expect(r.kind).toBe('noDigits');
+  });
+
+  it('全部已填过 → noEvents，重复点按钮不会乱改已有数据', () => {
+    expect(deriveTimeKeys([evk('a', '第1年', 1000), evk('b', '第2年', 2000)]).kind).toBe('noEvents');
+  });
+
+  it('端到端：推演之后，「时间往回走」才真的检得出来', () => {
+    const chapters = [{ id: 'c1', sortOrder: 0 }, { id: 'c2', sortOrder: 1 }] as never;
+    // 先读的那章写着「第10年」，后读的章写着「第2年」——纯文本时 pureInt 拿不到数
+    const raw = [
+      { ...ev('early', '第10年冬', 's1', 'c1') } as WritingTimelineEvent,
+      { ...ev('late', '第2年春', 's1', 'c2') } as WritingTimelineEvent,
+    ];
+    expect(collectTimelineConflicts(raw, { view: 'chapter', chapters }).size).toBe(0); // 推演前检不出
+    const r = deriveTimeKeys(raw);
+    if (r.kind !== 'applied') throw new Error('应为 applied');
+    const filled = raw.map((e) => ({ ...e, timeKey: r.assignments.get(e.id) ?? null }));
+    const m = collectTimelineConflicts(filled as WritingTimelineEvent[], { view: 'chapter', chapters });
+    expect(m.get('early')!.kind).toBe('reversed'); // 推演后即可
   });
 });
 

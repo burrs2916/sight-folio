@@ -173,6 +173,8 @@ interface WritingState {
       >
     >,
   ) => Promise<void>;
+  /** 批量写入可排序时点，返回写入条数（实现处说明了为何不走逐条 update） */
+  assignTimelineTimeKeys: (assignments: Record<string, number>) => Promise<number>;
   deleteTimelineEvent: (eventId: string) => Promise<void>;
 
   /** 剧情线（多线叙事实体）：删线不删事件（前端就地置 NULL，与后端语义一致） */
@@ -1142,18 +1144,34 @@ export const useWritingStore = create<WritingState>()(
       };
       await writingTimelineApi.save(updated);
       set((s) => {
-        const row = s.timelineEvents.find((ev) => ev.id === eventId);
-        if (row) {
-          row.at = updated.at;
-          row.event = updated.event;
-          row.chapterId = updated.chapterId;
-          row.settingId = updated.settingId;
-          row.storylineId = updated.storylineId;
-          row.outlineId = updated.outlineId;
-          row.sortOrder = updated.sortOrder;
-          row.updatedAt = updated.updatedAt;
-        }
+        // 整行替换，不逐字段手抄：手抄列表已经漏过一次 timeKey（存进库但界面不变，
+        // 要重开窗口才看得到，且 tsc 抓不到）。换行就不可能漏字段。
+        const i = s.timelineEvents.findIndex((ev) => ev.id === eventId);
+        if (i >= 0) s.timelineEvents[i] = updated;
       });
+    },
+
+    /**
+     * 批量写入「可排序时点」（时间线"推演序号"用）。
+     *
+     * 为什么不循环调用 `updateTimelineEvent`：那样每条各写一次库、各触发一次 `set()`，
+     * 几百条就是一场界面风暴。这里全部落库成功后**一次性**更新 store；
+     * 中途抛错就不动 store，让调用方把失败如实报出来（重新载入即为真实状态）。
+     */
+    assignTimelineTimeKeys: async (assignments: Record<string, number>) => {
+      const ids = new Set(Object.keys(assignments));
+      if (ids.size === 0) return 0;
+      const now = Math.floor(Date.now() / 1000);
+      const next = get().timelineEvents.map((ev) =>
+        ids.has(ev.id) ? { ...ev, timeKey: assignments[ev.id], updatedAt: now } : ev,
+      );
+      for (const ev of next) {
+        if (ids.has(ev.id)) await writingTimelineApi.save(ev);
+      }
+      set((s) => {
+        s.timelineEvents = next;
+      });
+      return ids.size;
     },
 
     deleteTimelineEvent: async (eventId) => {

@@ -220,7 +220,7 @@ import { buildCharactersCorpus, buildCatalogCorpus } from '../utils/writingAiCor
 import { buildWorldBibleCorpus } from '../utils/writingCorpus';
 import { CHAT_CONTEXT_PROFILE } from '../utils/writingCorpusBudget';
 import { foreshadowingsPayableIn } from '../utils/writingForeshadowing';
-import { beatEventText, beatImported } from '../utils/writingTimeline';
+import { beatEventText, beatImported, deriveTimeKeys } from '../utils/writingTimeline';
 import { beatPlantedAsForeshadowing } from '../utils/writingInspiration';
 import { buildProofreadReport, chapterTextIssues } from '../utils/writingProofread';
 import { LeftTab, RightTab } from './writingPage/types';
@@ -408,6 +408,7 @@ export default function WritingPage() {
   const foreshadowings = useWritingStore((s) => s.foreshadowings);
   const createTimelineEvent = useWritingStore((s) => s.createTimelineEvent);
   const updateTimelineEvent = useWritingStore((s) => s.updateTimelineEvent);
+  const assignTimelineTimeKeys = useWritingStore((s) => s.assignTimelineTimeKeys);
   const deleteTimelineEvent = useWritingStore((s) => s.deleteTimelineEvent);
 
   // P2 性能：saveState 下沉 SaveIndicator——原先挂在顶层，每 800ms 自动保存翻转一次 state，
@@ -1880,6 +1881,40 @@ export default function WritingPage() {
   };
   const removeTimeline = (eventId: string) => {
     void deleteTimelineEvent(eventId);
+  };
+
+  /**
+   * 「推演序号」：按时间线现有排序口径（compareByAt，全视图唯一口径）为带数字的时点
+   * 批量填 timeKey，替作者免掉逐条手敲。推演与拒做的规则都在 `deriveTimeKeys`，
+   * 这里只负责落库 + 把"填了几条、还剩几条要手填"照实说清楚，不许静默少做。
+   *
+   * 落库走 `assignTimelineTimeKeys`（一次更新），不循环 updateTimelineEvent：
+   * 几百条会是一场界面风暴。
+   */
+  const deriveTimelineKeys = async () => {
+    const r = deriveTimeKeys(timelineEvents);
+    const toast = useToastStore.getState();
+    if (r.kind === 'noEvents') {
+      toast.success(t('writing.deriveTimeKeysNothing'));
+      return;
+    }
+    if (r.kind === 'noDigits') {
+      // 不硬排一个序：猜错的代价是假的 block 级冲突，比不检查更糟
+      toast.error(t('writing.deriveTimeKeysNoDigits'));
+      return;
+    }
+    try {
+      const filled = await assignTimelineTimeKeys(Object.fromEntries(r.assignments));
+      toast.success(
+        r.needsManual > 0
+          ? t('writing.deriveTimeKeysDoneSome', { filled, needsManual: r.needsManual })
+          : t('writing.deriveTimeKeysDone', { filled }),
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.error('WritingPage', '推演时间线序号失败', { error: msg });
+      toast.error(t('writing.deriveTimeKeysFailed', { msg }));
+    }
   };
 
   // ─── 导出与备份恢复（T7）：统一抽离到 useExportActions hook ───
@@ -3648,13 +3683,22 @@ export default function WritingPage() {
                             {t('writing.bookLevelTimeline')}
                           </Typography>
                         </Box>
-                        <Button
-                          size="small"
-                          startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
-                          onClick={addBookTimeline}
-                        >
-                          {t('writing.addTimeline')}
-                        </Button>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {/* 批量推演作用域是**全书**时间线（倒挂本就跨章跨卡），放在全书级区块里；
+                              tooltip 必须讲清"已手填的不动、纯汉字时点推不出"，否则作者会以为漏了 */}
+                          <Tooltip title={t('writing.deriveTimeKeysTip')} placement="top">
+                            <Button size="small" onClick={deriveTimelineKeys}>
+                              {t('writing.deriveTimeKeys')}
+                            </Button>
+                          </Tooltip>
+                          <Button
+                            size="small"
+                            startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
+                            onClick={addBookTimeline}
+                          >
+                            {t('writing.addTimeline')}
+                          </Button>
+                        </Box>
                       </Box>
                       {timelineEvents.filter((e) => e.settingId === null).length === 0 ? (
                         <Typography sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>

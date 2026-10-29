@@ -51,6 +51,95 @@ export function isComplete(ev: WritingTimelineEvent): boolean {
   return !!(ev.at?.trim() && ev.event?.trim());
 }
 
+/**
+ * `at` 的"历法结构签名"：只看**数字段数 + 段间分隔字 + 末段的单位字**。
+ *
+ * 前后缀不参与：「第」「公元」是前缀，「冬」「大选之后」是作者的尾注，都属于措辞习惯，
+ * 把它们算进签名会把「第10年冬」和「第2年春」判成两种历法、永不比较（假漏检）。
+ * 但**单位字必须参与**：「第3年」和「第6月」若被当成同格式，按首个数字排出的 3<6
+ * 毫无意义（假倒挂）。所以签名取到单位字为止，一多一少都不算同一种结构。
+ *
+ * 没有任何数字 → null（推不出先后，只能作者手填）。
+ */
+function atShape(at: string): string | null {
+  const t = at.trim();
+  const parts = t.split(/\d+/);
+  const runs = parts.length - 1;
+  if (runs < 1) return null;
+  const between = parts.slice(1, -1).map((s) => s.trim().charAt(0));
+  const unit = (parts[parts.length - 1] ?? '').trim().charAt(0);
+  return `${runs}|${between.join(',')}|${unit}`;
+}
+
+/** 批量推演 timeKey 的结果。`reason` 必须能被界面原样讲给作者，不许静默少做。 */
+export type TimeKeyDerivation =
+  | {
+      kind: 'applied';
+      assignments: Map<string, number>;
+      /** 本次填上的条数 */
+      filled: number;
+      /** 推不出来、仍需手填的条数（格式不同 or 文本里没有数字） */
+      needsManual: number;
+      /** 作者早已手填、本次不去覆盖的条数 */
+      alreadySet: number;
+    }
+  | { kind: 'noEvents' }
+  /** 一条都推不出来：`at` 里没有任何数字（如「武德九年六月初四」），只能手填 */
+  | { kind: 'noDigits' };
+
+/**
+ * 按现有排序口径批量推演「可排序时点」，替作者免掉逐条手敲。
+ *
+ * 排序**复用 `compareByAt`**（时间线全部视图的唯一口径，禁止第二份）；这里只多做一步：
+ * 把排好的次序换成整数序号（间隔 1000，留插空余地）。
+ *
+ * 一条硬前提防误报：**所有时点文本必须同一种格式**才推。跨格式（「第3章」混着
+ * 「2024年5月」）排出来的先后并不可靠，据此填出来的序号会造出**假的 block 级时间倒挂**——
+ * 而这个产品里误报比漏报更毁信任，所以直接拒做并说明原因。
+ *
+ * 作者已手填的 `timeKey` 一律不动：这是辅助填充，不是覆盖。
+ */
+export function deriveTimeKeys(events: WritingTimelineEvent[]): TimeKeyDerivation {
+  const pending = events.filter((e) => isComplete(e) && (e.timeKey ?? null) === null);
+  if (pending.length === 0) return { kind: 'noEvents' };
+
+  const shapes = new Map<string, string[]>(); // 签名 → 该格式下的 distinct at
+  for (const ev of pending) {
+    const raw = ev.at.trim();
+    const shape = atShape(raw);
+    if (!shape) {
+      continue;
+    }
+    const bucket = shapes.get(shape);
+    if (bucket) {
+      if (!bucket.includes(raw)) bucket.push(raw);
+    } else shapes.set(shape, [raw]);
+  }
+
+  if (shapes.size === 0) return { kind: 'noDigits' };
+
+  // 只推**格式统一的那一组**（取 distinct 值最多的一种）：跨格式排先后不可靠，
+  // 而拿不到序号的事件根本不参与倒挂比较，所以"少推一些"只会漏检、不会误报。
+  // 剩下的照实报数让作者手填——比整批拒做有用，也比瞎猜诚实。
+  let values: string[] = [];
+  for (const bucket of shapes.values()) if (bucket.length > values.length) values = bucket;
+  const otherFormatEvents = pending.filter((e) => !values.includes(e.at.trim())).length;
+  values = [...values].sort(compareByAt);
+  const ordinal = new Map(values.map((v, i) => [v, (i + 1) * 1000] as const));
+  const assignments = new Map<string, number>();
+  for (const ev of pending) {
+    const n = ordinal.get(ev.at.trim());
+    if (n !== undefined) assignments.set(ev.id, n);
+  }
+  return {
+    kind: 'applied',
+    assignments,
+    filled: assignments.size,
+    needsManual: otherFormatEvents,
+    alreadySet: events.length - pending.length,
+  };
+}
+
 // 事件 at 排序唯一口径：全部视图共用（时间线主视图 / 右侧栏 / 剧情线叙事与事件列表），禁止第二份。
 const atCollator = new Intl.Collator('zh', { numeric: true });
 

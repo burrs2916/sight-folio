@@ -393,3 +393,70 @@ describe('writingStore.reorderChapter', () => {
     expect(s.foreshadowings.length).toBe(0);
   });
 });
+
+/**
+ * 批量写入可排序时点（把"要手敲 500 次"的功能救活的那一步）。
+ * 契约的关键在**失败语义**：全部落库成功才动本地态，否则界面会显示一批库里没有的序号。
+ */
+describe('writingStore.assignTimelineTimeKeys', () => {
+  const ev = (id: string, timeKey: number | null) =>
+    ({
+      id,
+      bookId: 'b1',
+      settingId: null,
+      at: `第${id}年`,
+      event: `事件${id}`,
+      chapterId: null,
+      storylineId: null,
+      timeKey,
+      sortOrder: 0,
+      createdAt: 1000,
+      updatedAt: 1000,
+    }) as never;
+
+  beforeEach(() => {
+    useWritingStore.setState({ timelineEvents: [ev('a', null), ev('b', null), ev('c', 42)] });
+  });
+
+  it('按 assignments 逐条落库、本地一次更新，没点名的行不动', async () => {
+    const { writingTimelineApi } = await import('../../services/tauri');
+    const save = vi.mocked(writingTimelineApi.save);
+    save.mockClear();
+
+    const n = await useWritingStore.getState().assignTimelineTimeKeys({ a: 1000, b: 2000 });
+
+    expect(n).toBe(2);
+    expect(save).toHaveBeenCalledTimes(2);
+    const saved = save.mock.calls.map((c) => c[0] as { id: string; timeKey: number });
+    expect(saved.map((e) => [e.id, e.timeKey])).toEqual([
+      ['a', 1000],
+      ['b', 2000],
+    ]);
+    const list = useWritingStore.getState().timelineEvents;
+    expect(list.find((e) => e.id === 'a')!.timeKey).toBe(1000);
+    expect(list.find((e) => e.id === 'c')!.timeKey).toBe(42); // 作者手填的原样保留
+  });
+
+  it('落库失败 → 本地一条都不改，错误抛给调用方（界面不许显示库里没有的序号）', async () => {
+    const { writingTimelineApi } = await import('../../services/tauri');
+    const save = vi.mocked(writingTimelineApi.save);
+    save.mockClear();
+    save.mockRejectedValueOnce(new Error('disk full'));
+
+    await expect(
+      useWritingStore.getState().assignTimelineTimeKeys({ a: 1000, b: 2000 }),
+    ).rejects.toThrow('disk full');
+
+    const list = useWritingStore.getState().timelineEvents;
+    expect(list.find((e) => e.id === 'a')!.timeKey).toBeNull();
+    expect(list.find((e) => e.id === 'b')!.timeKey).toBeNull();
+  });
+
+  it('空 assignments 不写库、不更新', async () => {
+    const { writingTimelineApi } = await import('../../services/tauri');
+    const save = vi.mocked(writingTimelineApi.save);
+    save.mockClear();
+    expect(await useWritingStore.getState().assignTimelineTimeKeys({})).toBe(0);
+    expect(save).not.toHaveBeenCalled();
+  });
+});
