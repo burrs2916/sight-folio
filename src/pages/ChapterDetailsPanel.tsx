@@ -6,16 +6,17 @@
 //   - 章信息（面包屑 / 卷 / 状态 / 字数）
 //   - 叙事节拍（本章节拍 title+summary + 状态徽章 + 导入时间线按钮）
 //   - 人物 chips（castOfChapter 绑定，点 chip 即 toggle 进出本章）
-//   - 本章时间线事件（展示 + 删除）
+//   - 本章时间线事件（展示 + 删除；缺时点的草稿可就地补时点，不跳工作台）
 //   - 伏笔（本章埋设 / 计划回收，只读双归类）
 // 数据口径与书场景右栏章卡（WritingInspectorPanel）同一份（utils/writingOutline 纯函数）。
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import Divider from '@mui/material/Divider';
+import TextField from '@mui/material/TextField';
 import { t } from '../i18n';
 import { useWritingStore } from '../store/writingStore';
 import { useAssetPickerStore } from '../store/assetPickerStore';
@@ -42,6 +43,71 @@ export interface ChapterDetailsPanelProps {
   onOpenSetting?: (settingId: string) => void;
   /** 「管理本章人物…」入口：跳去左栏设定页专人管理（默认无 = 隐藏该按钮） */
   onManageCast?: () => void;
+}
+
+/**
+ * 「就地补时点」行内编辑器（第八轮：节拍→草稿→正式事件 闭环最后一段）。
+ *
+ * 草稿事件（at 空）在章详情里可见但此前只能删或跳体检工作台补——任务链断在眼前。
+ * 这里给草稿一个行内输入：本地草稿态逐键不写库（对齐 TimelineDraftDialog 的
+ * RowEdit 原则：逐键提交会每敲一个字发一次 IPC），失焦即落账，空值/未变化不落。
+ */
+function DraftAtEditor({ event }: { event: WritingTimelineEvent }) {
+  // 本地态重置交给调用方 <Box key={ev.id}>：换事件即重挂，useState 初值自然归零
+  // （useEffect 里 setState 重置是 React 反模式，且 key 重挂后根本走不到旧实例）
+  const [at, setAt] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // 已落账的文本：同一挂载内失焦重复触发时避免无意义写库
+  const savedRef = useRef('');
+
+  const commit = async () => {
+    const v = at.trim();
+    if (saving || v === '' || v === savedRef.current) return;
+    setSaving(true);
+    setFailed(false);
+    try {
+      await useWritingStore.getState().updateTimelineEvent(event.id, { at: v });
+      savedRef.current = v;
+      useToastStore.getState().success(t('ui.saved'));
+    } catch (err) {
+      logger.warn('ChapterDetailsPanel', 'inline complete draft failed', { error: err });
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Box sx={{ pl: 0.25 }}>
+      <TextField
+        size="small"
+        fullWidth
+        value={at}
+        disabled={saving}
+        onChange={(e) => setAt(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            void commit();
+          }
+        }}
+        placeholder={t('writing.timelineAtPh')}
+        sx={{
+          '& .MuiOutlinedInput-input': { py: 0.5, fontSize: 11.5 },
+          '& .MuiOutlinedInput-root': { borderRadius: 1 },
+        }}
+        slotProps={{ input: { 'data-testid': `draft-at-${event.id}` } as any }}
+      />
+      <Typography
+        sx={{ fontSize: 10.5, color: failed ? 'error.main' : 'text.disabled', mt: 0.25 }}
+        data-testid={`draft-at-hint-${event.id}`}
+      >
+        {failed ? t('writing.chapterDraftAtSaveFailed') : t('writing.chapterDraftAtHint')}
+      </Typography>
+    </Box>
+  );
 }
 
 /** 人物 / 场景共用绑定 chip（与书场景章卡同口径：active = 已绑到本章） */
@@ -385,7 +451,8 @@ export function ChapterDetailsPanel({
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.25 }}>
               {chapterTimelineEvents.map((ev) => (
-                <Box key={ev.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                <Box key={ev.id} sx={{ minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Box
                     sx={{
                       flex: 1,
@@ -421,6 +488,10 @@ export function ChapterDetailsPanel({
                   >
                     <CloseRoundedIcon sx={{ fontSize: 13 }} />
                   </IconButton>
+                  </Box>
+                  {/* 草稿事件（缺时点）：就地补时点，闭环 节拍→草稿→正式事件，
+                      不用再跳体检工作台；补完 isComplete 自动变真，排序区块自然归位 */}
+                  {!isComplete(ev) && <DraftAtEditor event={ev} />}
                 </Box>
               ))}
             </Box>

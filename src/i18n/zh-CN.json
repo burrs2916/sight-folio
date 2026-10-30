@@ -7719,7 +7719,9 @@
     "chapterBeatImport": "导入时间线",
     "chapterBeatImported": "已导入",
     "chapterBeatImportDone": "已建时间线草稿事件，补齐时点后即为正式事件",
-    "chapterBeatImportFail": "导入时间线失败"
+    "chapterBeatImportFail": "导入时间线失败",
+    "chapterDraftAtHint": "补一个时点（如「第3章」/「开战前三日」），失焦或回车即保存",
+    "chapterDraftAtSaveFailed": "保存失败，可修改后重试"
   },
   "studio": {
     "newBook": "新建作品",

@@ -7719,7 +7719,9 @@
     "chapterBeatImport": "Import to timeline",
     "chapterBeatImported": "Imported",
     "chapterBeatImportDone": "Draft timeline event created — fill in the time to make it official",
-    "chapterBeatImportFail": "Failed to import to timeline"
+    "chapterBeatImportFail": "Failed to import to timeline",
+    "chapterDraftAtHint": "Add a time marker (e.g. “Ch.3” / “3 days before the war”) — saves on blur or Enter",
+    "chapterDraftAtSaveFailed": "Save failed, edit and retry"
   },
   "studio": {
     "newBook": "New Book",
