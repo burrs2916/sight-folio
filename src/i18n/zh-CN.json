@@ -7561,6 +7561,8 @@
     "captureSaved": "已保存到素材库",
     "captureSaveFail": "保存失败（{msg}）",
     "captureListFail": "素材列表加载失败（{msg}）",
+    "captureReanalyze": "重新分析",
+    "captureReanalyzed": "已重新分析",
     "captureDelete": "删除素材",
     "captureDeleteFail": "删除失败（{msg}）",
     "capturePanelTitle": "外部素材",

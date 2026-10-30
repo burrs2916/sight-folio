@@ -7561,6 +7561,8 @@
     "captureSaved": "Saved to capture library",
     "captureSaveFail": "Save failed ({msg})",
     "captureListFail": "Failed to load captures ({msg})",
+    "captureReanalyze": "Re-analyze",
+    "captureReanalyzed": "Re-analyzed",
     "captureDelete": "Delete capture",
     "captureDeleteFail": "Delete failed ({msg})",
     "capturePanelTitle": "External Materials",

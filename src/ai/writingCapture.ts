@@ -15,7 +15,7 @@ import { agentApi } from '../services/tauri';
 import { L } from './aiLang';
 import { getLang, t } from '../i18n';
 import { runAgentTextTask } from './writingAssistant';
-import type { ExternalCaptureKind } from '../services/writing';
+import type { ExternalCaptureAnalysis, ExternalCaptureKind } from '../services/writing';
 
 /** 素材分析输入上下文 */
 export interface CaptureAnalysisContext {
@@ -146,4 +146,22 @@ export function tryParseCaptureJson(text: string): Record<string, unknown> | nul
 
 function langNote(): string {
   return getLang() === 'en-US' ? t('ai.respondEn') : t('ai.respondZh');
+}
+
+/**
+ * 把 AI 输出的松散 JSON 规范化成结构化分析结果（timeline/profile/creativeValue/suggestions）。
+ * 面板「重新分析」与采集对话框共用同一口径：字段缺失/类型不符一律降级为 undefined，绝不抛错。
+ */
+export function normalizeCaptureAnalysis(parsed: Record<string, unknown>): ExternalCaptureAnalysis {
+  return {
+    timeline: Array.isArray(parsed.timeline)
+      ? (parsed.timeline as ExternalCaptureAnalysis['timeline'])
+      : undefined,
+    profile:
+      parsed.profile && typeof parsed.profile === 'object'
+        ? (parsed.profile as ExternalCaptureAnalysis['profile'])
+        : undefined,
+    creativeValue: typeof parsed.creativeValue === 'string' ? parsed.creativeValue : undefined,
+    suggestions: Array.isArray(parsed.suggestions) ? (parsed.suggestions as string[]) : undefined,
+  };
 }

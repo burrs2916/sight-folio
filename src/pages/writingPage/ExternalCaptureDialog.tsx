@@ -45,7 +45,7 @@ import {
 } from '../../services/writing';
 import type { WritingNote } from '../../services/writing';
 import type { AiAgent } from '../../services/agent';
-import { buildCaptureAnalysisMessage, runCaptureTask, tryParseCaptureJson } from '../../ai/writingCapture';
+import { buildCaptureAnalysisMessage, normalizeCaptureAnalysis, runCaptureTask, tryParseCaptureJson } from '../../ai/writingCapture';
 import { useToastStore } from '../../store/toastStore';
 import { logger } from '../../utils/logger';
 
@@ -301,17 +301,7 @@ export function ExternalCaptureDialog({
       }
       const parsed = tryParseCaptureJson(res.text);
       if (parsed) {
-        setAnalysis({
-          timeline: Array.isArray(parsed.timeline)
-            ? (parsed.timeline as ExternalCaptureAnalysis['timeline'])
-            : undefined,
-          profile:
-            parsed.profile && typeof parsed.profile === 'object'
-              ? (parsed.profile as ExternalCaptureAnalysis['profile'])
-              : undefined,
-          creativeValue: typeof parsed.creativeValue === 'string' ? parsed.creativeValue : undefined,
-          suggestions: Array.isArray(parsed.suggestions) ? (parsed.suggestions as string[]) : undefined,
-        });
+        setAnalysis(normalizeCaptureAnalysis(parsed));
       } else {
         // 模型输出非合法 JSON：保留原文展示，仍可保存（analysis_json 存原文）
         setAnalysisRaw(res.text);

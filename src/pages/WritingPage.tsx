@@ -4755,6 +4755,8 @@ export default function WritingPage() {
                 bookId: activeBookId ?? '',
                 refreshKey: captureRefreshKey,
                 onOpenCapture: () => setCaptureOpen(true),
+                agentId: chatAgentId,
+                agents,
               }}
             />
           </Box>

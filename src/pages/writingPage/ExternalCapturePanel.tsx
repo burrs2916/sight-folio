@@ -17,7 +17,9 @@ import TextFieldsRoundedIcon from '@mui/icons-material/TextFieldsRounded';
 import StickyNote2RoundedIcon from '@mui/icons-material/StickyNote2Rounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import { t } from '../../i18n';
+import { L } from '../../ai/aiLang';
 import {
   externalCapturesApi,
   parseCaptureAnalysis,
@@ -25,6 +27,8 @@ import {
   type ExternalCapture,
   type ExternalCaptureKind,
 } from '../../services/writing';
+import type { AiAgent } from '../../services/agent';
+import { buildCaptureAnalysisMessage, normalizeCaptureAnalysis, runCaptureTask, tryParseCaptureJson } from '../../ai/writingCapture';
 import { useToastStore } from '../../store/toastStore';
 import { logger } from '../../utils/logger';
 
@@ -62,12 +66,17 @@ export interface ExternalCapturePanelProps {
   onOpenCapture: () => void;
   /** 递增触发重新拉取（对话框保存成功后由父级更新） */
   refreshKey: number;
+  /** 素材分析复用写作台 AI agent（与采集对话框同一 chatAgentId / agents） */
+  agentId: string;
+  agents: AiAgent[];
 }
 
-export function ExternalCapturePanel({ bookId, onOpenCapture, refreshKey }: ExternalCapturePanelProps) {
+export function ExternalCapturePanel({ bookId, onOpenCapture, refreshKey, agentId, agents }: ExternalCapturePanelProps) {
   const [items, setItems] = useState<ExternalCapture[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // 正在重新分析的素材 id（一次只允许一条；runCaptureTask 内建全局并发闸门兜底别处发起的流）
+  const [reanalyzingId, setReanalyzingId] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     let alive = true;
@@ -105,6 +114,55 @@ export function ExternalCapturePanel({ bookId, onOpenCapture, refreshKey }: Exte
       }
     },
     [t],
+  );
+
+  // 就地「重新分析」：复用采集对话框同款分析流水线（runCaptureTask→tryParse→normalize），
+  // 成功后以同一 id upsert 落库（save 为 upsert 语义），失败/中断一律保留旧结果、绝不抹掉。
+  // 补齐素材库此前只有「新建 / 删除」的缺口——分析失败或想换 agent 重跑不必删了重建。
+  const handleReanalyze = useCallback(
+    async (c: ExternalCapture) => {
+      if (!agentId || agents.length === 0) {
+        useToastStore.getState().warning(t('writing.aiGoConfigure'));
+        return;
+      }
+      if (reanalyzingId) return;
+      setReanalyzingId(c.id);
+      try {
+        const res = await runCaptureTask({
+          agentId,
+          title: L('素材分析 · ', 'Capture Analysis · ') + (c.title || c.id),
+          message: buildCaptureAnalysisMessage({
+            kind: c.kind,
+            title: c.title,
+            sourceRaw: c.sourceRaw,
+            extractedText: c.extractedText,
+          }),
+          onDelta: () => undefined,
+        });
+        if (res.interrupted) return; // 手动停止：保留旧分析结果
+        const parsed = tryParseCaptureJson(res.text);
+        if (!parsed) {
+          // 模型输出非合法 JSON：不动旧结果，仅提示（与采集对话框同口径）
+          useToastStore.getState().warning(t('writing.captureBadAnalysis'));
+          return;
+        }
+        const next: ExternalCapture = {
+          ...c,
+          analysisJson: JSON.stringify(normalizeCaptureAnalysis(parsed)),
+          updatedAt: Math.floor(Date.now() / 1000),
+        };
+        await externalCapturesApi.save(next);
+        setItems((prev) => prev.map((x) => (x.id === next.id ? next : x)));
+        useToastStore.getState().success(t('writing.captureReanalyzed'));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.warn('ExternalCapturePanel', 'reanalyze failed', { error: e });
+        useToastStore.getState().error(t('writing.captureAnalyzeFail', { msg }));
+      } finally {
+        setReanalyzingId(null);
+      }
+    },
+    [agentId, agents.length, reanalyzingId, t],
   );
 
   return (
@@ -194,6 +252,20 @@ export function ExternalCapturePanel({ bookId, onOpenCapture, refreshKey }: Exte
                       {c.title}
                     </Typography>
                   </Box>
+                  {/* 「重新分析」：补齐素材库此前只有新建/删除的缺口。有 extractedText 才有分析意义。 */}
+                  {c.extractedText.trim() && (
+                    <IconButton
+                      size="small"
+                      aria-label={t('writing.captureReanalyze')}
+                      title={t('writing.captureReanalyze')}
+                      disabled={Boolean(reanalyzingId)}
+                      onClick={() => void handleReanalyze(c)}
+                      sx={{ color: 'text.disabled', p: 0.25, '&:hover': { color: 'primary.main' } }}
+                      data-testid={`capture-reanalyze-${c.id}`}
+                    >
+                      {reanalyzingId === c.id ? <CircularProgress size={13} /> : <RefreshRoundedIcon sx={{ fontSize: 15 }} />}
+                    </IconButton>
+                  )}
                   <IconButton
                     size="small"
                     aria-label={t('writing.captureDelete')}

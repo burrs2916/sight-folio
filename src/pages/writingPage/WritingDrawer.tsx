@@ -31,7 +31,7 @@ import type { ProofreadFinding } from '../../utils/writingProofread';
 import type { WritingChapter } from '../../services/writing';
 import { CorpusReferencePanel } from './CorpusReferencePanel';
 import { AiCorpusPanel, type AiCorpusPanelProps } from './AiCorpusPanel';
-import { ExternalCapturePanel } from './ExternalCapturePanel';
+import { ExternalCapturePanel, type ExternalCapturePanelProps } from './ExternalCapturePanel';
 import {
   ForeshadowReminder,
   InspirationReminder,
@@ -113,7 +113,7 @@ export interface WritingDrawerProps {
   /** AI 语料标签页配置（传入则语料参考区升级为「语料库 / AI 语料」双 Tab；缺省保持单面板） */
   aiCorpus?: Omit<AiCorpusPanelProps, 'onInsertText'>;
   /** 外部素材库标签页配置（传入则语料区升级为三 Tab：语料库 / AI 语料 / 素材库） */
-  externalCapture?: { bookId: string; refreshKey: number; onOpenCapture: () => void };
+  externalCapture?: ExternalCapturePanelProps;
 }
 
 export function WritingDrawer({
