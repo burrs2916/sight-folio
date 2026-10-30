@@ -26,6 +26,7 @@ import { useToastStore } from '../../store/toastStore';
 import { t } from '../../i18n';
 import { highlight } from '../../utils/corpusHighlight';
 import { analyzeCraft, type CraftTagKey } from '../../utils/craftTags';
+import { useDragBodyGuard } from './useDragBodyGuard';
 
 export interface CorpusReferencePanelProps {
   /** 当前输入片段（WritingPage 从编辑器 onUpdate 提取；空串 = 无输入/光标在块首且块空） */
@@ -127,6 +128,8 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
   const [dragActive, setDragActive] = useState(false);
   /** 拖拽会话起点：x 与起始宽度（拖拽中每帧据此算新宽度，避免累加漂移） */
   const dragStartRef = useRef<{ x: number; width: number } | null>(null);
+  /** 拖拽期间禁用选文的全局副作用守卫：正常松手复位，拖拽中途被卸载（切章详情/收抽屉）也复位 */
+  const { begin: beginBodyDrag, release: releaseBodyDrag } = useDragBodyGuard();
   /** 是否已完成过至少一次检索（驱动空态/计数栏渲染） */
   const [hasSearched, setHasSearched] = useState(false);
   /** 最近一次完成检索的原文 query（与当前输入比对以派生 searching 态） */
@@ -262,9 +265,9 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
       dragStartRef.current = { x: e.clientX, width: panelWidth };
       setDragActive(true);
       // 拖拽期间禁止选中文本，避免拖动时高亮选中的卡片文字
-      document.body.style.userSelect = 'none';
+      beginBodyDrag();
     },
-    [panelWidth],
+    [panelWidth, beginBodyDrag],
   );
 
   /** 拖拽移动（window 级）：手柄在面板左缘，向左拖 = 变宽，向右拖 = 变窄 */
@@ -280,26 +283,26 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
     if (!dragStartRef.current) return;
     dragStartRef.current = null;
     setDragActive(false);
-    document.body.style.userSelect = '';
+    releaseBodyDrag();
     try {
       localStorage.setItem(PANEL_WIDTH_KEY, String(panelWidth));
     } catch {
       // 存储不可写（隐私模式等）：本次会话内宽度仍生效，不再重试
     }
-  }, [panelWidth]);
+  }, [panelWidth, releaseBodyDrag]);
 
   /** 双击手柄：宽度一键复位为默认值（适合误拖后快速回到原始布局），并记忆偏好 */
   const onResizeReset = useCallback(() => {
     dragStartRef.current = null;
     setDragActive(false);
-    document.body.style.userSelect = '';
+    releaseBodyDrag();
     setPanelWidth(PANEL_WIDTH_DEFAULT);
     try {
       localStorage.setItem(PANEL_WIDTH_KEY, String(PANEL_WIDTH_DEFAULT));
     } catch {
       // 存储不可写（隐私模式等）：本次会话内宽度立即生效即可
     }
-  }, []);
+  }, [releaseBodyDrag]);
 
   // 拖拽监听挂在 window：移出面板/iframe 边界仍持续跟手，松开即停
   useEffect(() => {

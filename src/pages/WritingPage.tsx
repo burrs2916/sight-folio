@@ -183,6 +183,7 @@ import { WritingNotesDialog } from './WritingNotesDialog';
 import { WritingImportTxtDialog } from './WritingImportTxtDialog';
 import { WritingDrawer } from './writingPage/WritingDrawer';
 import { extractCorpusQuery } from './writingPage/corpusQuery';
+import { useDragBodyGuard } from './writingPage/useDragBodyGuard';
 
 import { textToChapterHtml, countChapterWords, type ParsedChapter } from '../utils/writingImport';
 import { AssetLibraryDialog } from '../editor/panels/AssetLibraryDialog';
@@ -311,14 +312,16 @@ export default function WritingPage() {
   }, []);
   const leftDragStartRef = useRef<{ x: number; width: number } | null>(null);
   const [leftDragActive, setLeftDragActive] = useState(false);
+  // 拖拽期间禁用选文的全局副作用统一交给守卫（与右抽屉/语料面板同一口径）
+  const { begin: beginBodyDrag, release: releaseBodyDrag } = useDragBodyGuard();
 
   const startLeftResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     leftDragStartRef.current = { x: e.clientX, width: leftPanelWidthRef.current };
     setLeftDragActive(true);
     // 拖拽期间禁止选中文本，避免拖动时高亮选中相邻卡片文字
-    document.body.style.userSelect = 'none';
-  }, []);
+    beginBodyDrag();
+  }, [beginBodyDrag]);
 
   const onLeftResizeMove = useCallback((e: PointerEvent) => {
     const s = leftDragStartRef.current;
@@ -331,26 +334,26 @@ export default function WritingPage() {
     if (!leftDragStartRef.current) return;
     leftDragStartRef.current = null;
     setLeftDragActive(false);
-    document.body.style.userSelect = '';
+    releaseBodyDrag();
     try {
       localStorage.setItem(LEFT_PANEL_WIDTH_KEY, String(leftPanelWidthRef.current));
     } catch {
       // 存储不可写（隐私模式等）：本次会话内宽度仍生效，不再重试
     }
-  }, []);
+  }, [releaseBodyDrag]);
 
   /** 双击手柄：宽度一键复位为默认值（误拖后快速回到原始布局），并记忆偏好 */
   const onLeftResizeReset = useCallback(() => {
     leftDragStartRef.current = null;
     setLeftDragActive(false);
-    document.body.style.userSelect = '';
+    releaseBodyDrag();
     updateLeftPanelWidth(LEFT_PANEL_WIDTH_DEFAULT);
     try {
       localStorage.setItem(LEFT_PANEL_WIDTH_KEY, String(LEFT_PANEL_WIDTH_DEFAULT));
     } catch {
       // 存储不可写（隐私模式等）：本次会话内立即生效即可
     }
-  }, []);
+  }, [releaseBodyDrag]);
 
   // 拖拽监听挂在 window：移出面板/iframe 边界仍持续跟手，松开即停
   useEffect(() => {
