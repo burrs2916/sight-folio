@@ -62,8 +62,11 @@ export function useDialogActions(options: {
   selectedChapterIds: string[];
   setSelectionMode: (v: boolean) => void;
   setSelectedChapterIds: (v: string[]) => void;
+  /** 统一的「打开设定卡」动作（置 activeSetting + 右栏复位 body），由页面注入。
+   *  不注入会重蹈「右栏停在章详情时新建/打开设定卡毫无反应」的遮蔽 bug。 */
+  openSetting: (settingId: string) => void;
 }): DialogActions {
-  const { editor, activeBookId, selectedChapterIds, setSelectionMode, setSelectedChapterIds } = options;
+  const { editor, activeBookId, selectedChapterIds, setSelectionMode, setSelectedChapterIds, openSetting } = options;
 
   const books = useWritingStore((s) => s.books);
   const chapters = useWritingStore((s) => s.chapters);
@@ -139,8 +142,10 @@ export function useDialogActions(options: {
           const name = dialogText.trim() || fallback;
           const setting = await createSetting(dialog.settingKind, name);
           if (setting) {
-            setActiveChapter(null);
-            setActiveSetting(setting.id);
+            // 不再 setActiveChapter(null)：原实现清掉当前章会让切章 effect 把编辑器
+            // setContent('')——用户正在写的章「看似清空」；且设定卡编辑完无处可回。
+            // 现在保留当前章，设定时走统一的 openSetting（置 activeSetting + 复位右栏）。
+            openSetting(setting.id);
           }
           break;
         }

@@ -176,7 +176,7 @@ export function MaterialAssistDialog({
       for (const f of textFiles) {
         try {
           const buf = await projectScanApi.readFileBytes(f.path);
-          const text = new TextDecoder('utf-8').decode(buf).replace(/\u0000/g, '');
+          const text = new TextDecoder('utf-8').decode(buf).split('\u0000').join('');
           const trimmed = text.trim();
           if (!trimmed) continue;
           const excerpt = trimmed.length > MAX_FILE_CHARS ? `${trimmed.slice(0, MAX_FILE_CHARS)}…` : trimmed;

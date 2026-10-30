@@ -81,8 +81,29 @@ const CMD_PRESETS: Array<{ labelKey: string; textKey: string }> = [
   { labelKey: 'aiCorpusCmdEmotion', textKey: 'aiCorpusCmdEmotionText' },
 ];
 
-/** 对话草稿持久化键：输入内容跨会话保留（对齐主流对话工具），发送/新会话后清空 */
-const DRAFT_KEY = 'sight-folio:writing.aiCorpusDraft';
+/** 对话草稿持久化键前缀：实际键为「前缀 + chatTitle」（按书隔离）。
+ *  chatTitle 形如「语料参谋 · 书名」，切书时面板不卸载（WritingDrawer 常驻 body 分支），
+ *  全局单键会让 A 书未发送的提问原样出现在 B 书输入框——与 genCards 按 chatTitle 隔离同口径。 */
+const DRAFT_KEY_PREFIX = 'sight-folio:writing.aiCorpusDraft.';
+
+/** 读取指定书的未发送草稿（存储不可读时按空处理） */
+function loadDraft(title: string): string {
+  try {
+    return localStorage.getItem(DRAFT_KEY_PREFIX + title) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** 写入/清除指定书的未发送草稿（存储不可写时静默降级为会话内保留） */
+function saveDraftFor(title: string, v: string) {
+  try {
+    if (v.trim()) localStorage.setItem(DRAFT_KEY_PREFIX + title, v);
+    else localStorage.removeItem(DRAFT_KEY_PREFIX + title);
+  } catch {
+    // 忽略存储异常：本次会话内草稿仍在 state
+  }
+}
 
 /** 生成结果持久化键前缀：「sight-folio:writing.aiCorpusGen.{chatTitle}」——生成结构当前子会话级
  *  volatile state（面板随 corpusTab 切换卸载即丢），落地到 localStorage 防止切走/重挂后丢失；
@@ -164,22 +185,19 @@ export function AiCorpusPanel({
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [convId, setConvId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  // 草稿自动保存（对齐主流对话工具：输入内容跨会话/切标签不丢）
-  const [input, setInput] = useState(() => {
-    try {
-      return localStorage.getItem(DRAFT_KEY) ?? '';
-    } catch {
-      return '';
-    }
-  });
-  const saveDraft = useCallback((v: string) => {
-    try {
-      if (v.trim()) localStorage.setItem(DRAFT_KEY, v);
-      else localStorage.removeItem(DRAFT_KEY);
-    } catch {
-      // 存储不可写（隐私模式等）：草稿仅在本次会话内保留
-    }
-  }, []);
+  // 草稿自动保存（对齐主流对话工具：输入内容跨会话/切标签不丢）；按书（chatTitle）隔离，
+  // 切书时面板不卸载，必须随 chatTitle 换成目标书自己的草稿——否则 A 书没发完的话出现在 B 书输入框
+  const [input, setInput] = useState(() => loadDraft(chatTitle));
+  const saveDraft = useCallback(
+    (v: string) => saveDraftFor(chatTitle, v),
+    [chatTitle],
+  );
+  const lastDraftTitleRef = useRef<string | null>(chatTitle);
+  useEffect(() => {
+    if (lastDraftTitleRef.current === chatTitle) return;
+    lastDraftTitleRef.current = chatTitle;
+    setInput(loadDraft(chatTitle));
+  }, [chatTitle]);
   /** 快捷指令菜单锚点（点击输入框左侧闪电按钮弹出预设指令） */
   const [cmdAnchor, setCmdAnchor] = useState<HTMLElement | null>(null);
   const [streamText, setStreamText] = useState('');

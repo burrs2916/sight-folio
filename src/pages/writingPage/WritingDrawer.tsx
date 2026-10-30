@@ -44,6 +44,37 @@ const DRAWER_WIDTH_MIN = 240;
 const DRAWER_WIDTH_MAX = 560;
 const DRAWER_WIDTH_DEFAULT = 320;
 const DRAWER_WIDTH_KEY = 'sight-folio:writing.drawerWidth';
+// 折叠态与语料区标签页偏好：抽屉挂在正文分支内，切「章详情 / 设定卡」时整个分支会被卸载、
+// 组件重挂载 → 这两个 state 复位。用户「收起抽屉写正文」「正在用 AI 语料」的选择不应因为
+// 看一眼章详情就丢，与宽度同一口径落 localStorage。
+const DRAWER_COLLAPSED_KEY = 'sight-folio:writing.drawerCollapsed';
+const DRAWER_TAB_KEY = 'sight-folio:writing.drawerCorpusTab';
+
+function readFlag(key: string, dflt: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? dflt : raw === '1';
+  } catch {
+    return dflt;
+  }
+}
+
+function readTabPref(): number {
+  try {
+    const n = Number(localStorage.getItem(DRAWER_TAB_KEY));
+    return Number.isInteger(n) && n >= 0 && n <= 2 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writePref(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // 存储不可写：本次会话内仍生效
+  }
+}
 
 function readSavedDrawerWidth(): number {
   try {
@@ -103,9 +134,18 @@ export function WritingDrawer({
   externalCapture,
 }: WritingDrawerProps) {
   // 折叠态（收起为 36px 窄条；zen 隐藏走 hidden，二者独立）——hook 必须无条件调用
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsedRaw] = useState(() => readFlag(DRAWER_COLLAPSED_KEY, false));
   /** 语料参考区当前标签页（0 = 语料库，1 = AI 语料，2 = 素材库；后两者按配置存在） */
-  const [corpusTab, setCorpusTab] = useState(0);
+  const [corpusTab, setCorpusTabRaw] = useState(readTabPref);
+  // 包装 setter：改态即落偏好，抽屉重挂载（切章详情/设定卡再切回）后回到用户离开时的视图
+  const setCollapsed = useCallback((v: boolean) => {
+    setCollapsedRaw(v);
+    writePref(DRAWER_COLLAPSED_KEY, v ? '1' : '0');
+  }, []);
+  const setCorpusTab = useCallback((v: number) => {
+    setCorpusTabRaw(v);
+    writePref(DRAWER_TAB_KEY, String(v));
+  }, []);
   // 提醒区折叠：正在输入（触发语料检索）时自动折叠让位给语料；输入清空后自动恢复；
   // 手动展开/收起可以临时覆盖自动逻辑，直到下一次 query 空↔非空翻转。
   const [remindersCollapsed, setRemindersCollapsed] = useState(false);
@@ -183,6 +223,11 @@ export function WritingDrawer({
     else if (prev && !corpusQuery) setRemindersCollapsed(false);
   }, [corpusQuery]);
   if (hidden) return null;
+  // 当前配置下合法的 tab 索引：0=语料库；1=AI 语料（aiCorpus 存在时）；末位=素材库（externalCapture 存在时）。
+  // localStorage 恢复的 corpusTab 可能因配置变化越界，渲染期夹紧后 Tabs 高亮与内容分支共用同一值。
+  const tabCount = 1 + (aiCorpus ? 1 : 0) + (externalCapture ? 1 : 0);
+  const safeTab = Math.min(corpusTab, tabCount - 1);
+  const captureTabIndex = aiCorpus ? 2 : 1;
   const hasReminders =
     remindersVisible &&
     (payableForeshadowings.length > 0 ||
@@ -427,7 +472,7 @@ export function WritingDrawer({
         {aiCorpus || externalCapture ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <Tabs
-              value={Math.min(corpusTab, (aiCorpus ? 1 : 0) + (externalCapture ? 1 : 0))}
+              value={safeTab}
               onChange={(_e, v) => setCorpusTab(v as number)}
               sx={{
                 flexShrink: 0,
@@ -440,14 +485,14 @@ export function WritingDrawer({
               <Tab value={0} label={t('writing.corpusTabLibrary')} data-testid="corpus-tab-library" />
               {aiCorpus && <Tab value={1} label={t('writing.corpusTabAi')} data-testid="corpus-tab-ai" />}
               {externalCapture && (
-                <Tab value={aiCorpus ? 2 : 1} label={t('writing.corpusTabCapture')} data-testid="corpus-tab-capture" />
+                <Tab value={captureTabIndex} label={t('writing.corpusTabCapture')} data-testid="corpus-tab-capture" />
               )}
             </Tabs>
-            {corpusTab === 0 ? (
+            {safeTab === 0 ? (
               <CorpusReferencePanel embedded query={corpusQuery} onInsertText={onInsertText} />
-            ) : aiCorpus && corpusTab === 1 ? (
+            ) : aiCorpus && safeTab === 1 ? (
               <AiCorpusPanel {...aiCorpus} onInsertText={onInsertText} />
-            ) : externalCapture && corpusTab === (aiCorpus ? 2 : 1) ? (
+            ) : externalCapture ? (
               <ExternalCapturePanel {...externalCapture} />
             ) : (
               <CorpusReferencePanel embedded query={corpusQuery} onInsertText={onInsertText} />

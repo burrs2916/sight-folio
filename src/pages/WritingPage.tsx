@@ -1562,6 +1562,17 @@ export default function WritingPage() {
     () => setAppearanceOpen(true),
   );
 
+  // 统一的「打开设定卡」动作：置 activeSetting 同时把右栏拉回正文页签。
+  // 修反向卡死：右栏停在「章详情」时因渲染优先级 details 在前，只置 activeSetting
+  // 会让用户点了人物/设定却毫无反应——必须在打开设定时复位 rightTab 到 body。
+  const openSetting = useCallback(
+    (id: string) => {
+      setActiveSetting(id);
+      setRightTab('body');
+    },
+    [setActiveSetting],
+  );
+
   // ─── 对话框状态机（新建/重命名/删除/移卷/批量/回收站）统一抽离到 useDialogActions hook ───
   const {
     dialog,
@@ -1585,6 +1596,7 @@ export default function WritingPage() {
     selectedChapterIds,
     setSelectionMode,
     setSelectedChapterIds,
+    openSetting,
   });
 
   // ─── 关窗保稿（批次①）：窗口关闭先 flush 未保存正文/设定卡再放行 ───
@@ -2103,17 +2115,6 @@ export default function WritingPage() {
 
   const characters = settings.filter((x) => x.kind === 'character');
   const worldbuilding = settings.filter((x) => x.kind === 'worldbuilding');
-
-  // 统一的「打开设定卡」动作：置 activeSetting 同时把右栏拉回正文页签。
-  // 修反向卡死：右栏停在「章详情」时因渲染优先级 details 在前，只置 activeSetting
-  // 会让用户点了人物/设定却毫无反应——必须在打开设定时复位 rightTab 到 body。
-  const openSetting = useCallback(
-    (id: string) => {
-      setActiveSetting(id);
-      setRightTab('body');
-    },
-    [setActiveSetting],
-  );
 
   /** 设定条目行（人设卡 / 世界观共用） */
   const renderSettingRow = (setting: (typeof settings)[number]) => {
@@ -3083,6 +3084,23 @@ export default function WritingPage() {
                   sx={{ '& .MuiInputBase-root': { fontSize: 12.5, color: 'text.secondary', mt: 0.25 } }}
                 />
               </Box>
+              {/* 设定卡是叠加在「正文」页签上的编辑态：右栏 Tabs 仍显示「正文」高亮，
+                  但内容已不是正文——没有出口时用户再点一次「正文」tab（onChange 只在
+                  值变化时触发）毫无反应，等于被卡在卡里。此按钮先落盘未保存编辑再退出
+                  编辑态，回到原章正文（activeChapter 不动，编辑器内容未被重载）。 */}
+              <Tooltip title={t('writing.closeSettingCard')}>
+                <IconButton
+                  size="small"
+                  aria-label={t('writing.closeSettingCard')}
+                  onClick={() => {
+                    void flushSettingSave();
+                    setActiveSetting(null);
+                  }}
+                  sx={{ color: 'text.secondary', flexShrink: 0, '&:hover': { color: 'primary.main' } }}
+                >
+                  <CloseRoundedIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
             </Box>
             <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 4 }, py: 2 }}>
               <Box sx={{ maxWidth: 760, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>

@@ -296,7 +296,7 @@ describe('语料参考区双标签页（语料库 / AI 语料 · P0 骨架），
   });
 
   it('AiCorpusPanel 输入区增强：快捷指令菜单填入模板、hint/字数渲染、草稿跨挂载恢复', async () => {
-    localStorage.removeItem('sight-folio:writing.aiCorpusDraft');
+    localStorage.removeItem('sight-folio:writing.aiCorpusDraft.语料参谋 · 测试之书');
     h.state.agents = [
       {
         id: 'a1',
@@ -348,7 +348,7 @@ describe('语料参考区双标签页（语料库 / AI 语料 · P0 骨架），
     expect(ta).not.toBeNull();
     expect(ta.value).toContain('润色这段文字');
     expect(document.body.textContent).toContain(`${ta.value.length} 字`);
-    expect(localStorage.getItem('sight-folio:writing.aiCorpusDraft')).toContain('润色这段文字');
+    expect(localStorage.getItem('sight-folio:writing.aiCorpusDraft.语料参谋 · 测试之书')).toContain('润色这段文字');
 
     // 卸载后重新挂载：草稿从 localStorage 恢复（跨会话保留）
     if (root) act(() => root!.unmount());
@@ -537,5 +537,158 @@ describe('AiCorpusPanel C2 找范例：发送前库内检索与证据注入（P1
     expect(content).toContain('语料库检索');
     expect(content).toContain('未找到');
     expect(content).not.toContain('《');
+  });
+});
+
+describe('右抽屉视图偏好持久化（折叠态 / 语料区 Tab · 切章详情再切回不丢），', () => {
+  const collapsedKey = 'sight-folio:writing.drawerCollapsed';
+  const tabKey = 'sight-folio:writing.drawerCorpusTab';
+
+  beforeEach(() => {
+    localStorage.removeItem(collapsedKey);
+    localStorage.removeItem(tabKey);
+  });
+
+  it('收起抽屉后重挂载仍为折叠窄条（偏好落 localStorage）', async () => {
+    await mountAsync(<WritingDrawer {...drawerProps} />);
+    const collapseBtn = document.querySelector('[aria-label="收起创作台"]') as HTMLElement;
+    expect(collapseBtn).not.toBeNull();
+    await act(async () => {
+      collapseBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(localStorage.getItem(collapsedKey)).toBe('1');
+
+    // 模拟「切章详情 → 切回」：组件卸载重挂载，折叠态应恢复而不是复位为展开
+    if (root) act(() => root!.unmount());
+    root = null;
+    host = null;
+    document.body.innerHTML = '';
+    await mountAsync(<WritingDrawer {...drawerProps} />);
+    expect(document.querySelector('[aria-label="收起创作台"]')).toBeNull();
+    expect(document.querySelector('[aria-label="展开创作台"]')).not.toBeNull();
+  });
+
+  it('停在 AI 语料 Tab 后重挂载仍回到 AI 语料；偏好越界（素材库下线）时高亮与内容同口径夹紧', async () => {
+    h.state.agents = [
+      {
+        id: 'a1',
+        name: '写作助手',
+        description: '',
+        modelId: 'm1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxIterations: 1,
+        toolIds: [],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    (agentApi.listConversations as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (agentApi.createConversation as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'c1' });
+    (agentApi.listMessages as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    const aiCorpus = {
+      chatTitle: '语料参谋 · 测试之书',
+      buildContextBlock: () => 'ctx',
+      agentId: 'a1',
+      onAgentChange: () => {},
+      onOpenSettings: () => {},
+    };
+    await mountAsync(<WritingDrawer {...drawerProps} aiCorpus={aiCorpus} />);
+    const aiTab = elByTestId('corpus-tab-ai') as HTMLElement;
+    await act(async () => {
+      aiTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(localStorage.getItem(tabKey)).toBe('1');
+
+    if (root) act(() => root!.unmount());
+    root = null;
+    host = null;
+    document.body.innerHTML = '';
+    await mountAsync(<WritingDrawer {...drawerProps} aiCorpus={aiCorpus} />);
+    // 重挂载后仍停 AI 语料：AiCorpusPanel 的 agent 选择器在档、语料库检索标题不在
+    expect(elByTestId('ai-corpus-agent')).not.toBeNull();
+
+    // 越界夹紧：偏好存 2 但本次配置没有素材库 Tab → Tabs 高亮与内容都回到合法末位（AI 语料）
+    localStorage.setItem(tabKey, '2');
+    if (root) act(() => root!.unmount());
+    root = null;
+    host = null;
+    document.body.innerHTML = '';
+    await mountAsync(<WritingDrawer {...drawerProps} aiCorpus={aiCorpus} />);
+    expect(elByTestId('ai-corpus-agent')).not.toBeNull();
+    const selected = Array.from(document.body.querySelectorAll('[role="tab"][aria-selected="true"]')).map(
+      (e) => e.textContent,
+    );
+    expect(selected).toContain('AI 语料');
+  });
+});
+
+describe('AI 语料草稿按书隔离（切书输入框不串台），', () => {
+  const prefix = 'sight-folio:writing.aiCorpusDraft.';
+
+  beforeEach(() => {
+    localStorage.removeItem(prefix + '语料参谋 · 书A');
+    localStorage.removeItem(prefix + '语料参谋 · 书B');
+    h.state.agents = [
+      {
+        id: 'a1',
+        name: '写作助手',
+        description: '',
+        modelId: 'm1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxIterations: 1,
+        toolIds: [],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    (agentApi.listConversations as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (agentApi.createConversation as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'c1' });
+    (agentApi.listMessages as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  });
+
+  it('在书A输入未发送的提问后切到书B：B 输入框为空；切回 A 草稿还原', async () => {
+    const panel = (title: string) => (
+      <AiCorpusPanel
+        chatTitle={title}
+        buildContextBlock={() => 'ctx'}
+        onInsertText={() => {}}
+        agentId="a1"
+        onAgentChange={() => {}}
+        onOpenSettings={() => {}}
+      />
+    );
+    // 书A：输入一段未发送的提问
+    await mountAsync(panel('语料参谋 · 书A'));
+    const ta = document.querySelector('textarea') as HTMLTextAreaElement;
+    // React 受控组件：必须经原生 value setter 触发 onChange 链路
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+    await act(async () => {
+      setValue.call(ta, '帮我把这段改得更有画面感');
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(localStorage.getItem(prefix + '语料参谋 · 书A')).toContain('画面感');
+
+    // 切书（面板不卸载、chatTitle 变化）：输入框应换成书B 自己的草稿（空）
+    await act(async () => {
+      root!.render(panel('语料参谋 · 书B'));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 320));
+    });
+    const taB = document.querySelector('textarea') as HTMLTextAreaElement;
+    expect(taB.value).toBe('');
+    expect(localStorage.getItem(prefix + '语料参谋 · 书B')).toBeNull();
+
+    // 切回书A：草稿还原
+    await act(async () => {
+      root!.render(panel('语料参谋 · 书A'));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 320));
+    });
+    const taA2 = document.querySelector('textarea') as HTMLTextAreaElement;
+    expect(taA2.value).toContain('画面感');
   });
 });
