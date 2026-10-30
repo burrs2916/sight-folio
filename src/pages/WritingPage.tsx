@@ -239,6 +239,7 @@ import {
 import { useExportActions } from './writingPage/useExportActions';
 import { ExportCountBadge } from './writingPage/ExportCountBadge';
 import { useAiActions } from './writingPage/useAiActions';
+import { useEditorScrollMemory } from './writingPage/useEditorScrollMemory';
 import { useDialogActions } from './writingPage/useDialogActions';
 import { useBatchOperations } from './writingPage/useBatchOperations';
 import { AiReviewDialog } from './writingPage/AiReviewDialog';
@@ -1156,6 +1157,17 @@ export default function WritingPage() {
     // 刻意只依赖 id：装载后章节对象更新（保存回写）不应重置编辑器内容
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, activeChapterId, flushSave]);
+
+  // 同章切「正文 ↔ 章详情/设定卡」的滚动位置记忆（2026-10-31 第六轮）。
+  // body 分支整体挂载/卸载：切到章详情或设定卡时滚动容器被卸载，切回正文是全新 DOM（scrollTop 归零），
+  // 而上面的换章 effect 只认 loadedChapterIdRef 变化——同章切视图走不到它，正文便跳回顶部。
+  // 本 hook 以「body 是否挂载」为生命周期，持续落账、返回即恢复，与换章 effect 共用同一 memory Map（幂等）。
+  useEditorScrollMemory({
+    scrollRef: editorScrollRef,
+    bodyVisible: rightTab === 'body' && !activeSetting,
+    chapterId: activeChapterId ?? null,
+    memory: scrollTopByChapterRef.current,
+  });
 
   // ─── AI 写工具外部变更（writing-chapter-external-change）──────────────────
   // 后端 write_chapter / create_chapter 落库后推送。分三路：
