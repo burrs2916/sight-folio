@@ -1,7 +1,7 @@
 // 素材库面板（Writing Phase 1 · T8 前端「素材库」Tab）
 //
 // 嵌入创作台右抽屉第三 Tab：列出当前书（bookId）的外部素材，展示 AI 分析结果
-// （人生轨迹时间线 + 创作价值 + 建议卡片），支持打开采集对话框与删除。
+// （人生轨迹时间线 + 创作价值 + 建议卡片），支持打开采集对话框、重新分析与**插入正文**。
 // 数据自管：bookId 变化或 refreshKey 递增时重新拉取；删除成功后本地移除。
 import { useCallback, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
@@ -18,6 +18,10 @@ import StickyNote2RoundedIcon from '@mui/icons-material/StickyNote2Rounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import ListItemText from '@mui/material/ListItemText';
 import { t } from '../../i18n';
 import { L } from '../../ai/aiLang';
 import {
@@ -28,8 +32,14 @@ import {
   type ExternalCaptureKind,
 } from '../../services/writing';
 import type { AiAgent } from '../../services/agent';
-import { buildCaptureAnalysisMessage, normalizeCaptureAnalysis, runCaptureTask, tryParseCaptureJson } from '../../ai/writingCapture';
+import {
+  buildCaptureAnalysisMessage,
+  normalizeCaptureAnalysis,
+  runCaptureTask,
+  tryParseCaptureJson,
+} from '../../ai/writingCapture';
 import { useToastStore } from '../../store/toastStore';
+import { buildCaptureInsertText, type CaptureInsertAnalysis, type CaptureInsertPart } from './captureInsert';
 import { logger } from '../../utils/logger';
 
 function kindLabel(kind: ExternalCaptureKind): string {
@@ -69,14 +79,29 @@ export interface ExternalCapturePanelProps {
   /** 素材分析复用写作台 AI agent（与采集对话框同一 chatAgentId / agents） */
   agentId: string;
   agents: AiAgent[];
+  /**
+   * 插入正文回调（由 WritingPage 注入，与灵感扩写同一链路：插入后自动定位并选中）。
+   * 缺省时不渲染「插入正文」入口——素材库此前只能采集/分析/删除，
+   * 采到的素材要进正文只能手抄，是 素材→正文 闭环的最后一道断口。
+   */
+  onInsertText?: (text: string) => void;
 }
 
-export function ExternalCapturePanel({ bookId, onOpenCapture, refreshKey, agentId, agents }: ExternalCapturePanelProps) {
+export function ExternalCapturePanel({
+  bookId,
+  onOpenCapture,
+  refreshKey,
+  agentId,
+  agents,
+  onInsertText,
+}: ExternalCapturePanelProps) {
   const [items, setItems] = useState<ExternalCapture[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // 正在重新分析的素材 id（一次只允许一条；runCaptureTask 内建全局并发闸门兜底别处发起的流）
   const [reanalyzingId, setReanalyzingId] = useState<string | null>(null);
+  // 「插入正文」菜单锚点（null = 未展开）：一次只开一张卡的菜单，菜单项按该卡可得的口径渲染
+  const [insertMenu, setInsertMenu] = useState<{ id: string; el: HTMLElement } | null>(null);
 
   const reload = useCallback(() => {
     let alive = true;
@@ -114,6 +139,26 @@ export function ExternalCapturePanel({ bookId, onOpenCapture, refreshKey, agentI
       }
     },
     [t],
+  );
+
+  /**
+   * 插入正文：取该卡当前分析产物按用户选定的口径组装，插入即关闭菜单。
+   * 与灵感/语料同一落正文链路（WritingPage 侧 handleInspirationInsert：插入后定位并高亮）。
+   */
+  const handleInsert = useCallback(
+    (c: ExternalCapture, analysis: CaptureInsertAnalysis, part: CaptureInsertPart) => {
+      setInsertMenu(null);
+      // 没回调就没有插入动作，绝不能弹「已插入正文」（假成功——与左栏切书假成功同一类病灶）
+      if (!onInsertText) return;
+      const text = buildCaptureInsertText(part, c, analysis);
+      if (!text) {
+        useToastStore.getState().warning(t('writing.captureInsertEmpty'));
+        return;
+      }
+      onInsertText(text);
+      useToastStore.getState().success(t('writing.captureInserted'));
+    },
+    [onInsertText],
   );
 
   // 就地「重新分析」：复用采集对话框同款分析流水线（runCaptureTask→tryParse→normalize），
@@ -252,6 +297,46 @@ export function ExternalCapturePanel({ bookId, onOpenCapture, refreshKey, agentI
                       {c.title}
                     </Typography>
                   </Box>
+                  {/* 「插入正文」：素材→正文闭环入口。口径由用户选（原文 / AI 创作价值 / AI 建议），
+                      不替作者拍板——三者都可能正是要进正文的东西。仅在传入 onInsertText 时渲染。 */}
+                  {onInsertText && (
+                    <>
+                      <IconButton
+                        size="small"
+                        aria-label={t('writing.captureInsert')}
+                        title={t('writing.captureInsert')}
+                        onClick={(e) => setInsertMenu({ id: c.id, el: e.currentTarget })}
+                        sx={{ color: 'text.disabled', p: 0.25, '&:hover': { color: 'primary.main' } }}
+                        data-testid={`capture-insert-${c.id}`}
+                      >
+                        <MoreVertRoundedIcon sx={{ fontSize: 15 }} />
+                      </IconButton>
+                      <Menu
+                        open={insertMenu?.id === c.id}
+                        anchorEl={insertMenu?.el ?? null}
+                        onClose={() => setInsertMenu(null)}
+                        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                      >
+                        {(
+                          [
+                            ['raw', 'writing.captureInsertRaw'],
+                            ['value', 'writing.captureInsertValue'],
+                            ['suggestions', 'writing.captureInsertSuggest'],
+                          ] as Array<[CaptureInsertPart, string]>
+                        ).map(([part, key]) => (
+                          <MenuItem
+                            key={part}
+                            disabled={buildCaptureInsertText(part, c, analysis) === null}
+                            onClick={() => handleInsert(c, analysis, part)}
+                            data-testid={`capture-insert-${part}`}
+                          >
+                            <ListItemText sx={{ '&': { fontSize: 12.5 } }}>{t(key)}</ListItemText>
+                          </MenuItem>
+                        ))}
+                      </Menu>
+                    </>
+                  )}
                   {/* 「重新分析」：补齐素材库此前只有新建/删除的缺口。有 extractedText 才有分析意义。 */}
                   {c.extractedText.trim() && (
                     <IconButton
@@ -263,7 +348,11 @@ export function ExternalCapturePanel({ bookId, onOpenCapture, refreshKey, agentI
                       sx={{ color: 'text.disabled', p: 0.25, '&:hover': { color: 'primary.main' } }}
                       data-testid={`capture-reanalyze-${c.id}`}
                     >
-                      {reanalyzingId === c.id ? <CircularProgress size={13} /> : <RefreshRoundedIcon sx={{ fontSize: 15 }} />}
+                      {reanalyzingId === c.id ? (
+                        <CircularProgress size={13} />
+                      ) : (
+                        <RefreshRoundedIcon sx={{ fontSize: 15 }} />
+                      )}
                     </IconButton>
                   )}
                   <IconButton

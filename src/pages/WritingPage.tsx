@@ -4782,6 +4782,9 @@ export default function WritingPage() {
                 onOpenCapture: () => setCaptureOpen(true),
                 agentId: chatAgentId,
                 agents,
+                // 素材 → 正文闭环：走灵感/语料同一落点链路（插入后自动定位并选中高亮）。
+                // 抽屉与编辑器同在 body 分支，素材库可见时编辑器必已挂载，不存在未挂载插入。
+                onInsertText: handleInspirationInsert,
               }}
             />
           </Box>
