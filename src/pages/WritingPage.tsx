@@ -569,8 +569,25 @@ export default function WritingPage() {
   const [chapterQuery, setChapterQuery] = useState('');
 
   // ─── 批量章节管理（P9）：多选 → 移卷 / 删除（状态机抽离到 hook） ───
-  const { selectionMode, setSelectionMode, selectedChapterIds, setSelectedChapterIds, toggleSelectionMode } =
+  const { selectionMode, setSelectionMode, selectedChapterIds, setSelectedChapterIds, toggleSelectionMode, resetBatch } =
     useBatchOperations();
+
+  // 切书复位左栏「章节」tab 的本地视图态（第十轮 · 左栏隐藏 bug）：
+  // selectionMode / selectedChapterIds / chapterQuery 是页面本地 state，而 store.setActiveBook
+  // 只清 chapters 等 store 字段——两份状态不同步留下三处后患：
+  // ① A 书勾选的章 id 残留在 selectedChapterIds → 到 B 书点「批量删除/移卷」，
+  //    store 动作首行按 id 在**当前 chapters** 查不到就静默 return（deleteChapter /
+  //    setChapterVolume 均有守卫），用户以为删了其实一个没删；对话框还照常提示
+  //    「确认删除 N 章」且弹「操作成功」——**假成功**（章 id 是 chap_+UUID，跨书不碰撞，
+  //    所以不会误伤他书，但反馈与真实结果不一致）。
+  // ② 底部多选条继续显示「已选 N 章」，但那 N 个 id 在本书树里渲染不出任何勾选行
+  //    = 幽灵选中数，只能靠再点一次开关按钮才能退出多选模式。
+  // ③ A 书的搜索词带到 B 书，新章列表被无关关键词过滤成「无匹配」，看起来像新书没章。
+  // 口径与 store 侧 setActiveBook 清 activeChapterId / activeSettingId 一致：换书即视图归零。
+  useEffect(() => {
+    resetBatch();
+    setChapterQuery('');
+  }, [activeBookId, resetBatch]);
 
   // ─── 查找替换（P9）：当前章节内 ───
   const [frOpen, setFrOpen] = useState(false);
