@@ -3010,7 +3010,11 @@ export default function WritingPage() {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                 }}
               >
-                <ChapterOverviewPanel bookId={activeBook?.id ?? ''} chapterId={activeChapterId} />
+                <ChapterOverviewPanel
+                  bookId={activeBook?.id ?? ''}
+                  chapterId={activeChapterId}
+                  fit="content"
+                />
               </Box>
             </Box>
             <ChapterDetailsPanel

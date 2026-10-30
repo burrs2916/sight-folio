@@ -29,7 +29,23 @@ import {
 import { chapterTextIssues } from '../../utils/writingProofread';
 import { chapterOutlier } from '../../utils/writingStats';
 
-export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; chapterId: string | null }) {
+export function ChapterOverviewPanel({
+  bookId,
+  chapterId,
+  fit = 'fill',
+}: {
+  bookId: string;
+  chapterId: string | null;
+  /**
+   * 根容器滚动语义，按挂载场景二选一：
+   * - `fill`（默认）：挂进**固定高度的侧栏**（正文页签右栏 300px、overflow:hidden 父），
+   *   面板自己撑满并出滚动条。
+   * - `content`：挂进**单一滚动内容流**（写作台「章详情」分支，外层 Box 已 flex:1+overflowY:auto），
+   *   面板随内容自然展开、不再自带 height:100%/overflowY——否则与外层滚动区双重滚动争高，
+   *   短窗口下卡被裁、正文挤窄（即「切到章详情布局就乱」的残留病灶）。
+   */
+  fit?: 'fill' | 'content';
+}) {
   const chapters = useWritingStore((s) => s.chapters);
   const outlines = useWritingStore((s) => s.outlines);
   const settings = useWritingStore((s) => s.settings);
@@ -140,7 +156,14 @@ export function ChapterOverviewPanel({ bookId, chapterId }: { bookId: string; ch
   }
 
   return (
-    <Box sx={{ p: 1, overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+    <Box
+      data-testid="chapter-overview-root"
+      sx={{
+        p: 1,
+        boxSizing: 'border-box',
+        ...(fit === 'fill' ? { overflowY: 'auto', height: '100%' } : {}),
+      }}
+    >
       {/* 章头：面包屑省略，直接状态 + 字数（与右栏本章上下文同口径） */}
       <Typography sx={{ fontSize: 12.5, fontWeight: 700 }} noWrap>
         {chapter.title}
