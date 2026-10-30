@@ -19,6 +19,23 @@ import type { InlineWritingKind, PolishStyle } from '../../ai/writingAssistant';
 import { t } from '../../i18n';
 import type { AiAgent } from '../../services/agent';
 
+/** 模式清单与文案键：既用于渲染，也用于 running 时统一禁用（漏一项就是漏锁） */
+const INLINE_KINDS: InlineWritingKind[] = ['continue', 'polish', 'rewrite', 'summarize', 'review'];
+const KIND_LABEL_KEYS: Record<InlineWritingKind, string> = {
+  continue: 'writing.inlineContinue',
+  polish: 'writing.inlinePolish',
+  rewrite: 'writing.inlineRewrite',
+  summarize: 'writing.inlineSummarize',
+  review: 'writing.inlineReview',
+};
+const POLISH_STYLES: PolishStyle[] = ['default', 'refine', 'vivid', 'plain'];
+const STYLE_LABEL_KEYS: Record<PolishStyle, string> = {
+  default: 'writing.styleDefault',
+  refine: 'writing.styleRefine',
+  vivid: 'writing.styleVivid',
+  plain: 'writing.stylePlain',
+};
+
 export interface InlineAiDialogProps {
   open: boolean;
   onClose: () => void;
@@ -110,11 +127,14 @@ export function InlineAiDialog({
             value={kind}
             onChange={(e) => onKindChange(e.target.value as InlineWritingKind)}
           >
-            <FormControlLabel value="continue" control={<Radio size="small" />} label={t('writing.inlineContinue')} />
-            <FormControlLabel value="polish" control={<Radio size="small" />} label={t('writing.inlinePolish')} />
-            <FormControlLabel value="rewrite" control={<Radio size="small" />} label={t('writing.inlineRewrite')} />
-            <FormControlLabel value="summarize" control={<Radio size="small" />} label={t('writing.inlineSummarize')} />
-            <FormControlLabel value="review" control={<Radio size="small" />} label={t('writing.inlineReview')} />
+            {INLINE_KINDS.map((k) => (
+              <FormControlLabel
+                key={k}
+                value={k}
+                control={<Radio size="small" disabled={running} />}
+                label={t(KIND_LABEL_KEYS[k])}
+              />
+            ))}
           </RadioGroup>
         </FormControl>
         <FormControl fullWidth>
@@ -132,7 +152,7 @@ export function InlineAiDialog({
                 <FormControlLabel
                   key={agent.id}
                   value={agent.id}
-                  control={<Radio size="small" />}
+                  control={<Radio size="small" disabled={running} />}
                   label={<Typography sx={{ fontSize: 13.5 }}>{agent.name}</Typography>}
                 />
               ))}
@@ -148,6 +168,7 @@ export function InlineAiDialog({
               type="number"
               label={t('writing.continueWords')}
               value={words}
+              disabled={running}
               onChange={(e) => onWordsChange(e.target.value)}
               sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: 12.5 } }}
             />
@@ -160,6 +181,7 @@ export function InlineAiDialog({
               label={t('writing.continueDirective')}
               placeholder={t('writing.continueDirectivePh')}
               value={directive}
+              disabled={running}
               onChange={(e) => onDirectiveChange(e.target.value)}
               sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: 12.5 } }}
             />
@@ -168,26 +190,14 @@ export function InlineAiDialog({
           <FormControl fullWidth sx={{ mt: 1.5 }}>
             <FormLabel sx={{ fontSize: 13 }}>{t('writing.polishStyle')}</FormLabel>
             <RadioGroup row value={style} onChange={(e) => onStyleChange(e.target.value as PolishStyle)}>
-              <FormControlLabel
-                value="default"
-                control={<Radio size="small" />}
-                label={<Typography sx={{ fontSize: 12.5 }}>{t('writing.styleDefault')}</Typography>}
-              />
-              <FormControlLabel
-                value="refine"
-                control={<Radio size="small" />}
-                label={<Typography sx={{ fontSize: 12.5 }}>{t('writing.styleRefine')}</Typography>}
-              />
-              <FormControlLabel
-                value="vivid"
-                control={<Radio size="small" />}
-                label={<Typography sx={{ fontSize: 12.5 }}>{t('writing.styleVivid')}</Typography>}
-              />
-              <FormControlLabel
-                value="plain"
-                control={<Radio size="small" />}
-                label={<Typography sx={{ fontSize: 12.5 }}>{t('writing.stylePlain')}</Typography>}
-              />
+              {POLISH_STYLES.map((st) => (
+                <FormControlLabel
+                  key={st}
+                  value={st}
+                  control={<Radio size="small" disabled={running} />}
+                  label={<Typography sx={{ fontSize: 12.5 }}>{t(STYLE_LABEL_KEYS[st])}</Typography>}
+                />
+              ))}
             </RadioGroup>
           </FormControl>
         ) : kind === 'summarize' ? (
@@ -247,6 +257,9 @@ export function InlineAiDialog({
               {t('writing.inlineStreamingHint')}
             </Typography>
           )}
+          <Typography sx={{ fontSize: 11.5, color: 'text.disabled', mt: 0.5, textAlign: 'center' }}>
+            {t('writing.inlineLockedHint')}
+          </Typography>
           <Button size="small" fullWidth color="error" sx={{ mt: 0.5 }} onClick={onStop}>
             {t('writing.inlineStop')}
           </Button>

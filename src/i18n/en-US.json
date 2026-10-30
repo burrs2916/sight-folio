@@ -6644,6 +6644,7 @@
     "inlineSelectionHint": "Text selected: this task will only touch the selected {n} chars and replace them in place.",
     "inlineStop": "Stop generating",
     "inlineStreamingHint": "Generating — stop anytime…",
+    "inlineLockedHint": "Generating: mode, agent and options are locked — this result follows the settings you started with. To change them, press \"Stop generating\" first.",
     "aiChatTitle": "Writing AI",
     "aiChatPlaceholder": "Ask the AI — book context is attached on the first message…",
     "aiChatEmpty": "Ask anything: plot direction, character motives, foreshadowing. The first message automatically carries the current chapter and character summary.",

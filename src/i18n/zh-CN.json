@@ -6644,6 +6644,7 @@
     "inlineSelectionHint": "已选中片段：本次任务只作用于选中的 {n} 字，应用时原位替换。",
     "inlineStop": "停止生成",
     "inlineStreamingHint": "正在生成，可随时停止……",
+    "inlineLockedHint": "正在生成：模式、Agent 与参数已锁定（本次结果按发起时的设置生成）。如需改设置，请先「停止生成」。",
     "aiChatTitle": "写作台 AI",
     "aiChatPlaceholder": "向 AI 提问，首轮自动带上当前作品上下文……",
     "aiChatEmpty": "向 AI 提问吧：剧情走向、人物动机、伏笔安排，都可以聊。首轮消息会自动附带当前章节与人设卡摘要。",

@@ -63,11 +63,13 @@ export function AiReviewDialog({
         <FormControl fullWidth sx={{ mt: 1 }}>
           <FormLabel sx={{ fontSize: 13 }}>{t('writing.aiPreset')}</FormLabel>
           <RadioGroup value={presetKey} onChange={(e) => onPresetChange(e.target.value)}>
+            {/* 发射中锁定：与内联 AI 同一口径——本次发射用的是发起时的预设，
+                中途改选只会让 UI 与实际派发的任务错位。 */}
             {writingPresets.map((p) => (
               <FormControlLabel
                 key={p.key}
                 value={p.key}
-                control={<Radio size="small" />}
+                control={<Radio size="small" disabled={launching} />}
                 label={
                   <Box>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{pickLang(p.title)}</Typography>
@@ -93,7 +95,7 @@ export function AiReviewDialog({
                 <FormControlLabel
                   key={agent.id}
                   value={agent.id}
-                  control={<Radio size="small" />}
+                  control={<Radio size="small" disabled={launching} />}
                   label={<Typography sx={{ fontSize: 13.5 }}>{agent.name}</Typography>}
                 />
               ))}
