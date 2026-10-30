@@ -56,6 +56,14 @@ export function InlineAiResultDialog({ result, onClose, onApply, onApplyReviewEn
             {t('writing.resultReplaceSelection', { n: result.selectionChars })}
           </Typography>
         )}
+        {/* 润色/改写发起时无选区 → AI 走「整章润色」，应用即 setContent 替换整章正文。
+            旧版只在有选区时给「替换 N 字」提示，无选区时不加任何警示，用户易误以为只改
+            当前段。这里补一条醒目的「将替换整章」警示，避免误覆盖原稿（数据丢失体验风险）。 */}
+        {appliesToSelection && result?.selectionChars == null && (
+          <Typography component="span" sx={{ fontSize: 12, fontWeight: 500, color: 'warning.main', ml: 1 }}>
+            {t('writing.resultReplaceWholeChapter')}
+          </Typography>
+        )}
       </DialogTitle>
       <DialogContent>
         {kind === 'review' && reviewEntries.length > 0 ? (

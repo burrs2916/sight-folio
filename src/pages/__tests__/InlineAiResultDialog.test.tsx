@@ -168,6 +168,32 @@ describe('InlineAiResultDialog（T3 逐条审校应用）', () => {
     expect(onApply).toHaveBeenCalledTimes(1);
   });
 
+  it('润色无选区（整章替换）：显示「将替换整章」警示且不显示选区字数提示', async () => {
+    await mountAsync(
+      <InlineAiResultDialog
+        result={{ kind: 'polish', text: '润色后的整章正文。' }}
+        onClose={() => {}}
+        onApply={() => {}}
+      />,
+    );
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('将替换整章正文');
+    expect(text).not.toContain('将替换选中的');
+  });
+
+  it('润色有选区：显示选区字数提示，不显示整章替换警示', async () => {
+    await mountAsync(
+      <InlineAiResultDialog
+        result={{ kind: 'polish', text: '润色后的句子。', selectionChars: 8 }}
+        onClose={() => {}}
+        onApply={() => {}}
+      />,
+    );
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('将替换选中的 8 字');
+    expect(text).not.toContain('将替换整章正文');
+  });
+
   it('未提供 onApplyReviewEntry 时按钮不渲染，审校保持只读', async () => {
     await mountAsync(
       <InlineAiResultDialog

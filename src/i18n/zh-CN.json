@@ -6640,6 +6640,7 @@
     "aiLaunched": "已发起 AI 审视，请到 AI 助手页查看会话",
     "aiLaunchFailed": "发起失败：{msg}",
     "resultReplaceSelection": "将替换选中的 {n} 字",
+    "resultReplaceWholeChapter": "将替换整章正文，原稿会被覆盖",
     "inlineSelectionHint": "已选中片段：本次任务只作用于选中的 {n} 字，应用时原位替换。",
     "inlineStop": "停止生成",
     "inlineStreamingHint": "正在生成，可随时停止……",

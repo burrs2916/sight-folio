@@ -163,6 +163,20 @@ export function useAiActions(
   const inlineSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const streamPreviewRef = useRef<HTMLDivElement | null>(null);
 
+  // 防跨章污染：inlineSelectionRef 存的是「生成当时」编辑器文档的 doc 位置（from/to）。
+  // 若结果弹窗打开期间用户切章（切章 effect 会 setContent 载入新章），那个 doc 位置
+  // 已属于另一份文档——此时点「应用」会把 AI 文本静默插进错误章节的错误位置。
+  // 激活章一变即丢弃未应用的内联结果与落点，让用户对新章重新发起，绝不跨章误写。
+  const inlineChapterIdRef = useRef(activeChapter?.id ?? null);
+  useEffect(() => {
+    const nextId = activeChapter?.id ?? null;
+    if (inlineChapterIdRef.current !== nextId) {
+      inlineChapterIdRef.current = nextId;
+      setInlineResult(null);
+      inlineSelectionRef.current = null;
+    }
+  }, [activeChapter?.id]);
+
   // ─── 设定卡 AI 补全（P0）：打开时携带卡片上下文，运行后产出字段建议，由 WritingPage 确认回填 ───
   const [settingAiOpen, setSettingAiOpen] = useState(false);
   const [settingAiAgentId, setSettingAiAgentId] = useState('');

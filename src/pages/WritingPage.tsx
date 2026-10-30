@@ -696,6 +696,8 @@ export default function WritingPage() {
         } else if (focus.focusSetting) {
           setLeftTab('settings');
           setActiveSetting(focus.focusSetting);
+          // 跨窗口/提醒跳转打开设定卡同样要复位右栏到正文页签（右栏停在章详情会遮蔽设定卡）
+          setRightTab('body');
         } else if (autoFirstChapter) {
           // 仅定位到书（L1 书页签 / 独立窗口冷启动只带 book）：默认进入该书正文——
           // 自动选中第一个「章」节点（无章则取 sortOrder 首节点），让正文编辑器与
@@ -2102,13 +2104,24 @@ export default function WritingPage() {
   const characters = settings.filter((x) => x.kind === 'character');
   const worldbuilding = settings.filter((x) => x.kind === 'worldbuilding');
 
+  // 统一的「打开设定卡」动作：置 activeSetting 同时把右栏拉回正文页签。
+  // 修反向卡死：右栏停在「章详情」时因渲染优先级 details 在前，只置 activeSetting
+  // 会让用户点了人物/设定却毫无反应——必须在打开设定时复位 rightTab 到 body。
+  const openSetting = useCallback(
+    (id: string) => {
+      setActiveSetting(id);
+      setRightTab('body');
+    },
+    [setActiveSetting],
+  );
+
   /** 设定条目行（人设卡 / 世界观共用） */
   const renderSettingRow = (setting: (typeof settings)[number]) => {
     const selected = setting.id === activeSettingId;
     return (
       <Box
         key={setting.id}
-        onClick={() => setActiveSetting(setting.id)}
+        onClick={() => openSetting(setting.id)}
         sx={{
           display: 'flex',
           alignItems: 'center',
@@ -2776,7 +2789,14 @@ export default function WritingPage() {
         >
           <Tabs
             value={rightTab}
-            onChange={(_, v: RightTab) => setRightTab(v)}
+            onChange={(_, v: RightTab) => {
+              // 章详情与设定卡互斥：其它两个入口（章节树/抽屉）切详情前都会先清 activeSetting，
+              // 手动 tab 也必须同口径——否则从设定卡编辑态点「章详情」后再点回「正文」，
+              // 渲染优先级 `details ? … : activeSetting ? … : 正文` 会因 activeSetting 仍在
+              // 而重新弹回设定卡，用户以为「正文」tab 失灵（状态机卡死）。
+              if (v === 'details') setActiveSetting(null);
+              setRightTab(v);
+            }}
             variant="fullWidth"
             sx={{
               flex: 1,
@@ -2963,7 +2983,10 @@ export default function WritingPage() {
           </MenuItem>
         </Menu>
         {rightTab === 'details' ? (
-          <>
+          /* 单一滚动容器（对齐设定卡分支）：九维统筹卡与章详情面板同处一个滚动流，
+             不再各开一个滚动区、上下争高——修「切到章详情布局就乱」。
+             统筹卡去掉 maxHeight:52vh 硬顶，改为随内容自然展开。 */
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
             {/* 九维章统筹面板：与主窗口正文页签右栏同一组件、同一派生口径（M8 同源）。
                 独立窗口跳转经 dispatchChapterJump 协议发往主窗口，行点可跳并置前。 */}
             <Box
@@ -2982,9 +3005,6 @@ export default function WritingPage() {
                   borderColor: 'divider',
                   borderRadius: 2,
                   overflow: 'hidden',
-                  maxHeight: '52vh',
-                  display: 'flex',
-                  flexDirection: 'column',
                   bgcolor: 'background.paper',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                 }}
@@ -3005,7 +3025,7 @@ export default function WritingPage() {
                 setRightTab('body');
               }}
             />
-          </>
+          </Box>
         ) : activeSetting ? (
           <>
             <Box
@@ -5260,9 +5280,7 @@ export default function WritingPage() {
           setActiveSetting(null);
           setActiveChapter(id);
         }}
-        onOpenSetting={(id) => {
-          setActiveSetting(id);
-        }}
+        onOpenSetting={(id) => openSetting(id)}
       />
       {/* ─── 批次③ 快捷键速查 ─── */}
       <ShortcutsDialog open={helpOpen} onClose={() => setHelpOpen(false)} />

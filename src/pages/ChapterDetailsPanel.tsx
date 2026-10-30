@@ -184,8 +184,12 @@ export function ChapterDetailsPanel({
     </Box>
   );
 
+  // 布局说明：本面板不自带滚动（原 `flex:1 + overflowY:auto` 会与右栏「九维统筹」卡的
+  // 独立滚动区上下争高、各自出滚动条，短窗口下正文被挤成窄条——即用户反馈的「切到
+  // 章详情布局就乱」。改为 flex:none 的内容流，滚动权交给外层 details 容器的单一滚动区，
+  // 与 activeSetting（设定卡）分支同一范式。
   return (
-    <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 4 }, py: 2 }}>
+    <Box sx={{ flex: 'none', px: { xs: 2, md: 4 }, pt: 1, pb: 3 }}>
       <Box sx={{ maxWidth: 760, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {/* 顶部行：封面大图 + 章信息 */}
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
