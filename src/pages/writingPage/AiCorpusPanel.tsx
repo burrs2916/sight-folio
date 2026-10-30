@@ -42,6 +42,7 @@ import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { agentApi, corpusApi, type AiMessage } from '../../services/tauri';
 import { useAgentStore } from '../../store/agentStore';
 import { useToastStore } from '../../store/toastStore';
+import { shiftEditIndexAfterDelete } from './corpusEditIndex';
 import { t } from '../../i18n';
 import { logger } from '../../utils/logger';
 import {
@@ -505,10 +506,16 @@ export function AiCorpusPanel({
     setEditingIdx(null);
   }, [editingIdx, genEditDraft]);
 
-  /** 删除一张生成卡片（直接从结果集移除并持久化） */
+  /**
+   * 删除一张生成卡片（直接从结果集移除并持久化）。
+   * 编辑下标必须跟着数组收缩校正：cards 里每张卡都同时挂着「编辑」和「删除」入口，
+   * 正在编辑第 2 张时点第 1 张的删除是正常操作；只判 cur===i 归零的话，
+   * i 之后的 editingIdx 不会前移——指向越界则保存静默丢失，指向别的卡则把草稿
+   * 覆盖到错误卡片上（数据损坏）。
+   */
   const deleteCard = useCallback((i: number) => {
     setGenCards((prev) => prev.filter((_, j) => j !== i));
-    setEditingIdx((cur) => (cur === i ? null : cur));
+    setEditingIdx((cur) => shiftEditIndexAfterDelete(cur, i));
   }, []);
 
   /** 渲染一张固化推荐句卡片（插入 + 复制 + 就地编辑/删除；编辑态渲染输入框） */
