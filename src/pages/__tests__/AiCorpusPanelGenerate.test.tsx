@@ -291,6 +291,29 @@ describe('AI 语料参谋（P2 一键生成 · 回归锁）', () => {
     expect(textEl('历史提问')).toBeTruthy();
   });
 
+  it('生成中重挂（切语料 Tab 再切回）：挂载即刻渲染流式卡片，不闪空（缺口②）', async () => {
+    await setupEmptyConversation();
+    // 面板尚未挂载时 store 已在推流（本面板会话 convId=c_new 归属自己）
+    h.state.isStreaming = true;
+    h.state.currentStreamConversationId = 'c_new';
+    h.state.streamingContent = '正在生成：\n>>> 他握紧信纸的手，指节发白。';
+
+    // 真实场景：生成前已在「生成」子模式（该偏好随面板持久化），切走再切回即重挂
+    localStorage.setItem(
+      'sight-folio:writing.aiCorpusGen.' + TITLE,
+      JSON.stringify({ cards: [], attempted: true, mode: 'generate', editing: null }),
+    );
+
+    await mountAsync(<AiCorpusPanel {...baseProps} onInsertText={() => {}} />);
+
+    // 无需等待任何 store 推送：streamText 初值直读 store，首帧即有卡片
+    const streamCards = Array.from(
+      document.body.querySelectorAll('[data-testid^="ai-corpus-gen-stream-"][data-testid$="-card"]'),
+    );
+    expect(streamCards.length).toBeGreaterThanOrEqual(1);
+    expect(streamCards[0].textContent).toContain('他握紧信纸的手');
+  });
+
   it('归属过滤：别处会话正在流式时，本面板不渲染流式卡片/停止按钮（防串台）', async () => {
     await setupEmptyConversation();
     await mountAsync(<AiCorpusPanel {...baseProps} onInsertText={() => {}} />);

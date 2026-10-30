@@ -200,7 +200,9 @@ export function AiCorpusPanel({
   }, [chatTitle]);
   /** 快捷指令菜单锚点（点击输入框左侧闪电按钮弹出预设指令） */
   const [cmdAnchor, setCmdAnchor] = useState<HTMLElement | null>(null);
-  const [streamText, setStreamText] = useState('');
+  // 初值直读 store：面板随语料 Tab 切换卸载重挂，生成中重挂时若从 '' 起步，
+  // 到下一个 chunk 覆盖前会闪空一下；流结束后 store 侧会清空，残留值被 isOwnStreaming 守卫兜住。
+  const [streamText, setStreamText] = useState(() => useAgentStore.getState().streamingContent);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   /** 最近一次本面板发起的请求（对话文本 + 实际发送内容），供错误态「重试」原样重发 */
   const lastSendRef = useRef<{ text: string; content: string } | null>(null);
@@ -255,7 +257,8 @@ export function AiCorpusPanel({
     if (!agentId) return;
     let cancelled = false;
     setLoading(true);
-    setStreamText('');
+    // 不清 streamText：切 agent/切书时旧流文本由流归属守卫（currentStreamConversationId
+    // === convId）天然拦渲染；生成中重挂时保留 store 现值避免闪空（见 streamText 初值）。
     (async () => {
       try {
         const convs = await agentApi.listConversations(agentId);
