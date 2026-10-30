@@ -7710,7 +7710,9 @@
     "proofreadBlock": "BLOCK",
     "foreshadowRelatedToSetting": "Related foreshadowings",
     "statsChapters": "{n} chapters",
-    "storylineOpenPane": "open storyline pane"
+    "storylineOpenPane": "open storyline pane",
+    "inlineRangeStale": "The text changed and the original selection is no longer valid. Please reselect the target, or copy the result manually.",
+    "inlineRangeMoved": "Detected text changes; the result was re-anchored to the original sentence's new position."
   },
   "studio": {
     "newBook": "New Book",

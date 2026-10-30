@@ -13,6 +13,7 @@ import { getLang, t } from '../../i18n';
 // 与卡面板共用同一份维度清单与格式化口径（0=中立要进 prompt）
 import { formatCognitiveWeightLine } from '../../utils/writingCognitiveWeights';
 import { logger } from '../../utils/logger';
+import { verifyInlineRange } from './inlineRangeGuard';
 import { writingScanApi } from '../../services/writing';
 import { analyzerRegistry } from '../../editor/analyzer/analyzerRegistry';
 import {
@@ -160,7 +161,9 @@ export function useAiActions(
       return true;
     }
   });
-  const inlineSelectionRef = useRef<{ from: number; to: number } | null>(null);
+  // 携带 text = 发起生成那一刻选区命中的原文，作为「落点锚点」：应用时正文若被改动，
+  // 用它经 verifyInlineRange 校验/重定位旧 from/to（需求缺口④，防 30s+ 期间漂移误写）。
+  const inlineSelectionRef = useRef<{ from: number; to: number; text: string } | null>(null);
   const streamPreviewRef = useRef<HTMLDivElement | null>(null);
 
   // 防跨章污染：inlineSelectionRef 存的是「生成当时」编辑器文档的 doc 位置（from/to）。
@@ -421,7 +424,9 @@ export function useAiActions(
         setInlineStreamText('');
         return;
       }
-      inlineSelectionRef.current = selectionRange;
+      inlineSelectionRef.current = selectionRange
+        ? { ...selectionRange, text: inlineCtx.selectionText ?? '' }
+        : null;
       setInlineResult({
         kind: inlineKind,
         text: res.text,
@@ -448,13 +453,25 @@ export function useAiActions(
     if (inlineResult.kind === 'continue') {
       editor.chain().focus('end').insertContent(html).run();
     } else if (inlineSelectionRef.current) {
-      const range = inlineSelectionRef.current;
+      const anchor = inlineSelectionRef.current;
       const selDoc = editor.state.doc;
+      // 落点防漂移：AI 跑 30s+ 期间用户可能已改动正文，旧 from/to 未必还指向当初那段选区。
+      // 用发起时记下的锚点文本校验：exact=原样用；moved=重定位到新位置；lost=拒绝写入并提示。
+      // 绝不静默往过期区间里写（需求缺口④）。
+      const check = verifyInlineRange(selDoc, anchor, anchor.text);
+      if (check.status === 'lost') {
+        useToastStore.getState().error(t('writing.inlineRangeStale'));
+        return; // 保留结果与落点，让用户自行复制/重新框选，不冒险替换
+      }
+      const range = check.range;
       const sameBlock = selDoc.resolve(range.from).sameParent(selDoc.resolve(range.to));
       if (sameBlock) {
         editor.chain().focus().insertContentAt(range, inlineResult.text).run();
       } else {
         editor.chain().focus().insertContentAt(range, html).run();
+      }
+      if (check.status === 'moved') {
+        useToastStore.getState().success(t('writing.inlineRangeMoved'));
       }
       inlineSelectionRef.current = null;
     } else {
