@@ -3001,7 +3001,11 @@ export default function WritingPage() {
              统筹卡去掉 maxHeight:52vh 硬顶，改为随内容自然展开。 */
           <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
             {/* 九维章统筹面板：与主窗口正文页签右栏同一组件、同一派生口径（M8 同源）。
-                独立窗口跳转经 dispatchChapterJump 协议发往主窗口，行点可跳并置前。 */}
+                独立窗口跳转经 dispatchChapterJump 协议发往主窗口，行点可跳并置前。
+                未选中章时不渲染：它自己的「无章上下文」占位会叠在下方章详情空态之上，
+                两个空态上下堆叠——即「切章详情布局乱」在未选中章场景的残留；
+                空态统一交给下方 ChapterDetailsPanel 一个出口。 */}
+            {activeChapterId && (
             <Box
               sx={{
                 px: { xs: 2, md: 4 },
@@ -3029,6 +3033,7 @@ export default function WritingPage() {
                 />
               </Box>
             </Box>
+            )}
             <ChapterDetailsPanel
               chapter={activeChapter}
               book={activeBook}

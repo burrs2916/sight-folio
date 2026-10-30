@@ -210,8 +210,9 @@ export function ChapterDetailsPanel({
     return (
       <Box
         sx={{
-          flex: 1,
-          minHeight: 0,
+          // 外层 details 容器是 block 滚动区（非 flex 子项），flex:1 在此不生效；
+          // 改用 minHeight:100% 撑满容器高，justifyContent:center 才能真正垂直居中。
+          minHeight: '100%',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
