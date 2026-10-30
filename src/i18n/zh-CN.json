@@ -7712,7 +7712,8 @@
     "statsChapters": "{n} 章",
     "storylineOpenPane": "打开剧情线面板",
     "inlineRangeStale": "正文已改动，原选区位置失效。请重新框选要处理的文字，或手动复制结果。",
-    "inlineRangeMoved": "检测到正文变动，已自动把结果落回原句的新位置。"
+    "inlineRangeMoved": "检测到正文变动，已自动把结果落回原句的新位置。",
+    "inlineWholeChapterHint": "未选中文本：本次将润色/改写整章，应用会替换全部正文。只想改局部请先选中要处理的那段。"
   },
   "studio": {
     "newBook": "新建作品",

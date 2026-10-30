@@ -7712,7 +7712,8 @@
     "statsChapters": "{n} chapters",
     "storylineOpenPane": "open storyline pane",
     "inlineRangeStale": "The text changed and the original selection is no longer valid. Please reselect the target, or copy the result manually.",
-    "inlineRangeMoved": "Detected text changes; the result was re-anchored to the original sentence's new position."
+    "inlineRangeMoved": "Detected text changes; the result was re-anchored to the original sentence's new position.",
+    "inlineWholeChapterHint": "No selection: this will polish/rewrite the entire chapter and replace all text on apply. To touch only part, select that passage first."
   },
   "studio": {
     "newBook": "New Book",

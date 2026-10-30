@@ -93,6 +93,15 @@ export function InlineAiDialog({
             {t('writing.inlineSelectionHint', { n: selChars })}
           </Typography>
         )}
+        {/* 需求缺口③：改写/润色在无选区时走「整章处理」，应用即替换整章正文。
+            旧版只在有选区时给提示、无选区时一片空白，用户易误以为仍只改当前段。
+            这里补一条发起前就看得见的整章警示（纯文案，不改行为——无选区润色=整章
+            替换是刻意设计：见 buildPolishMessage 走「整章润色」）。 */}
+        {(kind === 'polish' || kind === 'rewrite') && selChars === 0 && (
+          <Typography sx={{ fontSize: 12, color: 'warning.main', mb: 1 }}>
+            {t('writing.inlineWholeChapterHint')}
+          </Typography>
+        )}
         <FormControl fullWidth sx={{ mb: 1.5 }}>
           <FormLabel sx={{ fontSize: 13 }}>{t('writing.inlineMode')}</FormLabel>
           <RadioGroup
