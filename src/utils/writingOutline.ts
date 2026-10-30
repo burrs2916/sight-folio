@@ -10,6 +10,7 @@ import type {
   WritingSetting,
   WritingRelation,
   WritingSettingExtra,
+  WritingTimelineEvent,
 } from '../services/tauri';
 import { parseSettingExtra } from '../services/tauri';
 
@@ -203,10 +204,29 @@ function uniq(ids: string[]): string[] {
   return [...new Set(ids)];
 }
 
-/** 该章挂的节拍（可能多条；与 beatForChapter 的"一章取一条"口径不同，这里是全部） */
-function beatsOfChapter(outlines: WritingOutline[], chapterId: string): WritingOutline[] {
+/** 该章挂的节拍（可能多条；与 beatForChapter 的"一章取一条"口径不同，这里是全部）。
+ *  导出供章详情面板列出本章节拍清单（按 sortOrder 排）。 */
+export function beatsOfChapter(outlines: WritingOutline[], chapterId: string): WritingOutline[] {
   if (!chapterId) return [];
   return outlines.filter((o) => o.chapterId === chapterId);
+}
+
+/**
+ * 本章节拍里「已导入时间线」的节拍 id 集合（数据即真相）。
+ * 判定：本章时间线事件中存在同 outlineId 的记录即视为该节拍已导过——
+ * 不另立布尔/持久态，天然扛面板卸载重挂，也不与别处删除事件产生两张皮。
+ * 供章详情面板置灰「导入时间线」按钮。
+ */
+export function importedBeatIdsOfChapter(
+  events: Pick<WritingTimelineEvent, 'chapterId' | 'outlineId'>[],
+  chapterId: string,
+): Set<string> {
+  const set = new Set<string>();
+  if (!chapterId) return set;
+  for (const ev of events) {
+    if (ev.chapterId === chapterId && ev.outlineId) set.add(ev.outlineId);
+  }
+  return set;
 }
 
 /** 本章全部节拍挂载的出场人物 id（去重保序；面板据此列名字） */

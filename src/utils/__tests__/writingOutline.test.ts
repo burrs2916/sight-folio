@@ -5,6 +5,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   beatForChapter,
+  beatsOfChapter,
+  importedBeatIdsOfChapter,
   looseBeats,
   volumeAccount,
   parseBeatExtra,
@@ -134,6 +136,49 @@ describe('parseBeatExtra（宽容解析，全项目唯一入口）', () => {
     expect(parseBeatExtra('[1,2]')).toEqual({});
     expect(parseBeatExtra('null')).toEqual({});
     expect(parseBeatExtra('42')).toEqual({});
+  });
+});
+
+describe('importedBeatIdsOfChapter（章详情「已导入」置灰判定，数据即真相）', () => {
+  const ev = (chapterId: string | null, outlineId: string | null) => ({ chapterId, outlineId });
+
+  it('本章时间线里有同 outlineId 事件 → 该节拍判为已导入', () => {
+    const set = importedBeatIdsOfChapter([ev('c1', 'o1'), ev('c1', 'o2')], 'c1');
+    expect(set.has('o1')).toBe(true);
+    expect(set.has('o2')).toBe(true);
+  });
+
+  it('只看本章的事件——别章导过同一节拍不算本章已导入', () => {
+    const set = importedBeatIdsOfChapter([ev('c2', 'o1')], 'c1');
+    expect(set.has('o1')).toBe(false);
+  });
+
+  it('无 outlineId 的普通时间线事件忽略（它们不是节拍导入的）', () => {
+    const set = importedBeatIdsOfChapter([ev('c1', null)], 'c1');
+    expect(set.size).toBe(0);
+  });
+
+  it('空 chapterId → 空集合（未选章时面板不炸、不误置灰）', () => {
+    expect(importedBeatIdsOfChapter([ev('c1', 'o1')], '').size).toBe(0);
+  });
+});
+
+describe('beatsOfChapter（章详情列本章节拍清单，导出口径）', () => {
+  it('取该章全部节拍（可多条），不碰其它章/未落章节拍', () => {
+    const outlines = [beat('o1', 'c1', 0), beat('o2', 'c1', 1), beat('o3', 'c2', 0), beat('o4', null, 0)];
+    expect(beatsOfChapter(outlines, 'c1').map((o) => o.id)).toEqual(['o1', 'o2']);
+  });
+
+  it('空 chapterId → 空数组（未选章时面板不炸）', () => {
+    expect(beatsOfChapter([beat('o1', 'c1', 0)], '')).toEqual([]);
+  });
+
+  it('顺序契约：按传入数组原序返回，绝不内部 sort——' +
+     'castOfChapter/scenesOfChapter 的「去重保序」依赖它不得被改动', () => {
+    const outlines = [beat('oB', 'c1', 5), beat('oA', 'c1', 1)];
+    // 原序是 [oB, oA]（sortOrder 5,1）；若哪天有人给 beatsOfChapter 加 .sort 这条会红，
+    // 连带 castOfChapter 的保序语义被静默改变——所以在这里钉住。
+    expect(beatsOfChapter(outlines, 'c1').map((o) => o.id)).toEqual(['oB', 'oA']);
   });
 });
 

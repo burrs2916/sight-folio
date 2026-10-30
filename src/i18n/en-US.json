@@ -7713,7 +7713,13 @@
     "storylineOpenPane": "open storyline pane",
     "inlineRangeStale": "The text changed and the original selection is no longer valid. Please reselect the target, or copy the result manually.",
     "inlineRangeMoved": "Detected text changes; the result was re-anchored to the original sentence's new position.",
-    "inlineWholeChapterHint": "No selection: this will polish/rewrite the entire chapter and replace all text on apply. To touch only part, select that passage first."
+    "inlineWholeChapterHint": "No selection: this will polish/rewrite the entire chapter and replace all text on apply. To touch only part, select that passage first.",
+    "chapterBeatsTitle": "Story Beats",
+    "chapterBeatsEmpty": "No beats bound to this chapter yet. Plan beats for it in the Outline tab, then come back to review and import.",
+    "chapterBeatImport": "Import to timeline",
+    "chapterBeatImported": "Imported",
+    "chapterBeatImportDone": "Draft timeline event created — fill in the time to make it official",
+    "chapterBeatImportFail": "Failed to import to timeline"
   },
   "studio": {
     "newBook": "New Book",

@@ -9,7 +9,7 @@
 //   - 本章时间线事件（展示 + 删除）
 //   - 伏笔（本章埋设 / 计划回收，只读双归类）
 // 数据口径与书场景右栏章卡（WritingInspectorPanel）同一份（utils/writingOutline 纯函数）。
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -25,7 +25,7 @@ import { CoverThumb } from '../components/CoverThumb';
 import { logger } from '../utils/logger';
 import type { WritingBook, WritingChapter, WritingTimelineEvent } from '../services/writing';
 import type { WritingOutline, WritingSetting } from '../services/writing';
-import { castOfChapter, chapterPath, parseChapterCover, toggleSettingOnChapter } from '../utils/writingOutline';
+import { beatsOfChapter, castOfChapter, chapterPath, importedBeatIdsOfChapter, parseChapterCover, toggleSettingOnChapter } from '../utils/writingOutline';
 import { buildTree, chapterPathLabels } from '../utils/writingTree';
 import { isComplete } from '../utils/writingTimeline';
 import { foreshadowingsPlantedIn, foreshadowingsPayableIn, foreshadowStatusColor } from '../utils/writingForeshadowing';
@@ -102,6 +102,42 @@ export function ChapterDetailsPanel({
     const drafts = bound.filter((e) => !isComplete(e));
     return [...comp, ...drafts];
   }, [timelineEvents, chapter?.id]);
+
+  // 本章节拍清单（导出口径 beatsOfChapter，与书场景/灵感同表；按 sortOrder 排展示序）
+  const chapterBeats = useMemo(() => {
+    if (!chapter) return [];
+    return beatsOfChapter(outlines, chapter.id).slice().sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [outlines, chapter]);
+  // 已导入节拍：数据即真相——本章时间线里已有同 outlineId 的事件即视为导过，不另设持久态，
+  // 避免「本地记了已导入但事件被别处删掉」的两张皮，也天然扛面板卸载重挂。
+  const importedBeatIds = useMemo(
+    () => importedBeatIdsOfChapter(timelineEvents, chapter?.id ?? ''),
+    [timelineEvents, chapter?.id],
+  );
+
+  const [importingBeatId, setImportingBeatId] = useState<string | null>(null);
+  const importBeatToTimeline = async (beatId: string) => {
+    if (!chapter || importingBeatId) return;
+    const beat = chapterBeats.find((b) => b.id === beatId);
+    if (!beat) return;
+    setImportingBeatId(beatId);
+    try {
+      // 建「草稿事件」：at 留空=草稿，绑定本章与该节拍；用户去时间线补齐时点即为正式事件
+      // （接上体检「待补全草稿事件」工作台，形成 节拍→草稿→补时点 的连续任务链）。
+      await useWritingStore.getState().createTimelineEvent({
+        chapterId: chapter.id,
+        outlineId: beat.id,
+        event: (beat.summary || beat.title).trim(),
+        at: '',
+      });
+      useToastStore.getState().success(t('writing.chapterBeatImportDone'));
+    } catch (err) {
+      logger.warn('ChapterDetailsPanel', 'import beat to timeline failed', { error: err });
+      useToastStore.getState().error(t('writing.chapterBeatImportFail'));
+    } finally {
+      setImportingBeatId(null);
+    }
+  };
 
   // 空态：未选中章
   if (!chapter) {
@@ -282,6 +318,57 @@ export function ChapterDetailsPanel({
               >
                 {t('writing.chapterDetailsManageCast')}
               </Button>
+            </Box>
+          )}
+        </Box>
+
+        <Divider />
+
+        {/* 叙事节拍：本章挂的节拍清单（与头注释承诺对齐，此前欠账未渲染）。
+            每条可「导入时间线」→ 建草稿事件（at 空=草稿），接上体检「待补全草稿事件」
+            工作台补齐时点，形成 节拍→草稿→正式事件 的连续任务链。已导入与否读数据
+            （本章时间线里有同 outlineId 事件即已导），不另设本地态。 */}
+        <Box>
+          <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 0.5 }}>
+            {t('writing.chapterBeatsTitle')}
+          </Typography>
+          {chapterBeats.length === 0 ? (
+            <Typography sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>
+              {t('writing.chapterBeatsEmpty')}
+            </Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {chapterBeats.map((b) => {
+                const imported = importedBeatIds.has(b.id);
+                return (
+                  <Box
+                    key={b.id}
+                    sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75, minWidth: 0 }}
+                  >
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 12, fontWeight: 600 }} noWrap title={b.title}>
+                        {b.title || t('writingWorkbench.untitled')}
+                      </Typography>
+                      {b.summary && (
+                        <Typography sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.6 }}>
+                          {b.summary}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Button
+                      size="small"
+                      variant={imported ? 'text' : 'outlined'}
+                      color={imported ? 'inherit' : 'primary'}
+                      disabled={imported || importingBeatId !== null}
+                      onClick={() => void importBeatToTimeline(b.id)}
+                      sx={{ fontSize: 11, textTransform: 'none', flexShrink: 0, px: 0.75, minWidth: 0 }}
+                      data-testid={`beat-import-${b.id}`}
+                    >
+                      {imported ? t('writing.chapterBeatImported') : t('writing.chapterBeatImport')}
+                    </Button>
+                  </Box>
+                );
+              })}
             </Box>
           )}
         </Box>
