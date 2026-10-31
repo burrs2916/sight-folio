@@ -384,3 +384,167 @@ export function formatBookGoalCorpus(
     en: `[Book goal & progress] ${enParts.join('; ')}. Use this to assess pace, remaining gap, and whether goals or daily plan need adjusting.`,
   };
 }
+
+// ─── 全书目标「节奏预测」（第十六轮 2026-10-31） ───
+//
+// 面板的「达成进度」只回答「写了多少 / 还剩几天」，却答不上创作者规划本书时最关心的那句：
+//   「按我现在的真实产出速度，到底赶不赶得上截稿？差多少？要提速到字/天才能赶上？」
+// 这里把「节奏预测」做成单一权威纯函数，供三处复用、口径逐字一致：
+//   ① BookMetaPanel「规划本书」可视化（预计完成日 / 达标所需日速 / 落后预警）；
+//   ② WritingStatsDialog 统计弹窗（与达成率并列）；
+//   ③ formatBookGoalCorpus 注入 AI 语料——让 AI 不只看到「已写 X 字」，还看到「按当前速度能否如期」。
+// 数据源：窗口内每日新增序列（diffDailyStats 已差分出，纯本地、零新表、零 Rust 命令）。
+// 铁律：advisory 软提示，不评判、不强制（创作者主权）；无目标 / 无截稿等边界一律降级不报错。
+
+export type PaceVerdict = 'done' | 'ontrack' | 'behind' | 'stalled' | 'overdue' | 'noDeadline';
+
+export interface PaceProjection {
+  /** 达标结论档（驱动前端文案 / 配色） */
+  verdict: PaceVerdict;
+  /** 窗口真实日均产出（含断更天，= 窗口新增和 / 窗口天数）——「我的实际节奏」 */
+  avgPerDay: number;
+  /** 窗口活跃日均（仅有产出的天）——「我写起来的速度」，与 avgPerDay 对照看断更拖累 */
+  activeAvgPerDay: number;
+  /** 窗口内有产出的天数 */
+  producedDays: number;
+  /** 统计窗口天数（= 传入 deltas 长度） */
+  windowDays: number;
+  /** 距目标还差多少字（已达标为 0） */
+  remainingWords: number;
+  /** 距截稿剩余天数：截稿当天 = 0，未设 = null（已超期时另用 overDeadline 标记，此处仍为 ≤0） */
+  daysToDeadline: number | null;
+  /** 达标所需日均（剩余字数 / 剩余天数，向上取整；无截稿日 = null） */
+  requiredPerDay: number | null;
+  /** 按当前均速预计还需几天写完（均速 ≤0 = null） */
+  projectedDaysToFinish: number | null;
+  /** 按当前均速、到截稿日的预计字数 vs 目标差额（正 = 将超额，负 = 将不足；无截稿日 / 已超期 = null） */
+  projectedGap: number | null;
+  /** 已超期仍未达标（deadline 早于今天且 remainingWords > 0） */
+  overDeadline: boolean;
+}
+
+/**
+ * 从「全书目标 + 当前体量 + 窗口内每日新增序列」派生节奏预测。
+ * 纯函数、无副作用，全部边界可单测：未设总字数目标返回 null（无目标谈不上节奏）。
+ * deltas 为 diffDailyStats 输出的旧→新每日新增（含缺快照补 0）；窗口天数 = deltas.length。
+ * 已达标 → verdict 'done'（仍带均速供展示，不误导「还在赶」）。
+ */
+export function derivePaceProjection(
+  goal: WritingBookGoal,
+  actualWords: number,
+  deltas: DailyDelta[],
+  today: Date = new Date(),
+): PaceProjection | null {
+  if (!(goal.targetWords > 0)) return null;
+
+  const windowDays = deltas.length;
+  const totalDelta = deltas.reduce((s, d) => s + Math.max(0, d.delta), 0);
+  const produced = deltas.filter((d) => d.delta > 0);
+  const producedDays = produced.length;
+  const avgPerDay = windowDays > 0 ? totalDelta / windowDays : 0;
+  const activeAvgPerDay = producedDays > 0 ? produced.reduce((s, d) => s + d.delta, 0) / producedDays : 0;
+
+  const safeActual = Math.max(0, actualWords);
+  const remainingWords = Math.max(0, goal.targetWords - safeActual);
+
+  const base = {
+    avgPerDay,
+    activeAvgPerDay,
+    producedDays,
+    windowDays,
+    remainingWords,
+    projectedDaysToFinish: avgPerDay > 0 ? Math.ceil(remainingWords / avgPerDay) : null,
+    overDeadline: false,
+  } satisfies Omit<PaceProjection, 'verdict' | 'daysToDeadline' | 'requiredPerDay' | 'projectedGap'>;
+
+  // 已达标：直接 done，均速照给，但不判「赶不赶得上」。
+  if (remainingWords <= 0)
+    return { ...base, verdict: 'done', daysToDeadline: null, requiredPerDay: null, projectedGap: null };
+
+  // 未设截稿日：无「能否赶上」可判，只按当前均速给预计完成日（中性态 noDeadline）。
+  if (!(goal.deadline > 0))
+    return { ...base, verdict: 'noDeadline', daysToDeadline: null, requiredPerDay: null, projectedGap: null };
+
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 1000;
+  const daysToDeadline = Math.floor((goal.deadline - todayStart) / 86400);
+
+  // 今天截止或已超期：所需 = 全部剩余；超期未达标单列 'overdue'。
+  if (daysToDeadline <= 0) {
+    const requiredPerDay = remainingWords; // 今天（或已过）交稿，需把剩余一次补齐
+    const verdict: PaceVerdict = avgPerDay > 0 ? 'behind' : 'stalled';
+    return {
+      ...base,
+      verdict: daysToDeadline < 0 ? 'overdue' : verdict,
+      daysToDeadline,
+      requiredPerDay,
+      projectedGap: null,
+      overDeadline: daysToDeadline < 0,
+    };
+  }
+
+  const requiredPerDay = Math.ceil(remainingWords / daysToDeadline);
+  const projectedByDeadline = safeActual + avgPerDay * daysToDeadline;
+  const projectedGap = Math.round(projectedByDeadline - goal.targetWords);
+  const verdict: PaceVerdict = avgPerDay <= 0 ? 'stalled' : avgPerDay >= requiredPerDay ? 'ontrack' : 'behind';
+  return { ...base, verdict, daysToDeadline, requiredPerDay, projectedGap };
+}
+
+/** 把节奏预测渲染为一句双语补充（追加进全书目标语料；verdict='done' 时不剧透「赶/不赶」）。 */
+export function formatPaceCorpus(p: PaceProjection): { zh: string; en: string } {
+  const avg = Math.round(p.avgPerDay);
+  const zh: string[] = [`近 ${p.windowDays} 天日均 ${avg.toLocaleString()} 字（有产出 ${p.producedDays} 天）`];
+  const en: string[] = [
+    `recent ${p.windowDays}-day average ${avg.toLocaleString()} w/day (${p.producedDays} productive days)`,
+  ];
+  switch (p.verdict) {
+    case 'done':
+      zh.push('目标已完成');
+      en.push('goal already reached');
+      break;
+    case 'noDeadline':
+      zh.push(
+        p.projectedDaysToFinish !== null
+          ? `未设截稿，按当前速度预计还需 ${p.projectedDaysToFinish} 天完成`
+          : '未设截稿，近期无产出，暂无法预测完成时间',
+      );
+      en.push(
+        p.projectedDaysToFinish !== null
+          ? `no deadline set; at current pace about ${p.projectedDaysToFinish} more days to finish`
+          : 'no deadline set and no recent output; completion time not projectable',
+      );
+      break;
+    case 'overdue':
+      zh.push(`已过截稿日仍差 ${p.remainingWords.toLocaleString()} 字，需尽快补齐或调整目标`);
+      en.push(
+        `past deadline, still ${p.remainingWords.toLocaleString()} words short — catch up or relax the goal soon`,
+      );
+      break;
+    case 'stalled':
+      zh.push(
+        p.daysToDeadline !== null
+          ? `近期无产出，距截稿约 ${p.daysToDeadline} 天，需日更 ≥ ${p.requiredPerDay?.toLocaleString()} 字才能赶上`
+          : '近期无产出',
+      );
+      en.push(
+        p.daysToDeadline !== null
+          ? `no recent output, about ${p.daysToDeadline} days to deadline, need ≥ ${p.requiredPerDay?.toLocaleString()} w/day to catch up`
+          : 'no recent output',
+      );
+      break;
+    case 'ontrack':
+      zh.push(
+        `按当前速度到截稿预计 ${p.projectedGap !== null && p.projectedGap >= 0 ? '如期或超额' : '接近目标'}，达标只需约 ${p.requiredPerDay?.toLocaleString()} 字/天`,
+      );
+      en.push(`at this pace you are on track for the deadline (need ~${p.requiredPerDay?.toLocaleString()} w/day)`);
+      break;
+    case 'behind':
+      zh.push(
+        `按当前速度会落后约 ${Math.abs(p.projectedGap ?? 0).toLocaleString()} 字，要赶上截稿需提速到约 ${p.requiredPerDay?.toLocaleString()} 字/天`,
+      );
+      en.push(
+        `at this pace you would miss by ~${Math.abs(p.projectedGap ?? 0).toLocaleString()} words; raise pace to ~${p.requiredPerDay?.toLocaleString()} w/day to make the deadline`,
+      );
+      break;
+  }
+  return { zh: `【节奏预测】${zh.join('；')}。`, en: `[Pace projection] ${en.join('; ')}.` };
+}

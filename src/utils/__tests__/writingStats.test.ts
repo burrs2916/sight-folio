@@ -16,6 +16,8 @@ import {
   contentChapters,
   deriveBookGoalProgress,
   formatBookGoalCorpus,
+  derivePaceProjection,
+  formatPaceCorpus,
   inputToDeadline,
   deadlineToInput,
   resolveBookGoalInput,
@@ -326,5 +328,107 @@ describe('formatBookGoalCorpus（目标+进度→AI 语料行，口径与面板�
     const r = formatBookGoalCorpus({ targetWords: 0, targetChapters: 8, deadline: 0 }, 0, 6, TODAY);
     expect(r?.zh).toContain('目标 8 章');
     expect(r?.zh).toContain('已写 6 章（75%');
+  });
+});
+
+describe('derivePaceProjection 节奏预测', () => {
+  const TODAY = new Date(2026, 9, 31); // 本地 2026-10-31
+  const secOf = (y: number, mo: number, d: number) => Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+  // 造窗口新增序列：days 个 { day, delta }
+  const mk = (deltas: number[]) =>
+    deltas.map((delta, i) => ({ day: `d${i}`, delta }));
+
+  it('未设总字数目标 → null（无目标谈不上节奏）', () => {
+    expect(derivePaceProjection({ targetWords: 0, targetChapters: 5, deadline: secOf(2026, 12, 1) }, 1000, mk([500, 500]), TODAY)).toBeNull();
+  });
+
+  it('已达标 → done，仍带均速、不判赶不赶', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 12, 1) }, 12000, mk([3000, 3000, 3000, 3000]), TODAY);
+    expect(p?.verdict).toBe('done');
+    expect(p?.remainingWords).toBe(0);
+    expect(p?.avgPerDay).toBeCloseTo(3000);
+    expect(p?.requiredPerDay).toBeNull();
+  });
+
+  it('未设截稿 → noDeadline，按均速给预计完成天数', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: 0 }, 2000, mk([1000, 1000, 1000]), TODAY);
+    expect(p?.verdict).toBe('noDeadline');
+    expect(p?.projectedDaysToFinish).toBe(8); // 还差 8000 / 1000
+    expect(p?.daysToDeadline).toBeNull();
+    expect(p?.requiredPerDay).toBeNull();
+  });
+
+  it('有截稿、均速够 → ontrack，projectedGap≥0', () => {
+    // 今天 10/31，截稿 11/30 → 30 天；均速够，所需日速远低于均速
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 1000, mk([1000, 1000, 1000, 1000]), TODAY);
+    expect(p?.daysToDeadline).toBe(30);
+    expect(p?.requiredPerDay).toBe(Math.ceil(9000 / 30)); // 300
+    expect(p?.avgPerDay).toBe(1000);
+    expect(p?.verdict).toBe('ontrack');
+    expect(p?.projectedGap && p.projectedGap > 0).toBe(true);
+  });
+
+  it('有截稿、均速不足 → behind，projectedGap 负，给需提速值', () => {
+    // 还差 9000，30 天，需 300/天；实际均速 100 → 预计 3000，落后
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 1000, mk([100, 100, 100, 100]), TODAY);
+    expect(p?.verdict).toBe('behind');
+    expect(p?.requiredPerDay).toBe(300);
+    expect(p?.projectedGap && p.projectedGap < 0).toBe(true);
+  });
+
+  it('近期无产出但有截稿 → stalled', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 1000, mk([0, 0, 0]), TODAY);
+    expect(p?.verdict).toBe('stalled');
+    expect(p?.avgPerDay).toBe(0);
+    expect(p?.projectedDaysToFinish).toBeNull();
+    expect(p?.requiredPerDay).toBe(300);
+  });
+
+  it('已超期仍未达标 → overdue，overDeadline=true', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 10, 20) }, 1000, mk([500, 500]), TODAY);
+    expect(p?.verdict).toBe('overdue');
+    expect(p?.overDeadline).toBe(true);
+    expect(p?.daysToDeadline! < 0).toBe(true);
+    expect(p?.requiredPerDay).toBe(9000); // 已过交稿，需一次补齐全部剩余
+  });
+
+  it('今天截止未达标 → behind（剩余=全部），非 overdue', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 10, 31) }, 8000, mk([1000, 1000]), TODAY);
+    expect(p?.daysToDeadline).toBe(0);
+    expect(p?.verdict).toBe('behind');
+    expect(p?.requiredPerDay).toBe(2000);
+    expect(p?.overDeadline).toBe(false);
+  });
+
+  it('含断更天：avgPerDay 计入断更，activeAvgPerDay 只看产出天', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 0, mk([1000, 0, 1000, 0]), TODAY);
+    expect(p?.avgPerDay).toBe(500); // 2000 / 4 天
+    expect(p?.activeAvgPerDay).toBe(1000); // 2000 / 2 产出天
+    expect(p?.producedDays).toBe(2);
+    expect(p?.windowDays).toBe(4);
+  });
+});
+
+describe('formatPaceCorpus 双语渲染', () => {
+  const TODAY = new Date(2026, 9, 31);
+  const secOf = (y: number, mo: number, d: number) => Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+  const mk = (deltas: number[]) => deltas.map((delta, i) => ({ day: `d${i}`, delta }));
+
+  it('behind 句含「提速」与落后字数', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 1000, mk([100, 100]), TODAY);
+    const c = formatPaceCorpus(p!);
+    expect(c.zh).toContain('节奏预测');
+    expect(c.zh).toContain('提速');
+    expect(c.en).toContain('raise pace');
+  });
+
+  it('ontrack 句含「如期」', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 1000, mk([1000, 1000, 1000, 1000]), TODAY);
+    expect(formatPaceCorpus(p!).zh).toContain('如期');
+  });
+
+  it('stalled 句含「无产出」', () => {
+    const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 1000, mk([0, 0]), TODAY);
+    expect(formatPaceCorpus(p!).zh).toContain('无产出');
   });
 });
