@@ -3033,14 +3033,14 @@ export default function WritingPage() {
               sx={{
                 px: { xs: 2, md: 4 },
                 pt: 1.5,
-                maxWidth: typo.pageWidth,
                 width: '100%',
-                mx: 'auto',
                 pb: 1,
               }}
             >
               <Box
                 sx={{
+                  maxWidth: typo.pageWidth,
+                  mx: 'auto',
                   border: 1,
                   borderColor: 'divider',
                   borderRadius: 2,
@@ -3064,6 +3064,7 @@ export default function WritingPage() {
               outlines={outlines}
               settings={settings}
               timelineEvents={timelineEvents}
+              contentMaxWidth={typo.pageWidth}
               onManageCast={() => {
                 setLeftTab('settings');
                 setActiveSetting(null);
@@ -3073,11 +3074,15 @@ export default function WritingPage() {
           </Box>
         ) : activeSetting ? (
           <>
+            {/* 列宽口径统一（第十二轮批④）：原头部行把 maxWidth:760 与 px 写在同一层——
+               Box 是 border-box，左右内边距被扣进 760（md 档净宽只有 728），而下方内容列的
+               maxWidth 落在 padding 之内（净宽 760）：同一张设定卡上下两块天然错位。
+               改法与章详情同源：外层只给 padding，内层限宽并用排版页宽（正文 ↔ 设定卡来回切
+               不再跳宽）。 */}
+            <Box sx={{ px: { xs: 2, md: 4 }, pt: 2.5, width: '100%' }}>
             <Box
               sx={{
-                px: { xs: 2, md: 4 },
-                pt: 2.5,
-                maxWidth: 760,
+                maxWidth: typo.pageWidth,
                 width: '100%',
                 mx: 'auto',
                 display: 'flex',
@@ -3146,8 +3151,9 @@ export default function WritingPage() {
                 </IconButton>
               </Tooltip>
             </Box>
+            </Box>
             <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 4 }, py: 2 }}>
-              <Box sx={{ maxWidth: 760, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ maxWidth: typo.pageWidth, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {/* ─── 区块 1：基本信息（名称/身份已在头部内联编辑；此处为长描述） ─── */}
                 <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>

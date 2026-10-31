@@ -43,6 +43,13 @@ export interface ChapterDetailsPanelProps {
   onOpenSetting?: (settingId: string) => void;
   /** 「管理本章人物…」入口：跳去左栏设定页专人管理（默认无 = 隐藏该按钮） */
   onManageCast?: () => void;
+  /**
+   * 内容列最大宽度 px（默认 760）。
+   * 调用方应传排版页宽 typo.pageWidth：同一滚动栏内的上层「九维统筹卡」已用该值，
+   * 面板内部仍硬编码 760 会在用户把页宽调到 620/900 时出现「上下两块宽度错位」的
+   * 布局观感——列宽口径在本视图必须唯一。
+   */
+  contentMaxWidth?: number;
 }
 
 /**
@@ -146,6 +153,7 @@ export function ChapterDetailsPanel({
   timelineEvents,
   onOpenSetting,
   onManageCast,
+  contentMaxWidth = 760,
 }: ChapterDetailsPanelProps) {
   // 伏笔数据懒加载（与书场景章卡同款：首次进入详情时补齐）
   const foreshadowings = useWritingStore((s) => s.foreshadowings);
@@ -293,7 +301,7 @@ export function ChapterDetailsPanel({
   // 与 activeSetting（设定卡）分支同一范式。
   return (
     <Box sx={{ flex: 'none', px: { xs: 2, md: 4 }, pt: 1, pb: 3 }}>
-      <Box sx={{ maxWidth: 760, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box sx={{ maxWidth: contentMaxWidth, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {/* 顶部行：封面大图 + 章信息 */}
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
           <Box component="span" onClick={openCoverPicker} sx={{ lineHeight: 0, cursor: 'pointer', flexShrink: 0 }}>
