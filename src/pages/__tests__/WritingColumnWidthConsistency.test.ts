@@ -54,3 +54,15 @@ describe('③ 限宽层与内边距层分离（border-box 陷阱）', () => {
     expect(details).toMatch(/maxWidth: typo\.pageWidth,\s*\n\s*mx: 'auto',/);
   });
 });
+
+describe('④ 正文章头列与正文文字列同位（第十三轮批①）', () => {
+  it('章头盒：外层只给 px 无 maxWidth（border-box 分离口径与设定卡/章详情一致）', () => {
+    expect(page).toMatch(/<Box sx=\{\{ px: \{ xs: 2, md: 6 \}, pt: 2, width: '100%' \}\}>/);
+  });
+  it('章头内层限宽跟随排版页宽（不再与 px 同层）', () => {
+    expect(page).toMatch(/maxWidth: typo\.pageWidth, mx: 'auto' \}\}/);
+  });
+  it('章头不再有「px 与 maxWidth 同层」的旧形态', () => {
+    expect(page).not.toMatch(/px: \{ xs: 2, md: 6 \}, pt: 2, maxWidth: typo\.pageWidth/);
+  });
+});

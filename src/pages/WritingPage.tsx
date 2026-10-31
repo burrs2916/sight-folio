@@ -4642,7 +4642,13 @@ export default function WritingPage() {
                   </Menu>
                 </Box>
               </Box>
-              <Box sx={{ px: { xs: 2, md: 6 }, pt: 2, maxWidth: typo.pageWidth, mx: 'auto' }}>
+              {/* 列宽口径统一（第十三轮批①，承接第十二轮批④）：原把 px 与 maxWidth 写同一层，
+                  Box 是 border-box，左右内边距被扣进限宽（md 档净宽少 96）——而正文文字列的
+                  maxWidth 落在滚动容器 padding 之内（ProseMirror 净宽 = pageWidth）。章标题与正文
+                  左边缘因此差一个内边距宽，切到正文即「标题比正文缩进一截」。改为外层只给 px、
+                  内层才限 maxWidth 并与正文同用页宽，标题列与正文列严格同位。 */}
+              <Box sx={{ px: { xs: 2, md: 6 }, pt: 2, width: '100%' }}>
+                <Box sx={{ maxWidth: typo.pageWidth, mx: 'auto' }}>
                 {/* 批次② 写作动线：标题点击即改名（原对话框入口），状态/层级徽章就地切换 */}
                 <Typography
                   onClick={() =>
@@ -4687,6 +4693,7 @@ export default function WritingPage() {
                     clickable
                     data-testid="chapter-notes-chip"
                   />
+                </Box>
                 </Box>
               </Box>
               <Box
