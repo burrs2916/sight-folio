@@ -3024,13 +3024,16 @@ export default function WritingPage() {
                 独立窗口跳转经 dispatchChapterJump 协议发往主窗口，行点可跳并置前。
                 未选中章时不渲染：它自己的「无章上下文」占位会叠在下方章详情空态之上，
                 两个空态上下堆叠——即「切章详情布局乱」在未选中章场景的残留；
-                空态统一交给下方 ChapterDetailsPanel 一个出口。 */}
+                空态统一交给下方 ChapterDetailsPanel 一个出口。
+                列宽跟随排版页宽（第十二轮批③）：原硬编码 760 与正文 maxWidth: typo.pageWidth
+                口径不一——用户把页宽调到 620/900 后「正文 ↔ 章详情」来回切，内容列肉眼可见
+                跳宽（正文窄详情宽/反之），同一栏内两套宽度就是「布局乱」的观感来源。 */}
             {activeChapterId && (
             <Box
               sx={{
                 px: { xs: 2, md: 4 },
                 pt: 1.5,
-                maxWidth: 760,
+                maxWidth: typo.pageWidth,
                 width: '100%',
                 mx: 'auto',
                 pb: 1,
