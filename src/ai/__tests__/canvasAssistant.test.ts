@@ -191,6 +191,56 @@ describe('applyCanvasOps（AI 改画布写通道）', () => {
   });
 });
 
+describe('第十四轮：worldview 可新增 + 文字落主字段', () => {
+  it('writing-worldview 进入 AI 可新增白名单', () => {
+    const { ops } = parseCanvasOps(
+      '[{"op":"add","type":"writing-worldview","name":"灵潮体系","x":10,"y":10}]',
+    );
+    expect(ops).toHaveLength(1);
+    expect(ops[0]).toMatchObject({ op: 'add', type: 'writing-worldview' });
+  });
+
+  it('add writing-worldview + text 落到主字段 name（非无人读的 text）', () => {
+    const ed = useEditorStore.getState();
+    ed.clearScene();
+    const { applied, skipped } = applyCanvasOps([
+      { op: 'add', type: 'writing-worldview', name: '灵潮体系', x: 10, y: 10, text: '灵气复苏的修行世界观' },
+    ]);
+    expect(applied).toBe(1);
+    expect(skipped).toBe(0);
+    const c = useEditorStore.getState().components.find((x) => x.name === '灵潮体系')!;
+    expect(c).toBeDefined();
+    expect(c.type).toBe('writing-worldview');
+    // 主字段是 name：文字应落到 config.name，渲染器才读得到（旧逻辑落 config.text 静默不显示）
+    expect((c.config as Record<string, unknown>).name).toBe('灵气复苏的修行世界观');
+  });
+
+  it('set_text 对 character 落到主字段 name', () => {
+    const ed = useEditorStore.getState();
+    ed.clearScene();
+    const cid = ed.addComponent('writing-character', undefined, { x: 0, y: 0 })!.id;
+    applyCanvasOps([{ op: 'set_text', id: cid, text: '主角·林越' }]);
+    const c = useEditorStore.getState().components.find((x) => x.id === cid)!;
+    expect((c.config as Record<string, unknown>).name).toBe('主角·林越');
+    expect((c.config as Record<string, unknown>).text).toBeUndefined();
+  });
+
+  it('prompt schema 动态列出白名单含 writing-worldview（文案不再写死"三个值"）', () => {
+    const msg = buildCanvasOpsMessage([], '铺世界观卡', null);
+    expect(msg).toContain('writing-worldview');
+    expect(msg).not.toMatch(/三个值/);
+  });
+
+  it('captureCanvasSnapshot 把 character/worldview 的 config.name 作为文字喂给 AI', () => {
+    const ed = useEditorStore.getState();
+    ed.clearScene();
+    const c = ed.addComponent('writing-worldview', undefined, { x: 0, y: 0 })!;
+    useEditorStore.getState().updateComponentConfig(c.id, { name: '灵潮体系' });
+    const snap = captureCanvasSnapshot();
+    expect(snap.find((x) => x.id === c.id)?.text).toBe('灵潮体系');
+  });
+});
+
 describe('buildCanvasWritingContext（H3 缺口②：写作上下文注入）', () => {
   it('有活跃书时返回书名/章节/人物/大纲纯文本；无活跃书返回 null', () => {
     const ws = useWritingStore.getState();

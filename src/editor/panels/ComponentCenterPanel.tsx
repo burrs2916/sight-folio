@@ -1735,6 +1735,11 @@ function EntityItem({ type, name, description, icon }: EntityItemProps) {
 interface ComponentCenterPanelProps {
   collapsed?: boolean;
   onToggle?: () => void;
+  /** 展开态宽度（px）：不传用默认 PANEL_WIDTH(200)。第十四轮上提给 SceneEditor 接管，
+   *  以便拖宽 + 持久化与右栏对称（旧固定 200px 时目录树「书名 · 章名」长标题被截断）。 */
+  width?: number;
+  /** 正在拖宽：拖拽期间抑制 width 过渡（跟手）；折叠/展开动画不受影响。 */
+  resizing?: boolean;
 }
 
 // 左栏 Tab 选中态跨会话记忆（第十四轮）：创作者常停在「目录树」做章节定位，
@@ -1753,7 +1758,12 @@ function readSavedLeftPanelTab(): LeftPanelTab {
   return 'entities';
 }
 
-export function ComponentCenterPanel({ collapsed = false, onToggle }: ComponentCenterPanelProps) {
+export function ComponentCenterPanel({
+  collapsed = false,
+  onToggle,
+  width = PANEL_WIDTH,
+  resizing = false,
+}: ComponentCenterPanelProps) {
   const [tab, setTab] = useState<LeftPanelTab>(readSavedLeftPanelTab);
   // 切换即落盘（与 setTab 收敛为一个动作，避免两处漏写）
   const selectTab = useCallback((next: LeftPanelTab) => {
@@ -1824,7 +1834,7 @@ export function ComponentCenterPanel({ collapsed = false, onToggle }: ComponentC
   return (
     <Box
       sx={{
-        width: PANEL_WIDTH,
+        width,
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -1833,7 +1843,8 @@ export function ComponentCenterPanel({ collapsed = false, onToggle }: ComponentC
         backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(18, 18, 24, 0.6)' : 'rgba(250, 250, 252, 0.8)'),
         minHeight: 0,
         position: 'relative',
-        transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        // 拖宽中关掉 width 过渡：0.2s 动画叠在鼠标逐帧改宽上会让面板「拖后」半拍
+        transition: resizing ? 'none' : 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       <Tabs

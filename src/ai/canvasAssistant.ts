@@ -46,8 +46,33 @@ export type CanvasAiOp =
       gapY?: number;
     };
 
-/** AI 可以新增的实体类型（白名单：全是写作语义卡，杜绝 AI 造图片路径/代码实体） */
-export const AI_ADDABLE_TYPES = ['writing-character', 'writing-outline', 'annotation-text'] as const;
+/**
+ * AI 可以新增的实体类型（白名单：全是写作语义卡，杜绝 AI 造图片路径/代码实体）。
+ * 2026-10-31 第十四轮补 writing-worldview：世界观与人物、大纲同为写作台 L2 三大
+ * 设定支柱（characters/worldview/catalog），此前唯独 AI 加不了世界观卡 —— 用户让
+ * 画布 AI「把主要世界观设定也铺几张卡」会静默失败（normalizeOp 白名单校验丢弃）。
+ * writing-worldview 已在 writingAnalyzer manifest 注册，addComponent 正规落地。
+ */
+export const AI_ADDABLE_TYPES = ['writing-character', 'writing-worldview', 'writing-outline', 'annotation-text'] as const;
+
+/**
+ * 各可新增/改写文字时**真正被渲染器读到的主字段**（与 writingAnalyzer manifest
+ * properties + WritingPropertyPanel primary 字段同一口径）：
+ *   character / worldview 的主字段是 name，outline 是 title，便签是 text。
+ * 旧实现把 set_text/add text 一律落到 `title`（无则 `text`），对 character/worldview
+ * 落到无人读的 config.text → 文字静默不显示（确定的 bug）。按类型对齐主字段。
+ */
+function primaryTextKey(type: string): string {
+  switch (type) {
+    case 'writing-character':
+    case 'writing-worldview':
+      return 'name';
+    case 'writing-outline':
+      return 'title';
+    default:
+      return 'text';
+  }
+}
 
 const MAX_OPS = 60;
 
@@ -68,9 +93,12 @@ export interface CanvasSnapshotItem {
 export function captureCanvasSnapshot(): CanvasSnapshotItem[] {
   return useEditorStore.getState().components.map((c) => {
     const cfg = (c.config ?? {}) as Record<string, unknown>;
+    // 主字段优先级补 name：character/worldview 卡的名字在 config.name，旧提取漏了
+    // name，喂给 AI 的人物/世界观卡「文字」恒为（无），add/rename 贴合度打折。
     const text =
-      [cfg.title, cfg.text, cfg.fileName].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)[0] ??
-      '';
+      [cfg.title, cfg.name, cfg.text, cfg.fileName].filter(
+        (v): v is string => typeof v === 'string' && v.trim().length > 0,
+      )[0] ?? '';
     return {
       id: c.id,
       type: c.type,
@@ -163,14 +191,14 @@ export function buildCanvasOpsMessage(
   {"op":"rename","id":"<id>","name":"<新名称>"},
   {"op":"set_text","id":"<id>","text":"<新文字>"},
   {"op":"remove","id":"<id>"},
-  {"op":"add","type":"writing-character|writing-outline|annotation-text","name":"<名称>","x":<数字>,"y":<数字>,"width":<可选>,"height":<可选>,"text":"<可选>"},
+  {"op":"add","type":"${AI_ADDABLE_TYPES.join("|")}","name":"<名称>","x":<数字>,"y":<数字>,"width":<可选>,"height":<可选>,"text":"<可选>"},
   {"op":"arrange_grid","ids":["<id>",...],"startX":<可选>,"startY":<可选>,"columns":<可选>,"cellWidth":<可选>,"cellHeight":<可选>,"gapX":<可选>,"gapY":<可选>}
 ]`,
     '',
     L('【硬性规则】', '[Hard rules]'),
     L(
-      '1. 只输出一个 JSON 数组，不要任何解释、前后缀或代码围栏；2. move/resize/rename/set_text/remove 的 id 必须来自下方清单；3. 新增实体的 type 只能取白名单里的三个值；4. 坐标是画布逻辑坐标（原点左上，向右下为正）；5. 排版类指令优先用 arrange_grid；6. 不确定的操作宁可不输出，绝不要臆造；7. 新增/改名/改文字时，内容优先贴合下方写作背景中的书名、角色与大纲设定。',
-      '1. Output ONLY one JSON array: no explanations, prefixes, or code fences; 2. move/resize/rename/set_text/remove ids must come from the list below; 3. add.type must be one of the three whitelisted values; 4. Coordinates are canvas logical coords (origin top-left); 5. Prefer arrange_grid for layout instructions; 6. When unsure, omit — never fabricate; 7. For add/rename/set_text, prefer content that fits the writing context below (book title, characters, outline).',
+      `1. 只输出一个 JSON 数组，不要任何解释、前后缀或代码围栏；2. move/resize/rename/set_text/remove 的 id 必须来自下方清单；3. 新增实体的 type 只能取白名单里的值（${AI_ADDABLE_TYPES.join("、")}）；4. 坐标是画布逻辑坐标（原点左上，向右下为正）；5. 排版类指令优先用 arrange_grid；6. 不确定的操作宁可不输出，绝不要臆造；7. 新增/改名/改文字时，内容优先贴合下方写作背景中的书名、角色、世界观与大纲设定。`,
+      `1. Output ONLY one JSON array: no explanations, prefixes, or code fences; 2. move/resize/rename/set_text/remove ids must come from the list below; 3. add.type must be one of the whitelisted values (${AI_ADDABLE_TYPES.join(", ")}); 4. Coordinates are canvas logical coords (origin top-left); 5. Prefer arrange_grid for layout instructions; 6. When unsure, omit — never fabricate; 7. For add/rename/set_text, prefer content that fits the writing context below (book title, characters, worldbuilding, outline).`,
     ),
     '',
     L('【当前画布实体清单】', '[Current canvas entities]'),
@@ -344,7 +372,10 @@ export function applyCanvasOps(ops: CanvasAiOp[]): CanvasApplyResult {
           }
           const comp = s.components.find((c) => c.id === op.id)!;
           const cfg = { ...(comp.config ?? {}) } as Record<string, unknown>;
-          const key = typeof cfg.title === 'string' ? 'title' : 'text';
+          // 按实体类型落**主字段**（name/title/text），与渲染器读取口径一致：
+          // 旧逻辑 title 优先否则 text，对 character/worldview（主字段 name）落到
+          // 无人渲染的 config.text → set_text 静默失效。
+          const key = primaryTextKey(comp.type);
           cfg[key] = op.text;
           s.updateComponentConfig(op.id, cfg);
           applied += 1;
@@ -372,7 +403,8 @@ export function applyCanvasOps(ops: CanvasAiOp[]): CanvasApplyResult {
             useEditorStore.getState().updateComponentTransform(created.id, { width: w, height: h });
           }
           if (op.text) {
-            const cfgKey = op.type === 'annotation-text' ? 'text' : 'title';
+            // character/worldview→name，outline→title，便签→text
+            const cfgKey = primaryTextKey(op.type);
             useEditorStore.getState().updateComponentConfig(created.id, { [cfgKey]: op.text });
           }
           applied += 1;

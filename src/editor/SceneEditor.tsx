@@ -117,6 +117,23 @@ const STUDIO_RIGHT_DEFAULT = 300;
 const STUDIO_RIGHT_WIDTH_KEY = 'sight-folio:studio.rightPanelWidth';
 const STUDIO_RIGHT_OPEN_KEY = 'sight-folio:studio.rightPanelOpen';
 const STUDIO_LEFT_OPEN_KEY = 'sight-folio:studio.leftPanelOpen';
+// 左栏可拖宽（与右栏对称）：旧固定 200px 时目录树「书名 · 章名」长标题被截断。
+const STUDIO_LEFT_MIN = 180;
+const STUDIO_LEFT_MAX = 420;
+const STUDIO_LEFT_DEFAULT = 200;
+const STUDIO_LEFT_WIDTH_KEY = 'sight-folio:studio.leftPanelWidth';
+
+function readSavedStudioLeftPanelWidth(): number {
+  try {
+    const raw = Number(localStorage.getItem(STUDIO_LEFT_WIDTH_KEY));
+    if (Number.isFinite(raw) && raw >= STUDIO_LEFT_MIN && raw <= STUDIO_LEFT_MAX) {
+      return Math.round(raw);
+    }
+  } catch {
+    // 忽略
+  }
+  return STUDIO_LEFT_DEFAULT;
+}
 
 function readSavedStudioRightPanelWidth(): number | null {
   try {
@@ -765,6 +782,66 @@ export function SceneEditor({
   const toggleLeftPanel = useCallback(() => {
     persistLeftPanelOpen(!leftPanelOpen);
   }, [leftPanelOpen, persistLeftPanelOpen]);
+  // ─── 左栏可拖拽宽度（第十四轮，与右栏对称）───
+  // 手柄在左栏右缘：向右拖 = 变宽；双击复位；跨会话记忆。
+  // 独立 guard 实例（与右栏各一份，并发拖拽互不干扰）。
+  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(readSavedStudioLeftPanelWidth);
+  const leftDragStartRef = useRef<{ x: number; w: number } | null>(null);
+  const [leftDragging, setLeftDragging] = useState(false);
+  const { begin: beginLeftBodyDrag, release: releaseLeftBodyDrag } = useDragBodyGuard();
+  const startLeftResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      leftDragStartRef.current = { x: e.clientX, w: leftPanelWidth };
+      setLeftDragging(true);
+      beginLeftBodyDrag();
+    },
+    [leftPanelWidth, beginLeftBodyDrag],
+  );
+  useEffect(() => {
+    if (!leftDragging) return;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.cursor = 'col-resize';
+    const onMove = (ev: MouseEvent) => {
+      const s = leftDragStartRef.current;
+      if (!s) return;
+      const w = s.w + (ev.clientX - s.x); // 手柄在左栏右缘：往右拖变宽
+      setLeftPanelWidth(Math.min(STUDIO_LEFT_MAX, Math.max(STUDIO_LEFT_MIN, Math.round(w))));
+    };
+    const onUp = () => {
+      leftDragStartRef.current = null;
+      setLeftDragging(false);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = prevCursor;
+      releaseLeftBodyDrag();
+    };
+  }, [leftDragging, releaseLeftBodyDrag]);
+  // 拖宽结束后落盘（拖拽期间不逐帧写，避免 localStorage 抖动）
+  useEffect(() => {
+    if (leftDragging) return;
+    try {
+      localStorage.setItem(STUDIO_LEFT_WIDTH_KEY, String(leftPanelWidth));
+    } catch {
+      // 存储不可写：本次会话内宽度仍生效
+    }
+  }, [leftDragging, leftPanelWidth]);
+  /** 双击手柄：宽度一键复位为默认值（误拖后快速回到原始布局），并记忆偏好 */
+  const onLeftResizeReset = useCallback(() => {
+    leftDragStartRef.current = null;
+    setLeftDragging(false);
+    setLeftPanelWidth(STUDIO_LEFT_DEFAULT);
+    try {
+      localStorage.setItem(STUDIO_LEFT_WIDTH_KEY, String(STUDIO_LEFT_DEFAULT));
+    } catch {
+      // 忽略
+    }
+  }, []);
 
   // 审查统计
   const findingsCount = findings.length;
@@ -1553,8 +1630,25 @@ export function SceneEditor({
 
       {/* 编辑区：左侧实体面板 + 中间画布 + 右侧属性面板 + 最右收起条 */}
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
-        {/* 左侧实体/文件树面板（折叠交互与 biosphere 一致：200 → 40 动画） */}
-        <ComponentCenterPanel collapsed={!leftPanelOpen} onToggle={toggleLeftPanel} />
+        {/* 左侧实体/文件树面板（折叠交互与 biosphere 一致：自定义宽 → 40 动画）；
+            右缘拖宽手柄与右栏同范式（useEffect 挂监听 + 守卫 + 持久化 + 双击复位）。 */}
+        <ComponentCenterPanel collapsed={!leftPanelOpen} onToggle={toggleLeftPanel} width={leftPanelWidth} resizing={leftDragging} />
+        {leftPanelOpen && (
+          <Box
+            onMouseDown={startLeftResize}
+            onDoubleClick={onLeftResizeReset}
+            title={t('editor.resizePanel')}
+            sx={{
+              width: 5,
+              flexShrink: 0,
+              ml: -1, // 盖回面板 1px borderRight，避免面板线+手柄线双框
+              cursor: 'col-resize',
+              zIndex: 2,
+              '&:hover': { backgroundColor: 'action.hover' },
+              '&:active': { backgroundColor: 'primary.light' },
+            }}
+          />
+        )}
 
         {/* 中间列：视图标签栏 + 画布（核心交互：拖动编辑永不下线。
             书场景的载体工作台以**画布实体**形态存在（writing-workbench），不替换画布） */}
@@ -1630,6 +1724,7 @@ export function SceneEditor({
               sx={{
                 width: currentRightWidth,
                 flexShrink: 0,
+                // 右栏宽度本就无过渡（瞬间跟手），拖宽体验与左栏 resizing 抑制后的效果一致。
                 borderLeft: 1,
                 borderColor: 'divider',
                 display: 'flex',

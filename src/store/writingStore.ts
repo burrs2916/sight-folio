@@ -251,8 +251,13 @@ interface WritingState {
   settingInboundIndex: Map<string, Set<string>>;
   /** 重建所有倒排索引（批量刷新后调用） */
   _rebuildIndices: () => void;
-  /** 体裁/载体编辑（P1 创作体系）：先落库再改态。 */
-  setBookMeta: (bookId: string, patch: { genre?: string; medium?: string }) => Promise<void>;
+  /** 体裁/载体编辑（P1 创作体系）：先落库再改态。
+   *  第十四轮扩 description/status：工作室书属性卡（右栏「详情」无选中）就地规划一本书，
+   *  简介 / 连载中·完结走同一 setter，避免另造写路径造成与写作台漂移。 */
+  setBookMeta: (
+    bookId: string,
+    patch: { genre?: string; medium?: string; description?: string; status?: string },
+  ) => Promise<void>;
   /** 日更目标（P6）：字数/天，0 = 未设。 */
   setDailyGoal: (bookId: string, dailyGoal: number) => Promise<void>;
   /** 全书写作目标（T2）：合并进 book.extra JSON 透传（保留未知字段）。 */
@@ -372,7 +377,10 @@ export const useWritingStore = create<WritingState>()(
     },
 
     /** 体裁/载体编辑（P1 创作体系）：先落库再改态。 */
-    setBookMeta: async (bookId: string, patch: { genre?: string; medium?: string }) => {
+    setBookMeta: async (
+      bookId: string,
+      patch: { genre?: string; medium?: string; description?: string; status?: string },
+    ) => {
       const book = get().books.find((b) => b.id === bookId);
       if (!book) return;
       const updated: WritingBook = {
@@ -386,6 +394,8 @@ export const useWritingStore = create<WritingState>()(
         if (row) {
           row.genre = updated.genre;
           row.medium = updated.medium;
+          row.description = updated.description;
+          row.status = updated.status;
           row.updatedAt = updated.updatedAt;
         }
       });
