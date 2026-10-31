@@ -334,3 +334,53 @@ export function deriveBookGoalProgress(
   }
   return { word, chapter, daysLeft };
 }
+
+/**
+ * 把全书目标 + 达成进度渲染为一行双语语料（供 stats / overview AI 语料注入）。
+ * 复用 deriveBookGoalProgress —— AI 看到的达成率 / 剩余天数与面板**逐字一致**，
+ * 不设第二套算法。未设任何目标字段返回 null（不污染语料）。
+ * actualWords / chapterCount 由调用方按单一权威口径传入（快照优先/软删过滤）。
+ */
+export function formatBookGoalCorpus(
+  goal: WritingBookGoal,
+  actualWords: number,
+  chapterCount: number,
+  today: Date = new Date(),
+): { zh: string; en: string } | null {
+  if (goal.targetWords <= 0 && goal.targetChapters <= 0 && goal.deadline <= 0) return null;
+  const p = deriveBookGoalProgress(goal, actualWords, chapterCount, today);
+  const zhParts: string[] = [];
+  const enParts: string[] = [];
+  if (p.word) {
+    zhParts.push(
+      `目标 ${p.word.target.toLocaleString()} 字：已写 ${p.word.actual.toLocaleString()} 字（${p.word.pct}%${p.word.hit ? '，已达标' : ''}）`,
+    );
+    enParts.push(
+      `words target ${p.word.target.toLocaleString()}: ${p.word.actual.toLocaleString()} written (${p.word.pct}%${p.word.hit ? ', reached' : ''})`,
+    );
+  }
+  if (p.chapter) {
+    zhParts.push(
+      `目标 ${p.chapter.target} 章：已写 ${p.chapter.actual} 章（${p.chapter.pct}%${p.chapter.hit ? '，已达标' : ''}）`,
+    );
+    enParts.push(
+      `chapters target ${p.chapter.target}: ${p.chapter.actual} written (${p.chapter.pct}%${p.chapter.hit ? ', reached' : ''})`,
+    );
+  }
+  if (goal.deadline > 0 && p.daysLeft !== null) {
+    const dl = deadlineToInput(goal.deadline);
+    zhParts.push(
+      p.daysLeft < 0 ? `截止 ${dl}：已超期 ${Math.abs(p.daysLeft)} 天` : `截止 ${dl}：还剩 ${p.daysLeft} 天`,
+    );
+    enParts.push(
+      p.daysLeft < 0
+        ? `deadline ${dl}: overdue by ${Math.abs(p.daysLeft)} days`
+        : `deadline ${dl}: ${p.daysLeft} days left`,
+    );
+  }
+  if (zhParts.length === 0) return null;
+  return {
+    zh: `【全书目标与进度】${zhParts.join('；')}。据此评估完成节奏、缺口与是否需要调整目标或日更计划。`,
+    en: `[Book goal & progress] ${enParts.join('; ')}. Use this to assess pace, remaining gap, and whether goals or daily plan need adjusting.`,
+  };
+}

@@ -37,8 +37,10 @@ import {
   type ProjectSymbol,
   type AiInsightDto,
   type AiModel,
+  parseBookGoal,
 } from '../../services/tauri';
 import { buildBookOverview, buildBookOverviewCorpus } from '../../utils/writingOverview';
+import { formatBookGoalCorpus } from '../../utils/writingStats';
 import { buildCharactersCorpus, buildCatalogCorpus, buildSettingCorpus } from '../../utils/writingAiCorpus';
 
 import {
@@ -869,6 +871,23 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       const suppressSelection = slash ? !!slash.def.embedSelection : !!opts?.suppressSelection;
       const convId = await ensureConversation();
       if (!convId) return;
+      // 全书目标与进度语料：创作者设了总字数/章节/截稿里程碑后，让 AI 在统计 /
+      // 全书总览（对所有题材注入）里看到「目标 vs 实际」，进度类提问不再瞎答。
+      // 口径与面板逐字一致：复用 formatBookGoalCorpus→deriveBookGoalProgress（单一权威），
+      // totalWords 快照优先、退回活跃章实时和，与工作室 BookMetaPanel 同源。
+      const bookGoalLine = (() => {
+        if (!isBookScene) return null;
+        const ws = useWritingStore.getState();
+        const bookId = ws.activeBookId;
+        if (!bookId) return null;
+        const goal = parseBookGoal(ws.books.find((b) => b.id === bookId)?.extra);
+        const live = ws.chapters.filter((c) => c.bookId === bookId);
+        const chapterSum = live.reduce((sum, c) => sum + (c.wordCount || 0), 0);
+        const latest = ws.dailyStats.length > 0 ? ws.dailyStats[ws.dailyStats.length - 1] : null;
+        const actualWords = latest && latest.wordCount > 0 ? latest.wordCount : chapterSum;
+        return formatBookGoalCorpus(goal, actualWords, live.length);
+      })();
+
       // 题材语料：发消息前实时聚合当前书数据注入 ctx，让 AI 每轮带真实数据作答。
       // worldview=设定库（世界观设定 + 人物卡 + 关系）；timeline=时间线档案（章节骨架 + 事件全表 + 冲突 + 待补全）。
       const bookSettingCorpus =
@@ -922,7 +941,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
                         const bookId = ws.activeBookId;
                         const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
                         const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
-                        return buildStatsCorpus(bookTitle ?? null, chapters, settings);
+                        return buildStatsCorpus(bookTitle ?? null, chapters, settings, bookGoalLine);
                       })()
                     : isBookScene && bookTopic === 'writing'
                       ? (() => {
@@ -973,6 +992,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
             storylines: lines,
             foreshadowings: shadows,
           }),
+          bookGoalLine,
         );
       })();
       // 聚焦设定语料：右栏选中某个具体人物/世界观设定（钻入详情）时，

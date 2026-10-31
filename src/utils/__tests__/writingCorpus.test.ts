@@ -545,3 +545,29 @@ describe('buildChapterIndexCorpus —— 卷章索引表', () => {
     expect(en).toEqual(['_no data_']);
   });
 });
+
+// ─── buildStatsCorpus · 全书目标进度注入（承接工作室设置项↔AI 闭环）───
+
+describe('buildStatsCorpus —— 目标进度语料注入', () => {
+  const goalLine = { zh: '【全书目标与进度】目标 10,000 字：已写 3,000 字（30%）', en: '[Book goal & progress] words target 10,000: 3,000 written (30%)' };
+  const chapters = [ch('c1', 0, { title: '第一章', wordCount: 3000, volume: '卷一' })];
+
+  it('传入 goalLine：紧跟标题置顶，双语各含目标行', () => {
+    const { zh, en } = buildStatsCorpus('测试书', chapters, [], goalLine);
+    expect(zh).toContain('【全书目标与进度】目标 10,000 字');
+    expect(en).toContain('[Book goal & progress] words target 10,000');
+    // 位置：第一行是标题，第二行应是目标（在体量/卷分布之前）
+    expect(zh.split('\n')[1]).toContain('全书目标与进度');
+  });
+
+  it('不传 goalLine（未设目标）：语料不出现目标行（零污染）', () => {
+    const { zh, en } = buildStatsCorpus('测试书', chapters, []);
+    expect(zh).not.toContain('全书目标与进度');
+    expect(en).not.toContain('Book goal & progress');
+  });
+
+  it('goalLine=null（同未设）：等价于不注入', () => {
+    const { zh } = buildStatsCorpus('测试书', chapters, [], null);
+    expect(zh).not.toContain('全书目标与进度');
+  });
+});

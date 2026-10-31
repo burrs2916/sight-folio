@@ -191,7 +191,10 @@ export function buildBookOverview(input: BookOverviewInput): BookOverview {
  * 全书语料（中英双语），注入 AI 助手上下文，让模型每轮都带真实全书数据作答。
  * 刻意保持**紧凑**：KPI + 各维度计数 + 关键预警，不展开事件全表（那由各题材语料负责）。
  */
-export function buildBookOverviewCorpus(o: BookOverview): { zh: string; en: string } {
+export function buildBookOverviewCorpus(
+  o: BookOverview,
+  goalLine?: { zh: string; en: string } | null,
+): { zh: string; en: string } {
   const zh = [
     "【全书总览】",
     `- 书名：${o.bookTitle ?? "（未命名）"}`,
@@ -209,7 +212,10 @@ export function buildBookOverviewCorpus(o: BookOverview): { zh: string; en: stri
       ? `- 日更趋势：近7天 +${o.dailyTrend.last7} 字 · 近30天 +${o.dailyTrend.last30} 字 · 连续写作 ${o.dailyTrend.streak} 天`
       : "- 日更趋势：暂无落库快照（尚未记录每日字数）",
     "- 以上为全书跨维度快照，用于把握整体进度与风险；具体题材的明细见对应题材语料。",
-  ].join("\n");
+  ];
+  // 全书目标与进度：紧跟「体量」之后置顶，让 AI 先看到创作者立的里程碑再给跨维度建议
+  if (goalLine) zh.splice(3, 0, goalLine.zh);
+  const zhStr = zh.join("\n");
 
   const en = [
     "[Book Overview]",
@@ -228,7 +234,9 @@ export function buildBookOverviewCorpus(o: BookOverview): { zh: string; en: stri
       ? `- Daily trend: +${o.dailyTrend.last7} words in last 7 days · +${o.dailyTrend.last30} in last 30 · ${o.dailyTrend.streak}-day writing streak`
       : "- Daily trend: no stored snapshots yet (daily word counts not recorded)",
     "- The above is a cross-dimension snapshot of the whole book for overall progress and risk; per-topic details are in the topic-specific corpus.",
-  ].join("\n");
+  ];
+  if (goalLine) en.splice(3, 0, goalLine.en);
+  const enStr = en.join("\n");
 
-  return { zh, en };
+  return { zh: zhStr, en: enStr };
 }

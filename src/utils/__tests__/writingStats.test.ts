@@ -15,6 +15,7 @@ import {
   volumeNameOf,
   contentChapters,
   deriveBookGoalProgress,
+  formatBookGoalCorpus,
   inputToDeadline,
   deadlineToInput,
   resolveBookGoalInput,
@@ -288,5 +289,42 @@ describe('全书目标派生（工作室/写作台共用单一权威）', () => 
     });
     expect(resolveBookGoalInput('', 'abc', '')).toEqual({ targetWords: 0, targetChapters: 0, deadline: 0 });
     expect(resolveBookGoalInput('-5', '0', '')).toEqual({ targetWords: 0, targetChapters: 0, deadline: 0 });
+  });
+});
+
+describe('formatBookGoalCorpus（目标+进度→AI 语料行，口径与面板同源）', () => {
+  const TODAY = new Date(2026, 9, 31);
+  const secOf = (y: number, mo: number, d: number) => Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+
+  it('未设任何目标：返回 null（不污染语料）', () => {
+    expect(formatBookGoalCorpus({ targetWords: 0, targetChapters: 0, deadline: 0 }, 5000, 10, TODAY)).toBeNull();
+  });
+
+  it('字数目标：双语行含目标/已写/达成率，数字与 deriveBookGoalProgress 一致', () => {
+    const r = formatBookGoalCorpus({ targetWords: 10000, targetChapters: 0, deadline: 0 }, 3000, 0, TODAY);
+    expect(r?.zh).toContain('目标 10,000 字');
+    expect(r?.zh).toContain('已写 3,000 字（30%');
+    expect(r?.en).toContain('words target 10,000');
+    expect(r?.en).toContain('3,000 written (30%');
+  });
+
+  it('达标：zh 出现「已达标」', () => {
+    const r = formatBookGoalCorpus({ targetWords: 1000, targetChapters: 0, deadline: 0 }, 1500, 0, TODAY);
+    expect(r?.zh).toContain('已达标');
+    expect(r?.en).toContain('reached');
+  });
+
+  it('截稿日：剩余/超期分别成句', () => {
+    const soon = formatBookGoalCorpus({ targetWords: 0, targetChapters: 0, deadline: secOf(2026, 11, 10) }, 0, 0, TODAY);
+    expect(soon?.zh).toContain('还剩 10 天');
+    const over = formatBookGoalCorpus({ targetWords: 0, targetChapters: 0, deadline: secOf(2026, 10, 25) }, 0, 0, TODAY);
+    expect(over?.zh).toContain('已超期 6 天');
+    expect(over?.en).toContain('overdue by 6 days');
+  });
+
+  it('章节数目标独立成句', () => {
+    const r = formatBookGoalCorpus({ targetWords: 0, targetChapters: 8, deadline: 0 }, 0, 6, TODAY);
+    expect(r?.zh).toContain('目标 8 章');
+    expect(r?.zh).toContain('已写 6 章（75%');
   });
 });

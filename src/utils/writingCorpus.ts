@@ -508,6 +508,7 @@ export function buildStatsCorpus(
   bookTitle: string | null,
   chapters: WritingChapter[],
   settings: WritingSetting[],
+  goalLine?: { zh: string; en: string } | null,
 ): { zh: string; en: string } {
   const kpis = computeWritingKpis(chapters, settings);
   const volRows = buildVolumeRows(chapters);
@@ -568,6 +569,12 @@ export function buildStatsCorpus(
     linesEn.push('[Outliers] none (chapter sizes within normal range)');
   }
   linesEn.push("(Stats = local derived soft hints; respect the creator's intent, advisory only)");
+
+  if (goalLine) {
+    // 全书目标与进度：紧跟标题后置顶，让 AI 先看到创作者立的里程碑再给体量建议
+    linesZh.splice(1, 0, goalLine.zh);
+    linesEn.splice(1, 0, goalLine.en);
+  }
 
   return { zh: linesZh.join('\n'), en: linesEn.join('\n') };
 }
