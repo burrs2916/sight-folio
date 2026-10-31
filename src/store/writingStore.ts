@@ -100,6 +100,29 @@ export interface WritingChapterStructChangedPayload {
 }
 
 /**
+ * 跨窗口「大纲结构已变更」广播：新建 / 改内容 / 改挂载章 / 改封面 / 删除 / 重排 等
+ * **改变大纲集合或排序**的操作。
+ *
+ * 大纲（writing_outlines）是工作室多张视图的共同数据源——灵感面板、剧情线/时间线联动、
+ * 章节概览计数、审校报告、伏笔人设关联等都按书读 outlines。此前写作台增删改大纲完全不广播：
+ * 在一边新挂一个灵感/节拍，工作室的灵感列表、章节概览计数、审校结论都停在旧值——作者基于两
+ * 份不一致的大纲账做决策（第十八轮已确认、当时定为「中低优先」的遗留缺口，本轮按功能优先补
+ * 齐，与章节结构同款）。
+ *
+ * 与章节结构/书元信息同款**低频显式 emit**（只在用户主动的大纲 action 末尾调用），不挂订阅器
+ * —— outlines 在 loadOutlines / setActiveBook / deleteBook 都会换引用，订阅器方式会误广播。
+ * 载荷只带"哪本书"，接收方整表重载大纲（大纲按书缓存、writingOutlinesApi.list 幂等）。
+ *
+ * 天然无回声：叙事订阅器只盯 timeline/foreshadowing/storyline 三引用，章节结构/大纲接收只换
+ * chapters/outlines 引用，不触发叙事回播；大纲接收也不换 chapters，无跨类回声。
+ */
+export const WRITING_OUTLINE_CHANGED_EVENT = 'writing-outline-changed';
+
+export interface WritingOutlineChangedPayload {
+  bookId: string | null;
+}
+
+/**
  * 写作域 store（Sight Folio）
  *
  * 结构：books（书架）+ chaptersByBook（按书缓存的章节列表）。
@@ -188,6 +211,8 @@ interface WritingState {
   applyExternalNarrativeChange: (payload: WritingNarrativeChangedPayload) => Promise<void>;
   applyExternalBookMetaChange: (payload: WritingBookMetaChangedPayload) => Promise<void>;
   applyExternalChapterStructChange: (payload: WritingChapterStructChangedPayload) => Promise<void>;
+  /** 并入另一窗口的大纲结构变更（整表重载，按 activeBookId 守卫幂等，见类型注释） */
+  applyExternalOutlineChange: (payload: WritingOutlineChangedPayload) => Promise<void>;
 
   loadSettings: () => Promise<void>;
   createSetting: (kind: WritingSettingKind, name: string) => Promise<WritingSetting | null>;
@@ -954,6 +979,23 @@ export const useWritingStore = create<WritingState>()(
       }
     },
 
+    /**
+     * 并入另一窗口的大纲结构变更：整表重载「当前正在看的那本书」的大纲缓存。
+     *
+     * 只在 activeBookId === 变更书时重载（loadOutlines 内部也按 activeBookId 守卫，本窗口
+     * 没在看这本书就跳过——下次 setActiveBook 自然拿到全量最新值）。只换 outlines 引用、
+     * 不碰叙事三表/chapters，因此不触发叙事/章节结构订阅器回播（天然无回声）。
+     */
+    applyExternalOutlineChange: async (payload) => {
+      const { bookId } = payload;
+      if (!bookId || get().activeBookId !== bookId) return;
+      try {
+        await get().loadOutlines();
+      } catch (e) {
+        logger.warn('writingStore', 'applyExternalOutlineChange reload failed', { bookId, error: e });
+      }
+    },
+
     loadSettings: async () => {
       const bookId = get().activeBookId;
       if (!bookId) return;
@@ -1146,6 +1188,7 @@ export const useWritingStore = create<WritingState>()(
       set((s) => {
         s.outlines.push(outline);
       });
+      broadcastOutline(outline.bookId);
       return outline;
     },
 
@@ -1179,6 +1222,7 @@ export const useWritingStore = create<WritingState>()(
         }
       }
       get()._rebuildIndices();
+      broadcastOutline(outline.bookId);
     },
 
     deleteOutline: async (outlineId: string) => {
@@ -1187,6 +1231,8 @@ export const useWritingStore = create<WritingState>()(
         s.outlines = s.outlines.filter((o) => o.id !== outlineId);
       });
       get()._rebuildIndices();
+      const bookId = get().activeBookId;
+      if (bookId) broadcastOutline(bookId);
     },
 
     setOutlineCover: async (outlineId: string, assetRef: string | null) => {
@@ -1216,6 +1262,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastOutline(updated.bookId);
     },
 
     reorderOutline: async (outlineId: string, toIndex: number) => {
@@ -1241,6 +1288,8 @@ export const useWritingStore = create<WritingState>()(
       set((s) => {
         s.outlines = reordered.map((o) => (changed.some((x) => x.id === o.id) ? { ...o, updatedAt: now } : o));
       });
+      const bookId = get().activeBookId;
+      if (bookId) broadcastOutline(bookId);
     },
 
     // ─── 时间线事件（D） ───
@@ -1610,6 +1659,20 @@ function broadcastChapterStruct(bookId: string): void {
     });
   } catch (e) {
     logger.warn('writingStore', '章节结构变更广播抛异常（本地写入不受影响）', { error: e });
+  }
+}
+
+/**
+ * 大纲结构变更后向其它窗口广播（复用叙事/书元/章节结构广播的防错模式：广播只是副作用，
+ * **绝不允许打断用户操作**）。异步拒绝 + 同步抛出都要挡。
+ */
+function broadcastOutline(bookId: string): void {
+  try {
+    emit(WRITING_OUTLINE_CHANGED_EVENT, { bookId }).catch((e) => {
+      logger.warn('writingStore', '大纲变更广播被拒绝（本地写入不受影响）', { error: e });
+    });
+  } catch (e) {
+    logger.warn('writingStore', '大纲变更广播抛异常（本地写入不受影响）', { error: e });
   }
 }
 

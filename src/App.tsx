@@ -32,6 +32,8 @@ import {
   WRITING_NARRATIVE_CHANGED_EVENT,
   WRITING_BOOK_META_CHANGED_EVENT,
   WRITING_CHAPTER_STRUCT_CHANGED_EVENT,
+  WRITING_OUTLINE_CHANGED_EVENT,
+  type WritingOutlineChangedPayload,
   type WritingContentSavedPayload,
   type WritingNarrativeChangedPayload,
   type WritingBookMetaChangedPayload,
@@ -145,6 +147,18 @@ function AppLayout() {
     let un: (() => void) | undefined;
     listen<WritingChapterStructChangedPayload>(WRITING_CHAPTER_STRUCT_CHANGED_EVENT, (e) => {
       void useWritingStore.getState().applyExternalChapterStructChange(e.payload);
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, []);
+
+  // 跨窗口大纲结构同步：任一窗口新建 / 改内容 / 改挂载章 / 改封面 / 删除 / 重排 大纲，
+  // 其它正在看这本书的窗口整表重载大纲缓存（loadOutlines 按 activeBookId 守卫、幂等）。
+  // 补齐第十八轮遗留的「大纲增删改不广播」缺口——写作台挂一个灵感 / 节拍，工作室灵感面板、
+  // 章节概览计数、审校报告、伏笔人设关联等能立刻跟上。
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen<WritingOutlineChangedPayload>(WRITING_OUTLINE_CHANGED_EVENT, (e) => {
+      void useWritingStore.getState().applyExternalOutlineChange(e.payload);
     }).then((u) => (un = u));
     return () => un?.();
   }, []);
