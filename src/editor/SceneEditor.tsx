@@ -153,7 +153,7 @@ export function SceneEditor({
   onSyncToCanvas,
   syncing,
   onReparseBook,
-  onOpenCanvasAi: _onOpenCanvasAi,
+  onOpenCanvasAi,
 }: {
   onOpenLayersDialog?: () => void;
   onSyncToCanvas?: () => void;
@@ -778,10 +778,26 @@ export function SceneEditor({
   const extraAnalyzerCount = Math.max(0, activeAnalyzerIds.length - 1);
 
   // ─── 键盘快捷键 ───
+  // 编辑态整体让位给当前编辑器（与 SceneTabBar L2 键盘切换同一守卫口径）：
+  // 画布章节纸面卡(WritingChapterEditor/TipTap)的正文编辑是 contentEditable，
+  // 旧守卫只挡 INPUT/TEXTAREA/SELECT，漏了 contentEditable —— 用户在画布卡里
+  // 敲退格删字时，若该卡正处于选中态，会被下面的 Backspace 分支 removeComponent
+  // **整卡删除**（数据损坏级）；Ctrl+Z 同理被画布 undo 劫持、撤销不了正文。
+  // target 自身或任意祖先带 contenteditable 都视为编辑态（兼容 jsdom 与真实 DOM）。
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const el = e.target as HTMLElement | null;
+      if (!el) return;
+      const tag = el.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable ||
+        Boolean(el.closest?.('[contenteditable]'))
+      ) {
+        return;
+      }
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -2067,6 +2083,7 @@ export function SceneEditor({
                     bookTopic={aiBookTopic}
                     bookTitle={aiBookTitle}
                     focusSetting={aiFocusSetting}
+                    onOpenCanvasAi={onOpenCanvasAi}
                     onOpenPath={(relPath, line) => {
                       const f = projectFiles.find((x) => x.relPath === relPath);
                       if (f) {

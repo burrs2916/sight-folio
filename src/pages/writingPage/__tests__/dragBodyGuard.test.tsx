@@ -99,10 +99,13 @@ describe('useDragBodyGuard 行为', () => {
 });
 
 describe('三处宽度手柄统一走守卫（不再裸写 body 样式）', () => {
+  // 第十四轮：工作室右栏手柄（SceneEditor）同型病灶补入——全仓四处拖拽宽度手柄
+  // 一律走守卫，不再有任何文件裸写 body.userSelect（锁防复活）。
   const files = [
     'src/pages/WritingPage.tsx',
     'src/pages/writingPage/WritingDrawer.tsx',
     'src/pages/writingPage/CorpusReferencePanel.tsx',
+    'src/editor/SceneEditor.tsx',
   ];
   it.each(files)('%s 不含 document.body.style.userSelect 裸写', (rel) => {
     const src = readFileSync(`${process.cwd()}/${rel}`, 'utf8');

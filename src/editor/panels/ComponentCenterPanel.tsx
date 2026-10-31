@@ -4,7 +4,7 @@
 //   - 符号（project_symbols，类/函数/接口/结构体/枚举）→ 点击定位到源文件实体
 //   - 审查发现（findings）→ 点击定位到目标文件实体
 //   - 实体类型（可拖拽模板）保留为底部折叠组，不丢失拖拽能力
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tabs from '@mui/material/Tabs';
@@ -1737,8 +1737,33 @@ interface ComponentCenterPanelProps {
   onToggle?: () => void;
 }
 
+// 左栏 Tab 选中态跨会话记忆（第十四轮）：创作者常停在「目录树」做章节定位，
+// 此前每次重开工作室回到「元素」拖拽货架。与右栏宽/折叠态同口径落 localStorage；
+// 下方既有「非法 tab 兑回 entities」effect 仍兑住跨场景残留值。
+const LEFT_TAB_KEY = 'sight-folio:studio.leftPanelTab';
+const LEFT_TAB_VALUES = ['entities', 'files', 'plugins', 'layers', 'tree'] as const;
+type LeftPanelTab = (typeof LEFT_TAB_VALUES)[number];
+function readSavedLeftPanelTab(): LeftPanelTab {
+  try {
+    const raw = localStorage.getItem(LEFT_TAB_KEY);
+    if (raw && (LEFT_TAB_VALUES as readonly string[]).includes(raw)) return raw as LeftPanelTab;
+  } catch {
+    // 忽略
+  }
+  return 'entities';
+}
+
 export function ComponentCenterPanel({ collapsed = false, onToggle }: ComponentCenterPanelProps) {
-  const [tab, setTab] = useState<'entities' | 'files' | 'plugins' | 'layers' | 'tree'>('entities');
+  const [tab, setTab] = useState<LeftPanelTab>(readSavedLeftPanelTab);
+  // 切换即落盘（与 setTab 收敛为一个动作，避免两处漏写）
+  const selectTab = useCallback((next: LeftPanelTab) => {
+    setTab(next);
+    try {
+      localStorage.setItem(LEFT_TAB_KEY, next);
+    } catch {
+      // 忽略
+    }
+  }, []);
 
   // ─── A 改造：书场景（novel-zh）左栏切写作向 Tab ───
   // 信号口径与 ArchitectureLayersPanel 一致（activeScene.primaryLanguage）。
@@ -1753,8 +1778,11 @@ export function ComponentCenterPanel({ collapsed = false, onToggle }: ComponentC
   // 书场景没有 layers/plugins/files Tab：从代码场景切过来时残留的 tab 状态会落空 →
   // 兜底回 entities（联动绝不静默：不能让用户看到一块空白面板）
   useEffect(() => {
-    if (isBookScene && (tab === 'layers' || tab === 'plugins' || tab === 'files')) setTab('entities');
-  }, [isBookScene, tab]);
+    // 走 selectTab（写盘）而非裸 setTab：tab 已跨会话持久化，兑回时若只改 state 不改
+    // localStorage，会出现「显示 entities / 落盘 layers」不一致（下次进代码场景读到
+    // 脏值 layers，或隐私模式落盘失败也不影响本次一致性）。
+    if (isBookScene && (tab === 'layers' || tab === 'plugins' || tab === 'files')) selectTab('entities');
+  }, [isBookScene, tab, selectTab]);
 
   if (collapsed) {
     return (
@@ -1810,7 +1838,7 @@ export function ComponentCenterPanel({ collapsed = false, onToggle }: ComponentC
     >
       <Tabs
         value={tab}
-        onChange={(_, v) => setTab(v)}
+        onChange={(_, v) => selectTab(v as LeftPanelTab)}
         variant="fullWidth"
         sx={{ minHeight: 36, borderBottom: 1, borderColor: 'divider' }}
       >
