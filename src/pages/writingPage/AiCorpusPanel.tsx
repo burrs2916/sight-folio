@@ -54,6 +54,7 @@ import {
   sanitizeDisplayMessages,
   type CorpusGeneratePurpose,
 } from '../../utils/aiCorpusChat';
+import { isConvStale } from './conversationGuard';
 
 export interface AiCorpusPanelProps {
   /** 会话标题（per 书唯一：「语料参谋 · 书名」），与写作台 AI 会话独立、不互相污染 */
@@ -185,6 +186,12 @@ export function AiCorpusPanel({
   const noAgent = agents.length === 0;
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [convId, setConvId] = useState<string | null>(null);
+  // convId 的实时镜像：供 await 之后比对「发起时会话是否已被切走」（见 conversationGuard）。
+  // 不能只靠闭包里的 convId——那是发起时的值，需要另一个渠道读「当下」的值。
+  const convIdRef = useRef<string | null>(convId);
+  useEffect(() => {
+    convIdRef.current = convId;
+  }, [convId]);
   const [loading, setLoading] = useState(false);
   // 草稿自动保存（对齐主流对话工具：输入内容跨会话/切标签不丢）；按书（chatTitle）隔离，
   // 切书时面板不卸载，必须随 chatTitle 换成目标书自己的草稿——否则 A 书没发完的话出现在 B 书输入框
@@ -198,6 +205,12 @@ export function AiCorpusPanel({
     if (lastDraftTitleRef.current === chatTitle) return;
     lastDraftTitleRef.current = chatTitle;
     setInput(loadDraft(chatTitle));
+    // 切书瞬间即作废旧会话：open effect 异步拉取新书会话期间，convId 若仍留着旧书的值，
+    // 用户此刻发送会把「B 书的提问」发进 A 书会话（并显示在 B 书面板上）。
+    // 清空后该窗口期 canSend=false（发送按钮禁用），拉回会话后自然恢复。
+    convIdRef.current = null;
+    setConvId(null);
+    setMessages([]);
   }, [chatTitle]);
   /** 快捷指令菜单锚点（点击输入框左侧闪电按钮弹出预设指令） */
   const [cmdAnchor, setCmdAnchor] = useState<HTMLElement | null>(null);
@@ -310,6 +323,8 @@ export function AiCorpusPanel({
   const sendAndRefresh = useCallback(
     async (text: string, content: string): Promise<AiMessage[] | null> => {
       if (!convId || isStreaming) return null;
+      // 发起时捕获会话归属：await 期间可能切书（面板不卸载），结果必须按归属落账
+      const ownerConvId = convId;
       lastSendRef.current = { text, content };
       // 本地乐观插入用户消息（显示原文；上下文前缀只在真正发出的消息里）
       setMessages((m) => [
@@ -326,13 +341,24 @@ export function AiCorpusPanel({
       try {
         // 直读 API 建会话不进 store.conversations、写作台窗口不设置 selectedAgentId——
         // 必须显式传 agentId（本面板自己在 props 里持有），否则 store 无法推导 agent 归属会放弃发送
-        await useAgentStore.getState().sendMessage(convId, content, undefined, undefined, agentId);
-        const rows = await agentApi.listMessages(convId);
+        await useAgentStore.getState().sendMessage(ownerConvId, content, undefined, undefined, agentId);
+        const rows = await agentApi.listMessages(ownerConvId);
+        // 归属已变（切书 / 新开会话）：A 书的结果绝不写进 B 书面板——交由调用方按 null 收敛，
+        // 旧结果不丢（已在 A 书会话历史落库，切回 A 书由 open effect 重新拉取）。
+        if (isConvStale(ownerConvId, convIdRef.current)) {
+          logger.info('AiCorpusPanel', 'drop stale send result after conversation switch', { ownerConvId });
+          return null;
+        }
         const filtered = sanitizeDisplayMessages(rows);
         setMessages(filtered);
         setStreamText('');
         return filtered;
       } catch (e) {
+        // 同理：切书后旧请求的失败不该在新书面板上弹错误
+        if (isConvStale(ownerConvId, convIdRef.current)) {
+          logger.warn('AiCorpusPanel', 'send failed on already-switched conversation', { error: e });
+          return null;
+        }
         logger.warn('AiCorpusPanel', 'send failed', { error: e });
         useToastStore.getState().error(String(e));
         return null;
