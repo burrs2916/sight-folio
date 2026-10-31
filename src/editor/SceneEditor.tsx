@@ -60,6 +60,8 @@ import { useDirtyStore } from '../store/editorStore';
 import { useSceneStore } from '../store/sceneStore';
 import { useWritingStore } from '../store/writingStore';
 import { useProjectStore } from '../store/projectStore';
+import { useWritingDocsStore } from '../store/writingDocsStore';
+import { resolveWritingActiveChapterFile } from '../utils/studioAiFile';
 import { EntityPortraitPanel } from './panels/EntityPortraitPanel';
 import { ReviewFindingsPanel } from './panels/ReviewFindingsPanel';
 import { ComponentCenterPanel } from './panels/ComponentCenterPanel';
@@ -774,6 +776,22 @@ export function SceneEditor({
     if (!f) return null;
     return { fileId: f.id, relPath: f.relPath, language: f.language, name: f.name, totalLines: f.lineCount };
   }, [aiSelectedFilePath, projectFiles]);
+
+  // 工作室正文（writing）页签：没选中画布卡时 mainAiFile 为 null，会让 AI 面板里
+  // 「读懂本章 / 人设一致性 / 情节连贯」等**章节级只读快捷动作**在 `if (!activeFile) return` 处静默失效——
+  // 而这正是工作室正文视图最常做的「边读边问」。这里以正文当前激活章
+  // （writingDocsStore.activeChapterByBook，与右栏详情卡 / 左栏目录树 / 正文语料同一真相源）
+  // 合成一个章节虚拟文件 activeFile，路径 / fileId / language 全部对齐 studioBook.chapterCardConfig
+  // 与 Rust scan_writing_book 约定（writing://{book}/{chapter}.md、wfile_{chapter}、md），
+  // 这样 AI 的 file_read 与快捷动作 prompt 里的章节相对路径都能命中真章。
+  // 响应式订阅正文当前激活章（非 getState：切章时 AI 的 activeFile 要跟着指向新章）。
+  const docsActiveChapterId = useWritingDocsStore((s) =>
+    isBookScene && aiBookTopic === 'writing' && activeBookId ? s.activeChapterByBook[activeBookId] : null,
+  );
+  const studioAiFile = useMemo(() => {
+    if (mainAiFile) return mainAiFile;
+    return resolveWritingActiveChapterFile(activeBookId, docsActiveChapterId, writingChapters);
+  }, [mainAiFile, activeBookId, docsActiveChapterId, writingChapters]);
   // 主窗口没有实时 Monaco 编辑器；传空 ref，WorkbenchAiPanel 会自动从磁盘读原文来 apply（见面板内磁盘兜底）。
   const aiEditorRef = useRef<MonacoEditorHandle | null>(null);
   // 左面板展开/收起（默认展开，与 biosphere 一致）；折叠态跨会话记忆（与右栏同口径）
@@ -2177,7 +2195,7 @@ export function SceneEditor({
                 )}
                 {safeRightTab === AI_TAB && (
                   <WorkbenchAiPanel
-                    activeFile={mainAiFile}
+                    activeFile={studioAiFile}
                     selection={null}
                     editorRef={aiEditorRef}
                     onClose={() => persistRightPanelOpen(false)}
