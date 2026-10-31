@@ -149,10 +149,17 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
 
   // 实际体量：writingApi.listChapters 按 bookId 直查（软删章过滤，同写作台 loadChapters 口径）；
   // 总字数优先取最近日快照（end-of-day，比实时章和更贴近落库），无快照退回章实时和（同 WritingStatsDialog）。
+  // 切书：立即清空旧书进度（新书装载前不闪现上一本书的数字）。
+  useEffect(() => {
+    setActual(null);
+  }, [bookId]);
+
+  // 装载进度：按 bookId 直查；书元信息被重新规划（本窗口改目标 / 跨窗口同步来 → updatedAt 变）
+  // 时一并重拉——让「规划本书」调目标后，进度与节奏预测立刻反映最新，不必等面板重挂。
+  // 不在此清空 actual（避免 updatedAt 变化时整块进度/节奏闪烁一下）。
   useEffect(() => {
     if (!bookId) return;
     let cancelled = false;
-    setActual(null);
     void (async () => {
       try {
         const [chs, stats] = await Promise.all([
@@ -176,7 +183,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
     return () => {
       cancelled = true;
     };
-  }, [bookId]);
+  }, [bookId, book?.updatedAt]);
 
   // bookGoal 引用仅在 extra 变化时更新（避免每帧新对象击穿 bookGoalProgress 的 memo）
   const bookGoal = useMemo(() => parseBookGoal(book?.extra), [book?.extra]);

@@ -102,6 +102,15 @@ describe('书元信息变更跨窗口广播', () => {
     expect(useWritingStore.getState().books[0]?.dailyGoal).toBe(3000);
   });
 
+  it('落库 bump updatedAt → 驱动面板重拉进度 / 节奏预测（批次2 信号链）', async () => {
+    // 规划本书的 4 个 setter 都要把 updatedAt 推到未来时间：
+    // BookMetaPanel 进度装载 effect 依赖 [bookId, book?.updatedAt]，跨窗口接收方 loadBooks 后
+    // selector 也随之重渲染——updatedAt 不动，调目标就不会刷新进度与节奏预测（同步链断在最后一步）。
+    useWritingStore.setState({ books: [book({ updatedAt: 1000 })] });
+    await useWritingStore.getState().setBookGoal('b1', { targetWords: 50000, targetChapters: 20, deadline: 2000000000 });
+    expect(useWritingStore.getState().books[0]?.updatedAt).toBeGreaterThan(1000);
+  });
+
   it('接收方：本窗口已加载该书 → 整表重载书架（拉最新元信息）', async () => {
     h.listBooks.mockResolvedValueOnce([book({ dailyGoal: 5000, extra: '{"targetWords":999}' })] as never);
     await useWritingStore.getState().applyExternalBookMetaChange({ bookId: 'b1' });
