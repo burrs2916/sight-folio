@@ -303,3 +303,67 @@ describe("书属性卡 · 日更今日进度（回归锁）", () => {
     expect(document.body.textContent).not.toContain("今日已写");
   });
 });
+
+// ─── 第十六轮：节奏预测可视化（单一权威派生，挂载存在性锁）───
+describe("书属性卡 · 节奏预测", () => {
+  const TODAY = new Date(2026, 9, 31);
+  const secOf = (y: number, mo: number, d: number) => Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+  // diffDailyStats 需要 day 键为本地日串；构造窗口内「今天」往前的快照序列
+  const localDay = (d: Date) => {
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${m}-${dd}`;
+  };
+  // 近 N 天「全书总字数快照」逐日递增 → 差分出每日新增；末位 = 今天
+  function statsRising(dailyWords: number, days: number, base = 0): any[] {
+    const out: any[] = [];
+    // 快照按「累计总量」存：第一天 base，之后每天 +dailyWords
+    let cum = base;
+    // diffDailyStats 需要 WINDOW_DAYS+1 天的连续序列，缺天沿用最近已知；这里铺满窗口
+    for (let i = 30; i >= 0; i--) {
+      const d = new Date(TODAY);
+      d.setDate(d.getDate() - i);
+      out.push({ day: localDay(d), wordCount: cum });
+      cum += dailyWords;
+    }
+    return out;
+  }
+
+  function paceText(): string {
+    const el = Array.from(document.body.querySelectorAll("*")).find((n) =>
+      (n.textContent ?? "").includes("节奏预测")
+    );
+    return el ? (document.body.textContent ?? "") : "";
+  }
+
+  it("设了总字数目标 + 有产出 → 渲染节奏预测块（含结论徽标 / 均速）", async () => {
+    h.writing.books[0] = { ...h.writing.books[0], extra: JSON.stringify({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }) };
+    h.writingApi.listChapters.mockResolvedValue([]);
+    h.writingStatsApi.listDailyStats.mockResolvedValue(statsRising(1000, 30));
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    const body = document.body.textContent ?? "";
+    expect(body).toContain("节奏预测");
+    // 日均 1000、有产出；behind/ontrack 视具体数字，至少含均速文案「字」与「产出」
+    expect(body).toMatch(/日均|w\/day/);
+  });
+
+  it("未设任何目标（extra 空）→ 不渲染节奏预测块", async () => {
+    h.writing.books[0] = { ...h.writing.books[0], extra: "" };
+    h.writingApi.listChapters.mockResolvedValue([]);
+    h.writingStatsApi.listDailyStats.mockResolvedValue([]);
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    expect(document.body.textContent ?? "").not.toContain("节奏预测");
+  });
+
+  it("有总字数目标但无产出数据 → 渲染并诚实提示（不报错）", async () => {
+    h.writing.books[0] = { ...h.writing.books[0], extra: JSON.stringify({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }) };
+    h.writingApi.listChapters.mockResolvedValue([]);
+    // stats 空 → diffDailyStats 仍产出窗口（全 0 delta）→ windowDays>0 但 avg=0 → stalled
+    h.writingStatsApi.listDailyStats.mockResolvedValue([]);
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    expect(document.body.textContent ?? "").toContain("节奏预测");
+  });
+});

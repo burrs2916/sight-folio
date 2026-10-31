@@ -7779,7 +7779,19 @@
       "bookGoal": "全书目标 · 进度",
       "goalProgress": "达成进度",
       "currentTally": "当前 {chapters} 章 · {words} 字",
-      "dailyToday": "今日已写 {today} / 目标 {goal} 字"
+      "dailyToday": "今日已写 {today} / 目标 {goal} 字",
+      "pace": "节奏预测",
+      "paceVerdictDone": "目标已完成",
+      "paceVerdictOntrack": "按当前速度可如期完成",
+      "paceVerdictBehind": "按当前速度会落后截稿",
+      "paceVerdictStalled": "近期无产出",
+      "paceVerdictOverdue": "已过截稿仍未达标",
+      "paceVerdictNoDeadline": "未设截稿",
+      "paceAvg": "近 {n} 天日均 {avg} 字（有产出 {d} 天）",
+      "paceNeed": "要赶上截稿需约 {need} 字/天",
+      "paceFinishIn": "按当前速度预计还需 {n} 天完成",
+      "paceMissBy": "到截稿时预计差 {n} 字",
+      "paceNoOutput": "暂无产出数据，设目标并持续记录日更后展示"
     },
     "illustration": {
       "title": "插画素材库",

@@ -7779,7 +7779,19 @@
       "bookGoal": "Book Goal · Progress",
       "goalProgress": "Progress",
       "currentTally": "{chapters} chapters · {words} words so far",
-      "dailyToday": "{today} / {goal} words today"
+      "dailyToday": "{today} / {goal} words today",
+      "pace": "Pace projection",
+      "paceVerdictDone": "Goal already reached",
+      "paceVerdictOntrack": "On track for the deadline",
+      "paceVerdictBehind": "Behind pace for the deadline",
+      "paceVerdictStalled": "No recent output",
+      "paceVerdictOverdue": "Past deadline, still short",
+      "paceVerdictNoDeadline": "No deadline set",
+      "paceAvg": "{avg} w/day over last {n} days ({d} productive)",
+      "paceNeed": "Need ~{need} w/day to catch up",
+      "paceFinishIn": "~{n} more days to finish at this pace",
+      "paceMissBy": "~{n} words short at the deadline",
+      "paceNoOutput": "No output data yet; appears after you set a goal and log daily writing"
     },
     "illustration": {
       "title": "Illustration Library",

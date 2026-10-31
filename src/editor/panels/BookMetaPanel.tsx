@@ -46,11 +46,14 @@ import { genreLabelKey, mediumLabelKey } from "../../utils/writingSchema";
 import { BookMetaDialog } from "../../pages/BookMetaDialog";
 import {
   deriveBookGoalProgress,
+  derivePaceProjection,
+  formatPaceCorpus,
   resolveBookGoalInput,
   deadlineToInput,
   diffDailyStats,
   goalProgress,
   WINDOW_DAYS,
+  type DailyDelta,
 } from "../../utils/writingStats";
 
 /** 素材库分类约定：插画走 writing/illustrations，封面走 writing/covers-{bookId}（一书一目录） */
@@ -122,7 +125,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
   const [draftWords, setDraftWords] = useState("");
   const [draftChapters, setDraftChapters] = useState("");
   const [draftDeadline, setDraftDeadline] = useState("");
-  const [actual, setActual] = useState<{ words: number; chapters: number; today: number } | null>(null);
+  const [actual, setActual] = useState<{ words: number; chapters: number; today: number; deltas: DailyDelta[] } | null>(null);
   useEffect(() => {
     if (!book) return;
     setDraftTitle(book.title ?? "");
@@ -164,10 +167,10 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
         // 今日新增：快照明细差分出每日增量，末位即今天（与写作台 WritingStatsDialog 同一口径）
         const deltas = diffDailyStats(stats, new Date());
         const today = deltas.length > 0 ? deltas[deltas.length - 1].delta : 0;
-        setActual({ words, chapters: live.length, today });
+        setActual({ words, chapters: live.length, today, deltas });
       } catch (e) {
         logger.warn("BookMetaPanel", "load book actuals failed", { error: String(e) });
-        if (!cancelled) setActual({ words: 0, chapters: 0, today: 0 });
+        if (!cancelled) setActual({ words: 0, chapters: 0, today: 0, deltas: [] });
       }
     })();
     return () => {
@@ -179,6 +182,11 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
   const bookGoal = useMemo(() => parseBookGoal(book?.extra), [book?.extra]);
   const bookGoalProgress = useMemo(
     () => deriveBookGoalProgress(bookGoal, actual?.words ?? 0, actual?.chapters ?? 0, new Date()),
+    [bookGoal, actual]
+  );
+  // 节奏预测：复用单一权威派生（与统计弹窗 / AI 语料逐字同口径）。无总字数目标 → null 不画。
+  const pace = useMemo(
+    () => derivePaceProjection(bookGoal, actual?.words ?? 0, actual?.deltas ?? [], new Date()),
     [bookGoal, actual]
   );
 
@@ -517,6 +525,85 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
           onBlur={commitBookGoal}
           slotProps={{ input: { sx: { fontSize: 12.5 } }, inputLabel: { shrink: true, sx: { fontSize: 12 } } }}
         />
+        {/* 节奏预测（单一权威 derivePaceProjection，与统计弹窗 / AI 语料逐字同口径）：
+            回答创作者「按我现在的真实速度，赶不赶得上截稿 / 差多少 / 要提速到多少」。
+            advisory 软提示，仅在有总字数目标且能派生时展示；无产出数据时诚实降级提示。 */}
+        {pace && (
+          <Box sx={{ mt: 0.75, p: 0.75, border: 1, borderColor: "divider", borderRadius: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.25 }}>
+              <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "text.secondary" }}>{t("studio.bookMeta.pace")}</Typography>
+              {(() => {
+                const tone =
+                  pace.verdict === "done" || pace.verdict === "ontrack"
+                    ? "success"
+                    : pace.verdict === "behind"
+                      ? "warning"
+                      : pace.verdict === "stalled" || pace.verdict === "overdue"
+                        ? "error"
+                        : "primary";
+                const labelKey = {
+                  done: "studio.bookMeta.paceVerdictDone",
+                  ontrack: "studio.bookMeta.paceVerdictOntrack",
+                  behind: "studio.bookMeta.paceVerdictBehind",
+                  stalled: "studio.bookMeta.paceVerdictStalled",
+                  overdue: "studio.bookMeta.paceVerdictOverdue",
+                  noDeadline: "studio.bookMeta.paceVerdictNoDeadline",
+                }[pace.verdict];
+                return (
+                  <Typography
+                    sx={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      bgcolor: `${tone}.main`,
+                      color: "common.white",
+                      px: 0.75,
+                      py: 0.15,
+                      borderRadius: 1,
+                    }}
+                  >
+                    {t(labelKey)}
+                  </Typography>
+                );
+              })()}
+            </Box>
+            {pace.windowDays === 0 ? (
+              <Typography sx={{ fontSize: 10.5, color: "text.disabled" }}>{t("studio.bookMeta.paceNoOutput")}</Typography>
+            ) : (
+              <>
+                <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                  {t("studio.bookMeta.paceAvg", {
+                    n: pace.windowDays,
+                    avg: Math.round(pace.avgPerDay).toLocaleString(),
+                    d: pace.producedDays,
+                  })}
+                </Typography>
+                {pace.verdict === "behind" && pace.requiredPerDay !== null && (
+                  <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: "warning.main" }}>
+                    {t("studio.bookMeta.paceNeed", { need: pace.requiredPerDay.toLocaleString() })}
+                    {pace.projectedGap !== null && pace.projectedGap < 0
+                      ? ` · ${t("studio.bookMeta.paceMissBy", { n: Math.abs(pace.projectedGap).toLocaleString() })}`
+                      : ""}
+                  </Typography>
+                )}
+                {pace.verdict === "stalled" && pace.requiredPerDay !== null && (
+                  <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: "error.main" }}>
+                    {t("studio.bookMeta.paceNeed", { need: pace.requiredPerDay.toLocaleString() })}
+                  </Typography>
+                )}
+                {pace.verdict === "overdue" && (
+                  <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: "error.main" }}>
+                    {t("studio.bookMeta.paceMissBy", { n: pace.remainingWords.toLocaleString() })}
+                  </Typography>
+                )}
+                {pace.verdict === "noDeadline" && pace.projectedDaysToFinish !== null && (
+                  <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                    {t("studio.bookMeta.paceFinishIn", { n: pace.projectedDaysToFinish })}
+                  </Typography>
+                )}
+              </>
+            )}
+          </Box>
+        )}
         {/* 当前体量小结：即便未设目标也让创作者一眼看到进度基线 */}
         {actual && (
           <Typography sx={{ fontSize: 10, color: "text.disabled", mt: 0.75 }}>
