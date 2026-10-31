@@ -13,7 +13,7 @@ import { getLang, t } from '../../i18n';
 // 与卡面板共用同一份维度清单与格式化口径（0=中立要进 prompt）
 import { formatCognitiveWeightLine } from '../../utils/writingCognitiveWeights';
 import { logger } from '../../utils/logger';
-import { verifyInlineRange } from './inlineRangeGuard';
+import { decideFullTextApply, verifyInlineRange } from './inlineRangeGuard';
 import { writingScanApi } from '../../services/writing';
 import { analyzerRegistry } from '../../editor/analyzer/analyzerRegistry';
 import {
@@ -164,6 +164,10 @@ export function useAiActions(
   // 携带 text = 发起生成那一刻选区命中的原文，作为「落点锚点」：应用时正文若被改动，
   // 用它经 verifyInlineRange 校验/重定位旧 from/to（需求缺口④，防 30s+ 期间漂移误写）。
   const inlineSelectionRef = useRef<{ from: number; to: number; text: string } | null>(null);
+  // 无选区时的作用范围 = 整章（第七轮发起前已对用户明示）。应用走 editor.setContent 是
+  // **整章覆盖**，同样需要锚点：记下发起那一刻的整章纯文本，应用时比对，正文被改过就拒绝
+  // 覆盖（需求缺口⑤，防 30s+ 期间用户新写的内容被静默替换——正文没有撤销入口，覆盖即丢失）。
+  const inlineFullTextRef = useRef<{ chapterId: string | null; text: string } | null>(null);
   const streamPreviewRef = useRef<HTMLDivElement | null>(null);
 
   // 防跨章污染：inlineSelectionRef 存的是「生成当时」编辑器文档的 doc 位置（from/to）。
@@ -177,6 +181,7 @@ export function useAiActions(
       inlineChapterIdRef.current = nextId;
       setInlineResult(null);
       inlineSelectionRef.current = null;
+      inlineFullTextRef.current = null;
     }
   }, [activeChapter?.id]);
 
@@ -427,6 +432,9 @@ export function useAiActions(
       inlineSelectionRef.current = selectionRange
         ? { ...selectionRange, text: inlineCtx.selectionText ?? '' }
         : null;
+      inlineFullTextRef.current = selectionRange
+        ? null
+        : { chapterId: activeChapter?.id ?? null, text: inlineCtx.chapterText ?? '' };
       setInlineResult({
         kind: inlineKind,
         text: res.text,
@@ -440,7 +448,7 @@ export function useAiActions(
     } finally {
       setInlineRunning(false);
     }
-  }, [buildInlineContext, inlineAgentId, inlineKind]);
+  }, [buildInlineContext, inlineAgentId, inlineKind, activeChapter?.id]);
 
   const handleApplyInlineResult = useCallback(() => {
     if (!inlineResult || !editor) return;
@@ -475,10 +483,21 @@ export function useAiActions(
       }
       inlineSelectionRef.current = null;
     } else {
+      // 无选区：整章改写。覆盖前用发起时的章文本快照校验——期间正文被改过（用户按警示
+      // 继续写了字）就拒绝覆盖，保留结果让用户复制/重新发起（需求缺口⑤，绝不静默吞内容）。
+      const decision = decideFullTextApply(inlineFullTextRef.current, {
+        chapterId: activeChapter?.id ?? null,
+        text: editor.getText(),
+      });
+      if (decision === 'reject-changed') {
+        useToastStore.getState().error(t('writing.inlineFullTextStale'));
+        return;
+      }
       editor.commands.setContent(html);
     }
+    inlineFullTextRef.current = null;
     setInlineResult(null);
-  }, [inlineResult, editor]);
+  }, [inlineResult, editor, activeChapter?.id]);
 
   const openSettingAi = useCallback(
     (ctx: SettingCompletionContext) => {

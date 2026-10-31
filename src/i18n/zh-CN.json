@@ -7720,6 +7720,7 @@
     "storylineOpenPane": "打开剧情线面板",
     "inlineRangeStale": "正文已改动，原选区位置失效。请重新框选要处理的文字，或手动复制结果。",
     "inlineRangeMoved": "检测到正文变动，已自动把结果落回原句的新位置。",
+    "inlineFullTextStale": "生成期间正文已被改动，为避免覆盖你新写的内容，本次整章改写未应用。请复制结果手动使用，或重新发起。",
     "inlineWholeChapterHint": "未选中文本：本次将润色/改写整章，应用会替换全部正文。只想改局部请先选中要处理的那段。",
     "chapterBeatsTitle": "叙事节拍",
     "chapterBeatsEmpty": "本章还没有挂节拍。可在大纲页为本章规划节拍，再回到这里查看与导入。",

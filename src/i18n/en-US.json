@@ -7720,6 +7720,7 @@
     "storylineOpenPane": "open storyline pane",
     "inlineRangeStale": "The text changed and the original selection is no longer valid. Please reselect the target, or copy the result manually.",
     "inlineRangeMoved": "Detected text changes; the result was re-anchored to the original sentence's new position.",
+    "inlineFullTextStale": "The chapter changed while the AI was writing. To avoid overwriting your new text, this whole-chapter rewrite was not applied. Copy the result manually, or run it again.",
     "inlineWholeChapterHint": "No selection: this will polish/rewrite the entire chapter and replace all text on apply. To touch only part, select that passage first.",
     "chapterBeatsTitle": "Story Beats",
     "chapterBeatsEmpty": "No beats bound to this chapter yet. Plan beats for it in the Outline tab, then come back to review and import.",

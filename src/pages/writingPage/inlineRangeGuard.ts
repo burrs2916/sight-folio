@@ -50,3 +50,34 @@ export function verifyInlineRange(
   if (!relocated) return { status: 'lost' };
   return { status: 'moved', range: relocated };
 }
+
+// ─── 整章改写落点守卫（需求缺口⑤，第十二轮批②）───────────────────
+//
+// 病灶：无选区时润色/改写的作用范围 = **整章**（第七轮已在发起前对用户明示这一点），
+// 但应用侧只补了「有选区」的锚点校验，无选区路径仍直接 editor.setContent(html)
+// ——那是**整章覆盖**。内联 AI 一跑 30s+，期间用户按警示语继续在写：新写的段落、
+// 改掉的句子全在原文里，而 AI 拿到的是发起那一刻的版本。此刻点「应用」，
+// 用户这 30 秒的心血被静默替换掉，且正文编辑器没有撤销到覆盖前内容的入口
+// （版本快照只在切章/还原时落，覆盖本身不触发）——内容丢失，无从找回。
+//
+// 修法口径与 verifyInlineRange 一致：应用前把「发起时的整章纯文本」与当前文档比对，
+// 不一致即拒绝覆盖并保留结果（用户可自行复制或重新发起）。绝不静默覆盖。
+// 快照缺失（异常路径/旧结果）按拒绝处理更保守？——不，缺失时无法判断，维持原行为
+// 放行（与有选区路径 anchor 缺失时直接插入的既有口径一致），避免把正常流程卡死。
+
+export type FullTextApplyDecision = 'apply' | 'reject-changed';
+
+/**
+ * 判定整章覆盖是否安全。
+ * @param anchor 发起那一刻的整章快照（null = 无快照，放行）
+ * @param current 应用那一刻的实时章与文本
+ */
+export function decideFullTextApply(
+  anchor: { chapterId: string | null; text: string } | null,
+  current: { chapterId: string | null; text: string },
+): FullTextApplyDecision {
+  if (!anchor) return 'apply';
+  // 章已变（跨章守卫通常已先丢弃结果，此处兜底：绝不用 A 章结果覆盖 B 章）
+  if (anchor.chapterId !== current.chapterId) return 'reject-changed';
+  return anchor.text === current.text ? 'apply' : 'reject-changed';
+}
