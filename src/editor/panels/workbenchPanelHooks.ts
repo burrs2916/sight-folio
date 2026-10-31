@@ -1054,6 +1054,20 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       const suppressSelection = slash ? !!slash.def.embedSelection : !!opts?.suppressSelection;
       const convId = await ensureConversation();
       if (!convId) return;
+      // 发送前刷新节奏快照（单一口径收口）：面板已随 updatedAt 重拉最新（批次2），AI 语料也要拿
+      // 同一时刻的日快照，否则「规划本书」面板显示日均 2000、AI 却说日均 800（store.dailyStats
+      // 只在 setActiveBook 时装载、工作室久开后写作者日更会让它变旧）。loadDailyStats 内部已按
+      // activeBookId 守卫 + 自带 catch，这里再兜一层getState 竞态；刷新失败退回旧快照，绝不阻断发消息。
+      if (isBookScene) {
+        const bid = useWritingStore.getState().activeBookId;
+        if (bid) {
+          try {
+            await useWritingStore.getState().loadDailyStats(bid);
+          } catch {
+            /* 刷新失败退回 store 旧快照 */
+          }
+        }
+      }
       // 全书目标与进度语料：创作者设了总字数/章节/截稿里程碑后，让 AI 在统计 /
       // 全书总览（对所有题材注入）里看到「目标 vs 实际」，进度类提问不再瞎答。
       // 口径与面板逐字一致：复用 formatBookGoalCorpus→deriveBookGoalProgress（单一权威），
