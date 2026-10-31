@@ -72,12 +72,17 @@ export function AiSelectionMenu({ editor, scrollRef, onPick }: AiSelectionMenuPr
     editor.on('selectionUpdate', update);
     editor.on('transaction', update);
     editor.on('focus', update);
-    editor.on('blur', () => setPos(null));
+    // blur 必须与其余事件同一命名引用：on/off 各写一个新建箭头函数时，
+    // 两者引用不同 → off 永远注销不掉 on 的注册，effect 每次重跑（StrictMode
+    // 双挂载/editor 重建）都累积一个泄漏监听器（第十三轮批④，回归锁
+    // AiSelectionMenuListenerLeak 对旧形态实测失败、对修复后形态通过）。
+    const onBlur = () => setPos(null);
+    editor.on('blur', onBlur);
     return () => {
       editor.off('selectionUpdate', update);
       editor.off('transaction', update);
       editor.off('focus', update);
-      editor.off('blur', () => setPos(null));
+      editor.off('blur', onBlur);
     };
   }, [editor, computePos]);
 
