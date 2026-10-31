@@ -7802,7 +7802,9 @@
       "paceNeed": "Need ~{need} w/day to catch up",
       "paceFinishIn": "~{n} more days to finish at this pace",
       "paceMissBy": "~{n} words short at the deadline",
-      "paceNoOutput": "No output data yet; appears after you set a goal and log daily writing"
+      "paceNoOutput": "No output data yet; appears after you set a goal and log daily writing",
+      "paceVerdictNotStarted": "Not started yet",
+      "paceStart": "A start pace of ~{need} w/day would make the deadline (or begin smaller to build the habit)"
     },
     "illustration": {
       "title": "Illustration Library",

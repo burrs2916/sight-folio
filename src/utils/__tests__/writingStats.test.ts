@@ -423,6 +423,18 @@ describe('derivePaceProjection 节奏预测', () => {
     expect(p?.overDeadline).toBe(false);
   });
 
+  it('新书还没动笔（0字+窗口无产出）→ notStarted，非 stalled（不甩断更红警）', () => {
+    const p = derivePaceProjection({ targetWords: 100000, targetChapters: 0, deadline: secOf(2026, 12, 31) }, 0, mk([0, 0, 0, 0]), TODAY);
+    expect(p?.verdict).toBe('notStarted');
+    // 仍给规划数字：起步要多少/天
+    expect(p?.requiredPerDay).toBeGreaterThan(0);
+  });
+
+  it('写过但断了（有字数但窗口无新增）→ 仍 stalled（区别于没动笔）', () => {
+    const p = derivePaceProjection({ targetWords: 100000, targetChapters: 0, deadline: secOf(2026, 12, 31) }, 30000, mk([0, 0, 0, 0]), TODAY);
+    expect(p?.verdict).toBe('stalled');
+  });
+
   it('含断更天：avgPerDay 计入断更，activeAvgPerDay 只看产出天', () => {
     const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 0, mk([1000, 0, 1000, 0]), TODAY);
     expect(p?.avgPerDay).toBe(500); // 2000 / 4 天

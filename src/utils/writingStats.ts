@@ -411,7 +411,7 @@ export function formatBookGoalCorpus(
 // 数据源：窗口内每日新增序列（diffDailyStats 已差分出，纯本地、零新表、零 Rust 命令）。
 // 铁律：advisory 软提示，不评判、不强制（创作者主权）；无目标 / 无截稿等边界一律降级不报错。
 
-export type PaceVerdict = 'done' | 'ontrack' | 'behind' | 'stalled' | 'overdue' | 'noDeadline';
+export type PaceVerdict = 'done' | 'ontrack' | 'behind' | 'stalled' | 'overdue' | 'noDeadline' | 'notStarted';
 
 export interface PaceProjection {
   /** 达标结论档（驱动前端文案 / 配色） */
@@ -500,7 +500,16 @@ export function derivePaceProjection(
   const requiredPerDay = Math.ceil(remainingWords / daysToDeadline);
   const projectedByDeadline = safeActual + avgPerDay * daysToDeadline;
   const projectedGap = Math.round(projectedByDeadline - goal.targetWords);
-  const verdict: PaceVerdict = avgPerDay <= 0 ? 'stalled' : avgPerDay >= requiredPerDay ? 'ontrack' : 'behind';
+  // 「从没动笔」(0 字且窗口无产出) ≠ 「写过却断了」：对刚立项的书甩红色「近期无产出」是劝退
+  // （违反创作者主权）。单列 notStarted 中性态：语气不警示，但仍给规划数字（起步要多少/天）。
+  const notStarted = safeActual <= 0 && avgPerDay <= 0;
+  const verdict: PaceVerdict = notStarted
+    ? 'notStarted'
+    : avgPerDay <= 0
+      ? 'stalled'
+      : avgPerDay >= requiredPerDay
+        ? 'ontrack'
+        : 'behind';
   return { ...base, verdict, daysToDeadline, requiredPerDay, projectedGap };
 }
 
@@ -544,6 +553,18 @@ export function formatPaceCorpus(p: PaceProjection): { zh: string; en: string } 
         p.daysToDeadline !== null
           ? `no recent output, about ${p.daysToDeadline} days to deadline, need ≥ ${p.requiredPerDay?.toLocaleString()} w/day to catch up`
           : 'no recent output',
+      );
+      break;
+    case 'notStarted':
+      zh.push(
+        p.daysToDeadline !== null
+          ? `还没动笔，距截稿约 ${p.daysToDeadline} 天；按目标起步约需日更 ${p.requiredPerDay?.toLocaleString()} 字（或把日更目标定小些先养成习惯）`
+          : '还没动笔',
+      );
+      en.push(
+        p.daysToDeadline !== null
+          ? `not started yet; about ${p.daysToDeadline} days to deadline — a start pace near ${p.requiredPerDay?.toLocaleString()} w/day would land it (or begin smaller to build the habit)`
+          : 'not started yet',
       );
       break;
     case 'ontrack':

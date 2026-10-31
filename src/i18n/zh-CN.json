@@ -7802,7 +7802,9 @@
       "paceNeed": "要赶上截稿需约 {need} 字/天",
       "paceFinishIn": "按当前速度预计还需 {n} 天完成",
       "paceMissBy": "到截稿时预计差 {n} 字",
-      "paceNoOutput": "暂无产出数据，设目标并持续记录日更后展示"
+      "paceNoOutput": "暂无产出数据，设目标并持续记录日更后展示",
+      "paceVerdictNotStarted": "还没动笔",
+      "paceStart": "起步约需日更 {need} 字即可赶上截稿（也可先定小目标养成习惯）"
     },
     "illustration": {
       "title": "插画素材库",

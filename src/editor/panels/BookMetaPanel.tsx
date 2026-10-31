@@ -548,6 +548,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
                   stalled: "studio.bookMeta.paceVerdictStalled",
                   overdue: "studio.bookMeta.paceVerdictOverdue",
                   noDeadline: "studio.bookMeta.paceVerdictNoDeadline",
+                  notStarted: "studio.bookMeta.paceVerdictNotStarted",
                 }[pace.verdict];
                 return (
                   <Typography
@@ -570,6 +571,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
               <Typography sx={{ fontSize: 10.5, color: "text.disabled" }}>{t("studio.bookMeta.paceNoOutput")}</Typography>
             ) : (
               <>
+                {pace.verdict !== "notStarted" && (
                 <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
                   {t("studio.bookMeta.paceAvg", {
                     n: pace.windowDays,
@@ -577,6 +579,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
                     d: pace.producedDays,
                   })}
                 </Typography>
+                )}
                 {pace.verdict === "behind" && pace.requiredPerDay !== null && (
                   <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: "warning.main" }}>
                     {t("studio.bookMeta.paceNeed", { need: pace.requiredPerDay.toLocaleString() })}
@@ -588,6 +591,12 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
                 {pace.verdict === "stalled" && pace.requiredPerDay !== null && (
                   <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: "error.main" }}>
                     {t("studio.bookMeta.paceNeed", { need: pace.requiredPerDay.toLocaleString() })}
+                  </Typography>
+                )}
+                {/* 还没动笔：中性语气给起步参考，不甩红色断更警告（创作者主权：新书≠失职）。 */}
+                {pace.verdict === "notStarted" && pace.requiredPerDay !== null && (
+                  <Typography sx={{ fontSize: 10.5, color: "primary.main" }}>
+                    {t("studio.bookMeta.paceStart", { need: pace.requiredPerDay.toLocaleString() })}
                   </Typography>
                 )}
                 {pace.verdict === "overdue" && (
