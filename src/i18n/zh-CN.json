@@ -7775,7 +7775,8 @@
       "saved": "体裁与载体已更新",
       "bookGoal": "全书目标 · 进度",
       "goalProgress": "达成进度",
-      "currentTally": "当前 {chapters} 章 · {words} 字"
+      "currentTally": "当前 {chapters} 章 · {words} 字",
+      "dailyToday": "今日已写 {today} / 目标 {goal} 字"
     },
     "illustration": {
       "title": "插画素材库",

@@ -7775,7 +7775,8 @@
       "saved": "Genre & medium updated",
       "bookGoal": "Book Goal · Progress",
       "goalProgress": "Progress",
-      "currentTally": "{chapters} chapters · {words} words so far"
+      "currentTally": "{chapters} chapters · {words} words so far",
+      "dailyToday": "{today} / {goal} words today"
     },
     "illustration": {
       "title": "Illustration Library",

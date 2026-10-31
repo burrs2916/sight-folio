@@ -48,6 +48,9 @@ import {
   deriveBookGoalProgress,
   resolveBookGoalInput,
   deadlineToInput,
+  diffDailyStats,
+  goalProgress,
+  WINDOW_DAYS,
 } from "../../utils/writingStats";
 
 /** 素材库分类约定：插画走 writing/illustrations，封面走 writing/covers-{bookId}（一书一目录） */
@@ -119,7 +122,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
   const [draftWords, setDraftWords] = useState("");
   const [draftChapters, setDraftChapters] = useState("");
   const [draftDeadline, setDraftDeadline] = useState("");
-  const [actual, setActual] = useState<{ words: number; chapters: number } | null>(null);
+  const [actual, setActual] = useState<{ words: number; chapters: number; today: number } | null>(null);
   useEffect(() => {
     if (!book) return;
     setDraftTitle(book.title ?? "");
@@ -151,17 +154,20 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
       try {
         const [chs, stats] = await Promise.all([
           writingApi.listChapters(bookId),
-          writingStatsApi.listDailyStats(bookId, 2).catch(() => [] as WritingDailyStat[]),
+          writingStatsApi.listDailyStats(bookId, WINDOW_DAYS + 1).catch(() => [] as WritingDailyStat[]),
         ]);
         if (cancelled) return;
         const live = chs.filter((c: WritingChapter) => !isChapterDeleted(c));
         const chapterSum = live.reduce((sum: number, c) => sum + (c.wordCount || 0), 0);
         const latest = stats.length > 0 ? stats[stats.length - 1] : null;
         const words = latest && latest.wordCount > 0 ? latest.wordCount : chapterSum;
-        setActual({ words, chapters: live.length });
+        // 今日新增：快照明细差分出每日增量，末位即今天（与写作台 WritingStatsDialog 同一口径）
+        const deltas = diffDailyStats(stats, new Date());
+        const today = deltas.length > 0 ? deltas[deltas.length - 1].delta : 0;
+        setActual({ words, chapters: live.length, today });
       } catch (e) {
         logger.warn("BookMetaPanel", "load book actuals failed", { error: String(e) });
-        if (!cancelled) setActual({ words: 0, chapters: 0 });
+        if (!cancelled) setActual({ words: 0, chapters: 0, today: 0 });
       }
     })();
     return () => {
@@ -169,9 +175,9 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
     };
   }, [bookId]);
 
-  // bookGoal 引用仅在 extra 变化时更新（避免每帧新对象击穿 goalProgress 的 memo）
+  // bookGoal 引用仅在 extra 变化时更新（避免每帧新对象击穿 bookGoalProgress 的 memo）
   const bookGoal = useMemo(() => parseBookGoal(book?.extra), [book?.extra]);
-  const goalProgress = useMemo(
+  const bookGoalProgress = useMemo(
     () => deriveBookGoalProgress(bookGoal, actual?.words ?? 0, actual?.chapters ?? 0, new Date()),
     [bookGoal, actual]
   );
@@ -390,6 +396,24 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
         slotProps={{ htmlInput: { min: 0, max: 1000000, step: 100 } }}
         sx={{ width: 140, "& .MuiInputBase-input": { fontSize: 12.5 } }}
       />
+      {/* 日更今日进度：goalProgress(actual.today, book.dailyGoal)（与写作台同口径：快照差分末位=今日新增） */}
+      {(() => {
+        const g = goalProgress(actual?.today ?? 0, book.dailyGoal ?? 0);
+        if (!g) return null;
+        return (
+          <Box sx={{ mt: 0.5, width: 200, maxWidth: "100%" }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.25 }}>
+              <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                {t("studio.bookMeta.dailyToday", { today: (actual?.today ?? 0).toLocaleString(), goal: (book.dailyGoal ?? 0).toLocaleString() })}
+              </Typography>
+              <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: g.hit ? "success.main" : "text.secondary" }}>
+                {g.pct}%{g.hit ? ` · ${t("writing.goalReached")}` : ""}
+              </Typography>
+            </Box>
+            <LinearProgress variant="determinate" value={g.pct} color={g.hit ? "success" : "primary"} sx={{ height: 5, borderRadius: 3 }} />
+          </Box>
+        );
+      })()}
 
       {/* 全书目标（T2）：目标总字数 / 章节数 / 截止日期 + 达成率进度 + 剩余天数。
           setter（setBookGoal）与派生算法（deriveBookGoalProgress）均与写作台统计弹窗同一权威，
@@ -398,17 +422,17 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
       <Box sx={{ p: 1, border: 1, borderColor: "divider", borderRadius: 1.5 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
           <Typography sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary" }}>{t("studio.bookMeta.goalProgress")}</Typography>
-          {goalProgress.daysLeft !== null && (
+          {bookGoalProgress.daysLeft !== null && (
             <Typography
               sx={{
                 fontSize: 10.5,
                 fontWeight: 600,
-                color: goalProgress.daysLeft < 0 ? "error.main" : goalProgress.daysLeft <= 7 ? "warning.main" : "success.main",
+                color: bookGoalProgress.daysLeft < 0 ? "error.main" : bookGoalProgress.daysLeft <= 7 ? "warning.main" : "success.main",
               }}
             >
-              {goalProgress.daysLeft < 0
-                ? t("writing.goalDeadlineOver", { n: Math.abs(goalProgress.daysLeft) })
-                : t("writing.goalDaysLeft", { n: goalProgress.daysLeft })}
+              {bookGoalProgress.daysLeft < 0
+                ? t("writing.goalDeadlineOver", { n: Math.abs(bookGoalProgress.daysLeft) })
+                : t("writing.goalDaysLeft", { n: bookGoalProgress.daysLeft })}
             </Typography>
           )}
         </Box>
@@ -429,20 +453,20 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
             slotProps={{ htmlInput: { min: 0, step: 1000 }, input: { endAdornment: <Typography sx={{ fontSize: 10, color: "text.disabled", ml: 0.5 }}>{t("writing.goalWordUnit")}</Typography> } }}
             sx={{ "& .MuiInputBase-input": { fontSize: 12.5 } }}
           />
-          {goalProgress.word ? (
+          {bookGoalProgress.word ? (
             <Box sx={{ mt: 0.5 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.25 }}>
                 <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
                   {t("writing.bookWordProgress", {
                     words: (actual?.words ?? 0).toLocaleString(),
-                    target: goalProgress.word.target.toLocaleString(),
+                    target: bookGoalProgress.word.target.toLocaleString(),
                   })}
                 </Typography>
-                <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: goalProgress.word.hit ? "success.main" : "text.secondary" }}>
-                  {goalProgress.word.pct}%{goalProgress.word.hit ? ` · ${t("writing.goalReached")}` : ""}
+                <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: bookGoalProgress.word.hit ? "success.main" : "text.secondary" }}>
+                  {bookGoalProgress.word.pct}%{bookGoalProgress.word.hit ? ` · ${t("writing.goalReached")}` : ""}
                 </Typography>
               </Box>
-              <LinearProgress variant="determinate" value={goalProgress.word.pct} color={goalProgress.word.hit ? "success" : "primary"} sx={{ height: 5, borderRadius: 3 }} />
+              <LinearProgress variant="determinate" value={bookGoalProgress.word.pct} color={bookGoalProgress.word.hit ? "success" : "primary"} sx={{ height: 5, borderRadius: 3 }} />
             </Box>
           ) : (
             <Typography sx={{ fontSize: 10.5, color: "text.disabled", mt: 0.5 }}>{t("writing.bookGoalUnset")}</Typography>
@@ -465,17 +489,17 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
             slotProps={{ htmlInput: { min: 0, step: 1 } }}
             sx={{ "& .MuiInputBase-input": { fontSize: 12.5 } }}
           />
-          {goalProgress.chapter ? (
+          {bookGoalProgress.chapter ? (
             <Box sx={{ mt: 0.5 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.25 }}>
                 <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
-                  {t("writing.bookChapterProgress", { chapters: actual?.chapters ?? 0, target: goalProgress.chapter.target })}
+                  {t("writing.bookChapterProgress", { chapters: actual?.chapters ?? 0, target: bookGoalProgress.chapter.target })}
                 </Typography>
-                <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: goalProgress.chapter.hit ? "success.main" : "text.secondary" }}>
-                  {goalProgress.chapter.pct}%{goalProgress.chapter.hit ? ` · ${t("writing.goalReached")}` : ""}
+                <Typography sx={{ fontSize: 10.5, fontWeight: 600, color: bookGoalProgress.chapter.hit ? "success.main" : "text.secondary" }}>
+                  {bookGoalProgress.chapter.pct}%{bookGoalProgress.chapter.hit ? ` · ${t("writing.goalReached")}` : ""}
                 </Typography>
               </Box>
-              <LinearProgress variant="determinate" value={goalProgress.chapter.pct} color={goalProgress.chapter.hit ? "success" : "primary"} sx={{ height: 5, borderRadius: 3 }} />
+              <LinearProgress variant="determinate" value={bookGoalProgress.chapter.pct} color={bookGoalProgress.chapter.hit ? "success" : "primary"} sx={{ height: 5, borderRadius: 3 }} />
             </Box>
           ) : (
             <Typography sx={{ fontSize: 10.5, color: "text.disabled", mt: 0.5 }}>{t("writing.bookChapterUnset")}</Typography>

@@ -272,3 +272,34 @@ describe("书属性卡 · 全书目标 + 达成进度（回归锁）", () => {
     expect(h.writing.setBookGoal).not.toHaveBeenCalled();
   });
 });
+
+// ─── 日更目标今日进度（收口「规划本书」三项目标体验一致）───
+describe("书属性卡 · 日更今日进度（回归锁）", () => {
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  it("设了日更目标且今日有新增：进度条按快照差分末位渲染（与写作台同口径）", async () => {
+    h.writing.books[0].dailyGoal = 1000;
+    const now = new Date();
+    const y = new Date(now);
+    y.setDate(y.getDate() - 1);
+    h.writingApi.listChapters.mockResolvedValue([{ id: "c1", bookId: "b1", wordCount: 20600 }]);
+    // 昨 20000 → 今 20600，差分末位 = 今日新增 600
+    h.writingStatsApi.listDailyStats.mockResolvedValue([
+      { day: fmt(y), wordCount: 20000 },
+      { day: fmt(now), wordCount: 20600 },
+    ]);
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    expect(document.body.textContent).toContain("今日已写 600 / 目标 1,000 字");
+    expect(document.body.textContent).toContain("60%");
+  });
+
+  it("未设日更目标：不渲染今日进度条", async () => {
+    h.writing.books[0].dailyGoal = 0;
+    h.writingApi.listChapters.mockResolvedValue([{ id: "c1", bookId: "b1", wordCount: 500 }]);
+    h.writingStatsApi.listDailyStats.mockResolvedValue([]);
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    expect(document.body.textContent).not.toContain("今日已写");
+  });
+});
