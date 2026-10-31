@@ -7772,7 +7772,10 @@
       "description": "Description",
       "dailyGoal": "Daily goal (words/day, 0 = none)",
       "edit": "Edit genre & medium",
-      "saved": "Genre & medium updated"
+      "saved": "Genre & medium updated",
+      "bookGoal": "Book Goal · Progress",
+      "goalProgress": "Progress",
+      "currentTally": "{chapters} chapters · {words} words so far"
     },
     "illustration": {
       "title": "Illustration Library",

@@ -7772,7 +7772,10 @@
       "description": "简介",
       "dailyGoal": "日更目标（字/天，0 = 未设）",
       "edit": "编辑体裁与载体",
-      "saved": "体裁与载体已更新"
+      "saved": "体裁与载体已更新",
+      "bookGoal": "全书目标 · 进度",
+      "goalProgress": "达成进度",
+      "currentTally": "当前 {chapters} 章 · {words} 字"
     },
     "illustration": {
       "title": "插画素材库",

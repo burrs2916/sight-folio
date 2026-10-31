@@ -9,6 +9,7 @@
 //         pages/WritingStatsDialog 下沉至此，Dialog 与统计页签共用一份）。
 // 离群是 advisory 软提示：只标注不强制（创作者主权）。
 import type { WritingChapter, WritingDailyStat, WritingSetting } from '../services/tauri';
+import type { WritingBookGoal } from '../services/writing';
 
 // ─── 卷归属解析（2026-09-28 树感知修复） ───
 //
@@ -246,4 +247,90 @@ export function filterChapterRows(rows: WritingChapterWordRow[], filter: StatsCh
 export function sortChapterRows(rows: WritingChapterWordRow[], sort: StatsChapterSort): WritingChapterWordRow[] {
   if (sort === 'default') return rows;
   return [...rows].sort((a, b) => b.words - a.words);
+}
+
+// ─── 全书目标（T2）派生算法（单一权威，禁止在 pane / 右栏 / 各视图各写第二份） ───
+//
+// 口径来源：原 pages/WritingStatsDialog 内联的 deadlineToInput / inputToDeadline /
+// wordGoalPct / chapterGoalPct / daysLeft / commitBookGoal 六处派生逻辑下沉至此。
+// 写作台统计弹窗与工作室书属性卡（BookMetaPanel）共用同一份算法，杜绝跨视图数字漂移
+// （达成率取整、剩余天数边界、日期↔Unix 秒换算只此一处）。全部纯函数，可单测锁边界。
+
+/** 截止日期（Unix 秒）→ 本地日期输入串（YYYY-MM-DD）；未设（≤0）返回空串。 */
+export function deadlineToInput(sec: number): string {
+  if (!(sec > 0)) return '';
+  const d = new Date(sec * 1000);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/** 本地日期输入串（YYYY-MM-DD）→ 截止 Unix 秒（本地当日零点）；空/坏串 → 0。 */
+export function inputToDeadline(v: string): number {
+  const s = v.trim();
+  if (!s) return 0;
+  const [y, m, d] = s.split('-').map((x) => parseInt(x, 10));
+  if (!y || !m || !d) return 0;
+  const t = new Date(y, m - 1, d).getTime();
+  return Number.isFinite(t) ? Math.floor(t / 1000) : 0;
+}
+
+/** 三字段编辑缓冲 → 完整 WritingBookGoal（未填/非法字段归 0，与写作台同口径）。 */
+export function resolveBookGoalInput(wordsStr: string, chaptersStr: string, deadlineStr: string): WritingBookGoal {
+  const w = parseInt(wordsStr, 10);
+  const c = parseInt(chaptersStr, 10);
+  return {
+    targetWords: Number.isFinite(w) && w > 0 ? w : 0,
+    targetChapters: Number.isFinite(c) && c > 0 ? c : 0,
+    deadline: inputToDeadline(deadlineStr),
+  };
+}
+
+export interface GoalBar {
+  pct: number;
+  hit: boolean;
+  target: number;
+  actual: number;
+}
+
+export interface BookGoalProgress {
+  /** 总字数达成（targetWords≤0 → null 不展示进度条） */
+  word: GoalBar | null;
+  /** 章节数达成（targetChapters≤0 → null） */
+  chapter: GoalBar | null;
+  /** 距截止剩余天数：截止日当天=0，过期=负，未设=null */
+  daysLeft: number | null;
+}
+
+/** 从目标 + 实际体量派生达成率 / 达标标记 / 剩余天数（pct 截断 [0,100]，四舍五入）。 */
+export function deriveBookGoalProgress(
+  goal: WritingBookGoal,
+  actualWords: number,
+  chapterCount: number,
+  today: Date,
+): BookGoalProgress {
+  const word: GoalBar | null =
+    goal.targetWords > 0
+      ? {
+          pct: Math.min(100, Math.round((Math.max(0, actualWords) / goal.targetWords) * 100)),
+          hit: actualWords >= goal.targetWords,
+          target: goal.targetWords,
+          actual: Math.max(0, actualWords),
+        }
+      : null;
+  const chapter: GoalBar | null =
+    goal.targetChapters > 0
+      ? {
+          pct: Math.min(100, Math.round((Math.max(0, chapterCount) / goal.targetChapters) * 100)),
+          hit: chapterCount >= goal.targetChapters,
+          target: goal.targetChapters,
+          actual: Math.max(0, chapterCount),
+        }
+      : null;
+  let daysLeft: number | null = null;
+  if (goal.deadline > 0) {
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 1000;
+    daysLeft = Math.floor((goal.deadline - todayStart) / 86400);
+  }
+  return { word, chapter, daysLeft };
 }

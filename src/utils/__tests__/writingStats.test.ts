@@ -14,6 +14,10 @@ import {
   resolveVolumeResolver,
   volumeNameOf,
   contentChapters,
+  deriveBookGoalProgress,
+  inputToDeadline,
+  deadlineToInput,
+  resolveBookGoalInput,
 } from '../writingStats';
 import type { WritingChapter, WritingDailyStat, WritingSetting } from '../../services/tauri';
 
@@ -230,5 +234,59 @@ describe('goalProgress（批次④ T6 底栏进度可视化口径）', () => {
 
   it('达标瞬间：余量为 0、百分比封顶', () => {
     expect(goalProgress(1000, 1000)).toEqual({ pct: 100, remain: 0, hit: true });
+  });
+});
+
+describe('全书目标派生（工作室/写作台共用单一权威）', () => {
+  const TODAY = new Date(2026, 9, 31); // 本地 2026-10-31
+  const secOf = (y: number, mo: number, d: number) => Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+
+  it('未设任何目标：word/chapter 均 null、daysLeft null（不画进度条）', () => {
+    const p = deriveBookGoalProgress({ targetWords: 0, targetChapters: 0, deadline: 0 }, 5000, 10, TODAY);
+    expect(p).toEqual({ word: null, chapter: null, daysLeft: null });
+  });
+
+  it('总字数达成率四舍五入、封顶 100、达标 hit', () => {
+    const p = deriveBookGoalProgress({ targetWords: 10000, targetChapters: 0, deadline: 0 }, 3333, 0, TODAY);
+    expect(p.word).toEqual({ pct: 33, hit: false, target: 10000, actual: 3333 });
+    const hit = deriveBookGoalProgress({ targetWords: 10000, targetChapters: 0, deadline: 0 }, 25000, 0, TODAY);
+    expect(hit.word).toMatchObject({ pct: 100, hit: true });
+  });
+
+  it('负数实际量按 0 截断（脏数据不致负进度）', () => {
+    const p = deriveBookGoalProgress({ targetWords: 100, targetChapters: 5, deadline: 0 }, -50, -2, TODAY);
+    expect(p.word).toMatchObject({ pct: 0, actual: 0, hit: false });
+    expect(p.chapter).toMatchObject({ pct: 0, actual: 0 });
+  });
+
+  it('章节数达成率独立于字数目标（只设其一时另一项 null）', () => {
+    const p = deriveBookGoalProgress({ targetWords: 0, targetChapters: 8, deadline: 0 }, 0, 6, TODAY);
+    expect(p.word).toBeNull();
+    expect(p.chapter).toMatchObject({ pct: 75, hit: false });
+  });
+
+  it('剩余天数：截止日当天=0，未来=正，过期=负', () => {
+    expect(deriveBookGoalProgress({ targetWords: 0, targetChapters: 0, deadline: secOf(2026, 10, 31) }, 0, 0, TODAY).daysLeft).toBe(0);
+    expect(deriveBookGoalProgress({ targetWords: 0, targetChapters: 0, deadline: secOf(2026, 11, 10) }, 0, 0, TODAY).daysLeft).toBe(10);
+    expect(deriveBookGoalProgress({ targetWords: 0, targetChapters: 0, deadline: secOf(2026, 10, 25) }, 0, 0, TODAY).daysLeft).toBe(-6);
+  });
+
+  it('inputToDeadline ↔ deadlineToInput 往返一致（本地零点口径）', () => {
+    expect(deadlineToInput(0)).toBe('');
+    expect(deadlineToInput(secOf(2026, 11, 10))).toBe('2026-11-10');
+    expect(inputToDeadline('2026-11-10')).toBe(secOf(2026, 11, 10));
+    expect(inputToDeadline('')).toBe(0);
+    expect(inputToDeadline('bad-date')).toBe(0);
+    expect(inputToDeadline('2026-13-40')).not.toBe(0); // 仍解析（跨月溢出为合法时间戳），不归 0
+  });
+
+  it('resolveBookGoalInput：非法/空字段归 0，与写作台提交同口径', () => {
+    expect(resolveBookGoalInput('120000', '24', '2026-12-31')).toEqual({
+      targetWords: 120000,
+      targetChapters: 24,
+      deadline: secOf(2026, 12, 31),
+    });
+    expect(resolveBookGoalInput('', 'abc', '')).toEqual({ targetWords: 0, targetChapters: 0, deadline: 0 });
+    expect(resolveBookGoalInput('-5', '0', '')).toEqual({ targetWords: 0, targetChapters: 0, deadline: 0 });
   });
 });

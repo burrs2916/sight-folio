@@ -10,7 +10,13 @@ import Chip from '@mui/material/Chip';
 import LinearProgress from '@mui/material/LinearProgress';
 import TextField from '@mui/material/TextField';
 import { writingStatsApi, type WritingDailyStat } from '../services/tauri';
-import { diffDailyStats, WINDOW_DAYS } from '../utils/writingStats';
+import {
+  diffDailyStats,
+  WINDOW_DAYS,
+  deadlineToInput,
+  resolveBookGoalInput,
+  deriveBookGoalProgress,
+} from '../utils/writingStats';
 import type { WritingBookGoal } from '../services/writing';
 import { t } from '../i18n';
 import { logger } from '../utils/logger';
@@ -47,24 +53,6 @@ interface WritingStatsDialogProps {
 }
 
 /** Unix 秒 → 本地日期 input value（YYYY-MM-DD）；0 → 空串 */
-function deadlineToInput(sec: number): string {
-  if (!(sec > 0)) return '';
-  const d = new Date(sec * 1000);
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-
-/** 本地日期（YYYY-MM-DD）→ Unix 秒（本地当日零点）；空串 → 0 */
-function inputToDeadline(v: string): number {
-  const s = v.trim();
-  if (!s) return 0;
-  const [y, m, d] = s.split('-').map((x) => parseInt(x, 10));
-  if (!y || !m || !d) return 0;
-  const t = new Date(y, m - 1, d).getTime();
-  return Number.isFinite(t) ? Math.floor(t / 1000) : 0;
-}
-
 export default function WritingStatsDialog({
   open,
   onClose,
@@ -134,30 +122,18 @@ export default function WritingStatsDialog({
     onGoalChange(Number.isFinite(n) && n > 0 ? n : 0);
   };
 
-  // ─── 全书目标（T2）：达成率本地派生，未设字段不显示进度 ───
-  const wordGoalPct =
-    bookGoal.targetWords > 0 ? Math.min(100, Math.round((totalWords / bookGoal.targetWords) * 100)) : 0;
-  const chapterGoalPct =
-    bookGoal.targetChapters > 0 ? Math.min(100, Math.round((chapterCount / bookGoal.targetChapters) * 100)) : 0;
-  /** 剩余天数（截止日当天算剩余 0；过期返回负值；未设截止 null） */
-  const daysLeft = useMemo(() => {
-    if (!(bookGoal.deadline > 0)) return null;
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
-    return Math.floor((bookGoal.deadline - todayStart) / 86400);
-  }, [bookGoal.deadline]);
-  const wordGoalHit = bookGoal.targetWords > 0 && totalWords >= bookGoal.targetWords;
-  const chapterGoalHit = bookGoal.targetChapters > 0 && chapterCount >= bookGoal.targetChapters;
+  // ─── 全书目标（T2）：达成率/剩余天派生收口 utils/writingStats（与工作室属性卡同一权威，禁第二份） ───
+  const goalProgress = useMemo(
+    () => deriveBookGoalProgress(bookGoal, totalWords, chapterCount, new Date()),
+    [bookGoal, totalWords, chapterCount]
+  );
+  const wordGoalPct = goalProgress.word?.pct ?? 0;
+  const chapterGoalPct = goalProgress.chapter?.pct ?? 0;
+  const daysLeft = goalProgress.daysLeft;
+  const wordGoalHit = goalProgress.word?.hit ?? false;
+  const chapterGoalHit = goalProgress.chapter?.hit ?? false;
 
-  const commitBookGoal = () => {
-    const w = parseInt(goalWordsInput, 10);
-    const c = parseInt(goalChaptersInput, 10);
-    onBookGoalChange({
-      targetWords: Number.isFinite(w) && w > 0 ? w : 0,
-      targetChapters: Number.isFinite(c) && c > 0 ? c : 0,
-      deadline: inputToDeadline(goalDeadlineInput),
-    });
-  };
+  const commitBookGoal = () => onBookGoalChange(resolveBookGoalInput(goalWordsInput, goalChaptersInput, goalDeadlineInput));
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>

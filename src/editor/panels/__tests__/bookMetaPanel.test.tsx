@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
     renameBook: vi.fn(async () => {}),
     setBookMeta: vi.fn(async () => {}),
     setDailyGoal: vi.fn(async () => {}),
+    setBookGoal: vi.fn(async () => {}),
   },
   toast: { showToast: vi.fn() },
   assetApi: {
@@ -25,6 +26,8 @@ const h = vi.hoisted(() => ({
     remove: vi.fn(async () => true),
     thumbnail: vi.fn(async () => "data:image/png;base64,thumb"),
   },
+  writingApi: { listChapters: vi.fn(async () => [] as any[]) },
+  writingStatsApi: { listDailyStats: vi.fn(async () => [] as any[]) },
 }));
 
 vi.mock("../../../store/writingStore", () => ({
@@ -37,9 +40,11 @@ vi.mock("../../../store/toastStore", () => ({
     getState: () => h.toast,
   }),
 }));
-vi.mock("../../../services/tauri", () => ({
-  assetApi: h.assetApi,
-}));
+vi.mock("../../../services/tauri", async (importOriginal) => {
+  // 保留真实 parseBookGoal / isChapterDeleted（纯函数），仅替换数据 IO 三件套
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, assetApi: h.assetApi, writingApi: h.writingApi, writingStatsApi: h.writingStatsApi };
+});
 
 import { BookMetaPanel } from "../BookMetaPanel";
 
@@ -145,5 +150,125 @@ describe("书属性卡 · 封面管理（回归锁）", () => {
     // 一书一封面：新图落盘后旧图被清
     expect(h.assetApi.remove).toHaveBeenCalledWith("/assets/writing/covers-b1/1-old.png");
     expect(h.toast.showToast).toHaveBeenCalledWith("封面已更新", "success");
+  });
+});
+
+// ─── 全书目标 + 达成进度（第十五轮 · 工作室补齐，服务创作者规划本书）───
+function setInputValue(el: HTMLInputElement | HTMLTextAreaElement, val: string) {
+  const proto = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, "value")!.set!;
+  act(() => {
+    setter.call(el, val);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function fieldByLabel(label: string): HTMLInputElement | null {
+  const inputs = Array.from(document.querySelectorAll("input")) as HTMLInputElement[];
+  return (
+    inputs.find((i) => {
+      const wrap = i.closest("div");
+      const lbl = wrap?.parentElement?.querySelector("label")?.textContent ?? "";
+      return lbl.includes(label);
+    }) ?? null
+  );
+}
+
+describe("书属性卡 · 全书目标 + 达成进度（回归锁）", () => {
+  it("未设全书目标：三个编辑入口在位 + 未设提示，不画进度条", async () => {
+    h.writing.books[0].extra = "";
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    expect(document.body.textContent).toContain("全书目标");
+    expect(fieldByLabel("总字数")).toBeTruthy();
+    expect(fieldByLabel("章节数")).toBeTruthy();
+    expect(document.body.querySelector('input[type="date"]')).toBeTruthy();
+    // 未设目标 → 展示未设提示（非进度条）
+    expect(document.body.textContent).toContain("还未设定总字数目标");
+    expect(document.querySelector('[role="progressbar"]')).toBeNull();
+  });
+
+  it("设目标 + 有体量：达成率进度条按本卡 bookId 章节实派生（跨书不错位）", async () => {
+    h.writing.books[0].extra = JSON.stringify({ targetWords: 10000, targetChapters: 10, deadline: 0 });
+    // 本卡 bookId 直查：5 活跃章 + 1 软删章（应被过滤，不计入分母/章数）
+    h.writingApi.listChapters.mockResolvedValue([
+      { id: "c1", bookId: "b1", wordCount: 1000 },
+      { id: "c2", bookId: "b1", wordCount: 1200 },
+      { id: "c3", bookId: "b1", wordCount: 800 },
+      { id: "c4", bookId: "b1", wordCount: 1000 },
+      { id: "c5", bookId: "b1", wordCount: 1000 },
+      { id: "c6", bookId: "b1", wordCount: 99999, extra: JSON.stringify({ deletedAt: 1700000000 }) },
+    ]);
+    h.writingStatsApi.listDailyStats.mockResolvedValue([]); // 无快照 → 退回章实时和（5000）
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    const bars = document.querySelectorAll('[role="progressbar"]');
+    expect(bars.length).toBe(2); // 字数 + 章节两条
+    // 软删章不计入：当前小结应显示 5 章、5000 字（非 6 章 / 104999 字）
+    expect(document.body.textContent).toContain("当前 5 章 · 5,000 字");
+    // 5000/10000=50%、5/10=50%
+    expect(document.body.textContent).toContain("50%");
+  });
+
+  it("日快照优先于章实时和（贴近落库口径）", async () => {
+    h.writing.books[0].extra = JSON.stringify({ targetWords: 10000, targetChapters: 0, deadline: 0 });
+    h.writingApi.listChapters.mockResolvedValue([{ id: "c1", bookId: "b1", wordCount: 100 }]);
+    h.writingStatsApi.listDailyStats.mockResolvedValue([
+      { day: "2026-10-30", wordCount: 6400 },
+      { day: "2026-10-31", wordCount: 8000 },
+    ]);
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    // 用最近快照 8000 而非章和 100 → 80%
+    expect(document.body.textContent).toContain("80%");
+    expect(document.body.textContent).toContain("当前 1 章 · 8,000 字");
+  });
+
+  it("提交总字数：仅改该字段，其余沿用当前目标（无覆盖清零）", async () => {
+    const DEADLINE = Math.floor(new Date(2026, 11, 31).getTime() / 1000); // 本地零点，往返一致
+    h.writing.books[0].extra = JSON.stringify({ targetWords: 5000, targetChapters: 12, deadline: DEADLINE });
+    h.writingApi.listChapters.mockResolvedValue([]);
+    h.writingStatsApi.listDailyStats.mockResolvedValue([]);
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    const wordsInput = fieldByLabel("总字数")!;
+    setInputValue(wordsInput, "120000");
+    act(() => {
+      // React onBlur 经 focusout 冒泡实现，blur 事件不会触发
+      wordsInput.dispatchEvent(new Event("focusout", { bubbles: true }));
+    });
+    expect(h.writing.setBookGoal).toHaveBeenCalledWith(
+      "b1",
+      expect.objectContaining({ targetWords: 120000, targetChapters: 12, deadline: DEADLINE })
+    );
+  });
+
+  it("截止日期提交：YYYY-MM-DD → 本地当日零点 Unix 秒（与写作台同一换算）", async () => {
+    h.writing.books[0].extra = "";
+    h.writingApi.listChapters.mockResolvedValue([]);
+    h.writingStatsApi.listDailyStats.mockResolvedValue([]);
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    setInputValue(dateInput, "2026-12-31");
+    act(() => {
+      dateInput.dispatchEvent(new Event("focusout", { bubbles: true }));
+    });
+    const expected = Math.floor(new Date(2026, 11, 31).getTime() / 1000);
+    expect(h.writing.setBookGoal).toHaveBeenCalledWith("b1", expect.objectContaining({ deadline: expected }));
+  });
+
+  it("未改动提交不落库（脏值回退，不触发 setBookGoal）", async () => {
+    h.writing.books[0].extra = JSON.stringify({ targetWords: 5000, targetChapters: 0, deadline: 0 });
+    h.writingApi.listChapters.mockResolvedValue([]);
+    h.writingStatsApi.listDailyStats.mockResolvedValue([]);
+    mount(<BookMetaPanel bookId="b1" />);
+    await flush();
+    const wordsInput = fieldByLabel("总字数")!;
+    setInputValue(wordsInput, "5000"); // 与原值同
+    act(() => {
+      wordsInput.dispatchEvent(new Event("focusout", { bubbles: true }));
+    });
+    expect(h.writing.setBookGoal).not.toHaveBeenCalled();
   });
 });
