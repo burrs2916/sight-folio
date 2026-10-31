@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+// 倒排索引（settingInboundIndex / characterChapterIndex / chapterCharacterIndex）都是 Map<string,
+// Set<string>>，且 updateSetting（挂关系）/_rebuildIndices（批量重建）会在 immer 草稿上调
+// .get/.set/.add —— 这些操作要求 Immer 的 MapSet 插件已注册。zustand 的 immer 中间件不会自动启用
+// MapSet，生产入口此前也没有 enableMapSet，导致「给设定卡挂关系线」或加载带关系/人设挂线的书时
+// 抛「[Immer] plugin MapSet not loaded」直接打断整条写入链（P0）。在 store 模块自身注册：任何消费方
+// import 本 store 即生效，且与 zustand 共享同一 immer 单例，生产/测试口径统一。
+import { enableMapSet } from 'immer';
+enableMapSet();
 import { emit } from '@tauri-apps/api/event';
 import {
   writingApi,
@@ -123,6 +131,30 @@ export interface WritingOutlineChangedPayload {
 }
 
 /**
+ * 跨窗口「设定结构已变更」广播：新建 / 改名 / 改副标题·简介·extra（含关系挂线）/ 删除 设定卡。
+ *
+ * 设定（writing_settings：人设卡 + 世界观卡）是工作室实体卡视图、关系索引
+ * （settingInboundIndex）、审校报告、时间线归属、章节概览「登场/出场」等 45 处消费的共同数据源。
+ * 此前写作台增删改设定完全不广播：在一边新建人设 / 改名 / 删卡（连带解绑时间线事件、清理反向
+ * 引用），工作室的实体卡、关系图、审校结论都停在旧值——作者基于两份不一致的设定账做决策（与大纲
+ * 缺口同类，本轮按功能优先补齐）。
+ *
+ * 与章节结构/大纲同款**低频显式 emit**（只在用户主动的设定 action 末尾调用），不挂订阅器——
+ * settings 在 loadSettings / setActiveBook / deleteBook 都会换引用，订阅器方式会误广播。
+ * setActiveSetting 是纯导航态（仅切当前选中），不改数据，不广播。
+ * 载荷只带"哪本书"，接收方整表重载设定（设定按书缓存、writingSettingsApi.list 幂等）。
+ *
+ * 注：deleteSetting 会就地解绑 timelineEvents 的 settingId（改 timeline 引用），叙事订阅器据此
+ * 广播 timeline 组——这是**正确**的跨类传播（删设定确实改变了事件归属），非回声；本接收器只换
+ * settings 引用，不再触发叙事/章节/大纲回播。
+ */
+export const WRITING_SETTING_CHANGED_EVENT = 'writing-setting-changed';
+
+export interface WritingSettingChangedPayload {
+  bookId: string | null;
+}
+
+/**
  * 写作域 store（Sight Folio）
  *
  * 结构：books（书架）+ chaptersByBook（按书缓存的章节列表）。
@@ -213,6 +245,8 @@ interface WritingState {
   applyExternalChapterStructChange: (payload: WritingChapterStructChangedPayload) => Promise<void>;
   /** 并入另一窗口的大纲结构变更（整表重载，按 activeBookId 守卫幂等，见类型注释） */
   applyExternalOutlineChange: (payload: WritingOutlineChangedPayload) => Promise<void>;
+  /** 并入另一窗口的设定结构变更（整表重载，按 activeBookId 守卫幂等，见类型注释） */
+  applyExternalSettingChange: (payload: WritingSettingChangedPayload) => Promise<void>;
 
   loadSettings: () => Promise<void>;
   createSetting: (kind: WritingSettingKind, name: string) => Promise<WritingSetting | null>;
@@ -996,6 +1030,24 @@ export const useWritingStore = create<WritingState>()(
       }
     },
 
+    /**
+     * 并入另一窗口的设定结构变更：整表重载「当前正在看的那本书」的设定缓存。
+     *
+     * 只在 activeBookId === 变更书时重载（loadSettings 内部也按 activeBookId 守卫，本窗口
+     * 没在看这本书就跳过——下次 setActiveBook 自然拿到全量最新值）。loadSettings 会重建
+     * settingInboundIndex；只换 settings 引用、不碰叙事三表/chapters/outlines，因此不触发
+     * 叙事/章节结构/大纲订阅器回播（天然无回声）。
+     */
+    applyExternalSettingChange: async (payload) => {
+      const { bookId } = payload;
+      if (!bookId || get().activeBookId !== bookId) return;
+      try {
+        await get().loadSettings();
+      } catch (e) {
+        logger.warn('writingStore', 'applyExternalSettingChange reload failed', { bookId, error: e });
+      }
+    },
+
     loadSettings: async () => {
       const bookId = get().activeBookId;
       if (!bookId) return;
@@ -1045,6 +1097,7 @@ export const useWritingStore = create<WritingState>()(
       set((s) => {
         s.settings.push(setting);
       });
+      broadcastSetting(setting.bookId);
       return setting;
     },
 
@@ -1095,6 +1148,7 @@ export const useWritingStore = create<WritingState>()(
         name: updated.name,
         configPatch: { name: updated.name },
       });
+      broadcastSetting(setting.bookId);
     },
 
     deleteSetting: async (settingId: string) => {
@@ -1144,6 +1198,8 @@ export const useWritingStore = create<WritingState>()(
         }
       });
       get()._rebuildIndices();
+      const bookId = get().activeBookId;
+      if (bookId) broadcastSetting(bookId);
     },
 
     setActiveSetting: (settingId: string | null) => {
@@ -1673,6 +1729,20 @@ function broadcastOutline(bookId: string): void {
     });
   } catch (e) {
     logger.warn('writingStore', '大纲变更广播抛异常（本地写入不受影响）', { error: e });
+  }
+}
+
+/**
+ * 设定结构变更后向其它窗口广播（复用叙事/书元/章节结构/大纲广播的防错模式：广播只是副作用，
+ * **绝不允许打断用户操作**）。异步拒绝 + 同步抛出都要挡。
+ */
+function broadcastSetting(bookId: string): void {
+  try {
+    emit(WRITING_SETTING_CHANGED_EVENT, { bookId }).catch((e) => {
+      logger.warn('writingStore', '设定变更广播被拒绝（本地写入不受影响）', { error: e });
+    });
+  } catch (e) {
+    logger.warn('writingStore', '设定变更广播抛异常（本地写入不受影响）', { error: e });
   }
 }
 

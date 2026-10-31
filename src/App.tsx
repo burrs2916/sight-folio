@@ -34,6 +34,8 @@ import {
   WRITING_CHAPTER_STRUCT_CHANGED_EVENT,
   WRITING_OUTLINE_CHANGED_EVENT,
   type WritingOutlineChangedPayload,
+  WRITING_SETTING_CHANGED_EVENT,
+  type WritingSettingChangedPayload,
   type WritingContentSavedPayload,
   type WritingNarrativeChangedPayload,
   type WritingBookMetaChangedPayload,
@@ -159,6 +161,18 @@ function AppLayout() {
     let un: (() => void) | undefined;
     listen<WritingOutlineChangedPayload>(WRITING_OUTLINE_CHANGED_EVENT, (e) => {
       void useWritingStore.getState().applyExternalOutlineChange(e.payload);
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, []);
+
+  // 跨窗口设定结构同步：任一窗口新建 / 改名 / 改副标题·简介·关系挂线 / 删除 设定卡，
+  // 其它正在看这本书的窗口整表重载设定缓存（loadSettings 按 activeBookId 守卫、幂等，并重建
+  // settingInboundIndex）。补齐与章节结构/大纲同级的「设定增删改不广播」缺口——写作台建/改/删
+  // 人设·世界观卡，工作室实体卡视图、关系图、审校结论、章节概览登场/出场计数能立刻跟上。
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen<WritingSettingChangedPayload>(WRITING_SETTING_CHANGED_EVENT, (e) => {
+      void useWritingStore.getState().applyExternalSettingChange(e.payload);
     }).then((u) => (un = u));
     return () => un?.();
   }, []);
