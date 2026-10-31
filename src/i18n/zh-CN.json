@@ -75,6 +75,7 @@
     "reset": "重置主题设置",
     "saved": "已保存 ✓",
     "confirm": "✓ 确认设置",
+    "autoSaveNote": "自动保存：每项设置即时生效，无需手动保存。",
     "customPrimary": "自定义主色",
     "modeLight": "浅色",
     "modeDark": "深色",

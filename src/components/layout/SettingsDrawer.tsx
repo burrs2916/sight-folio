@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import Typography from '@mui/material/Typography';
@@ -87,12 +87,10 @@ export default function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   const activeProfileId = useAppearanceStore((s) => s.activeProfileId);
   const applyProfile = useAppearanceStore((s) => s.applyProfile);
 
-  const [saved, setSaved] = useState(false);
-
-  const handleSave = useCallback(() => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-  }, []);
+  // 所有设置项（颜色模式 / 主题色 / 字号 / 圆角 / 布局 / 外观预设）在每个 action 内
+  // 即时 persist 落盘——不存在「未保存」状态。底部原先那颗「✓ 确认设置」按钮
+  // 只弹一个假「已保存 ✓」chip、并不写任何数据，是死控件：既误导创作者「不点保存不生效」，
+  // 又和「重置」并列加重误解。本批移除它，改为诚实的「自动保存」提示 + 明确「关闭设置」出口。
 
   const handleModeChange = useCallback(
     (_: any, val: ThemeMode | null) => {
@@ -391,23 +389,30 @@ export default function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
         </Box>
       </Box>
 
-      {/* 保存确认栏 */}
+      {/* 底部栏：即时生效说明（自动保存）+ 明确关闭出口（替代原假「确认设置」死控件） */}
       <Box
         sx={{
           p: 1.5,
           borderTop: 1,
           borderColor: 'divider',
           display: 'flex',
-          justifyContent: 'flex-end',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1,
         }}
       >
-        {saved ? (
-          <Chip label={t('settings.saved')} color="success" size="small" variant="outlined" />
-        ) : (
-          <Button variant="contained" size="small" onClick={handleSave} sx={{ textTransform: 'none', fontSize: 12 }}>
-            {t('settings.confirm')}
-          </Button>
-        )}
+        <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+          <CheckCircleIcon sx={{ fontSize: 13, color: 'success.main', verticalAlign: '-2px', mr: 0.5 }} />
+          {t('settings.autoSaveNote')}
+        </Typography>
+        <Button
+          variant="contained"
+          size="small"
+          onClick={onClose}
+          sx={{ textTransform: 'none', fontSize: 12, flexShrink: 0 }}
+        >
+          {t('settings.close')}
+        </Button>
       </Box>
     </Drawer>
   );

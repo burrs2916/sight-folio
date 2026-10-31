@@ -75,6 +75,7 @@
     "reset": "Reset Theme Settings",
     "saved": "Saved ✓",
     "confirm": "✓ Apply Settings",
+    "autoSaveNote": "Auto-saved: each setting applies instantly — no manual save needed.",
     "customPrimary": "Custom primary color",
     "modeLight": "Light",
     "modeDark": "Dark",
