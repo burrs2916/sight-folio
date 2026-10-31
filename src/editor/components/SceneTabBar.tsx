@@ -492,6 +492,17 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
     if (!previewMode || views.length <= 1) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 与下方书场景 L2 切换同一守卫口径（此前 previewMode 分支缺失=同型隐患）：
+      // 修饰键组合让位系统/编辑器快捷键；聚焦 INPUT/TEXTAREA/contentEditable（改名框、
+      // 搜索框、正文编辑态）时不劫持箭头；弹窗/菜单打开时不切。仅在不该被劫持的语境外消费箭头。
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      const tag = t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || t.isContentEditable || Boolean(t.closest?.('[contenteditable]'))) {
+        return;
+      }
+      if (document.querySelector('[role="dialog"], [role="menu"]')) return;
       const currentIdx = views.findIndex((v) => v.id === activeViewId);
       if (e.key === 'ArrowLeft' && currentIdx > 0) {
         e.preventDefault();

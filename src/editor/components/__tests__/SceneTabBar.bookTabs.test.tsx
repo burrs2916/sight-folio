@@ -458,3 +458,66 @@ describe('SceneTabBar · 书场景 L2 键盘切换（Arrow 左右）', () => {
     expect(h.editor.switchView).not.toHaveBeenCalled();
   });
 });
+
+// ─── previewMode 键盘切换守卫一致性（第十六轮）───
+// previewMode 的左右箭头切视图分支此前无输入态/弹窗守卫，与书场景 L2 分支口径不一致
+// （第十四轮 B1 同型：编辑态按箭头被劫持切页）。守卫补齐后锁定：正常切换 + 各守卫不劫持。
+describe('SceneTabBar · previewMode 键盘切换守卫', () => {
+  const mk = (id: string) => ({ id, name: id, carrierType: 'novel', components: [] });
+  beforeEach(() => {
+    h.editor.previewMode = true;
+    h.editor.views = [mk('v1'), mk('v2'), mk('v3')];
+    h.editor.activeViewId = 'v2';
+  });
+  afterEach(() => {
+    h.editor.previewMode = false;
+  });
+
+  async function press(key: string, target: Element | Window = window, init?: KeyboardEventInit) {
+    await act(async () => {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...init }));
+    });
+  }
+
+  it('预览模式正常态：ArrowRight 切到下一个视图（守卫未堵死主功能）', async () => {
+    mount(<SceneTabBar />);
+    await press('ArrowRight');
+    expect(h.editor.switchView).toHaveBeenCalledWith('v3');
+  });
+
+  it('改名/搜索输入框聚焦时：箭头不劫持', async () => {
+    mount(<SceneTabBar />);
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    await press('ArrowRight', input);
+    input.remove();
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+
+  it('contentEditable 聚焦时：箭头不劫持（正文编辑态）', async () => {
+    mount(<SceneTabBar />);
+    const editable = document.createElement('div');
+    editable.setAttribute('contenteditable', 'true');
+    document.body.appendChild(editable);
+    await press('ArrowRight', editable);
+    editable.remove();
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+
+  it('带修饰键的箭头：让位系统快捷键，不切换', async () => {
+    mount(<SceneTabBar />);
+    await press('ArrowRight', window, { ctrlKey: true });
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+
+  it('弹窗打开时：不切换', async () => {
+    mount(<SceneTabBar />);
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    document.body.appendChild(dialog);
+    await press('ArrowRight');
+    dialog.remove();
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+});
