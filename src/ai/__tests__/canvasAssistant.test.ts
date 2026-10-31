@@ -269,8 +269,6 @@ describe('第十四轮：worldview 可新增 + 文字落主字段', () => {
       });
     }
   });
-})
-
 });
 
 describe('buildCanvasWritingContext（H3 缺口②：写作上下文注入）', () => {

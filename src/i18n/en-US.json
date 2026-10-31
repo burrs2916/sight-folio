@@ -2375,6 +2375,8 @@
     "aiConsistencyWorld": "Whole-book setting consistency",
     "aiPlotChapter": "Review plot & pacing",
     "aiConvTitle": "Workbench · {file}",
+    "aiConvTitleBook": "Studio · \"{book}\"",
+    "aiConvTitleBookNoName": "Studio AI chat",
     "aiDiag": {
       "errorCount": "Errors {n}",
       "warnCount": "Warnings {n}",

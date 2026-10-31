@@ -2375,6 +2375,8 @@
     "aiConsistencyWorld": "全书设定一致性",
     "aiPlotChapter": "审情节节奏",
     "aiConvTitle": "工作台 · {file}",
+    "aiConvTitleBook": "工作室 · 《{book}》",
+    "aiConvTitleBookNoName": "工作室 AI 对话",
     "aiDiag": {
       "errorCount": "错误 {n}",
       "warnCount": "警告 {n}",

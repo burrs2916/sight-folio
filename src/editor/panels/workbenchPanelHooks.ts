@@ -436,6 +436,28 @@ export function buildFollowups(args: {
 // useWorkbenchContext：共享大脑（事实 / 验证 / 画布 / 附件 / 斜杠 / 视图 / send）
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 会话标题按场景分流（第十四轮，纯函数便于回归）。
+ *
+ * 旧实现恒用 `工作台 · {activeFile.name ?? '?'}`，而书场景没有 activeFile——
+ * 工作室里每开一轮新对话标题都是「工作台 · ·?」，历史列表全部同名不可辨
+ * （对写长篇的创作者：记不住哪轮聊的是哪本书 / 哪个问题）。书场景改带书名，
+ * 书名未就绪时退化为「工作室 AI 对话」，仍比 '?' 可辨；代码场景维持原口径。
+ */
+export function resolveConvTitle(args: {
+  isBookScene: boolean;
+  bookTitle?: string | null;
+  activeFileName?: string | null;
+}): string {
+  const { isBookScene, bookTitle, activeFileName } = args;
+  if (isBookScene) {
+    return bookTitle
+      ? t('workbench.aiConvTitleBook', { book: bookTitle })
+      : t('workbench.aiConvTitleBookNoName');
+  }
+  return t('workbench.aiConvTitle', { file: activeFileName ?? '?' });
+}
+
 export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   const { activeFile, selection, isBookScene = false, bookTopic, bookTitle, focusSetting } = deps;
 
@@ -824,12 +846,11 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
     }
     const agent = st.agents.find((a) => a.id === st.selectedAgentId) ?? st.agents[0];
     if (st.selectedAgentId !== agent.id) useAgentStore.getState().selectAgent(agent.id);
-    const conv = await useAgentStore
-      .getState()
-      .createConversation(agent.id, t('workbench.aiConvTitle', { file: activeFile?.name ?? '?' }));
+    const convTitle = resolveConvTitle({ isBookScene, bookTitle, activeFileName: activeFile?.name });
+    const conv = await useAgentStore.getState().createConversation(agent.id, convTitle);
     useAgentStore.getState().selectConversation(conv.id);
     return conv.id;
-  }, [activeFile]);
+  }, [activeFile, isBookScene, bookTitle]);
 
   const send = useCallback(
     async (userText: string, opts?: { suppressSelection?: boolean; mode?: WorkbenchMode }) => {
