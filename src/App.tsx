@@ -31,9 +31,11 @@ import {
   WRITING_CONTENT_SAVED_EVENT,
   WRITING_NARRATIVE_CHANGED_EVENT,
   WRITING_BOOK_META_CHANGED_EVENT,
+  WRITING_CHAPTER_STRUCT_CHANGED_EVENT,
   type WritingContentSavedPayload,
   type WritingNarrativeChangedPayload,
   type WritingBookMetaChangedPayload,
+  type WritingChapterStructChangedPayload,
 } from './store/writingStore';
 import { DESK_GOTO_VIEW_EVENT, applyDeskGotoView, type ChapterJumpPayload } from './utils/writingDeskJump';
 import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
@@ -131,6 +133,18 @@ function AppLayout() {
     let un: (() => void) | undefined;
     listen<WritingBookMetaChangedPayload>(WRITING_BOOK_META_CHANGED_EVENT, (e) => {
       void useWritingStore.getState().applyExternalBookMetaChange(e.payload);
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, []);
+
+  // 跨窗口章节结构同步：任一窗口新建 / 删除 / 恢复 / 永久删除 / 重排 / 改名 / 改卷名 / 改状态 /
+  // 改层级名 / 挂线 / 换父级 章节，其它正在看这本书的窗口整表重载章节缓存（loadChapters 按
+  // activeBookId 守卫、幂等）。补齐第十七轮遗留的「章节增删不广播」缺口——写作台建/删一章，
+  // 工作室左栏目录树、catalog 视图、规划本书面板的章节数 / 体量 / 节奏预测能立刻跟上。
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen<WritingChapterStructChangedPayload>(WRITING_CHAPTER_STRUCT_CHANGED_EVENT, (e) => {
+      void useWritingStore.getState().applyExternalChapterStructChange(e.payload);
     }).then((u) => (un = u));
     return () => un?.();
   }, []);

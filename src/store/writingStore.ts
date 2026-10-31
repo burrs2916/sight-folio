@@ -78,6 +78,28 @@ export interface WritingBookMetaChangedPayload {
 }
 
 /**
+ * 跨窗口「章节结构已变更」广播：新建 / 删除（软删）/ 恢复 / 永久删除 / 重排 / 改名 /
+ * 改卷名 / 改状态 / 改层级名 / 挂线 / 换父级 等**改变章节集合或结构**的操作。
+ *
+ * 写正文已有 content-saved（就地并入字数），但增删章、拖拽重排、改名等结构性操作此前
+ * 完全没广播：在写作台新建一章 / 删一章，工作室左栏目录树、catalog 视图、以及「规划本书」
+ * 面板的章节数 / 体量 / 节奏预测都停在旧值——作者基于两份不一致的章节账做决策（第十七轮
+ * 已确认、当时定为「中低优先」的遗留缺口，本轮按功能优先原则补齐）。
+ *
+ * 与书元信息同款**低频显式 emit**（只在用户主动的章节结构 action 末尾调用），不挂订阅器——
+ * chapters 在 loadChapters / setActiveBook / deleteBook 都会换引用，订阅器方式会误广播。
+ * 载荷只带"哪本书"，接收方整表重载章节（章节按书缓存、listChapters 幂等）。
+ *
+ * 天然无回声：叙事订阅器只盯 timeline/foreshadowing/storyline 三引用，不盯 chapters；
+ * loadChapters 只换 chapters/deletedChapters 引用，不触发叙事回播。
+ */
+export const WRITING_CHAPTER_STRUCT_CHANGED_EVENT = 'writing-chapter-struct-changed';
+
+export interface WritingChapterStructChangedPayload {
+  bookId: string | null;
+}
+
+/**
  * 写作域 store（Sight Folio）
  *
  * 结构：books（书架）+ chaptersByBook（按书缓存的章节列表）。
@@ -165,6 +187,7 @@ interface WritingState {
   /** 并入另一窗口的叙事数据变更（只重载受影响分组，且不再广播，见类型注释） */
   applyExternalNarrativeChange: (payload: WritingNarrativeChangedPayload) => Promise<void>;
   applyExternalBookMetaChange: (payload: WritingBookMetaChangedPayload) => Promise<void>;
+  applyExternalChapterStructChange: (payload: WritingChapterStructChangedPayload) => Promise<void>;
 
   loadSettings: () => Promise<void>;
   createSetting: (kind: WritingSettingKind, name: string) => Promise<WritingSetting | null>;
@@ -545,6 +568,7 @@ export const useWritingStore = create<WritingState>()(
       set((s) => {
         s.chapters.push(chapter);
       });
+      broadcastChapterStruct(activeBookId);
       return chapter;
     },
 
@@ -573,6 +597,7 @@ export const useWritingStore = create<WritingState>()(
       set((s) => {
         s.chapters.push(chapter);
       });
+      broadcastChapterStruct(activeBookId);
       return chapter;
     },
 
@@ -615,6 +640,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = now;
         }
       });
+      broadcastChapterStruct(node.bookId);
     },
 
     renameNodeKind: async (nodeId: string, kind: string) => {
@@ -629,6 +655,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastChapterStruct(node.bookId);
     },
 
     setChapterStatus: async (nodeId: string, status: string) => {
@@ -643,6 +670,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastChapterStruct(node.bookId);
     },
 
     setChapterStoryline: async (chapterId: string, storylineId: string | null) => {
@@ -659,6 +687,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = now;
         }
       });
+      broadcastChapterStruct(chapter.bookId);
     },
 
     renameChapter: async (chapterId: string, title: string) => {
@@ -681,6 +710,7 @@ export const useWritingStore = create<WritingState>()(
         name: title,
         configPatch: { title },
       });
+      broadcastChapterStruct(chapter.bookId);
     },
 
     deleteChapter: async (chapterId: string) => {
@@ -727,6 +757,7 @@ export const useWritingStore = create<WritingState>()(
           if (f.payoffChapterId === chapterId) f.payoffChapterId = null;
         }
       });
+      broadcastChapterStruct(node.bookId);
     },
 
     restoreChapter: async (chapterId: string) => {
@@ -765,6 +796,7 @@ export const useWritingStore = create<WritingState>()(
           return changedIds.has(c.id) ? { ...c, updatedAt: now } : c;
         });
       });
+      broadcastChapterStruct(restored.bookId);
     },
 
     permanentlyDeleteChapter: async (chapterId: string) => {
@@ -775,6 +807,7 @@ export const useWritingStore = create<WritingState>()(
       set((s) => {
         s.deletedChapters = s.deletedChapters.filter((c) => c.id !== chapterId);
       });
+      broadcastChapterStruct(node.bookId);
     },
 
     setActiveChapter: (chapterId: string | null) => {
@@ -807,6 +840,7 @@ export const useWritingStore = create<WritingState>()(
       set((s) => {
         s.chapters = reordered.map((c) => (changed.some((x) => x.id === c.id) ? { ...c, updatedAt: now } : c));
       });
+      broadcastChapterStruct(moved.bookId);
     },
 
     saveChapterContent: async (chapterId: string, content: string, wordCount: number) => {
@@ -900,6 +934,23 @@ export const useWritingStore = create<WritingState>()(
         await get().loadBooks();
       } catch (e) {
         logger.warn('writingStore', 'applyExternalBookMetaChange reload failed', { bookId, error: e });
+      }
+    },
+
+    /**
+     * 并入另一窗口的章节结构变更：整表重载「当前正在看的那本书」的章节缓存。
+     *
+     * 只在 activeBookId === 变更书时重载（loadChapters 内部也按 activeBookId 守卫，本窗口
+     * 没在看这本书就跳过——下次 setActiveBook 自然拿到全量最新值）。只换 chapters/
+     * deletedChapters 引用、不碰叙事三表，因此不触发叙事订阅器回播（天然无回声）。
+     */
+    applyExternalChapterStructChange: async (payload) => {
+      const { bookId } = payload;
+      if (!bookId || get().activeBookId !== bookId) return;
+      try {
+        await get().loadChapters(bookId);
+      } catch (e) {
+        logger.warn('writingStore', 'applyExternalChapterStructChange reload failed', { bookId, error: e });
       }
     },
 
@@ -1443,6 +1494,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastChapterStruct(chapter.bookId);
     },
 
     setChapterCover: async (chapterId: string, assetRef: string | null) => {
@@ -1472,6 +1524,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastChapterStruct(chapter.bookId);
     },
 
     setDailyGoal: async (bookId: string, dailyGoal: number) => {
@@ -1543,6 +1596,20 @@ function broadcastBookMeta(bookId: string): void {
     });
   } catch (e) {
     logger.warn('writingStore', '书元信息变更广播抛异常（本地写入不受影响）', { error: e });
+  }
+}
+
+/**
+ * 章节结构变更后向其它窗口广播（复用叙事/书元广播的防错模式：广播只是副作用，
+ * **绝不允许打断用户操作**）。异步拒绝 + 同步抛出都要挡。
+ */
+function broadcastChapterStruct(bookId: string): void {
+  try {
+    emit(WRITING_CHAPTER_STRUCT_CHANGED_EVENT, { bookId }).catch((e) => {
+      logger.warn('writingStore', '章节结构变更广播被拒绝（本地写入不受影响）', { error: e });
+    });
+  } catch (e) {
+    logger.warn('writingStore', '章节结构变更广播抛异常（本地写入不受影响）', { error: e });
   }
 }
 
