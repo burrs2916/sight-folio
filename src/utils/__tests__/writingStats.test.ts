@@ -329,6 +329,29 @@ describe('formatBookGoalCorpus（目标+进度→AI 语料行，口径与面板�
     expect(r?.zh).toContain('目标 8 章');
     expect(r?.zh).toContain('已写 6 章（75%');
   });
+
+  it('传入窗口 deltas → 追加节奏预测行（闭环喂 AI 能否如期/差多少）', () => {
+    const deltas = [0, 1, 2, 3].map((i) => ({ day: `d${i}`, delta: 100 }));
+    const r = formatBookGoalCorpus(
+      { targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) },
+      1000,
+      0,
+      TODAY,
+      deltas
+    );
+    expect(r?.zh).toContain('日均');
+    expect(r?.zh).toContain('提速');
+    expect(r?.en).toContain('daily average');
+    expect(r?.en).toContain('raise pace');
+    // 不传 deltas → 原样不含节奏行（向后兼容）
+    const base = formatBookGoalCorpus(
+      { targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) },
+      1000,
+      0,
+      TODAY
+    );
+    expect(base?.zh).not.toContain('日均');
+  });
 });
 
 describe('derivePaceProjection 节奏预测', () => {

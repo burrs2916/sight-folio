@@ -346,6 +346,7 @@ export function formatBookGoalCorpus(
   actualWords: number,
   chapterCount: number,
   today: Date = new Date(),
+  deltas?: DailyDelta[],
 ): { zh: string; en: string } | null {
   if (goal.targetWords <= 0 && goal.targetChapters <= 0 && goal.deadline <= 0) return null;
   const p = deriveBookGoalProgress(goal, actualWords, chapterCount, today);
@@ -379,6 +380,20 @@ export function formatBookGoalCorpus(
     );
   }
   if (zhParts.length === 0) return null;
+  // 传入窗口每日新增时，追加一句「节奏预测」——把「能否如期 / 差多少 / 要提速到多少」也喂给 AI，
+  // 复用单一权威 derivePaceProjection / formatPaceCorpus，与面板逐字同口径；不传 deltas 则原样（向后兼容）。
+  if (deltas && deltas.length > 0) {
+    const pace = derivePaceProjection(goal, actualWords, deltas, today);
+    if (pace) {
+      const pc = formatPaceCorpus(pace);
+      zhParts.push(pc.zh.replace(/^【节奏预测】/, '').replace(/。$/, ''));
+      enParts.push(pc.en.replace(/^\[Pace projection\] /, '').replace(/\.$/, ''));
+      return {
+        zh: `【全书目标与进度】${zhParts.join('；')}。据此评估完成节奏、缺口与是否需要调整目标或日更计划，并结合【近 ${pace.windowDays} 天日均】给出可执行建议。`,
+        en: `[Book goal & progress] ${enParts.join('; ')}. Use this to assess pace, remaining gap, and whether goals or daily plan need adjusting, with concrete advice from the recent daily average.`,
+      };
+    }
+  }
   return {
     zh: `【全书目标与进度】${zhParts.join('；')}。据此评估完成节奏、缺口与是否需要调整目标或日更计划。`,
     en: `[Book goal & progress] ${enParts.join('; ')}. Use this to assess pace, remaining gap, and whether goals or daily plan need adjusting.`,

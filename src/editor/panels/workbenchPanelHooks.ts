@@ -40,7 +40,7 @@ import {
   parseBookGoal,
 } from '../../services/tauri';
 import { buildBookOverview, buildBookOverviewCorpus } from '../../utils/writingOverview';
-import { formatBookGoalCorpus } from '../../utils/writingStats';
+import { formatBookGoalCorpus, diffDailyStats } from '../../utils/writingStats';
 import { buildCharactersCorpus, buildCatalogCorpus, buildSettingCorpus } from '../../utils/writingAiCorpus';
 
 import {
@@ -914,7 +914,10 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
         const chapterSum = live.reduce((sum, c) => sum + (c.wordCount || 0), 0);
         const latest = ws.dailyStats.length > 0 ? ws.dailyStats[ws.dailyStats.length - 1] : null;
         const actualWords = latest && latest.wordCount > 0 ? latest.wordCount : chapterSum;
-        return formatBookGoalCorpus(goal, actualWords, live.length);
+        // 窗口每日新增（同 BookMetaPanel：快照明细 diffDailyStats 差分），喂节奏预测。
+        // ws.dailyStats 已由 loadDailyStats 按 WINDOW_DAYS+1 装载；为空则不传、退回原口径。
+        const deltas = ws.dailyStats.length > 0 ? diffDailyStats(ws.dailyStats, new Date()) : undefined;
+        return formatBookGoalCorpus(goal, actualWords, live.length, new Date(), deltas);
       })();
 
       // 题材语料：发消息前实时聚合当前书数据注入 ctx，让 AI 每轮带真实数据作答。
