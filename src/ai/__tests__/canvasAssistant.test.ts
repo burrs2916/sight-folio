@@ -239,6 +239,38 @@ describe('第十四轮：worldview 可新增 + 文字落主字段', () => {
     const snap = captureCanvasSnapshot();
     expect(snap.find((x) => x.id === c.id)?.text).toBe('灵潮体系');
   });
+  it('buildCanvasWritingContext 注入【世界观设定】段（能新增世界观卡且有据可依）', () => {
+    const ws = useWritingStore.getState();
+    const prev = {
+      books: ws.books,
+      settings: ws.settings,
+      activeBookId: ws.activeBookId,
+    };
+    try {
+      useWritingStore.setState((s: any) => {
+        s.books = [{ id: 'b1', title: '长夜行', genre: '悬疑', status: 'draft', dailyGoal: 0, extra: '' }];
+        s.activeBookId = 'b1';
+        s.settings = [
+          { id: 'w1', bookId: 'b1', kind: 'worldbuilding', name: '灵潮体系', subtitle: '修行', description: '灵气复苏', extra: '' },
+          { id: 'c1', bookId: 'b1', kind: 'character', name: '林越', subtitle: '主角', description: '退役侦探', extra: '' },
+        ];
+      });
+      const ctx = buildCanvasWritingContext();
+      expect(ctx).not.toBeNull();
+      expect(ctx!).toContain('【世界观设定】');
+      expect(ctx!).toContain('灵潮体系');
+      // 人物段与世界观段互不串：世界观名不出现在人物档案段行内（各归其段）
+      expect(ctx!).toContain('【人物档案】');
+    } finally {
+      useWritingStore.setState((s: any) => {
+        s.books = prev.books;
+        s.settings = prev.settings;
+        s.activeBookId = prev.activeBookId;
+      });
+    }
+  });
+})
+
 });
 
 describe('buildCanvasWritingContext（H3 缺口②：写作上下文注入）', () => {

@@ -11,9 +11,12 @@ import type { ReactElement } from "react";
 const h = vi.hoisted(() => ({
   writing: {
     books: [
-      { id: "b1", title: "长夜", description: "一个关于灯的故事", genre: "novel", medium: "serial", cover_color: "#4A338F" },
+      { id: "b1", title: "长夜", description: "一个关于灯的故事", genre: "novel", medium: "serial", status: "draft", dailyGoal: 0, cover_color: "#4A338F" },
     ] as any[],
     loadBooks: vi.fn(async () => {}),
+    renameBook: vi.fn(async () => {}),
+    setBookMeta: vi.fn(async () => {}),
+    setDailyGoal: vi.fn(async () => {}),
   },
   toast: { showToast: vi.fn() },
   assetApi: {
@@ -87,11 +90,19 @@ describe("书属性卡 · 封面管理（回归锁）", () => {
   it("无封面：显示书名/简介 + 占位 + 「设封面」按钮", async () => {
     mount(<BookMetaPanel bookId="b1" />);
     await flush();
-    expect(document.body.textContent).toContain("长夜");
-    expect(document.body.textContent).toContain("一个关于灯的故事");
+    // 第十四轮：书名 / 简介升级为就地编辑控件（受控 input/textarea，value 不进 textContent），
+    // 封面占位文案仍是普通节点可 textContent 断言。
+    const titleInput = document.querySelector('input') as HTMLInputElement | null;
+    const descArea = document.querySelector("textarea") as HTMLTextAreaElement | null;
+    expect(titleInput?.value).toBe("长夜");
+    expect(descArea?.value).toBe("一个关于灯的故事");
     expect(document.body.textContent).toContain("还没有封面");
     expect(buttonOf("设封面")).toBeTruthy();
     expect(buttonOf("清除封面")).toBeNull();
+    // 编辑面在位：体裁·载体 / 创作状态 / 日更目标 三段小标题可见
+    expect(document.body.textContent).toContain("体裁 · 载体");
+    expect(document.body.textContent).toContain("创作状态");
+    expect(document.body.textContent).toContain("日更目标");
   });
 
   it("有封面：缩略图渲染 + 「更换/清除」；清除经确认后 remove 并回到空态", async () => {

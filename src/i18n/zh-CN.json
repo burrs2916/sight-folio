@@ -7763,6 +7763,15 @@
       "cleared": "封面已清除",
       "noDesc": "还没有简介"
     },
+    "bookMeta": {
+      "title": "书名",
+      "genreMedium": "体裁 · 载体",
+      "status": "创作状态",
+      "description": "简介",
+      "dailyGoal": "日更目标（字/天，0 = 未设）",
+      "edit": "编辑体裁与载体",
+      "saved": "体裁与载体已更新"
+    },
     "illustration": {
       "title": "插画素材库",
       "replaceTitle": "更换插画",

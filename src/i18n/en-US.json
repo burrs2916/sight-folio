@@ -7763,6 +7763,15 @@
       "cleared": "Cover removed",
       "noDesc": "No description yet"
     },
+    "bookMeta": {
+      "title": "Book title",
+      "genreMedium": "Genre · Medium",
+      "status": "Writing status",
+      "description": "Description",
+      "dailyGoal": "Daily goal (words/day, 0 = none)",
+      "edit": "Edit genre & medium",
+      "saved": "Genre & medium updated"
+    },
     "illustration": {
       "title": "Illustration Library",
       "replaceTitle": "Replace Illustration",

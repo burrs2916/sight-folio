@@ -132,6 +132,16 @@ export function buildCanvasWritingContext(): string | null {
         `- ${c.name}${c.subtitle ? `（${c.subtitle}）` : ''}${c.description ? `：${c.description.slice(0, 80)}` : ''}`,
     );
   const outlines = ws.outlines.slice(0, 10).map((o) => `- ${o.title}${o.summary ? `：${o.summary.slice(0, 60)}` : ''}`);
+  // 第十四轮：补【世界观设定】段——本批次刚把 writing-worldview 加进 AI 可新增白名单，
+  // 但若上下文不含书里已有世界观，AI「能加世界观卡」却无据可依，只会凭空造卡、与既有
+  // 人物/大纲口径打架。settings 里世界观是 kind==='worldbuilding'，与人物档案同构注入。
+  const worldviews = ws.settings
+    .filter((s) => s.kind === 'worldbuilding')
+    .slice(0, 8)
+    .map(
+      (w) =>
+        `- ${w.name}${w.subtitle ? `（${w.subtitle}）` : ''}${w.description ? `：${w.description.slice(0, 80)}` : ''}`,
+    );
   const completed = ws.chapters.filter((c) => c.status === 'completed').length;
   const parts: string[] = [];
   parts.push(
@@ -156,6 +166,14 @@ export function buildCanvasWritingContext(): string | null {
   if (outlines.length) {
     parts.push(
       L(`【大纲节拍】\n${outlines.join('\n')}`, `[Outline]\n${outlines.map((o) => o.replace(/^-\s*/, '')).join('\n')}`),
+    );
+  }
+  if (worldviews.length) {
+    parts.push(
+      L(
+        `【世界观设定】\n${worldviews.join('\n')}`,
+        `[Worldbuilding]\n${worldviews.map((w) => w.replace(/^-\s*/, '')).join('\n')}`,
+      ),
     );
   }
   return parts.join('\n');

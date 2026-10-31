@@ -553,12 +553,19 @@ export function SceneEditor({
       setRightPanelOpen(true);
     }
   }, [aiPanelRequest]);
-  // 右栏联动（书场景）：在画布上选中写作实体 → 自动切到「属性」栏（第 2 栏）。
+  // 右栏联动（书场景）：在画布上选中任意实体 → 自动切到「属性/详情」栏（第 2 栏）。
   // 第 1 栏「组件」是拖源，拖出落卡后会立刻选中新卡；不联动的话「选不中、改不了」的
   // 观感会回来。只在**当前停在组件栏**时切，用户手动停在别的栏位时不抢。
+  // ⚠ 第十四轮修正旧条件 `type.startsWith('writing-')`：书场景画布不只有写作卡——
+  // 插画链路（H2：素材库选图）会在画布落 image 实体。旧条件对 image 直接早退不切栏，
+  // 而「要素」栏对非写作实体渲染的是 WritingInspectorPanel（读章/人物/设定，对插画全是
+  // 空字段）——用户选中一张插画后右栏停在无关的全书要素概览、看不到插画画像；
+  // 真正渲染插画（预览 / 替换图源 / 尺寸）的 EntityPortraitPanel 在「详情」栏 fallback。
+  // 放宽为「任意选中实体都切详情栏」：写作实体行为不变（原本就 0→1），
+  // 仅补上 image/asset 等实体 → 详情栏（EntityPortraitPanel），断链就此接通。
   useEffect(() => {
     if (!isBookScene) return;
-    if (!selectedComponent?.type.startsWith('writing-')) return;
+    if (!selectedComponent) return;
     setRightTab((cur) => (cur === 0 ? 1 : cur));
   }, [isBookScene, selectedComponent?.id, selectedComponent?.type]);
   // 写作设定项选中（人物/世界观，由 CastPane「查看详情」驱动）→ 切到「详情」栏（第 2 栏）
