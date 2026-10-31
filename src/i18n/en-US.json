@@ -2645,7 +2645,10 @@
       "listImprove": "List next improvements",
       "book": {
         "improve": "Polish this passage",
-        "consistency": "Check character/setting consistency",
+        "consistency": "Check character/setting consistency",      "consistency": "Check character/setting consistency",
+      "statsGoal": "Assess goal risk",
+      "statsPlan": "Back-calculate daily plan",
+      "statsBlocker": "Find progress blockers",
         "continue": "Continue the story",
         "reviewPlot": "Review plot & pacing",
         "summarize": "Summarize this chapter",

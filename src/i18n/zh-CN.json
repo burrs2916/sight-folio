@@ -2645,7 +2645,10 @@
       "listImprove": "列出后续优化",
       "book": {
         "improve": "润色这段正文",
-        "consistency": "检查人设/设定一致性",
+        "consistency": "检查人设/设定一致性",      "consistency": "检查人设/设定一致性",
+      "statsGoal": "评估目标完成风险",
+      "statsPlan": "反推日更计划",
+      "statsBlocker": "找拖慢进度的瓶颈",
         "continue": "续写下文",
         "reviewPlot": "审视情节与节奏",
         "summarize": "概括本章要点",

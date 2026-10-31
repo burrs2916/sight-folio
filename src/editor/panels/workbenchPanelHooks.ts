@@ -314,6 +314,35 @@ export function buildFollowups(args: {
     });
     return out.slice(0, 4);
   }
+  // 统计题材：追问围绕「已注入的目标与进度」（批次2），不再用通用「润色上面这段正文」
+  // 这类假设有正文的追问——统计视图里 AI 给的是数据结论，正文向追问完全错位。
+  if (isBookScene && bookTopic === 'stats') {
+    out.push({
+      key: 'statsGoal',
+      labelKey: 'workbench.aiFollowup.book.statsGoal',
+      prompt: L(
+        `对照我已设的全书目标（总字数 / 章节数 / 截稿日）与当前进度，评估按现有日更节奏能否如期完成、缺口多大、风险在哪。`,
+        `Against my book goals (total words / chapters / deadline) and current progress, assess whether my daily pace can hit them, how big the gap is, and the risks.`,
+      ),
+    });
+    out.push({
+      key: 'statsPlan',
+      labelKey: 'workbench.aiFollowup.book.statsPlan',
+      prompt: L(
+        `基于剩余字数与距截稿的剩余天数，帮我反推一个可执行的日更目标（每天写多少、分几阶段），并指出是否需要调整目标本身。`,
+        `From the remaining words and days to deadline, back-calculate an actionable daily goal (words/day, phased) and flag whether the goal itself needs adjusting.`,
+      ),
+    });
+    out.push({
+      key: 'statsBlocker',
+      labelKey: 'workbench.aiFollowup.book.statsBlocker',
+      prompt: L(
+        `从体量与节奏数据里找出拖慢整体进度的瓶颈（超长/偏短章、断更趋势、伏笔积压），逐条给出提速或调整建议（advisory，尊重我的节奏设计）。`,
+        `From the volume and pace data, find what is dragging overall progress (over-long / too-short chapters, writing gaps, foreshadowing backlog); give pacing or adjustment suggestions per item (advisory, respect my intended rhythm).`,
+      ),
+    });
+    return out.slice(0, 3);
+  }
   if (isBookScene) {
     out.push({
       key: 'improve',
@@ -1689,7 +1718,9 @@ export function useWorkbenchChat(deps: {
       isBookScene: ctx.isBookScene,
       bookTopic: ctx.bookTopic ?? undefined,
     });
-  }, [lastAssistant, isStreaming, activeFile, ctx.fileDiagnostics, ctx.canvasScope, ctx.isBookScene]);
+  // ctx.bookTopic 必须在依赖里：切左栏题材 tab 会改 bookTopic（overview 有专属追问、其余通用），
+  // 漏挂会让 followups 停在上一题材的追问（联动 bug，2026-10-31 第十五轮批次4）。
+  }, [lastAssistant, isStreaming, activeFile, ctx.fileDiagnostics, ctx.canvasScope, ctx.isBookScene, ctx.bookTopic]);
 
   // B 深化（对标 VS Code Copilot Edits）：改动就地长在对话流——每条含代码块的助手消息
   // 都派生自己的改动清单，按 message id 索引，对话里逐条 Accept/Discard。
