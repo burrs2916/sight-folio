@@ -56,8 +56,10 @@ describe('③ 限宽层与内边距层分离（border-box 陷阱）', () => {
 });
 
 describe('④ 正文章头列与正文文字列同位（第十三轮批①）', () => {
-  it('章头盒：外层只给 px 无 maxWidth（border-box 分离口径与设定卡/章详情一致）', () => {
-    expect(page).toMatch(/<Box sx=\{\{ px: \{ xs: 2, md: 6 \}, pt: 2, width: '100%' \}\}>/);
+  it('章头盒：外层只给 px 无 maxWidth（border-box 分离口径与设定卡/章详情一致；批③后为多行 sx）', () => {
+    expect(page).toMatch(/px: \{ xs: 2, md: 6 \},\s*\n\s*pt: 2,\s*\n\s*width: '100%',/);
+    // 旧回归：px 与 maxWidth 同层的单行形态不许复活
+    expect(page).not.toMatch(/px: \{ xs: 2, md: 6 \}, pt: 2, maxWidth: typo\.pageWidth, mx: 'auto' \}\}/);
   });
   it('章头内层限宽跟随排版页宽（不再与 px 同层）', () => {
     expect(page).toMatch(/maxWidth: typo\.pageWidth, mx: 'auto' \}\}/);
@@ -76,5 +78,16 @@ describe('⑤ 三视图容器内边距同口径（第十三轮批②）', () => 
   it('章详情面板容器与正文同用 md:6', () => {
     expect(panel).toMatch(/px: \{ xs: 2, md: 6 \}/);
     expect(panel).not.toMatch(/px: \{ xs: 2, md: 4 \}/);
+  });
+});
+
+describe('⑥ 章头列几何跟随 focusMode（第十三轮批③）', () => {
+  // focus 下正文滚动容器 px 改 md:8、zen 下整条正文变 680 居中列（px md:5）；
+  // 章标题头若不吃同一套 override，切沉浸模式时标题与正文列必然错开/悬空。
+  const header = page.slice(page.indexOf("批③：外栏几何跟随 focusMode"), page.indexOf('ref={editorScrollRef}'));
+  it('章头盒含与正文同型的 zen / focus override', () => {
+    expect(header).toMatch(/focusMode === 'zen'/);
+    expect(header).toMatch(/maxWidth: 680/);
+    expect(header).toMatch(/focusMode === 'focus' \? \{ px: \{ xs: 3, md: 8 \} \}/);
   });
 });

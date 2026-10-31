@@ -4646,8 +4646,28 @@ export default function WritingPage() {
                   Box 是 border-box，左右内边距被扣进限宽（md 档净宽少 96）——而正文文字列的
                   maxWidth 落在滚动容器 padding 之内（ProseMirror 净宽 = pageWidth）。章标题与正文
                   左边缘因此差一个内边距宽，切到正文即「标题比正文缩进一截」。改为外层只给 px、
-                  内层才限 maxWidth 并与正文同用页宽，标题列与正文列严格同位。 */}
-              <Box sx={{ px: { xs: 2, md: 6 }, pt: 2, width: '100%' }}>
+                  内层才限 maxWidth 并与正文同用页宽，标题列与正文列严格同位。
+                  批③：外栏几何跟随 focusMode（与下方正文滚动容器同一套 override）：
+                  focus 下正文 px 改 md:8，标题恒 md:6 会在进专注模式时与正文错开 16px；
+                  zen 下整条正文变 680 居中列（px md:5），标题留在宽栏上=悬在居中阅读列
+                  之外的「幽灵标题」。同一套 override 加到标题外栏，三模式列位恒对齐。 */}
+              <Box
+                sx={{
+                  px: { xs: 2, md: 6 },
+                  pt: 2,
+                  width: '100%',
+                  ...(focusMode === 'zen'
+                    ? {
+                        maxWidth: 680,
+                        mx: 'auto',
+                        px: { xs: 3, md: 5 },
+                        bgcolor: 'background.paper',
+                        boxShadow: (th) => th.shadows[1],
+                      }
+                    : {}),
+                  ...(focusMode === 'focus' ? { px: { xs: 3, md: 8 } } : {}),
+                }}
+              >
                 <Box sx={{ maxWidth: typo.pageWidth, mx: 'auto' }}>
                 {/* 批次② 写作动线：标题点击即改名（原对话框入口），状态/层级徽章就地切换 */}
                 <Typography
