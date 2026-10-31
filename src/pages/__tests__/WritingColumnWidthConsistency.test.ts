@@ -42,7 +42,7 @@ describe('② 右栏不再有硬编码 760 内容列（仅代码形态，不误�
 
 describe('③ 限宽层与内边距层分离（border-box 陷阱）', () => {
   it('设定卡头部：外层只给 px 无 maxWidth', () => {
-    expect(page).toMatch(/<Box sx=\{\{ px: \{ xs: 2, md: 4 \}, pt: 2\.5, width: '100%' \}\}>/);
+    expect(page).toMatch(/<Box sx=\{\{ px: \{ xs: 2, md: 6 \}, pt: 2\.5, width: '100%' \}\}>/);
   });
   it('设定卡头部内层：maxWidth 独立成层，其后紧跟 width/mx/display/alignItems（该层不含 px）', () => {
     expect(page).toMatch(
@@ -64,5 +64,17 @@ describe('④ 正文章头列与正文文字列同位（第十三轮批①）', 
   });
   it('章头不再有「px 与 maxWidth 同层」的旧形态', () => {
     expect(page).not.toMatch(/px: \{ xs: 2, md: 6 \}, pt: 2, maxWidth: typo\.pageWidth/);
+  });
+});
+
+describe('⑤ 三视图容器内边距同口径（第十三轮批②）', () => {
+  // 正文列的净宽 = min(pageWidth, 栏宽 - 2*md6*8)。章详情/设定卡若用更小的 md:4，
+  // 右栏窄于 pageWidth+96 时同一页宽下三视图净宽仍差 32px——切视图照样跳宽。
+  it('WritingPage 不再有 md:4 档的视图容器内边距', () => {
+    expect(page).not.toMatch(/px: \{ xs: 2, md: 4 \}/);
+  });
+  it('章详情面板容器与正文同用 md:6', () => {
+    expect(panel).toMatch(/px: \{ xs: 2, md: 6 \}/);
+    expect(panel).not.toMatch(/px: \{ xs: 2, md: 4 \}/);
   });
 });

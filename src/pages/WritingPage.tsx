@@ -3031,7 +3031,7 @@ export default function WritingPage() {
             {activeChapterId && (
             <Box
               sx={{
-                px: { xs: 2, md: 4 },
+                px: { xs: 2, md: 6 },
                 pt: 1.5,
                 width: '100%',
                 pb: 1,
@@ -3079,7 +3079,7 @@ export default function WritingPage() {
                maxWidth 落在 padding 之内（净宽 760）：同一张设定卡上下两块天然错位。
                改法与章详情同源：外层只给 padding，内层限宽并用排版页宽（正文 ↔ 设定卡来回切
                不再跳宽）。 */}
-            <Box sx={{ px: { xs: 2, md: 4 }, pt: 2.5, width: '100%' }}>
+            <Box sx={{ px: { xs: 2, md: 6 }, pt: 2.5, width: '100%' }}>
             <Box
               sx={{
                 maxWidth: typo.pageWidth,
@@ -3152,7 +3152,7 @@ export default function WritingPage() {
               </Tooltip>
             </Box>
             </Box>
-            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 4 }, py: 2 }}>
+            <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 6 }, py: 2 }}>
               <Box sx={{ maxWidth: typo.pageWidth, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {/* ─── 区块 1：基本信息（名称/身份已在头部内联编辑；此处为长描述） ─── */}
                 <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
