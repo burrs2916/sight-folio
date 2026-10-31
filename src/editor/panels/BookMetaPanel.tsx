@@ -106,6 +106,21 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; onReparse?: () => void }) {
   const book = useWritingStore((s) => s.books.find((b) => b.id === bookId) ?? null);
   const showToast = useToastStore((s) => s.showToast);
+  // 体量指纹：当前书「活跃章数:字数实时和」随 store.chapters 变化。本窗口日更（saveChapterContent）
+  // 或跨窗口正文同步（content-saved 并入 chapters wordCount）都会让它跳变——补批次2 的 updatedAt
+  // 盲区（写正文不改元信息 → updatedAt 不动，面板会停在旧体量）。primitive 字符串只在 n/sum 真变
+  // 时才触发重渲染，高频章节改动成本可忽略。
+  const liveVolumeSig = useWritingStore((s) => {
+    if (!bookId) return '';
+    let sum = 0;
+    let n = 0;
+    for (const c of s.chapters ?? []) {
+      if (c.bookId !== bookId || isChapterDeleted(c)) continue;
+      sum += c.wordCount || 0;
+      n += 1;
+    }
+    return `${n}:${sum}`;
+  });
   const [cover, setCover] = useState<AssetInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -183,7 +198,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
     return () => {
       cancelled = true;
     };
-  }, [bookId, book?.updatedAt]);
+  }, [bookId, book?.updatedAt, liveVolumeSig]);
 
   // bookGoal 引用仅在 extra 变化时更新（避免每帧新对象击穿 bookGoalProgress 的 memo）
   const bookGoal = useMemo(() => parseBookGoal(book?.extra), [book?.extra]);
