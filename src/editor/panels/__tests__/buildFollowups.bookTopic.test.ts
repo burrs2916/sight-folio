@@ -27,10 +27,37 @@ describe('buildFollowups · 书场景题材分流', () => {
     expect(keys(out)).toEqual(['ovTimeline', 'ovForeshadow', 'ovOrphan', 'ovLoose']);
   });
 
-  it('其余书题材（characters/catalog/writing…）：通用写作向 3 条', () => {
-    for (const t of ['characters', 'worldview', 'catalog', 'writing', 'proofread', 'inspiration']) {
-      const out = buildFollowups({ ...base, isBookScene: true, bookTopic: t });
-      expect(keys(out)).toEqual(['improve', 'consistency', 'continue']);
+  it('writing（正文视图）：保持通用写作向 3 条', () => {
+    const out = buildFollowups({ ...base, isBookScene: true, bookTopic: 'writing' });
+    expect(keys(out)).toEqual(['improve', 'consistency', 'continue']);
+  });
+
+  it('结构视图各给专属追问，绝不再用正文向 improve/continue（缺陷：结构视图无正文）', () => {
+    const map: Record<string, string[]> = {
+      characters: ['charRounded', 'charRelations', 'charGaps'],
+      worldview: ['orphan', 'worldConsistency', 'worldCoverage'],
+      catalog: ['catalogAudit', 'catalogBeat'],
+      timeline: ['ovTimeline', 'lineProgress'],
+      storylines: ['ovTimeline', 'lineProgress'],
+      foreshadowing: ['ovForeshadow', 'foreshadowAdd'],
+      inspiration: ['ovLoose', 'inspToPlot'],
+      proofread: ['proofFix', 'consistency'],
+    };
+    for (const [topic, expectKeys] of Object.entries(map)) {
+      const out = buildFollowups({ ...base, isBookScene: true, bookTopic: topic });
+      expect(keys(out)).toEqual(expectKeys);
+      expect(keys(out)).not.toContain('improve');
+      expect(keys(out)).not.toContain('continue');
+    }
+  });
+
+  it('每条追问 labelKey/prompt 齐全可渲染', () => {
+    for (const topic of ['characters', 'worldview', 'catalog', 'timeline', 'storylines', 'foreshadowing', 'inspiration', 'proofread', 'writing', 'overview', 'stats']) {
+      const out = buildFollowups({ ...base, isBookScene: true, bookTopic: topic });
+      for (const item of out) {
+        expect(item.labelKey).toBeTruthy();
+        expect(item.prompt).toBeTruthy();
+      }
     }
   });
 

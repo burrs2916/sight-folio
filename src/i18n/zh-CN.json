@@ -2655,7 +2655,18 @@
         "overviewTimeline": "梳理时间线冲突",
         "overviewForeshadow": "检查伏笔埋收",
         "overviewOrphan": "排查孤儿设定",
-        "overviewLoose": "清理念头与校对"
+        "overviewLoose": "清理念头与校对",
+        "charactersRounded": "评估人物立体度",
+        "charactersRelations": "找关系张力缺口",
+        "charactersGaps": "补全人物卡缺口",
+        "worldviewConsistency": "查设定库自洽",
+        "worldviewCoverage": "评设定覆盖缺口",
+        "catalogAudit": "审阅全书结构",
+        "catalogBeat": "找情节链断点",
+        "storylineProgress": "检查故事线推进",
+        "foreshadowAdd": "补规划中的伏笔",
+        "inspirationToPlot": "灵感转情节",
+        "proofreadFix": "按严重度修校对项"
       }
     },
     "aiImpact": {

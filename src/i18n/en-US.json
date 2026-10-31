@@ -2655,7 +2655,18 @@
         "overviewTimeline": "Untangle timeline conflicts",
         "overviewForeshadow": "Check foreshadowing payoff",
         "overviewOrphan": "Find orphan settings",
-        "overviewLoose": "Clear loose ideas & proofread"
+        "overviewLoose": "Clear loose ideas & proofread",
+        "charactersRounded": "Judge character depth",
+        "charactersRelations": "Find relationship tension gaps",
+        "charactersGaps": "Fill character-card gaps",
+        "worldviewConsistency": "Check setting consistency",
+        "worldviewCoverage": "Assess setting coverage",
+        "catalogAudit": "Review book structure",
+        "catalogBeat": "Find plot-chain breaks",
+        "storylineProgress": "Check storyline progress",
+        "foreshadowAdd": "Add planned foreshadowing",
+        "inspirationToPlot": "Turn ideas into plot",
+        "proofreadFix": "Fix proofread issues by severity"
       }
     },
     "aiImpact": {

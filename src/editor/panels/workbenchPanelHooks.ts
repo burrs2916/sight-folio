@@ -343,6 +343,160 @@ export function buildFollowups(args: {
     });
     return out.slice(0, 3);
   }
+  // 其余书场景题材：结构性视图（人物卡 / 设定库 / 大纲 / 时间线 / 伏笔 / 灵感 / 校对）。
+  // 这些视图没有「正文」，AI 喂的是对应语料（人物卡 / 世界圣经 / 时间线全表 / 伏笔埋收 /
+  // 未落章念头 / 校对问题 / 章节骨架）。若沿用通用「润色上面这段正文」追问，等于问一件
+  // 视图里根本不存在的事——与 stats 同型病灶（第十五轮只修了 stats）。按题材给「问得出、
+  // 且 AI 拿着已注入语料答得起」的专属追问；writing（正文视图）保持通用润色/续写不变。
+  if (isBookScene && bookTopic === 'characters') {
+    out.push({
+      key: 'charRounded',
+      labelKey: 'workbench.aiFollowup.book.charactersRounded',
+      prompt: L(
+        `对照已注入的人物卡，评估主要人物的立体度（动机 / 弧光 / 缺陷 / 口头禅是否鲜明），点名最扁平的一位并给出深化建议。`,
+        `Against the injected character cards, judge how rounded the main characters are (motivation / arc / flaw / verbal tic); name the flattest and suggest how to deepen it.`,
+      ),
+    });
+    out.push({
+      key: 'charRelations',
+      labelKey: 'workbench.aiFollowup.book.charactersRelations',
+      prompt: L(
+        `检查人物关系是否有张力缺口：谁与谁缺少值得展开的冲突或羁绊，给 2-3 组可强化的关系建议并说明能撬动的情节。`,
+        `Find tension gaps in the relationship web: which pairs lack a conflict or bond worth writing; suggest 2-3 relations to strengthen and the plot each could drive.`,
+      ),
+    });
+    out.push({
+      key: 'charGaps',
+      labelKey: 'workbench.aiFollowup.book.charactersGaps',
+      prompt: L(
+        `指出人物卡里缺失的关键字段（来历、目标、弱点、与主线的关联），逐条列出需要补全的设定，不要凭空杜撰。`,
+        `Flag missing key fields on the cards (backstory, goal, weakness, tie to the main plot); list what needs filling in, and do not invent anything unsourced.`,
+      ),
+    });
+    return out.slice(0, 3);
+  }
+  if (isBookScene && bookTopic === 'worldview') {
+    out.push({
+      key: 'orphan',
+      labelKey: 'workbench.aiFollowup.book.overviewOrphan',
+      prompt: L(
+        `找出尚未被任何章节引用的人物 / 世界观设定（孤儿设定），评估每个是删、补场景还是并入其他设定，给出优先级。`,
+        `Find characters / worldbuilding settings never referenced by any chapter (orphan settings); for each, decide drop / add a scene / merge, with priority.`,
+      ),
+    });
+    out.push({
+      key: 'worldConsistency',
+      labelKey: 'workbench.aiFollowup.book.worldviewConsistency',
+      prompt: L(
+        `检查世界圣经内部是否自洽：力量 / 地理 / 规则 / 时间设定之间有无互相矛盾或口径不一，逐条列出冲突点并给统一建议。`,
+        `Check the world bible for internal consistency: do the power system / geography / rules / timeline contradict each other or differ in wording? List each clash and a unifying fix.`,
+      ),
+    });
+    out.push({
+      key: 'worldCoverage',
+      labelKey: 'workbench.aiFollowup.book.worldviewCoverage',
+      prompt: L(
+        `评估设定库的覆盖缺口：哪些被正文反复依赖却尚无卡片的硬设定应当补齐，或哪些过度设定、可以精简。`,
+        `Assess gaps and bloat in the setting library: which load-bearing settings the prose keeps relying on still lack a card and should be added, or which are over-specified and can be trimmed.`,
+      ),
+    });
+    return out.slice(0, 3);
+  }
+  if (isBookScene && bookTopic === 'catalog') {
+    out.push({
+      key: 'catalogAudit',
+      labelKey: 'workbench.aiFollowup.book.catalogAudit',
+      prompt: L(
+        `审阅全书大纲 / 章节结构：起承转合是否均衡、有无节奏拖沓或跳跃的段落，指出结构层面可增删或重排的章节。`,
+        `Review the whole-book outline / chapter structure: is the setup-development-turn-resolution balanced, any sluggish or jumpy stretch? Point out chapters to add, cut, or reorder at the structural level.`,
+      ),
+    });
+    out.push({
+      key: 'catalogBeat',
+      labelKey: 'workbench.aiFollowup.book.catalogBeat',
+      prompt: L(
+        `基于现有大纲找出情节链条的断点（某事件缺乏铺垫、某转折动机不足），逐条给出补足建议与涉及的章节。`,
+        `From the outline, find breaks in the plot chain (an event lacking setup, a turn without enough motive); suggest fixes per item and the chapters involved.`,
+      ),
+    });
+    return out.slice(0, 2);
+  }
+  if (isBookScene && (bookTopic === 'timeline' || bookTopic === 'storylines')) {
+    out.push({
+      key: 'ovTimeline',
+      labelKey: 'workbench.aiFollowup.book.overviewTimeline',
+      prompt: L(
+        `基于全书时间线，列出所有时间线冲突（同一角色 / 事件在不同章节的时间点矛盾、顺序打架），逐条给出理顺建议，并指明涉及的章节。`,
+        `From the whole-book timeline, list every timeline conflict (same character / event with contradictory timestamps or ordering across chapters); give a fix per conflict and name the chapters involved.`,
+      ),
+    });
+    out.push({
+      key: 'lineProgress',
+      labelKey: 'workbench.aiFollowup.book.storylineProgress',
+      prompt: L(
+        `检查每条故事线的推进：哪些线索中断、推进过快 / 过慢、或有埋下却没走完的支线，逐条给出续接或收束建议。`,
+        `Check the progression of each storyline: which break off, advance too fast / slow, or dangle a subplot that never resolves; suggest how to continue or wrap each.`,
+      ),
+    });
+    return out.slice(0, 2);
+  }
+  if (isBookScene && bookTopic === 'foreshadowing') {
+    out.push({
+      key: 'ovForeshadow',
+      labelKey: 'workbench.aiFollowup.book.overviewForeshadow',
+      prompt: L(
+        `检查伏笔的埋设与回收：哪些伏笔尚未回收、哪些回收章与埋设章跨度不合理、有无跨章逻辑漏洞，逐条给出处理建议。`,
+        `Check foreshadowing plant / payoff: which are unpayed, which have unreasonable plant-to-payoff gaps, any cross-chapter logic holes; suggest a fix per item.`,
+      ),
+    });
+    out.push({
+      key: 'foreshadowAdd',
+      labelKey: 'workbench.aiFollowup.book.foreshadowAdd',
+      prompt: L(
+        `从已规划的后续走向看，哪些重要转折目前缺少伏笔铺垫、应当提前在哪里埋线，逐条给出埋设点与目标回收章。`,
+        `Given the planned turns ahead, which currently lack a foreshadow and where should one be planted; give each plant point and its intended payoff chapter.`,
+      ),
+    });
+    return out.slice(0, 2);
+  }
+  if (isBookScene && bookTopic === 'inspiration') {
+    out.push({
+      key: 'ovLoose',
+      labelKey: 'workbench.aiFollowup.book.overviewLoose',
+      prompt: L(
+        `汇总全书未落章的念头（loose beats）与校对问题，给出优先级排序与处理建议（转时间线 / 挂章 / 转伏笔 / 修正）。`,
+        `Consolidate all loose beats (unplaced ideas) and proofread issues; prioritize and suggest handling (timeline / attach to chapter / foreshadowing / fix).`,
+      ),
+    });
+    out.push({
+      key: 'inspToPlot',
+      labelKey: 'workbench.aiFollowup.book.inspirationToPlot',
+      prompt: L(
+        `从灵感库里挑出尚未成形的念头，帮我评估哪些最有戏剧价值、可展开为情节或伏笔，并给出落地到章节的建议。`,
+        `From the inspiration pool, judge which half-formed ideas have the most dramatic value to grow into plot or foreshadowing, and how to land them into chapters.`,
+      ),
+    });
+    return out.slice(0, 2);
+  }
+  if (isBookScene && bookTopic === 'proofread') {
+    out.push({
+      key: 'proofFix',
+      labelKey: 'workbench.aiFollowup.book.proofreadFix',
+      prompt: L(
+        `汇总当前校对发现的问题，按严重度排序（硬伤 / 一致性 / 文风），逐条给出最小修改建议并指明章节定位。`,
+        `Aggregate the proofread findings, ranked by severity (hard error / consistency / style); give a minimal fix per item with chapter location.`,
+      ),
+    });
+    out.push({
+      key: 'consistency',
+      labelKey: 'workbench.aiFollowup.book.consistency',
+      prompt: L(
+        `对照人设卡与世界观设定，检查是否有设定层面的矛盾（称谓、能力、时间线打架），逐条列出并给修改建议；无卡覆盖的角色请明确声明「设定缺失」，不要凭空推断。`,
+        `Against the character cards and worldbuilding, check for setting-level contradictions (titles, abilities, timeline clashes); list them with fixes. For characters without a card, explicitly say the setting is missing instead of inventing one.`,
+      ),
+    });
+    return out.slice(0, 2);
+  }
   if (isBookScene) {
     out.push({
       key: 'improve',
