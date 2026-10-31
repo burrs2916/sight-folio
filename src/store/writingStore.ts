@@ -1354,12 +1354,15 @@ export const useWritingStore = create<WritingState>()(
     // ─── 伏笔（「埋设 → 回收」承诺） ───
 
     loadForeshadowings: async () => {
-      const { activeBookId } = get();
-      if (!activeBookId) return;
+      const bookId = get().activeBookId;
+      if (!bookId) return;
       try {
-        const items = await writingForeshadowingsApi.list(activeBookId);
+        const items = await writingForeshadowingsApi.list(bookId);
         set((s) => {
-          s.foreshadowings = items;
+          // 陈旧书守卫（对齐 loadTimelineEvents/loadStorylines/loadChapters 等所有按书装载器）：
+          // 快速切书时，A 书的伏笔请求可能在切到 B（已清空表）之后才返回。无守卫会把 A 书伏笔
+          // 无条件写进当前 foreshadowings，污染 B 书数据（跨书串数据）。只在仍是该书时才写入。
+          if (s.activeBookId === bookId) s.foreshadowings = items;
         });
       } catch (e) {
         logger.warn('writingStore', 'loadForeshadowings failed', { error: e });
