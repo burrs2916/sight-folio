@@ -289,6 +289,12 @@ const LEFT_PANEL_WIDTH_MAX = 420;
 const LEFT_PANEL_WIDTH_DEFAULT = 240;
 const LEFT_PANEL_WIDTH_KEY = 'sight-folio:writing.leftPanelWidth';
 
+/** 章详情视图的内容列宽上限：章详情态右侧没有抽屉（抽屉只在正文分支），整栏都是它的——
+ *  历轮为「切视图不跳宽」曾让它跟随正文排版页宽（如 760），结果整栏只剩中间一条、
+ *  两侧大片空白，用户反馈「太局促、违和」。改为独立口径：占满整栏、上限 1080（信息
+ *  面板行宽超过这个长度可读性开始劣化），统筹卡与章详情面板共用同一常量。 */
+const DETAILS_COLUMN_MAX = 1080;
+
 function readSavedLeftPanelWidth(): number {
   try {
     const raw = Number(localStorage.getItem(LEFT_PANEL_WIDTH_KEY));
@@ -3025,9 +3031,11 @@ export default function WritingPage() {
                 未选中章时不渲染：它自己的「无章上下文」占位会叠在下方章详情空态之上，
                 两个空态上下堆叠——即「切章详情布局乱」在未选中章场景的残留；
                 空态统一交给下方 ChapterDetailsPanel 一个出口。
-                列宽跟随排版页宽（第十二轮批③）：原硬编码 760 与正文 maxWidth: typo.pageWidth
-                口径不一——用户把页宽调到 620/900 后「正文 ↔ 章详情」来回切，内容列肉眼可见
-                跳宽（正文窄详情宽/反之），同一栏内两套宽度就是「布局乱」的观感来源。 */}
+                列宽口径（第十三轮批⑤再调整）：曾跟随正文排版页宽以求「切视图不跳宽」，
+                但章详情态右侧没有抽屉（抽屉只在正文分支），整栏都是它的——压到正文页宽
+                （如 760）后两侧大片空白，用户反馈「太局促、违和」。现改为独立上限
+                DETAILS_COLUMN_MAX（占满整栏、1080 封顶），正文列仍保持排版页宽不动：
+                正文是阅读列（右侧有抽屉共享空间），详情是整栏信息面板，两者刻意不同宽。 */}
             {activeChapterId && (
             <Box
               sx={{
@@ -3039,7 +3047,7 @@ export default function WritingPage() {
             >
               <Box
                 sx={{
-                  maxWidth: typo.pageWidth,
+                  maxWidth: DETAILS_COLUMN_MAX,
                   mx: 'auto',
                   border: 1,
                   borderColor: 'divider',
@@ -3064,7 +3072,7 @@ export default function WritingPage() {
               outlines={outlines}
               settings={settings}
               timelineEvents={timelineEvents}
-              contentMaxWidth={typo.pageWidth}
+              contentMaxWidth={DETAILS_COLUMN_MAX}
               onManageCast={() => {
                 setLeftTab('settings');
                 setActiveSetting(null);

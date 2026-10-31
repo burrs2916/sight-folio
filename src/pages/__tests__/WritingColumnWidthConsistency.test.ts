@@ -18,10 +18,13 @@ const page = readFileSync(`${ROOT}/src/pages/WritingPage.tsx`, 'utf8');
 const panel = readFileSync(`${ROOT}/src/pages/ChapterDetailsPanel.tsx`, 'utf8');
 
 describe('① 章详情/设定卡列宽跟随排版页宽', () => {
-  it('章详情分支把排版页宽传给面板（与上方九维统筹卡同一口径）', () => {
+  it('章详情分支把整栏上限传给面板（与上方九维统筹卡同一常量；批⑤后刻意不再跟正文页宽）', () => {
     const at = page.indexOf('<ChapterDetailsPanel');
     const call = page.slice(at, at + 800);
-    expect(call).toMatch(/contentMaxWidth=\{typo\.pageWidth\}/);
+    expect(call).toMatch(/contentMaxWidth=\{DETAILS_COLUMN_MAX\}/);
+    // 统筹卡与面板必须同一常量（同栏上下两块不许再各写一套）
+    expect(page).toMatch(/maxWidth: DETAILS_COLUMN_MAX/);
+    expect(page).toMatch(/const DETAILS_COLUMN_MAX = 1080;/);
   });
   it('设定卡内容列跟随页宽', () => {
     expect(page).toMatch(/maxWidth: typo\.pageWidth, mx: 'auto', display: 'flex', flexDirection: 'column'/);
@@ -49,9 +52,11 @@ describe('③ 限宽层与内边距层分离（border-box 陷阱）', () => {
       /maxWidth: typo\.pageWidth,\s*width: '100%',\s*mx: 'auto',\s*display: 'flex',\s*alignItems: 'center',/,
     );
   });
-  it('章详情统筹卡同样分离（内层 maxWidth+mx:auto）', () => {
+  it('章详情统筹卡同样分离（内层 maxWidth+mx:auto）；批⑤后详情列不再跟正文页宽，用整栏上限 DETAILS_COLUMN_MAX', () => {
     const details = page.slice(page.indexOf("rightTab === 'details'"), page.indexOf('<ChapterDetailsPanel'));
-    expect(details).toMatch(/maxWidth: typo\.pageWidth,\s*\n\s*mx: 'auto',/);
+    expect(details).toMatch(/maxWidth: DETAILS_COLUMN_MAX,\s*\n\s*mx: 'auto',/);
+    // 正文列仍必须保持排版页宽（阅读列口径），不许被波及
+    expect(page).toMatch(/maxWidth: typo\.pageWidth/);
   });
 });
 
