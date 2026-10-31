@@ -30,8 +30,10 @@ import {
   useWritingStore,
   WRITING_CONTENT_SAVED_EVENT,
   WRITING_NARRATIVE_CHANGED_EVENT,
+  WRITING_BOOK_META_CHANGED_EVENT,
   type WritingContentSavedPayload,
   type WritingNarrativeChangedPayload,
+  type WritingBookMetaChangedPayload,
 } from './store/writingStore';
 import { DESK_GOTO_VIEW_EVENT, applyDeskGotoView, type ChapterJumpPayload } from './utils/writingDeskJump';
 import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
@@ -117,6 +119,18 @@ function AppLayout() {
     let un: (() => void) | undefined;
     listen<WritingNarrativeChangedPayload>(WRITING_NARRATIVE_CHANGED_EVENT, (e) => {
       void useWritingStore.getState().applyExternalNarrativeChange(e.payload);
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, []);
+
+  // 跨窗口书元信息同步：任一窗口改了书名 / 简介 / 体裁·载体 / 连载状态 / 日更目标 / 全书目标，
+  // 其它已加载该书的窗口整表重载书架。创作者在一边「规划本书」调了截稿 / 目标，另一边（工作室
+  // 书属性卡 / 写作台 / 书架）能立刻看到一致的目标与节奏预测，不再基于互相矛盾的旧数据做决策。
+  // 所有窗口都消费：写的人自己那次重载幂等（loadBooks 拿同一份库）。
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen<WritingBookMetaChangedPayload>(WRITING_BOOK_META_CHANGED_EVENT, (e) => {
+      void useWritingStore.getState().applyExternalBookMetaChange(e.payload);
     }).then((u) => (un = u));
     return () => un?.();
   }, []);

@@ -61,6 +61,23 @@ export interface WritingNarrativeChangedPayload {
 }
 
 /**
+ * 跨窗口「书元信息已变更」广播：书名 / 简介 / 体裁·载体 / 连载·完结 / 日更目标 / 全书目标。
+ *
+ * 写作台与工作室（场景画布）各持一份 writingStore：在一边「规划本书」调了截稿日、日更目标
+ * 或全书目标，另一边仍显示旧值——作者基于两份互相矛盾的目标 / 节奏预测做决策，正是第十五轮
+ * 已确认、当时定为「中低优先、扩展有回声风险」的那处遗留隐患。
+ *
+ * 与叙事三表不同：这里用**低频显式 emit**（只有 4 个书级 setter 调用），不挂 store 订阅器——
+ * books 数组在 create/delete/loadBooks 等路径都会换引用，订阅器方式会误广播。显式入口精准可控。
+ * 载荷只带"哪本书"，接收方整表重载书架（书是常驻小数据，listBooks 幂等、成本远低于手工合并）。
+ */
+export const WRITING_BOOK_META_CHANGED_EVENT = 'writing-book-meta-changed';
+
+export interface WritingBookMetaChangedPayload {
+  bookId: string | null;
+}
+
+/**
  * 写作域 store（Sight Folio）
  *
  * 结构：books（书架）+ chaptersByBook（按书缓存的章节列表）。
@@ -147,6 +164,7 @@ interface WritingState {
   applyExternalChapterContent: (payload: WritingContentSavedPayload) => void;
   /** 并入另一窗口的叙事数据变更（只重载受影响分组，且不再广播，见类型注释） */
   applyExternalNarrativeChange: (payload: WritingNarrativeChangedPayload) => Promise<void>;
+  applyExternalBookMetaChange: (payload: WritingBookMetaChangedPayload) => Promise<void>;
 
   loadSettings: () => Promise<void>;
   createSetting: (kind: WritingSettingKind, name: string) => Promise<WritingSetting | null>;
@@ -399,6 +417,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastBookMeta(bookId);
     },
 
     renameBook: async (bookId: string, title: string) => {
@@ -413,6 +432,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastBookMeta(bookId);
     },
 
     deleteBook: async (bookId: string) => {
@@ -862,6 +882,24 @@ export const useWritingStore = create<WritingState>()(
         setTimeout(() => {
           narrativeBroadcastSuppressed = Math.max(0, narrativeBroadcastSuppressed - 1);
         }, 0);
+      }
+    },
+
+    /**
+     * 并入另一窗口的书元信息变更：整表重载书架（常驻小数据、幂等）。
+     *
+     * 不在本窗口书架里（该书没加载过）就忽略——下次 loadBooks 自然拿到新值；这样工作室改
+     * 非当前打开的书、或书架 hover 改另一本书，各窗口按需同步，不做无效拉取。
+     * 只换 books 引用、不碰叙事三表引用，因此不会触发叙事订阅器回播（天然无回声）。
+     */
+    applyExternalBookMetaChange: async (payload) => {
+      const { bookId } = payload;
+      if (!bookId) return;
+      if (!get().books.some((b) => b.id === bookId)) return;
+      try {
+        await get().loadBooks();
+      } catch (e) {
+        logger.warn('writingStore', 'applyExternalBookMetaChange reload failed', { bookId, error: e });
       }
     },
 
@@ -1445,6 +1483,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastBookMeta(bookId);
     },
 
     setBookGoal: async (bookId: string, goal: WritingBookGoal) => {
@@ -1463,6 +1502,7 @@ export const useWritingStore = create<WritingState>()(
           row.updatedAt = updated.updatedAt;
         }
       });
+      broadcastBookMeta(bookId);
     },
 
     loadDailyStats: async (bookId: string) => {
@@ -1488,6 +1528,21 @@ export const useWritingStore = create<WritingState>()(
  * 只比引用：immer 下任何真实修改都会换掉数组引用，而改别的字段（章节正文、统计数据）
  * 这三个引用不动，因此早退是 O(1)，不会给高频 set() 增加开销。
  */
+/**
+ * 书元信息变更后向其它窗口广播（复用叙事广播的防错模式：广播只是副作用，**绝不允许打断用户写入**）。
+ * 异步拒绝与同步抛出都要挡：emit() 返回 promise，不挂 .catch 拒绝会变 unhandled rejection；
+ * event 模块整体不可用时 emit 同步抛出，需 try/catch 才挡得住。
+ */
+function broadcastBookMeta(bookId: string): void {
+  try {
+    emit(WRITING_BOOK_META_CHANGED_EVENT, { bookId }).catch((e) => {
+      logger.warn('writingStore', '书元信息变更广播被拒绝（本地写入不受影响）', { error: e });
+    });
+  } catch (e) {
+    logger.warn('writingStore', '书元信息变更广播抛异常（本地写入不受影响）', { error: e });
+  }
+}
+
 let narrativeBroadcastSuppressed = 0;
 
 const narrativeRefs = (() => {
