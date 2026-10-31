@@ -82,6 +82,7 @@ import { rerenderDirectoryTree, runPortrait } from './utils/portraits';
 import { highlightInCanvasByText } from './utils/canvasLink';
 import logger from '../utils/logger';
 import { openChapterCarrierView, openTypedCarrierView } from '../utils/studioBook';
+import { useDragBodyGuard } from '../hooks/useDragBodyGuard';
 import { hasWritingCanvasCard } from '../utils/writingPaneSeed';
 import { spawnCodeWorkbench } from '../services/tauri';
 import { t } from '../i18n';
@@ -104,6 +105,48 @@ import {
 import './registerWritingWorkbench';
 import './renderers/canvasEntity.css';
 import { ProjectCanvas } from './sceneEditor/projectCanvas';
+
+// ─── 工作室三栏工作区布局持久化（第十四轮）───
+// 右栏宽 240~720（clamp 与写作台同量级）、默认 300；折叠态布尔。键与写作台命名同前缀。
+// 此前工作室右栏宽度 / 左右栏折叠全是组件局部 state（无 localStorage）：创作者把右栏拖到
+// 合适宽度、收起左栏腾出画布，**重启 / 切场景即丢**，与写作台早已记忆工作区布局不一致。
+// 现补齐——三处（右栏宽/右栏折叠/左栏折叠）跨会话记忆，工作区即开即用。
+const STUDIO_RIGHT_MIN = 240;
+const STUDIO_RIGHT_MAX = 720;
+const STUDIO_RIGHT_DEFAULT = 300;
+const STUDIO_RIGHT_WIDTH_KEY = 'sight-folio:studio.rightPanelWidth';
+const STUDIO_RIGHT_OPEN_KEY = 'sight-folio:studio.rightPanelOpen';
+const STUDIO_LEFT_OPEN_KEY = 'sight-folio:studio.leftPanelOpen';
+
+function readSavedStudioRightPanelWidth(): number | null {
+  try {
+    const raw = Number(localStorage.getItem(STUDIO_RIGHT_WIDTH_KEY));
+    if (Number.isFinite(raw) && raw >= STUDIO_RIGHT_MIN && raw <= STUDIO_RIGHT_MAX) {
+      return Math.round(raw);
+    }
+  } catch {
+    // 忽略
+  }
+  return null;
+}
+
+function readSavedStudioFlag(key: string, dft: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+  } catch {
+    // 忽略
+  }
+  return dft;
+}
+
+function readSavedStudioRightPanelOpen(): boolean {
+  return readSavedStudioFlag(STUDIO_RIGHT_OPEN_KEY, true);
+}
+function readSavedStudioLeftPanelOpen(): boolean {
+  return readSavedStudioFlag(STUDIO_LEFT_OPEN_KEY, true);
+}
 
 export function SceneEditor({
   onOpenLayersDialog,
@@ -608,32 +651,83 @@ export function SceneEditor({
     if (!isBookScene) return;
     if (selectedInspirationId || selectedChapterId) setRightTab(1);
   }, [isBookScene, selectedInspirationId, selectedChapterId]);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  // ─── 右侧面板可拖拽宽度（v2.5）───
+  // 右栏折叠态跨会话记忆（与宽度同一口径）：创作者把右栏收起获得更大画布，
+  // 此前每次重开工作室又自动展开，得重新点一次收起条。
+  const [rightPanelOpen, setRightPanelOpen] = useState(readSavedStudioRightPanelOpen);
+  // ─── 右侧面板可拖拽宽度（v2.5 / 第十四轮持久化 + 守卫）───
   // null = 未自定义（统一默认 300）；拖拽后记住自定义值，切换 tab 不重置、也不因 tab 变宽，
   // 保持右栏风格一致（此前 AI tab 特殊给 400，切到 AI 时右栏会跳宽，破坏一致性）。clamp 240~720 防拖到不可用。
-  const [rightPanelWidth, setRightPanelWidth] = useState<number | null>(null);
-  const currentRightWidth = rightPanelWidth ?? 300;
-  const startRightResize = (e: React.MouseEvent) => {
+  // 拖拽宽度落 localStorage：与写作台左栏/抽屉同一范式，创作者调好的工作区布局重启不丢。
+  const [rightPanelWidth, setRightPanelWidth] = useState<number | null>(readSavedStudioRightPanelWidth);
+  const currentRightWidth = rightPanelWidth ?? STUDIO_RIGHT_DEFAULT;
+  // 拖拽会话用 ref 记账 + state 触发 effect 挂 window 监听（与写作台左栏同范式）：
+  // 旧实现 imperative 在 mousedown 里 addEventListener、只在 onUp 里 remove + 复位 body 样式——
+  // **拖到中途**收起右栏 / 切场景 / 切书时手柄随分支卸载，imperative 监听与 body 样式脱管，
+  // cursor/userSelect 卡死、整页文字选不中（第十一轮写作台同型病灶在工作室复现）。
+  // 改由 useEffect(rightDragging) 统一挂载/摘除 window 监听 + 收尾还原，卸载即 cleanup，绝无残留。
+  const rightDragStartRef = useRef<{ x: number; w: number } | null>(null);
+  const [rightDragging, setRightDragging] = useState(false);
+  const { begin: beginBodyDrag, release: releaseBodyDrag } = useDragBodyGuard();
+  const startRightResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const startX = e.clientX;
-    const startW = currentRightWidth;
+    rightDragStartRef.current = { x: e.clientX, w: currentRightWidth };
+    setRightDragging(true);
+    beginBodyDrag();
+  }, [currentRightWidth, beginBodyDrag]);
+  useEffect(() => {
+    if (!rightDragging) return;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.cursor = 'col-resize';
     const onMove = (ev: MouseEvent) => {
-      const w = startW + (startX - ev.clientX); // 手柄在右栏左侧：往左拖变宽
-      setRightPanelWidth(Math.min(720, Math.max(240, Math.round(w))));
+      const s = rightDragStartRef.current;
+      if (!s) return;
+      const w = s.w + (s.x - ev.clientX); // 手柄在右栏左侧：往左拖变宽
+      setRightPanelWidth(Math.min(STUDIO_RIGHT_MAX, Math.max(STUDIO_RIGHT_MIN, Math.round(w))));
     };
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      rightDragStartRef.current = null;
+      setRightDragging(false);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  };
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = prevCursor;
+      releaseBodyDrag();
+    };
+  }, [rightDragging, releaseBodyDrag]);
+  // 拖宽结束后落盘（拖拽期间每帧写 localStorage 会抖动，松手即 end 时一次性写）；
+  // 复位（双击）走同一路径：rightDragging 转 false 且宽度已变即写当前值。
+  useEffect(() => {
+    if (rightDragging) return;
+    if (rightPanelWidth == null) return;
+    try {
+      localStorage.setItem(STUDIO_RIGHT_WIDTH_KEY, String(rightPanelWidth));
+    } catch {
+      // 存储不可写（隐私模式等）：本次会话内宽度仍生效，不再重试
+    }
+  }, [rightDragging, rightPanelWidth]);
+  const persistRightPanelOpen = useCallback((open: boolean) => {
+    setRightPanelOpen(open);
+    try {
+      localStorage.setItem(STUDIO_RIGHT_OPEN_KEY, open ? '1' : '0');
+    } catch {
+      // 忽略
+    }
+  }, []);
+  /** 双击手柄：宽度一键复位为默认值（误拖后快速回到原始布局），并记忆偏好 */
+  const onRightResizeReset = useCallback(() => {
+    rightDragStartRef.current = null;
+    setRightDragging(false);
+    setRightPanelWidth(STUDIO_RIGHT_DEFAULT);
+    try {
+      localStorage.setItem(STUDIO_RIGHT_WIDTH_KEY, String(STUDIO_RIGHT_DEFAULT));
+    } catch {
+      // 忽略
+    }
+  }, []);
 
   // 主窗口 AI 面板的「当前文件」：取自选中的画布实体背后的源文件（路径来自 files 表，后端守门才收）。
   // 与 ProjectCanvas 内的 selectedFileForAi 同源（都从 editorStore 的选中实体反查），但各自订阅，互不依赖。
@@ -658,8 +752,19 @@ export function SceneEditor({
   }, [aiSelectedFilePath, projectFiles]);
   // 主窗口没有实时 Monaco 编辑器；传空 ref，WorkbenchAiPanel 会自动从磁盘读原文来 apply（见面板内磁盘兜底）。
   const aiEditorRef = useRef<MonacoEditorHandle | null>(null);
-  // 左面板展开/收起（默认展开，与 biosphere 一致）
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  // 左面板展开/收起（默认展开，与 biosphere 一致）；折叠态跨会话记忆（与右栏同口径）
+  const [leftPanelOpen, setLeftPanelOpen] = useState(readSavedStudioLeftPanelOpen);
+  const persistLeftPanelOpen = useCallback((open: boolean) => {
+    setLeftPanelOpen(open);
+    try {
+      localStorage.setItem(STUDIO_LEFT_OPEN_KEY, open ? '1' : '0');
+    } catch {
+      // 忽略
+    }
+  }, []);
+  const toggleLeftPanel = useCallback(() => {
+    persistLeftPanelOpen(!leftPanelOpen);
+  }, [leftPanelOpen, persistLeftPanelOpen]);
 
   // 审查统计
   const findingsCount = findings.length;
@@ -936,7 +1041,7 @@ export function SceneEditor({
       <Tooltip title={leftPanelOpen ? t('editor.collapseLeft') : t('editor.expandLeft')}>
         <IconButton
           size="small"
-          onClick={() => setLeftPanelOpen(!leftPanelOpen)}
+          onClick={toggleLeftPanel}
           sx={{
             backgroundColor: leftPanelOpen ? 'action.selected' : 'transparent',
           }}
@@ -1376,7 +1481,7 @@ export function SceneEditor({
             <Tooltip title={leftPanelOpen ? t('editor.collapseLeft') : t('editor.expandLeft')}>
               <IconButton
                 size="small"
-                onClick={() => setLeftPanelOpen(!leftPanelOpen)}
+                onClick={toggleLeftPanel}
                 sx={{
                   backgroundColor: leftPanelOpen ? 'action.selected' : 'transparent',
                 }}
@@ -1433,7 +1538,7 @@ export function SceneEditor({
       {/* 编辑区：左侧实体面板 + 中间画布 + 右侧属性面板 + 最右收起条 */}
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
         {/* 左侧实体/文件树面板（折叠交互与 biosphere 一致：200 → 40 动画） */}
-        <ComponentCenterPanel collapsed={!leftPanelOpen} onToggle={() => setLeftPanelOpen(!leftPanelOpen)} />
+        <ComponentCenterPanel collapsed={!leftPanelOpen} onToggle={toggleLeftPanel} />
 
         {/* 中间列：视图标签栏 + 画布（核心交互：拖动编辑永不下线。
             书场景的载体工作台以**画布实体**形态存在（writing-workbench），不替换画布） */}
@@ -1493,6 +1598,7 @@ export function SceneEditor({
             {/* 拖拽调宽手柄（v2.5）：独立元素在右栏左侧，mousedown 不冒泡到画布 pan */}
             <Box
               onMouseDown={startRightResize}
+              onDoubleClick={onRightResizeReset}
               title={t('editor.resizePanel')}
               sx={{
                 width: 5,
@@ -1956,7 +2062,7 @@ export function SceneEditor({
                     activeFile={mainAiFile}
                     selection={null}
                     editorRef={aiEditorRef}
-                    onClose={() => setRightPanelOpen(false)}
+                    onClose={() => persistRightPanelOpen(false)}
                     isBookScene={isBookScene}
                     bookTopic={aiBookTopic}
                     bookTitle={aiBookTitle}
@@ -1994,7 +2100,7 @@ export function SceneEditor({
               backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
             },
           }}
-          onClick={() => setRightPanelOpen(!rightPanelOpen)}
+          onClick={() => persistRightPanelOpen(!rightPanelOpen)}
         >
           {rightPanelOpen ? <ChevronRightIcon sx={{ fontSize: 14 }} /> : <ChevronLeftIcon sx={{ fontSize: 14 }} />}
         </Box>

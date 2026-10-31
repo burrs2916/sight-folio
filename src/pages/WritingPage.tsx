@@ -183,7 +183,7 @@ import { WritingNotesDialog } from './WritingNotesDialog';
 import { WritingImportTxtDialog } from './WritingImportTxtDialog';
 import { WritingDrawer } from './writingPage/WritingDrawer';
 import { extractCorpusQuery } from './writingPage/corpusQuery';
-import { useDragBodyGuard } from './writingPage/useDragBodyGuard';
+import { useDragBodyGuard } from '../hooks/useDragBodyGuard';
 
 import { textToChapterHtml, countChapterWords, type ParsedChapter } from '../utils/writingImport';
 import { AssetLibraryDialog } from '../editor/panels/AssetLibraryDialog';

@@ -29,7 +29,7 @@ import { t } from '../../i18n';
 import type { WritingForeshadowing } from '../../services/tauri';
 import type { ProofreadFinding } from '../../utils/writingProofread';
 import type { WritingChapter } from '../../services/writing';
-import { useDragBodyGuard } from './useDragBodyGuard';
+import { useDragBodyGuard } from '../../hooks/useDragBodyGuard';
 import { CorpusReferencePanel } from './CorpusReferencePanel';
 import { AiCorpusPanel, type AiCorpusPanelProps } from './AiCorpusPanel';
 import { ExternalCapturePanel, type ExternalCapturePanelProps } from './ExternalCapturePanel';

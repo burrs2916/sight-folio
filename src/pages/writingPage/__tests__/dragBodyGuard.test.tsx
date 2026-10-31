@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { useDragBodyGuard } from '../useDragBodyGuard';
+import { useDragBodyGuard } from '../../../hooks/useDragBodyGuard';
 
 // React 18 createRoot 需要在 act 环境下工作
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;

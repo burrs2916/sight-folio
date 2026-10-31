@@ -26,7 +26,7 @@ import { useToastStore } from '../../store/toastStore';
 import { t } from '../../i18n';
 import { highlight } from '../../utils/corpusHighlight';
 import { analyzeCraft, type CraftTagKey } from '../../utils/craftTags';
-import { useDragBodyGuard } from './useDragBodyGuard';
+import { useDragBodyGuard } from '../../hooks/useDragBodyGuard';
 
 export interface CorpusReferencePanelProps {
   /** 当前输入片段（WritingPage 从编辑器 onUpdate 提取；空串 = 无输入/光标在块首且块空） */
