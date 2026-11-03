@@ -5,7 +5,7 @@
 use crate::application::work_version;
 use crate::application::work_version::library_root::WorksLibraryRootInfo;
 use crate::commands::SettingsState;
-use crate::domain::work_version::{WorkVersion, WorkVersionChapter};
+use crate::domain::work_version::{ArtifactView, ExportArtifact, WorkVersion, WorkVersionChapter};
 use crate::error::AppResult;
 use crate::infrastructure::database::work_version_repository::WorkVersionRepository;
 use crate::infrastructure::database::{SqliteWorkVersionRepository, SqliteWritingRepository};
@@ -92,4 +92,66 @@ pub fn set_works_library_root(
     settings: State<'_, SettingsState>,
 ) -> AppResult<WorksLibraryRootInfo> {
     work_version::library_root::set_works_library_root(&settings.repository, &path)
+}
+
+// ─── 导出任务队列（B4，需求 §5.2 / §6）───
+// 命令层只做 State 解包；格式白名单、快照取数、状态机全在 export_jobs。
+
+/// 入队导出：一格式一条 queued 任务，后台线程按并发上限 2 消化（Q5 默认）。
+/// 返回刚入队的任务列表，界面据此即时展示排队态。
+#[tauri::command]
+pub fn enqueue_export(
+    version_id: String,
+    formats: Vec<String>,
+    spec_id: Option<String>,
+    version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+    writing_repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<Vec<ExportArtifact>> {
+    work_version::export_jobs::enqueue_export(
+        &version_repo.inner().clone(),
+        &writing_repo.inner().clone(),
+        &version_id,
+        &formats,
+        spec_id.as_deref(),
+    )
+}
+
+/// 任务面板视图：queued/running/failed（先入队先出）。
+#[tauri::command]
+pub fn list_export_jobs(
+    version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+) -> AppResult<Vec<ExportArtifact>> {
+    work_version::export_jobs::list_export_jobs(&version_repo.inner().clone())
+}
+
+/// 原地重试：只放行 failed（running 拒绝是诚实——没有中断线程的能力就不假装能重派）。
+#[tauri::command]
+pub fn retry_export_job(
+    job_id: String,
+    version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+) -> AppResult<()> {
+    work_version::export_jobs::retry_export_job(&version_repo.inner().clone(), &job_id)
+}
+
+/// 移除任务记录：queued（取消排队）与 failed（清失败账）可移除。
+#[tauri::command]
+pub fn dismiss_export_job(
+    job_id: String,
+    version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+) -> AppResult<()> {
+    work_version::export_jobs::dismiss_export_job(&version_repo.inner().clone(), &job_id)
+}
+
+/// 产物列表（成品页/计数徽标用）：书名 join 现取，库里零副本。
+#[tauri::command]
+pub fn list_export_artifacts(
+    book_id: Option<String>,
+    version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+    writing_repo: State<'_, Arc<SqliteWritingRepository>>,
+) -> AppResult<Vec<ArtifactView>> {
+    work_version::export_jobs::list_export_artifact_views(
+        &version_repo.inner().clone(),
+        &writing_repo.inner().clone(),
+        book_id.as_deref(),
+    )
 }

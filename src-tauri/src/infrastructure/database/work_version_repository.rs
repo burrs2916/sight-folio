@@ -11,7 +11,7 @@
 //!    但「清旧 + 置新」是两条 UPDATE，中途失败会留下零个或两个正稿。
 //! 3. **删版本连带抹产物记录**：产物必然挂在版本下（D1），版本没了还留着产物记录，
 //!    成品页就会出现指向空气的幽灵条目。磁盘文件是否删除由调用方决定，本层只回传相对路径。
-use crate::domain::work_version::{WorkVersion, WorkVersionChapter};
+use crate::domain::work_version::{ExportArtifact, WorkVersion, WorkVersionChapter};
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::connection::Database;
 use std::sync::Arc;
@@ -20,6 +20,8 @@ const VERSION_COLS: &str = "id, book_id, seq, label, note, is_final, chapter_cou
                             content_hash, schema_ver, locked_at";
 const VERSION_CHAPTER_COLS: &str = "version_id, sort_order, src_chapter_id, title, content, kind, \
                                     parent_id, status, word_count";
+const ARTIFACT_COLS: &str = "id, version_id, book_id, format, spec_id, file_rel_path, file_size, \
+                             status, error, origin, created_at";
 
 pub trait WorkVersionRepository {
     /// 原子写入一个版本头 + 它的全部章节副本；`version.is_final` 为真时同事务清掉旧正稿。
@@ -38,6 +40,29 @@ pub trait WorkVersionRepository {
     /// 删版本 + 章节副本 + 产物记录；返回被抹掉的产物相对路径（调用方据此决定是否删文件）。
     fn delete_version(&self, version_id: &str) -> AppResult<Vec<String>>;
     fn list_version_chapters(&self, version_id: &str) -> AppResult<Vec<WorkVersionChapter>>;
+
+    // ─── 导出任务 / 产物（B4）───
+    // 任务与产物同表（export_artifacts）：status 走 queued→running→ready/failed，
+    // 「任务面板」与「产物列表」只是同一张表的不同状态视图，不再另立 jobs 表。
+
+    fn insert_artifact(&self, artifact: &ExportArtifact) -> AppResult<()>;
+    fn find_artifact(&self, id: &str) -> AppResult<Option<ExportArtifact>>;
+    /// 产物全集视图（成品页用）：可按书过滤，含 queued/running —— 排队态也要出现在版本行上。
+    fn list_artifacts(&self, book_id: Option<&str>) -> AppResult<Vec<ExportArtifact>>;
+    /// 任务面板视图：queued/running/failed 三种「要人看」的状态，先入队先出。
+    fn list_export_jobs(&self) -> AppResult<Vec<ExportArtifact>>;
+    /// 原子领取最早的 queued 改成 running；队列空返回 None。
+    /// select+update 必须同事务：两步分开会让两个 worker 领到同一条任务重复导出。
+    fn claim_next_queued(&self) -> AppResult<Option<ExportArtifact>>;
+    /// 回写结局：ready（带 file_size）或 failed（带 error）。
+    fn update_artifact_outcome(&self, id: &str, status: &str, file_size: i64, error: &str) -> AppResult<()>;
+    /// 重试：仅 failed → queued 并清 error；状态不符返回 false（判不判归用例层）。
+    fn requeue_failed_artifact(&self, id: &str) -> AppResult<bool>;
+    /// 按 id 删一条产物/任务记录；不存在返回 false。
+    fn delete_artifact(&self, id: &str) -> AppResult<bool>;
+    /// 重启清污（需求 §5.2-4）：残留 queued/running 一律改判 failed，返回改写行数。
+    /// ready 不动；已 failed 的旧账也不动（它的 error 是上一次的真因，别覆盖成中断）。
+    fn fail_interrupted_artifacts(&self, error: &str) -> AppResult<i64>;
 }
 
 pub struct SqliteWorkVersionRepository {
@@ -78,6 +103,22 @@ fn row_to_version_chapter(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkVersi
         parent_id: row.get(6)?,
         status: row.get(7)?,
         word_count: row.get(8)?,
+    })
+}
+
+fn row_to_artifact(row: &rusqlite::Row<'_>) -> rusqlite::Result<ExportArtifact> {
+    Ok(ExportArtifact {
+        id: row.get(0)?,
+        version_id: row.get(1)?,
+        book_id: row.get(2)?,
+        format: row.get(3)?,
+        spec_id: row.get(4)?,
+        file_rel_path: row.get(5)?,
+        file_size: row.get(6)?,
+        status: row.get(7)?,
+        error: row.get(8)?,
+        origin: row.get(9)?,
+        created_at: row.get(10)?,
     })
 }
 
@@ -231,12 +272,148 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     fn list_version_chapters(&self, version_id: &str) -> AppResult<Vec<WorkVersionChapter>> {
         let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
-            "SELECT {VERSION_CHAPTER_COLS} FROM work_version_chapters
-             WHERE version_id = ?1 ORDER BY sort_order ASC"
+            "SELECT {VERSION_CHAPTER_COLS} FROM work_version_chapters\n             WHERE version_id = ?1 ORDER BY sort_order ASC"
         ))?;
         let rows = stmt
             .query_map([version_id], row_to_version_chapter)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
+    }
+
+    fn insert_artifact(&self, artifact: &ExportArtifact) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "INSERT INTO export_artifacts
+             (id, version_id, book_id, format, spec_id, file_rel_path, file_size, status,
+              error, origin, created_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+            rusqlite::params![
+                artifact.id,
+                artifact.version_id,
+                artifact.book_id,
+                artifact.format,
+                artifact.spec_id,
+                artifact.file_rel_path,
+                artifact.file_size,
+                artifact.status,
+                artifact.error,
+                artifact.origin,
+                artifact.created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    fn find_artifact(&self, id: &str) -> AppResult<Option<ExportArtifact>> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {ARTIFACT_COLS} FROM export_artifacts WHERE id = ?1 LIMIT 1"
+        ))?;
+        let mut rows = stmt.query_map([id], row_to_artifact)?;
+        match rows.next() {
+            Some(row) => Ok(Some(row?)),
+            None => Ok(None),
+        }
+    }
+
+    fn list_artifacts(&self, book_id: Option<&str>) -> AppResult<Vec<ExportArtifact>> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let sql = format!(
+            "SELECT {ARTIFACT_COLS} FROM export_artifacts {} ORDER BY created_at ASC, id ASC",
+            if book_id.is_some() { "WHERE book_id = ?1" } else { "" }
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = match book_id {
+            Some(b) => stmt
+                .query_map([b], row_to_artifact)?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+            None => stmt
+                .query_map([], row_to_artifact)?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+        };
+        Ok(rows)
+    }
+
+    fn list_export_jobs(&self) -> AppResult<Vec<ExportArtifact>> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {ARTIFACT_COLS} FROM export_artifacts
+             WHERE status IN ('queued', 'running', 'failed')
+             ORDER BY created_at ASC, id ASC"
+        ))?;
+        let rows = stmt
+            .query_map([], row_to_artifact)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
+    fn claim_next_queued(&self) -> AppResult<Option<ExportArtifact>> {
+        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let tx = conn.transaction()?;
+        let claimed: Option<ExportArtifact> = tx
+            .query_row(
+                &format!(
+                    "SELECT {ARTIFACT_COLS} FROM export_artifacts
+                     WHERE id = (SELECT id FROM export_artifacts WHERE status = 'queued'
+                                 ORDER BY created_at ASC, id ASC LIMIT 1)"
+                ),
+                [],
+                row_to_artifact,
+            )
+            .ok();
+        let Some(job) = claimed else {
+            tx.commit()?;
+            return Ok(None);
+        };
+        // 领取即改态：同事务里 queued → running，别的 worker 再进来领不到同一条
+        let updated = tx.execute(
+            "UPDATE export_artifacts SET status = 'running' WHERE id = ?1 AND status = 'queued'",
+            [&job.id],
+        )?;
+        if updated == 0 {
+            // 理论到不了这一步（全局连接锁下 select/update 之间无并发）；真到说明状态机被旁路改坏
+            return Err(AppError::Internal(format!(
+                "任务 {} 领取竞态：queued 读到了却改不动",
+                job.id
+            )));
+        }
+        tx.commit()?;
+        Ok(Some(ExportArtifact {
+            status: "running".to_string(),
+            ..job
+        }))
+    }
+
+    fn update_artifact_outcome(&self, id: &str, status: &str, file_size: i64, error: &str) -> AppResult<()> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "UPDATE export_artifacts SET status = ?2, file_size = ?3, error = ?4 WHERE id = ?1",
+            rusqlite::params![id, status, file_size, error],
+        )?;
+        Ok(())
+    }
+
+    fn requeue_failed_artifact(&self, id: &str) -> AppResult<bool> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let changed = conn.execute(
+            "UPDATE export_artifacts SET status = 'queued', error = '' WHERE id = ?1 AND status = 'failed'",
+            [id],
+        )?;
+        Ok(changed > 0)
+    }
+
+    fn delete_artifact(&self, id: &str) -> AppResult<bool> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(conn.execute("DELETE FROM export_artifacts WHERE id = ?1", [id])? > 0)
+    }
+
+    fn fail_interrupted_artifacts(&self, error: &str) -> AppResult<i64> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let changed = conn.execute(
+            "UPDATE export_artifacts SET status = 'failed', error = ?1
+             WHERE status IN ('queued', 'running')",
+            [error],
+        )?;
+        Ok(changed as i64)
     }
 }

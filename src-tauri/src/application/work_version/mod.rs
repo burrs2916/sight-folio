@@ -9,6 +9,8 @@
 
 /// 作品库根目录（B3）：默认根、读取即建目录、换根校验与落库口径都在子模块。
 pub mod library_root;
+/// 导出任务队列（B4）：入队/领取/重试/移除、重启残留改判、并发上限 2 与快照渲染器。
+pub mod export_jobs;
 
 use crate::application::writing::is_chapter_soft_deleted;
 use crate::domain::writing::WritingChapter;

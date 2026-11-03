@@ -75,6 +75,18 @@ fn default_spec_id() -> String {
     "default".to_string()
 }
 
+/// 成品页产物视图：产物记录全部字段 + **join `writing_books` 现取的书名**。
+///
+/// 需求 §3 的红线「书名不冗余」在读取侧的落点：库里没有 book_title 列，
+/// 界面拿到的书名只可能来自 `writing_books.title` 的实时 join，改名即刻生效。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactView {
+    #[serde(flatten)]
+    pub artifact: ExportArtifact,
+    pub book_title: String,
+}
+
 fn default_artifact_status() -> String {
     "ready".to_string()
 }
@@ -154,5 +166,30 @@ mod tests {
 
         let de: ExportArtifact = serde_json::from_str(&json).unwrap();
         assert_eq!(de, a);
+    }
+
+    #[test]
+    fn test_artifact_view_flattens_artifact_and_carries_join_title() {
+        let view = ArtifactView {
+            artifact: ExportArtifact {
+                id: "art_1".to_string(),
+                version_id: "ver_1".to_string(),
+                book_id: "book_1".to_string(),
+                format: "epub".to_string(),
+                spec_id: "default".to_string(),
+                file_rel_path: "book_1/v1/书名-v1.epub".to_string(),
+                file_size: 1024,
+                status: "ready".to_string(),
+                error: String::new(),
+                origin: "export".to_string(),
+                created_at: 1730601000,
+            },
+            book_title: "改过的新书名".to_string(),
+        };
+        let json = serde_json::to_string(&view).unwrap();
+        // flatten：产物字段直接铺平，前端不必再解一层嵌套
+        assert!(json.contains("\"bookTitle\":\"改过的新书名\""));
+        assert!(json.contains("\"fileRelPath\":\"book_1/v1/书名-v1.epub\""));
+        assert!(!json.contains("\"artifact\":"));
     }
 }

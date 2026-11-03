@@ -192,6 +192,24 @@ pub fn run() {
             // 成稿版本（完结作品重设计 B1）：版本头/内容副本/导出产物三表的仓储
             let work_version_repo = Arc::new(SqliteWorkVersionRepository::new(db_arc.clone()));
 
+            // ─── 导出任务队列（B4）：先把上次进程残留的 queued/running 改判 failed
+            //（§5.2-4，顺序不能反：先清污再开工，否则僵尸任务会被领起来再自杀），
+            // 再拉起轮询线程（并发上限 2，Q5 默认；只读快照渲染，绝不回生活章节）。
+            {
+                use crate::application::work_version::export_jobs;
+                match export_jobs::fail_interrupted_exports(&work_version_repo) {
+                    Ok(0) => {}
+                    Ok(n) => eprintln!("[sight-folio] 启动：{n} 个残留导出任务已改判失败（上次导出被中断）"),
+                    Err(e) => eprintln!("[sight-folio] 启动清理残留导出任务失败：{e}"),
+                }
+                let settings_for_queue = Arc::new(SqliteSettingsRepository::new(db_arc.clone()));
+                let versions_for_queue = work_version_repo.clone();
+                let writing_for_queue = writing_repo.clone();
+                std::thread::spawn(move || {
+                    export_jobs::run_queue_loop(versions_for_queue, writing_for_queue, settings_for_queue);
+                });
+            }
+
             // ─── 语料库（独立 corpus.db，与业务库隔离）───
             // B2 降级：语料库是可选功能，初始化失败**不得** abort 整个应用——
             // 记录原因并注册 unavailable 状态，corpus 命令统一返回明确错误，
@@ -536,6 +554,12 @@ pub fn run() {
             // ─── 作品库根（B3）：读取即建目录 / 换根（创建失败如实抛错，无静默降级）───
             commands::get_works_library_root,
             commands::set_works_library_root,
+            // ─── 导出任务队列（B4）：快照渲染 / 排队可见 / 原地重试（§5.2）───
+            commands::enqueue_export,
+            commands::list_export_jobs,
+            commands::retry_export_job,
+            commands::dismiss_export_job,
+            commands::list_export_artifacts,
             commands::list_writing_chapters,
             commands::get_writing_chapter,
             commands::save_writing_chapter,
