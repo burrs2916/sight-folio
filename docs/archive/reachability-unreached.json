@@ -1,0 +1,1058 @@
+{
+  "generatedAt": "2026-11-03T05:30:23.284Z",
+  "dead": [
+    {
+      "path": "src/editor/renderers/ornamentalDiamondPaths.json",
+      "lines": 174
+    },
+    {
+      "path": "src/utils/__tests__/.DS_Store",
+      "lines": 1
+    }
+  ],
+  "testOnly": [
+    {
+      "path": "src/ai/__tests__/WritingBookInsights.test.tsx",
+      "lines": 278
+    },
+    {
+      "path": "src/ai/__tests__/analysisCoverage.test.ts",
+      "lines": 216
+    },
+    {
+      "path": "src/ai/__tests__/analysisRunner.test.ts",
+      "lines": 313
+    },
+    {
+      "path": "src/ai/__tests__/analysisScheduler.test.ts",
+      "lines": 492
+    },
+    {
+      "path": "src/ai/__tests__/autoAnalysisOrchestrator.test.ts",
+      "lines": 439
+    },
+    {
+      "path": "src/ai/__tests__/autoAnalysisRotation.test.ts",
+      "lines": 176
+    },
+    {
+      "path": "src/ai/__tests__/canvasAssistant.test.ts",
+      "lines": 386
+    },
+    {
+      "path": "src/ai/__tests__/contextPersist.test.ts",
+      "lines": 282
+    },
+    {
+      "path": "src/ai/__tests__/dataQuality.test.ts",
+      "lines": 391
+    },
+    {
+      "path": "src/ai/__tests__/entityRegression.test.ts",
+      "lines": 445
+    },
+    {
+      "path": "src/ai/__tests__/focusCoverage.test.ts",
+      "lines": 92
+    },
+    {
+      "path": "src/ai/__tests__/focusPatrol.test.ts",
+      "lines": 599
+    },
+    {
+      "path": "src/ai/__tests__/i18n-en-output.test.ts",
+      "lines": 200
+    },
+    {
+      "path": "src/ai/__tests__/insightFeedback.test.ts",
+      "lines": 215
+    },
+    {
+      "path": "src/ai/__tests__/insightOverlay.test.ts",
+      "lines": 225
+    },
+    {
+      "path": "src/ai/__tests__/insightReport.test.ts",
+      "lines": 287
+    },
+    {
+      "path": "src/ai/__tests__/metricTrend.test.ts",
+      "lines": 324
+    },
+    {
+      "path": "src/ai/__tests__/regressionFocus.test.ts",
+      "lines": 463
+    },
+    {
+      "path": "src/ai/__tests__/riskCorrelation.test.ts",
+      "lines": 465
+    },
+    {
+      "path": "src/ai/__tests__/scanContextIncremental.test.ts",
+      "lines": 157
+    },
+    {
+      "path": "src/ai/__tests__/scanEntities.test.ts",
+      "lines": 434
+    },
+    {
+      "path": "src/ai/__tests__/scanPresets.test.ts",
+      "lines": 43
+    },
+    {
+      "path": "src/ai/__tests__/scanTrend.test.ts",
+      "lines": 197
+    },
+    {
+      "path": "src/ai/__tests__/sectionDiff.test.ts",
+      "lines": 171
+    },
+    {
+      "path": "src/ai/__tests__/writingAssistant.test.ts",
+      "lines": 371
+    },
+    {
+      "path": "src/ai/__tests__/writingCaptureNormalize.test.ts",
+      "lines": 48
+    },
+    {
+      "path": "src/ai/chat/__tests__/ChatMarkdown.test.tsx",
+      "lines": 165
+    },
+    {
+      "path": "src/ai/chat/__tests__/aiChatMarkdownMergeRound41.test.tsx",
+      "lines": 136
+    },
+    {
+      "path": "src/ai/focusCoverage.ts",
+      "lines": 71
+    },
+    {
+      "path": "src/ai/providers/__tests__/commentHealth.test.ts",
+      "lines": 85
+    },
+    {
+      "path": "src/ai/providers/__tests__/writingContextProvider.test.ts",
+      "lines": 413
+    },
+    {
+      "path": "src/components/__tests__/CoverThumb.test.tsx",
+      "lines": 93
+    },
+    {
+      "path": "src/components/__tests__/DeskSettingsPanelRound26.test.tsx",
+      "lines": 152
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerAutoSave.test.ts",
+      "lines": 32
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound19.test.tsx",
+      "lines": 135
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound20.test.tsx",
+      "lines": 205
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound23.test.tsx",
+      "lines": 178
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound25.test.tsx",
+      "lines": 157
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound26.test.tsx",
+      "lines": 203
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound28.test.tsx",
+      "lines": 157
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound30.test.tsx",
+      "lines": 177
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound32.test.tsx",
+      "lines": 212
+    },
+    {
+      "path": "src/components/__tests__/SettingsDrawerRound36.test.tsx",
+      "lines": 235
+    },
+    {
+      "path": "src/components/__tests__/SettingsHealthNoticeRound35.test.tsx",
+      "lines": 211
+    },
+    {
+      "path": "src/components/__tests__/appearanceProfilesPanel.test.tsx",
+      "lines": 190
+    },
+    {
+      "path": "src/components/ui/__tests__/ToolApprovalDialog.test.tsx",
+      "lines": 161
+    },
+    {
+      "path": "src/editor/analyzer/__tests__/languageCoverage.test.ts",
+      "lines": 45
+    },
+    {
+      "path": "src/editor/components/__tests__/DraftInput.test.tsx",
+      "lines": 221
+    },
+    {
+      "path": "src/editor/components/__tests__/SceneTabBar.bookTabs.test.tsx",
+      "lines": 524
+    },
+    {
+      "path": "src/editor/components/__tests__/previewRepro.test.tsx",
+      "lines": 38
+    },
+    {
+      "path": "src/editor/extensions/__tests__/textIndent.test.ts",
+      "lines": 99
+    },
+    {
+      "path": "src/editor/panels/WritingRightPanel.tsx",
+      "lines": 216
+    },
+    {
+      "path": "src/editor/panels/__tests__/aiAssistantSessionsRound42.test.tsx",
+      "lines": 330
+    },
+    {
+      "path": "src/editor/panels/__tests__/aiAssistantWiringRound38.test.ts",
+      "lines": 257
+    },
+    {
+      "path": "src/editor/panels/__tests__/aiAssistantWiringRound39.test.ts",
+      "lines": 60
+    },
+    {
+      "path": "src/editor/panels/__tests__/aiChatStyleRound40.test.tsx",
+      "lines": 161
+    },
+    {
+      "path": "src/editor/panels/__tests__/aiMarkdown.test.tsx",
+      "lines": 173
+    },
+    {
+      "path": "src/editor/panels/__tests__/bookMetaPanel.test.tsx",
+      "lines": 434
+    },
+    {
+      "path": "src/editor/panels/__tests__/bookVolumeTree.test.tsx",
+      "lines": 135
+    },
+    {
+      "path": "src/editor/panels/__tests__/buildFollowups.bookTopic.test.ts",
+      "lines": 70
+    },
+    {
+      "path": "src/editor/panels/__tests__/canvasLayerPanel.test.ts",
+      "lines": 54
+    },
+    {
+      "path": "src/editor/panels/__tests__/chapterOverviewFit.test.tsx",
+      "lines": 81
+    },
+    {
+      "path": "src/editor/panels/__tests__/composerEdgeClearance.test.ts",
+      "lines": 81
+    },
+    {
+      "path": "src/editor/panels/__tests__/resolveConvTitle.test.ts",
+      "lines": 34
+    },
+    {
+      "path": "src/editor/panels/__tests__/speechInput.test.ts",
+      "lines": 357
+    },
+    {
+      "path": "src/editor/panels/__tests__/studioCanvasEntityRightTab.test.ts",
+      "lines": 35
+    },
+    {
+      "path": "src/editor/panels/__tests__/studioKeyboardAndCanvasAi.test.tsx",
+      "lines": 45
+    },
+    {
+      "path": "src/editor/panels/__tests__/studioLeftPanelResize.test.ts",
+      "lines": 48
+    },
+    {
+      "path": "src/editor/panels/__tests__/studioLeftPanelTabPersist.test.ts",
+      "lines": 29
+    },
+    {
+      "path": "src/editor/panels/__tests__/studioPanelDragPersist.test.tsx",
+      "lines": 62
+    },
+    {
+      "path": "src/editor/panels/__tests__/treeCanvasLinkage.test.ts",
+      "lines": 237
+    },
+    {
+      "path": "src/editor/panels/__tests__/workbenchContextFooter.test.ts",
+      "lines": 53
+    },
+    {
+      "path": "src/editor/panels/__tests__/workbenchInputBar.voice.test.tsx",
+      "lines": 332
+    },
+    {
+      "path": "src/editor/panels/__tests__/workbenchWorldBible.test.ts",
+      "lines": 124
+    },
+    {
+      "path": "src/editor/panels/__tests__/writingInspectorExit.test.tsx",
+      "lines": 122
+    },
+    {
+      "path": "src/editor/panels/__tests__/writingSecondaryNesting.test.tsx",
+      "lines": 110
+    },
+    {
+      "path": "src/editor/proofread/__bench__/lexiconCost.test.tsx",
+      "lines": 194
+    },
+    {
+      "path": "src/editor/proofread/__tests__/aiFlavorEngine.test.ts",
+      "lines": 90
+    },
+    {
+      "path": "src/editor/proofread/__tests__/chapterAutoFix.test.ts",
+      "lines": 53
+    },
+    {
+      "path": "src/editor/proofread/__tests__/lexiconStore.test.ts",
+      "lines": 203
+    },
+    {
+      "path": "src/editor/proofread/__tests__/proofreadEngine.test.ts",
+      "lines": 337
+    },
+    {
+      "path": "src/editor/renderers/__bench__/renderCost.test.tsx",
+      "lines": 226
+    },
+    {
+      "path": "src/editor/renderers/__tests__/ChapterPicker.tree.test.tsx",
+      "lines": 174
+    },
+    {
+      "path": "src/editor/renderers/__tests__/proofreadDocsReturn.test.tsx",
+      "lines": 206
+    },
+    {
+      "path": "src/editor/renderers/__tests__/proofreadJump.test.tsx",
+      "lines": 233
+    },
+    {
+      "path": "src/editor/renderers/__tests__/proofreadPane.fix.test.tsx",
+      "lines": 174
+    },
+    {
+      "path": "src/editor/renderers/__tests__/writingDocsDirLinkage.test.tsx",
+      "lines": 234
+    },
+    {
+      "path": "src/editor/renderers/__tests__/writingDocsDirLoad.test.tsx",
+      "lines": 221
+    },
+    {
+      "path": "src/editor/renderers/__tests__/writingDocsDirTree.test.tsx",
+      "lines": 276
+    },
+    {
+      "path": "src/editor/renderers/__tests__/writingPanes.birdEyeKeys.test.tsx",
+      "lines": 115
+    },
+    {
+      "path": "src/editor/renderers/__tests__/writingPanes.inspirationTree.test.tsx",
+      "lines": 259
+    },
+    {
+      "path": "src/editor/renderers/__tests__/writingPanes.treeCollapse.test.tsx",
+      "lines": 182
+    },
+    {
+      "path": "src/editor/renderers/__tests__/writingPanes.treeIndent.test.tsx",
+      "lines": 156
+    },
+    {
+      "path": "src/editor/utils/__tests__/architectureMetrics.test.ts",
+      "lines": 339
+    },
+    {
+      "path": "src/editor/utils/__tests__/callEdgeReceiver.test.ts",
+      "lines": 26
+    },
+    {
+      "path": "src/editor/utils/__tests__/canvasOrder.test.ts",
+      "lines": 78
+    },
+    {
+      "path": "src/editor/utils/__tests__/dataFlowPortrait.test.ts",
+      "lines": 243
+    },
+    {
+      "path": "src/editor/utils/__tests__/fileInsights.test.ts",
+      "lines": 353
+    },
+    {
+      "path": "src/editor/utils/__tests__/forceLayout.test.ts",
+      "lines": 231
+    },
+    {
+      "path": "src/editor/utils/__tests__/functionHotspots.test.ts",
+      "lines": 318
+    },
+    {
+      "path": "src/editor/utils/__tests__/impactChain.test.ts",
+      "lines": 568
+    },
+    {
+      "path": "src/editor/utils/__tests__/impactGraph.test.ts",
+      "lines": 230
+    },
+    {
+      "path": "src/editor/utils/__tests__/loggingPortrait.test.ts",
+      "lines": 43
+    },
+    {
+      "path": "src/editor/utils/__tests__/minimap.test.ts",
+      "lines": 180
+    },
+    {
+      "path": "src/editor/utils/__tests__/moduleDrill.test.ts",
+      "lines": 135
+    },
+    {
+      "path": "src/editor/utils/__tests__/panZoom.test.ts",
+      "lines": 102
+    },
+    {
+      "path": "src/editor/utils/__tests__/quadrantPortrait.test.ts",
+      "lines": 305
+    },
+    {
+      "path": "src/editor/utils/__tests__/ruleEngine.test.ts",
+      "lines": 361
+    },
+    {
+      "path": "src/editor/utils/__tests__/symbolLayout.test.ts",
+      "lines": 701
+    },
+    {
+      "path": "src/editor/utils/__tests__/symbolRefs.test.ts",
+      "lines": 74
+    },
+    {
+      "path": "src/editor/utils/__tests__/syncLayout.test.ts",
+      "lines": 179
+    },
+    {
+      "path": "src/editor/utils/__tests__/taintFlow.test.ts",
+      "lines": 749
+    },
+    {
+      "path": "src/editor/utils/__tests__/techDebtScore.test.ts",
+      "lines": 69
+    },
+    {
+      "path": "src/editor/utils/__tests__/viewportCulling.test.ts",
+      "lines": 85
+    },
+    {
+      "path": "src/editor/utils/__tests__/virtualList.test.ts",
+      "lines": 109
+    },
+    {
+      "path": "src/editor/utils/ruleEngine.ts",
+      "lines": 468
+    },
+    {
+      "path": "src/hooks/__tests__/useBodyTypographyRound30.test.ts",
+      "lines": 102
+    },
+    {
+      "path": "src/i18n/__tests__/packIntegrity.test.ts",
+      "lines": 193
+    },
+    {
+      "path": "src/pages/__tests__/AiCorpusPanel.test.tsx",
+      "lines": 298
+    },
+    {
+      "path": "src/pages/__tests__/AiCorpusPanelGenerate.test.tsx",
+      "lines": 710
+    },
+    {
+      "path": "src/pages/__tests__/AiCorpusPanelStaleResult.test.tsx",
+      "lines": 309
+    },
+    {
+      "path": "src/pages/__tests__/ChapterDetailsBeats.test.tsx",
+      "lines": 92
+    },
+    {
+      "path": "src/pages/__tests__/ChapterDetailsEmptyState.test.tsx",
+      "lines": 48
+    },
+    {
+      "path": "src/pages/__tests__/ChapterListPanel.test.tsx",
+      "lines": 199
+    },
+    {
+      "path": "src/pages/__tests__/ChapterSnapshotsDialog.rename.test.tsx",
+      "lines": 162
+    },
+    {
+      "path": "src/pages/__tests__/ChapterTreePanel.test.tsx",
+      "lines": 353
+    },
+    {
+      "path": "src/pages/__tests__/CorpusReferencePanel.test.tsx",
+      "lines": 606
+    },
+    {
+      "path": "src/pages/__tests__/CraftComparePanel.test.tsx",
+      "lines": 192
+    },
+    {
+      "path": "src/pages/__tests__/EmotionArcPanel.test.tsx",
+      "lines": 142
+    },
+    {
+      "path": "src/pages/__tests__/InlineAiResultDialog.test.tsx",
+      "lines": 211
+    },
+    {
+      "path": "src/pages/__tests__/InspirationExpandPreselect.test.tsx",
+      "lines": 188
+    },
+    {
+      "path": "src/pages/__tests__/ProofreadPanel.test.tsx",
+      "lines": 161
+    },
+    {
+      "path": "src/pages/__tests__/SaveIndicator.test.tsx",
+      "lines": 99
+    },
+    {
+      "path": "src/pages/__tests__/SettingHistoryPanel.test.tsx",
+      "lines": 228
+    },
+    {
+      "path": "src/pages/__tests__/ShowTellPanel.test.tsx",
+      "lines": 219
+    },
+    {
+      "path": "src/pages/__tests__/TypographyPopover.test.tsx",
+      "lines": 90
+    },
+    {
+      "path": "src/pages/__tests__/WritingAiChatDialog.test.tsx",
+      "lines": 416
+    },
+    {
+      "path": "src/pages/__tests__/WritingAppearanceMatrix.test.tsx",
+      "lines": 184
+    },
+    {
+      "path": "src/pages/__tests__/WritingColumnWidthConsistency.test.ts",
+      "lines": 99
+    },
+    {
+      "path": "src/pages/__tests__/WritingCorpusTabs.test.tsx",
+      "lines": 695
+    },
+    {
+      "path": "src/pages/__tests__/WritingHealthDialog.test.tsx",
+      "lines": 192
+    },
+    {
+      "path": "src/pages/__tests__/WritingHealthJump.test.tsx",
+      "lines": 435
+    },
+    {
+      "path": "src/pages/__tests__/WritingInsightsDialog.test.tsx",
+      "lines": 126
+    },
+    {
+      "path": "src/pages/__tests__/WritingNotesDialog.test.tsx",
+      "lines": 358
+    },
+    {
+      "path": "src/pages/__tests__/bookInfoDialogRound45.test.tsx",
+      "lines": 124
+    },
+    {
+      "path": "src/pages/__tests__/corpusQuery.test.ts",
+      "lines": 97
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/AiReviewDialogLaunchingLock.test.tsx",
+      "lines": 82
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/AiSelectionMenuListenerLeak.test.tsx",
+      "lines": 76
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/InlineAiDialogRunningLock.test.tsx",
+      "lines": 146
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/InlineAiDialogScopeHint.test.tsx",
+      "lines": 101
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/LeftPanelBookSwitchReset.test.ts",
+      "lines": 38
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/TimelineDraftDialog.test.tsx",
+      "lines": 231
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/captureInsertText.test.tsx",
+      "lines": 189
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/corpusEditIndex.test.ts",
+      "lines": 42
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/dragBodyGuard.test.tsx",
+      "lines": 121
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/fullTextApplyGuard.test.ts",
+      "lines": 59
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/inlineRangeGuard.test.ts",
+      "lines": 97
+    },
+    {
+      "path": "src/pages/writingPage/__tests__/useEditorScrollMemory.test.tsx",
+      "lines": 107
+    },
+    {
+      "path": "src/pages/writingPage/turndown.test.ts",
+      "lines": 24
+    },
+    {
+      "path": "src/services/__tests__/appearanceCrossWindowSync.test.ts",
+      "lines": 153
+    },
+    {
+      "path": "src/services/__tests__/settingsBrowserFallback.test.ts",
+      "lines": 154
+    },
+    {
+      "path": "src/services/__tests__/writingBookGoal.test.ts",
+      "lines": 57
+    },
+    {
+      "path": "src/store/__tests__/agentStore.test.ts",
+      "lines": 284
+    },
+    {
+      "path": "src/store/__tests__/appearancePersistence.test.ts",
+      "lines": 183
+    },
+    {
+      "path": "src/store/__tests__/appearanceResetAll.test.ts",
+      "lines": 177
+    },
+    {
+      "path": "src/store/__tests__/appearanceRound28.test.ts",
+      "lines": 289
+    },
+    {
+      "path": "src/store/__tests__/appearanceStore.test.ts",
+      "lines": 220
+    },
+    {
+      "path": "src/store/__tests__/bookTypographyRound30.test.ts",
+      "lines": 190
+    },
+    {
+      "path": "src/store/__tests__/bulkAdd.test.ts",
+      "lines": 98
+    },
+    {
+      "path": "src/store/__tests__/canvasLink.test.ts",
+      "lines": 141
+    },
+    {
+      "path": "src/store/__tests__/codeFontZoomRound36.test.ts",
+      "lines": 301
+    },
+    {
+      "path": "src/store/__tests__/codeWorkbenchPaneTree.test.ts",
+      "lines": 355
+    },
+    {
+      "path": "src/store/__tests__/insightOverlayStore.test.ts",
+      "lines": 162
+    },
+    {
+      "path": "src/store/__tests__/languagePersistence.test.ts",
+      "lines": 110
+    },
+    {
+      "path": "src/store/__tests__/projectStore.freshness.test.ts",
+      "lines": 106
+    },
+    {
+      "path": "src/store/__tests__/radiusTiersCustom.test.ts",
+      "lines": 145
+    },
+    {
+      "path": "src/store/__tests__/settingsEffectiveness.test.ts",
+      "lines": 424
+    },
+    {
+      "path": "src/store/__tests__/settingsProbeRace.test.ts",
+      "lines": 126
+    },
+    {
+      "path": "src/store/__tests__/settingsReadbackRound34.test.ts",
+      "lines": 385
+    },
+    {
+      "path": "src/store/__tests__/settingsReadbackRound35.test.ts",
+      "lines": 243
+    },
+    {
+      "path": "src/store/__tests__/settingsSyncStore.test.ts",
+      "lines": 163
+    },
+    {
+      "path": "src/store/__tests__/themeBootPersistenceRound46.test.ts",
+      "lines": 68
+    },
+    {
+      "path": "src/store/__tests__/themeSystemMode.test.ts",
+      "lines": 122
+    },
+    {
+      "path": "src/store/__tests__/viewTemplate.test.ts",
+      "lines": 77
+    },
+    {
+      "path": "src/store/__tests__/writingDocsStore.test.ts",
+      "lines": 84
+    },
+    {
+      "path": "src/store/__tests__/writingPrefsRound25.test.ts",
+      "lines": 259
+    },
+    {
+      "path": "src/store/__tests__/writingStore.test.ts",
+      "lines": 463
+    },
+    {
+      "path": "src/store/__tests__/writingStoreBookMetaSync.test.ts",
+      "lines": 134
+    },
+    {
+      "path": "src/store/__tests__/writingStoreChapterStructSync.test.ts",
+      "lines": 122
+    },
+    {
+      "path": "src/store/__tests__/writingStoreContentSync.test.ts",
+      "lines": 137
+    },
+    {
+      "path": "src/store/__tests__/writingStoreForeshadowRace.test.ts",
+      "lines": 66
+    },
+    {
+      "path": "src/store/__tests__/writingStoreNarrativeSync.test.ts",
+      "lines": 171
+    },
+    {
+      "path": "src/store/__tests__/writingStoreOutlineSync.test.ts",
+      "lines": 157
+    },
+    {
+      "path": "src/store/__tests__/writingStoreSettingSync.test.ts",
+      "lines": 163
+    },
+    {
+      "path": "src/test/i18n-setup.ts",
+      "lines": 31
+    },
+    {
+      "path": "src/test/themeContrast.test.ts",
+      "lines": 142
+    },
+    {
+      "path": "src/test/themePresets.test.tsx",
+      "lines": 364
+    },
+    {
+      "path": "src/theme/__tests__/appearanceScales.test.ts",
+      "lines": 302
+    },
+    {
+      "path": "src/theme/__tests__/colorSchemeDomRound46.test.tsx",
+      "lines": 132
+    },
+    {
+      "path": "src/theme/__tests__/multilineInputRadius.test.ts",
+      "lines": 97
+    },
+    {
+      "path": "src/theme/__tests__/radiusChannelRound31.test.tsx",
+      "lines": 107
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound23.test.tsx",
+      "lines": 171
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound26.test.ts",
+      "lines": 193
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound28.test.ts",
+      "lines": 164
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound29.test.ts",
+      "lines": 64
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound32.test.ts",
+      "lines": 152
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound33.test.ts",
+      "lines": 88
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound34.test.ts",
+      "lines": 118
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound35.test.ts",
+      "lines": 172
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound36.test.ts",
+      "lines": 198
+    },
+    {
+      "path": "src/theme/__tests__/settingsRound37.test.ts",
+      "lines": 235
+    },
+    {
+      "path": "src/utils/__tests__/aiCorpusChat.test.ts",
+      "lines": 252
+    },
+    {
+      "path": "src/utils/__tests__/bookOverview.test.ts",
+      "lines": 213
+    },
+    {
+      "path": "src/utils/__tests__/bookStatusRound44.test.ts",
+      "lines": 100
+    },
+    {
+      "path": "src/utils/__tests__/craftCompare.test.ts",
+      "lines": 112
+    },
+    {
+      "path": "src/utils/__tests__/craftTags.test.ts",
+      "lines": 69
+    },
+    {
+      "path": "src/utils/__tests__/emotionArc.test.ts",
+      "lines": 58
+    },
+    {
+      "path": "src/utils/__tests__/formatCount.test.ts",
+      "lines": 62
+    },
+    {
+      "path": "src/utils/__tests__/inspirationExpand.test.ts",
+      "lines": 128
+    },
+    {
+      "path": "src/utils/__tests__/librarySchema.test.ts",
+      "lines": 50
+    },
+    {
+      "path": "src/utils/__tests__/payoffCandidates.test.ts",
+      "lines": 54
+    },
+    {
+      "path": "src/utils/__tests__/reportGenerator.test.ts",
+      "lines": 730
+    },
+    {
+      "path": "src/utils/__tests__/reportModuleHealth.test.ts",
+      "lines": 90
+    },
+    {
+      "path": "src/utils/__tests__/rightTabClamp.test.ts",
+      "lines": 42
+    },
+    {
+      "path": "src/utils/__tests__/showTell.test.ts",
+      "lines": 50
+    },
+    {
+      "path": "src/utils/__tests__/studioAiFile.test.ts",
+      "lines": 45
+    },
+    {
+      "path": "src/utils/__tests__/techDebtScore.test.ts",
+      "lines": 203
+    },
+    {
+      "path": "src/utils/__tests__/timelineConflictDetails.test.ts",
+      "lines": 252
+    },
+    {
+      "path": "src/utils/__tests__/typewriterScroll.test.ts",
+      "lines": 114
+    },
+    {
+      "path": "src/utils/__tests__/typography.test.ts",
+      "lines": 162
+    },
+    {
+      "path": "src/utils/__tests__/writingAiCorpus.test.ts",
+      "lines": 229
+    },
+    {
+      "path": "src/utils/__tests__/writingBoards.test.ts",
+      "lines": 387
+    },
+    {
+      "path": "src/utils/__tests__/writingCognitiveWeights.test.ts",
+      "lines": 134
+    },
+    {
+      "path": "src/utils/__tests__/writingCorpus.test.ts",
+      "lines": 574
+    },
+    {
+      "path": "src/utils/__tests__/writingCorpusBudget.test.ts",
+      "lines": 45
+    },
+    {
+      "path": "src/utils/__tests__/writingCrashRecovery.test.ts",
+      "lines": 93
+    },
+    {
+      "path": "src/utils/__tests__/writingDeskJump.test.ts",
+      "lines": 129
+    },
+    {
+      "path": "src/utils/__tests__/writingDeskUrl.test.ts",
+      "lines": 39
+    },
+    {
+      "path": "src/utils/__tests__/writingForeshadowing.test.ts",
+      "lines": 220
+    },
+    {
+      "path": "src/utils/__tests__/writingHealthReport.test.ts",
+      "lines": 156
+    },
+    {
+      "path": "src/utils/__tests__/writingImport.test.ts",
+      "lines": 61
+    },
+    {
+      "path": "src/utils/__tests__/writingInspiration.test.ts",
+      "lines": 107
+    },
+    {
+      "path": "src/utils/__tests__/writingNoteTime.test.ts",
+      "lines": 40
+    },
+    {
+      "path": "src/utils/__tests__/writingOutline.test.ts",
+      "lines": 409
+    },
+    {
+      "path": "src/utils/__tests__/writingPalette.test.ts",
+      "lines": 131
+    },
+    {
+      "path": "src/utils/__tests__/writingPaneSeed.test.ts",
+      "lines": 306
+    },
+    {
+      "path": "src/utils/__tests__/writingProofread.test.ts",
+      "lines": 235
+    },
+    {
+      "path": "src/utils/__tests__/writingProofreadConsistency.test.ts",
+      "lines": 173
+    },
+    {
+      "path": "src/utils/__tests__/writingProofreadStoryline.test.ts",
+      "lines": 140
+    },
+    {
+      "path": "src/utils/__tests__/writingSchema.test.ts",
+      "lines": 63
+    },
+    {
+      "path": "src/utils/__tests__/writingSearch.test.ts",
+      "lines": 122
+    },
+    {
+      "path": "src/utils/__tests__/writingStats.test.ts",
+      "lines": 470
+    },
+    {
+      "path": "src/utils/__tests__/writingStyleFingerprint.test.ts",
+      "lines": 108
+    },
+    {
+      "path": "src/utils/__tests__/writingTimeline.test.ts",
+      "lines": 286
+    },
+    {
+      "path": "src/utils/__tests__/writingTree.test.ts",
+      "lines": 68
+    },
+    {
+      "path": "src/utils/techDebtScore.ts",
+      "lines": 197
+    },
+    {
+      "path": "src/utils/writingOverview.test.ts",
+      "lines": 170
+    },
+    {
+      "path": "src/utils/writingPalette.ts",
+      "lines": 164
+    }
+  ],
+  "opaque": [],
+  "unresolved": [
+    {
+      "from": "src/editor/utils/portraits/executionFlow.ts",
+      "spec": "./App"
+    },
+    {
+      "from": "src/editor/utils/portraits/executionFlow.ts",
+      "spec": "./App"
+    }
+  ]
+}
