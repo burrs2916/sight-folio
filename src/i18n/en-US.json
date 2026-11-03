@@ -320,6 +320,8 @@
     "count": "{n} completed works",
     "noneTitle": "No completed works yet",
     "noneHint": "Generate EPUB, PDF and other formats in the Writing Desk to see them here",
+    "pendingTitle": "{n} finished work(s) awaiting export",
+    "pendingHint": "These works are marked Finished but have no exported file yet. Open one to return to the Writing Desk; EPUB / PDF and other exports will be listed here.",
     "chip": "Completed",
     "exportedOn": "Completed on {date}",
     "reDownload": "Retrieve",

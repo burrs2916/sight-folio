@@ -47,6 +47,8 @@ import { completedWorksApi, type CompletedWork as WorkRecord, type CompletedWork
 import { invoke } from '../services/core';
 import { logger } from '../utils/logger';
 import { uiFontSize } from '../theme/appearanceScales';
+import { isBookFinished } from '../utils/writingSchema';
+import { openWritingDesk } from '../utils/writingDeskWindow';
 
 // ═══════════════════════════════════════════════════
 //  类型
@@ -188,9 +190,14 @@ export default function PublishedScenesPage() {
   useEffect(() => {
     // 挂载首刷走宏任务：loadWorks 内 setWorks/setLoading 全在 await 之后，
     // 移出 effect 同步调用链以避免级联渲染（react-hooks/set-state-in-effect）
-    const kick = setTimeout(() => void loadWorks(), 0);
+    // 书目一并在这里刷：本页要用 books 判「哪些书已标完结但还没有导出产物」，
+    // 冷启动直接进本页时 books 是空数组，那条关联会静默失效（2026-11-03 bug）。
+    const kick = setTimeout(() => {
+      void loadWorks();
+      void loadBooks().catch(() => undefined);
+    }, 0);
     return () => clearTimeout(kick);
-  }, [loadWorks]);
+  }, [loadWorks, loadBooks]);
 
   // ── 搜索关键词持久化 ──
   useEffect(() => {
@@ -264,6 +271,32 @@ export default function PublishedScenesPage() {
     });
     return Array.from(groups.values());
   }, [filteredWorks]);
+
+  // ── 已标完结、但还没有任何导出产物的书（2026-11-03 bug 修复）──
+  // 病灶：本页数据源只有 completed_works（导出产物登记表，字段是 format / file_path /
+  // file_size / is_file_missing），而在书架把书设成「已完结」只改 writing_books.status，
+  // 两边零关联 → 完结作品页看不到这本书，用户判定「完结作品没关联到该作品」。
+  // 口径：不把书伪造成一条 CompletedWork（那会往产物表塞空 file_path、把 is_file_missing
+  // 判读带偏），而是单列「已完结 · 待导出」，并给出去写作台导出的出口。
+  const finishedPendingBooks = useMemo(() => {
+    const exportedBookIds = new Set(works.map((w) => w.bookId));
+    const q = searchQuery.trim().toLowerCase();
+    return books.filter((b) => {
+      if (!isBookFinished(b.status)) return false;
+      if (exportedBookIds.has(b.id)) return false;
+      // 作品/格式两个筛选针对的是已登记的产物：选了它们就不该再冒出无产物的书
+      if (selectedBook && b.id !== selectedBook) return false;
+      if (selectedFormat) return false;
+      if (q && !b.title.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [books, works, searchQuery, selectedBook, selectedFormat]);
+
+  const openDeskForBook = useCallback((bookId: string) => {
+    void openWritingDesk({ bookId }).catch((e: unknown) => {
+      logger.warn('PublishedScenesPage', 'open writing desk failed', { error: e, bookId });
+    });
+  }, []);
 
   const toggleBookGroup = useCallback((bookId: string) => {
     setCollapsedBookIds((prev) => {
@@ -647,9 +680,13 @@ export default function PublishedScenesPage() {
 
       {/* ── 内容区 ── */}
       <Box sx={{ flex: 1, overflow: 'auto', px: 3, pb: 3 }}>
+        {/* 已完结但还没有导出产物的书：以前这儿一片空白，用户标完完结找不到自己的书 */}
+        {!loading && finishedPendingBooks.length > 0 && (
+          <FinishedPendingBand books={finishedPendingBooks} onOpenDesk={openDeskForBook} />
+        )}
         {loading ? (
           <LoadingSkeleton viewMode={viewMode} />
-        ) : filteredWorks.length === 0 ? (
+        ) : filteredWorks.length === 0 && finishedPendingBooks.length === 0 ? (
           <EmptyState
             isFiltered={Boolean(searchQuery || selectedBook || selectedFormat)}
             onClear={() => {
@@ -1351,6 +1388,60 @@ function WorkRow({
             <DeleteIcon sx={{ fontSize: uiFontSize(18) }} />
           </IconButton>
         </Tooltip>
+      </Box>
+    </Box>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+//  已完结 · 待导出带（2026-11-03 bug 修复）
+//
+//  completed_works 只登记**导出产物**（format / file_path / file_size / is_file_missing），
+//  书架上把书设成「已完结」改的是 writing_books.status —— 两边原本零关联，标完完结的书
+//  在完结作品页彻底看不到。这里把「已完结 + 零产物」的书显式列出并给出去写作台导出的出口；
+//  刻意不往产物表里伪造一条 CompletedWork：那会塞进空 file_path，并把 is_file_missing
+//  的判读带偏（文件丢失与从未导出会被混成同一件事）。
+// ═══════════════════════════════════════════════════
+
+function FinishedPendingBand({
+  books,
+  onOpenDesk,
+}: {
+  books: Array<{ id: string; title: string }>;
+  onOpenDesk: (bookId: string) => void;
+}) {
+  return (
+    <Box
+      sx={{
+        mb: 2,
+        p: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
+        bgcolor: 'background.paper',
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+        <WarningAmberIcon sx={{ fontSize: uiFontSize(18), color: 'warning.main' }} />
+        <Typography sx={{ fontSize: uiFontSize(13.5), fontWeight: 650 }}>
+          {t('published.pendingTitle', { n: books.length })}
+        </Typography>
+      </Box>
+      <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', lineHeight: 1.6, mb: 1.5 }}>
+        {t('published.pendingHint')}
+      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+        {books.map((b) => (
+          <Button
+            key={b.id}
+            size="small"
+            variant="outlined"
+            startIcon={<BookIcon sx={{ fontSize: uiFontSize(15) }} />}
+            onClick={() => onOpenDesk(b.id)}
+          >
+            {b.title}
+          </Button>
+        ))}
       </Box>
     </Box>
   );

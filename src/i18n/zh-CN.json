@@ -320,6 +320,8 @@
     "count": "{n} 个完结作品",
     "noneTitle": "暂无完结作品",
     "noneHint": "在写作台生成 EPUB、PDF 等格式后，将在此处显示",
+    "pendingTitle": "{n} 本已完结 · 待导出",
+    "pendingHint": "这些作品已标记为「已完结」，但还没有任何导出文件。点开可回到写作台，导出 EPUB / PDF 等格式后即在此登记。",
     "chip": "完结",
     "exportedOn": "完成于 {date}",
     "reDownload": "取回",
