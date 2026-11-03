@@ -142,6 +142,38 @@ describe('一级：书卡片（R1 / §9 验收 1）', () => {
     expect(screen.getByTestId('published-book-card-b2').textContent).toContain('改名的书');
     (BOOKS as Array<{ title: string }>)[1].title = '连载中已锁版的书'; // 复位，别污染其他用例
   });
+
+  it('搜索与名称排序同样现取书名：改名后新名可搜到、旧名搜不到、排序位次跟变（§9-9）', async () => {
+    localStorage.removeItem('published-search-query'); // 初值从 localStorage 读，先清残留
+    await renderPage();
+    // 两本书都临时改成拉丁开头书名：排序断言只依赖「Alpha < Zeta」的普适拉丁序，
+    // 不赌本环境 ICU 的拼音细则与汉拉脚本序（实测汉字与拉丁的相对序随 ICU 版本而变）
+    const titles = BOOKS as Array<{ title: string }>;
+    titles[1].title = 'Alpha乙';
+    titles[0].title = 'Zeta甲';
+    fireEvent.click(screen.getByTestId('published-refresh'));
+    await flush();
+    const search = screen.getByPlaceholderText('published.searchPlaceholder');
+    fireEvent.change(search, { target: { value: 'alpha' } });
+    expect(screen.queryByTestId('published-book-card-b2')).toBeTruthy();
+    expect(screen.queryByTestId('published-book-card-b1')).toBeNull();
+    // 旧名不再命中 —— 证明过滤读的是 join 来的现名，不是任何缓存副本
+    fireEvent.change(search, { target: { value: '连载中已锁版的书' } });
+    expect(screen.queryByTestId('published-book-card-b2')).toBeNull();
+    fireEvent.change(search, { target: { value: '已完结无版的书' } });
+    expect(screen.queryByTestId('published-book-card-b1')).toBeNull();
+    // 清空搜索 → 切「按名称」排序：Alpha 在前
+    // （未开菜单时 published.sortRecent 只存在于展示层 div[role=combobox]：mouseDown 开菜单，点条目落值）
+    fireEvent.change(search, { target: { value: '' } });
+    fireEvent.mouseDown(screen.getByText('published.sortRecent'));
+    fireEvent.click(await screen.findByText('published.sortName'));
+    await flush();
+    const order = screen.getAllByTestId(/^published-book-card-/).map((el) => el.getAttribute('data-testid'));
+    expect(order).toEqual(['published-book-card-b2', 'published-book-card-b1']);
+    titles[1].title = '连载中已锁版的书'; // 复位，别污染其他用例
+    titles[0].title = '已完结无版的书';
+    localStorage.removeItem('published-search-query');
+  });
 });
 
 describe('二级：版本时间线', () => {

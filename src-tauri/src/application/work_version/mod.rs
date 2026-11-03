@@ -300,6 +300,10 @@ mod tests {
 
         assert_eq!(v.seq, 1);
         assert_eq!(v.chapter_count, 2, "回收站里的章不该被锁进成稿");
+        assert_eq!(
+            v.word_count, 6,
+            "§9-2：版本头字数=未删章节字数之和（与写作台字数栏同源口径），回收站章一个字都不许计"
+        );
         let snap = h.versions.list_version_chapters(&v.id).unwrap();
         assert_eq!(snap.len(), 2);
         assert_eq!(snap[0].sort_order, 0, "快照序号重排为密集序，保证可复现的线性顺序");
