@@ -1,7 +1,20 @@
+// ═══════════════════════════════════════════════════════════════════════
+//  完结作品页（B5a 重做：需求 §7 的两级结构）
+//
+//  旧病灶（需求 §1.1）：本页曾是「产物登记表 completed_works 的可视化」，
+//  和「书被标成已完结」零关联 → 用户标完结后在这里看不到自己的书。
+//  新模型（需求 §2，D1）：书 → 锁定版本 → 导出产物。一级是**书卡片**
+//  （书名一律从 writing_books 现取，不存副本，改名即刻生效），二级是
+//  **版本时间线**（work_versions 快照明细）。「已标完结 · 尚无版本」的书
+//  同样成卡可见并直接给「去写作台锁定一版」出口（R1 / §9 验收 1）。
+//
+//  本片刻意不做（诚实占位，下一批落地）：
+//   · 导出任务队列（B4）→ 版本行上导出按钮 disabled + tooltip 说明；
+//   · 产物区（B5b）→ 版本详情只呈现快照章节与指纹；
+//   · 旧产物登记表的导入/移动/批量操作随旧表在 B6 退役，本页不再挂接。
+// ═══════════════════════════════════════════════════════════════════════
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useTheme, alpha } from '@mui/material/styles';
-import type { Theme } from '@mui/material/styles';
-import type { SvgIconProps } from '@mui/material/SvgIcon';
+import { alpha } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -19,804 +32,470 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import Skeleton from '@mui/material/Skeleton';
-import Checkbox from '@mui/material/Checkbox';
+import CircularProgress from '@mui/material/CircularProgress';
 import SearchIcon from '@mui/icons-material/Search';
-import ViewListIcon from '@mui/icons-material/ViewList';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import DescriptionIcon from '@mui/icons-material/Description';
-import LanguageIcon from '@mui/icons-material/Language';
-import SaveIcon from '@mui/icons-material/Save';
-import DownloadIcon from '@mui/icons-material/Download';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import LockIcon from '@mui/icons-material/Lock';
 import DeleteIcon from '@mui/icons-material/Delete';
-import BookIcon from '@mui/icons-material/Book';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import ClearIcon from '@mui/icons-material/Clear';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import GroupWorkIcon from '@mui/icons-material/GroupWork';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import { save as saveDialog, open as openFileDialog } from '@tauri-apps/plugin-dialog';
+import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import { t, getLang } from '../i18n';
 import { useToastStore } from '../store/toastStore';
 import { useWritingStore } from '../store/writingStore';
-import { completedWorksApi, type CompletedWork as WorkRecord, type CompletedWorkFormat } from '../services/tauri';
+import { workVersionApi, type WorkVersion, type WorkVersionChapter, type WorksLibraryRootInfo } from '../services/workVersion';
 import { invoke } from '../services/core';
 import { logger } from '../utils/logger';
 import { uiFontSize } from '../theme/appearanceScales';
 import { isBookFinished } from '../utils/writingSchema';
 import { openWritingDesk } from '../utils/writingDeskWindow';
+import type { WritingBook } from '../services/writing';
 
-// ═══════════════════════════════════════════════════
-//  类型
-// ═══════════════════════════════════════════════════
-
-type WorkFormat = CompletedWorkFormat;
-
-/** 页面视图模型：源自后端 completed_works 记录（pageCount 已随 schema 移除，规格以字数/章数呈现） */
-interface CompletedWork extends WorkRecord {
-  pageCount?: number;
-}
-
-type SortKey = 'recent' | 'oldest' | 'name' | 'size';
-type ViewMode = 'grid' | 'list';
-
-// ═══════════════════════════════════════════════════
-//  工具函数
-// ═══════════════════════════════════════════════════
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
+// ─── 小工具（页面私有呈现层） ───
 
 function formatWordCount(n: number): string {
   if (n >= 10000) {
-    const k = (n / 1000).toFixed(1).replace(/\.0$/, '');
-    return getLang() === 'en-US' ? `${k}k words` : `${(n / 10000).toFixed(1)}万字`;
+    return getLang() === 'en-US'
+      ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k words`
+      : `${(n / 10000).toFixed(1)}万字`;
   }
   return getLang() === 'en-US' ? `${n} words` : `${n}字`;
 }
 
 function formatDate(ts: number): string {
-  const d = new Date(ts * 1000);
-  return d.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  return new Date(ts * 1000).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
-const STORAGE_KEY = 'published-search-query';
-
-// ═══════════════════════════════════════════════════
-//  格式元数据
-// ═══════════════════════════════════════════════════
-
-const FORMAT_META: Record<WorkFormat, { label: string; Icon: React.ComponentType<SvgIconProps> }> = {
-  pdf: { label: 'PDF', Icon: PictureAsPdfIcon },
-  epub: { label: 'EPUB', Icon: MenuBookIcon },
-  docx: { label: 'DOCX', Icon: DescriptionIcon },
-  html: { label: 'HTML', Icon: LanguageIcon },
-  md: { label: 'MD', Icon: DescriptionIcon },
-  txt: { label: 'TXT', Icon: DescriptionIcon },
-  backup: { label: t('scene.backupLabel'), Icon: SaveIcon },
-};
-
-/** 格式徽章专属色相（docx 深蓝 / md 紫）：保持「一格式一色相」辨识度，属语义标识，不随主题皮肤联动 */
-const FORMAT_HUE = { docx: '#1a4f9c', md: '#7b1fa2' } as const;
-
-/**
- * 格式徽章配色：从主题语义色派生（浅色柔和、深色自适配），替代硬编码 Material 旧色板。
- * 保持原「一格式一色相」的辨识度：pdf 红 / epub 蓝 / docx 深蓝 / html 橙 / md 紫 / txt 灰 / backup 绿。
- */
-function formatPalette(theme: Theme, format: WorkFormat): { color: string; bg: string } {
-  const p = theme.palette;
-  switch (format) {
-    case 'pdf':
-      return { color: p.error.main, bg: alpha(p.error.main, 0.1) };
-    case 'epub':
-      return { color: p.info.main, bg: alpha(p.info.main, 0.1) };
-    case 'docx':
-      return { color: FORMAT_HUE.docx, bg: alpha(p.info.main, 0.12) };
-    case 'html':
-      return { color: p.warning.dark, bg: alpha(p.warning.dark, 0.1) };
-    case 'md':
-      return { color: FORMAT_HUE.md, bg: alpha(FORMAT_HUE.md, 0.1) };
-    case 'txt':
-      return { color: p.text.secondary, bg: alpha(p.text.secondary, 0.09) };
-    case 'backup':
-      return { color: p.success.main, bg: alpha(p.success.main, 0.1) };
-  }
+/** 一级卡片数据：书（现取）+ 它的全部锁定版本（可能为空数组 —— R1 要求这样的书也必须出现） */
+interface BookCardData {
+  book: WritingBook;
+  versions: WorkVersion[];
 }
 
-// ═══════════════════════════════════════════════════
+type FinalFilter = '' | 'has' | 'none';
+type SortKey = 'recent' | 'oldest' | 'name';
+
+const SEARCH_STORAGE_KEY = 'published-search-query';
+
+// ───────────────────────────────────────────────
 //  主组件
-// ═══════════════════════════════════════════════════
+// ───────────────────────────────────────────────
 
 export default function PublishedScenesPage() {
-  const [works, setWorks] = useState<CompletedWork[]>([]);
+  const books = useWritingStore((s) => s.books);
+  const loadBooks = useWritingStore((s) => s.loadBooks);
+  const showToast = useToastStore((s) => s.showToast);
+
   const [loading, setLoading] = useState(true);
+  const [versionsByBook, setVersionsByBook] = useState<Record<string, WorkVersion[]>>({});
+  const [rootInfo, setRootInfo] = useState<WorksLibraryRootInfo | null>(null);
+  const [rootError, setRootError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) || '';
+      return localStorage.getItem(SEARCH_STORAGE_KEY) || '';
     } catch {
       return '';
     }
   });
-  const [selectedBook, setSelectedBook] = useState<string>('');
-  const [selectedFormat, setSelectedFormat] = useState<WorkFormat | ''>('');
+  const [finalFilter, setFinalFilter] = useState<FinalFilter>('');
   const [sortBy, setSortBy] = useState<SortKey>('recent');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  // 按书名聚合折叠视图：默认折叠组头，展开后显示组内各格式记录
-  const [groupByBook, setGroupByBook] = useState(false);
-  const [collapsedBookIds, setCollapsedBookIds] = useState<Set<string>>(new Set());
-  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
-  const [removingWork, setRemovingWork] = useState<CompletedWork | null>(null);
+  // 二级视图：非空 = 正在看这本书的版本时间线
+  const [openBookId, setOpenBookId] = useState<string | null>(null);
+  const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
+  const [snapshots, setSnapshots] = useState<Record<string, WorkVersionChapter[]>>({});
+  const [snapshotLoadingId, setSnapshotLoadingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorkVersion | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [finalBusyId, setFinalBusyId] = useState<string | null>(null);
 
-  // ── 批量操作 ──
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkRemoveDialogOpen, setBulkRemoveDialogOpen] = useState(false);
-  const [allSelected, setAllSelected] = useState(false);
-
-  // ── 导入已有文件 ──
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [importBookId, setImportBookId] = useState('');
-  const [importFilePaths, setImportFilePaths] = useState<string[]>([]);
-  const [importing, setImporting] = useState(false);
-  const books = useWritingStore((s) => s.books);
-  const loadBooks = useWritingStore((s) => s.loadBooks);
-
-  const showToast = useToastStore((s) => s.showToast);
-
-  // ── 加载真实记录（后端 completed_works） ──
-  const loadWorks = useCallback(async () => {
+  // ── 数据加载：书 + 每本书的版本清单 ──
+  // 版本按书逐本拉（desktop 本地 IPC，量级无碍）；书名一律现取，此处不缓存任何 title 副本。
+  const load = useCallback(async () => {
     try {
-      const records = await completedWorksApi.list();
-      setWorks(records);
+      await loadBooks().catch((e: unknown) => {
+        logger.warn('PublishedScenesPage', 'loadBooks failed', { error: e });
+      });
+      const latest = useWritingStore.getState().books;
+      const entries = await Promise.all(
+        latest.map(async (b) => {
+          try {
+            return [b.id, await workVersionApi.list(b.id)] as const;
+          } catch (e) {
+            logger.warn('PublishedScenesPage', 'list versions failed', { error: e, bookId: b.id });
+            return [b.id, [] as WorkVersion[]] as const;
+          }
+        }),
+      );
+      setVersionsByBook(Object.fromEntries(entries));
     } catch (e) {
-      logger.warn('PublishedScenesPage', 'load completed works failed', { error: e });
+      logger.warn('PublishedScenesPage', 'load failed', { error: e });
       showToast(t('published.loadFailed'), 'error');
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [loadBooks, showToast]);
+
+  // 作品库根读数：读取失败**如实上屏**（§4 禁静默降级），这里没有任何备用路径可画。
+  const loadRoot = useCallback(async () => {
+    try {
+      setRootInfo(await workVersionApi.getLibraryRoot());
+      setRootError(null);
+    } catch (e) {
+      setRootInfo(null);
+      setRootError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
 
   useEffect(() => {
-    // 挂载首刷走宏任务：loadWorks 内 setWorks/setLoading 全在 await 之后，
-    // 移出 effect 同步调用链以避免级联渲染（react-hooks/set-state-in-effect）
-    // 书目一并在这里刷：本页要用 books 判「哪些书已标完结但还没有导出产物」，
-    // 冷启动直接进本页时 books 是空数组，那条关联会静默失效（2026-11-03 bug）。
+    // 挂载首刷走宏任务（本仓口径，见 WritingTodayChip）：setState 全在 await 之后
     const kick = setTimeout(() => {
-      void loadWorks();
-      void loadBooks().catch(() => undefined);
+      void load();
+      void loadRoot();
     }, 0);
     return () => clearTimeout(kick);
-  }, [loadWorks, loadBooks]);
+  }, [load, loadRoot]);
 
-  // ── 搜索关键词持久化 ──
+  // 写作台保存/锁定后回来能刷到新版本
+  useEffect(() => {
+    const onSaved = () => void load();
+    window.addEventListener('writing-saved', onSaved);
+    return () => window.removeEventListener('writing-saved', onSaved);
+  }, [load]);
+
+  // 搜索词持久化
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, searchQuery);
+      localStorage.setItem(SEARCH_STORAGE_KEY, searchQuery);
     } catch {
       /* ignore */
     }
   }, [searchQuery]);
 
-  // ── 导出/备份成功后自动刷新 ──
-  useEffect(() => {
-    const onSaved = () => void loadWorks();
-    window.addEventListener('writing-saved', onSaved);
-    return () => window.removeEventListener('writing-saved', onSaved);
-  }, [loadWorks]);
-
-  // ── 派生筛选数据 ──
-  const bookOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    works.forEach((w) => map.set(w.bookId, w.bookTitle));
-    return Array.from(map.entries()).map(([id, title]) => ({ id, title }));
-  }, [works]);
-
-  const formatOptions: WorkFormat[] = ['epub', 'pdf', 'docx', 'html', 'md', 'txt', 'backup'];
-
-  const filteredWorks = useMemo(() => {
-    let result = works.slice();
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      result = result.filter((w) => w.bookTitle.toLowerCase().includes(q));
+  const refreshBookVersions = useCallback(async (bookId: string) => {
+    try {
+      const versions = await workVersionApi.list(bookId);
+      setVersionsByBook((prev) => ({ ...prev, [bookId]: versions }));
+    } catch (e) {
+      logger.warn('PublishedScenesPage', 'refresh versions failed', { error: e, bookId });
     }
+  }, []);
 
-    if (selectedBook) {
-      result = result.filter((w) => w.bookId === selectedBook);
-    }
-
-    if (selectedFormat) {
-      result = result.filter((w) => w.format === selectedFormat);
-    }
-
-    switch (sortBy) {
-      case 'recent':
-        result.sort((a, b) => b.createdAt - a.createdAt);
-        break;
-      case 'oldest':
-        result.sort((a, b) => a.createdAt - b.createdAt);
-        break;
-      case 'name':
-        result.sort((a, b) => a.bookTitle.localeCompare(b.bookTitle, 'zh-CN'));
-        break;
-      case 'size':
-        result.sort((a, b) => b.fileSize - a.fileSize);
-        break;
-    }
-
-    return result;
-  }, [works, searchQuery, selectedBook, selectedFormat, sortBy]);
-
-  // ── 按书名分组（列表视图聚合）：保持 filteredWorks 排序，组内按原序 ──
-  const bookGroups = useMemo(() => {
-    const groups = new Map<string, { bookId: string; bookTitle: string; works: CompletedWork[] }>();
-    filteredWorks.forEach((w) => {
-      let g = groups.get(w.bookId);
-      if (!g) {
-        g = { bookId: w.bookId, bookTitle: w.bookTitle, works: [] };
-        groups.set(w.bookId, g);
-      }
-      g.works.push(w);
-    });
-    return Array.from(groups.values());
-  }, [filteredWorks]);
-
-  // ── 已标完结、但还没有任何导出产物的书（2026-11-03 bug 修复）──
-  // 病灶：本页数据源只有 completed_works（导出产物登记表，字段是 format / file_path /
-  // file_size / is_file_missing），而在书架把书设成「已完结」只改 writing_books.status，
-  // 两边零关联 → 完结作品页看不到这本书，用户判定「完结作品没关联到该作品」。
-  // 口径：不把书伪造成一条 CompletedWork（那会往产物表塞空 file_path、把 is_file_missing
-  // 判读带偏），而是单列「已完结 · 待导出」，并给出去写作台导出的出口。
-  const finishedPendingBooks = useMemo(() => {
-    const exportedBookIds = new Set(works.map((w) => w.bookId));
+  // ── 一级卡片派生（R1 的落点）──
+  // 入选口径：已标完结 **或** 已锁定过版本。「标了完结但 0 版本」必须成卡（§9-1）；
+  // 「还在连载但用户随手锁过版」也成卡，版本是既成事实，不该被完结声明遮蔽。
+  const cards = useMemo<BookCardData[]>(() => {
     const q = searchQuery.trim().toLowerCase();
-    return books.filter((b) => {
-      if (!isBookFinished(b.status)) return false;
-      if (exportedBookIds.has(b.id)) return false;
-      // 作品/格式两个筛选针对的是已登记的产物：选了它们就不该再冒出无产物的书
-      if (selectedBook && b.id !== selectedBook) return false;
-      if (selectedFormat) return false;
-      if (q && !b.title.toLowerCase().includes(q)) return false;
-      return true;
+    const list = books
+      .filter((b) => isBookFinished(b.status) || (versionsByBook[b.id]?.length ?? 0) > 0)
+      .map((book) => ({ book, versions: versionsByBook[book.id] ?? [] }))
+      .filter(({ book, versions }) => {
+        if (q && !book.title.toLowerCase().includes(q)) return false;
+        if (finalFilter === 'has' && !versions.some((v) => v.isFinal)) return false;
+        if (finalFilter === 'none' && versions.some((v) => v.isFinal)) return false;
+        return true;
+      });
+    const latestTs = (c: BookCardData) =>
+      c.versions.reduce((m, v) => Math.max(m, v.lockedAt), 0) || c.book.updatedAt;
+    list.sort((a, b) => {
+      if (sortBy === 'name') return a.book.title.localeCompare(b.book.title, 'zh-CN');
+      const d = sortBy === 'oldest' ? latestTs(a) - latestTs(b) : latestTs(b) - latestTs(a);
+      return d !== 0 ? d : a.book.title.localeCompare(b.book.title, 'zh-CN');
     });
-  }, [books, works, searchQuery, selectedBook, selectedFormat]);
+    return list;
+  }, [books, versionsByBook, searchQuery, finalFilter, sortBy]);
 
-  const openDeskForBook = useCallback((bookId: string) => {
+  const openBook = useCallback((bookId: string) => {
+    setOpenBookId(bookId);
+    setExpandedVersionId(null);
+  }, []);
+
+  const backToBooks = useCallback(() => {
+    setOpenBookId(null);
+    setExpandedVersionId(null);
+  }, []);
+
+  const openDesk = useCallback((bookId: string) => {
     void openWritingDesk({ bookId }).catch((e: unknown) => {
       logger.warn('PublishedScenesPage', 'open writing desk failed', { error: e, bookId });
     });
   }, []);
 
-  const toggleBookGroup = useCallback((bookId: string) => {
-    setCollapsedBookIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(bookId)) {
-        next.delete(bookId);
-      } else {
-        next.add(bookId);
-      }
-      return next;
-    });
-  }, []);
-
-  const expandAllGroups = useCallback(() => setCollapsedBookIds(new Set()), []);
-
-  // ── 操作 ──
-  /** 取回：在文件管理器中定位导出产物（记录丢失/文件被删时提示）。 */
-  const handleRetrieve = useCallback(
-    async (work: CompletedWork) => {
+  // ── 定稿切换（D6：全书至多一个，后端同事务原子换，前端只管刷回读数）──
+  const handleSetFinal = useCallback(
+    async (version: WorkVersion) => {
+      setFinalBusyId(version.id);
       try {
-        await invoke('reveal_in_file_manager', { path: work.filePath });
+        await workVersionApi.setFinal(version.bookId, version.id);
+        await refreshBookVersions(version.bookId);
+        showToast(t('published.setFinalDone', { n: version.seq }), 'success');
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        logger.warn('PublishedScenesPage', 'reveal failed', { error: e, path: work.filePath });
-        showToast(t('published.retrieveFailed', { msg }), 'error');
+        logger.warn('PublishedScenesPage', 'set final failed', { error: e, versionId: version.id });
+        showToast(t('published.setFinalFailed', { msg }), 'error');
+      } finally {
+        setFinalBusyId(null);
       }
     },
-    [showToast],
+    [refreshBookVersions, showToast],
   );
 
-  const handleRemove = useCallback((work: CompletedWork) => {
-    setRemovingWork(work);
-    setRemoveDialogOpen(true);
-  }, []);
-
-  const confirmRemove = useCallback(async () => {
-    if (!removingWork) return;
-    const target = removingWork;
+  // ── 删除版本（§5.3：二次确认；本片只断记录，产物文件的勾选删除随 B5b 补）──
+  const confirmDeleteVersion = useCallback(async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleting(true);
     try {
-      await completedWorksApi.delete(target.id);
-      setWorks((prev) => prev.filter((w) => w.id !== target.id));
-      setSelectedIds((prev) => {
-        const n = new Set(prev);
-        n.delete(target.id);
+      const relPaths = await workVersionApi.delete(target.id);
+      await refreshBookVersions(target.bookId);
+      setSnapshots((prev) => {
+        const n = { ...prev };
+        delete n[target.id];
         return n;
       });
-      showToast(t('published.revoked', { name: target.bookTitle }), 'success');
+      setDeleteTarget(null);
+      setExpandedVersionId((cur) => (cur === target.id ? null : cur));
+      showToast(t('published.versionDeleted', { n: target.seq }), 'success');
+      if (relPaths.length > 0) {
+        showToast(t('published.deletedFilesRetainedHint', { n: relPaths.length }), 'info');
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.warn('PublishedScenesPage', 'remove record failed', { error: e, id: target.id });
-      showToast(t('published.removeFailed', { msg }), 'error');
+      logger.warn('PublishedScenesPage', 'delete version failed', { error: e, versionId: target.id });
+      showToast(t('published.deleteVersionFailed', { msg }), 'error');
     } finally {
-      setRemoveDialogOpen(false);
-      setRemovingWork(null);
+      setDeleting(false);
     }
-  }, [removingWork, showToast]);
+  }, [deleteTarget, refreshBookVersions, showToast]);
 
-  // ── 批量操作 ──
-  const toggleSelection = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  }, []);
-
-  const toggleAllSelection = useCallback(() => {
-    if (allSelected) {
-      setSelectedIds(new Set());
-      setAllSelected(false);
-    } else {
-      const ids = filteredWorks.map((w) => w.id);
-      setSelectedIds(new Set(ids));
-      setAllSelected(true);
-    }
-  }, [filteredWorks, allSelected]);
-
-  const handleBulkRemoveClick = useCallback(() => {
-    if (selectedIds.size === 0) return;
-    setBulkRemoveDialogOpen(true);
-  }, [selectedIds]);
-
-  const confirmBulkRemove = useCallback(async () => {
-    const ids = Array.from(selectedIds);
-    let ok = 0;
-    let fail = 0;
-    for (const id of ids) {
-      try {
-        await completedWorksApi.delete(id);
-        ok++;
-      } catch {
-        fail++;
+  // ── 版本详情：快照章节按需拉一次并缓存（不可变快照，缓存永远新鲜）──
+  const toggleVersionDetail = useCallback(
+    async (versionId: string) => {
+      if (expandedVersionId === versionId) {
+        setExpandedVersionId(null);
+        return;
       }
-    }
-    setWorks((prev) => prev.filter((w) => !selectedIds.has(w.id)));
-    setSelectedIds(new Set());
-    setAllSelected(false);
-    setBulkRemoveDialogOpen(false);
-    if (ok > 0) showToast(t('published.bulkRevoked', { count: ok }), 'success');
-    if (fail > 0) showToast(t('published.bulkRemoveFailed', { count: fail }), 'error');
-  }, [selectedIds, showToast]);
-
-  // ── 刷新按钮 ──
-  const handleRefresh = useCallback(() => {
-    setLoading(true);
-    void loadWorks();
-  }, [loadWorks]);
-
-  // ── 改名/改目录：saveDialog 选新路径 → 后端物理移动并更新记录 ──
-  const handleMove = useCallback(
-    async (work: CompletedWork) => {
+      setExpandedVersionId(versionId);
+      if (snapshots[versionId]) return;
+      setSnapshotLoadingId(versionId);
       try {
-        // defaultPath: 沿用当前文件名（含扩展名），让用户可直接选新目录/改新名字
-        const fileName = work.filePath.split('/').pop() || work.filePath;
-        const newPath = await saveDialog({
-          title: t('published.moveDialogTitle'),
-          defaultPath: fileName,
-          filters: [
-            { name: 'All files', extensions: ['*'] },
-            ...(work.format === 'backup' ? [{ name: 'SQLite', extensions: ['db'] }] : []),
-            ...(work.format && work.format !== 'backup'
-              ? [{ name: work.format.toUpperCase(), extensions: [work.format] }]
-              : []),
-          ],
-        });
-        if (!newPath) return; // 用户取消
-        await completedWorksApi.move(work.id, newPath);
-        showToast(t('published.moved', { name: work.bookTitle }), 'success');
-        void loadWorks();
+        const chapters = await workVersionApi.snapshot(versionId);
+        setSnapshots((prev) => ({ ...prev, [versionId]: chapters }));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        logger.warn('PublishedScenesPage', 'move work failed', { error: e, id: work.id });
-        showToast(t('published.moveFailed', { msg }), 'error');
+        logger.warn('PublishedScenesPage', 'load snapshot failed', { error: e, versionId });
+        showToast(t('published.snapshotFailed', { msg }), 'error');
+      } finally {
+        setSnapshotLoadingId(null);
       }
     },
-    [showToast, loadWorks],
+    [expandedVersionId, snapshots, showToast],
   );
 
-  // ── 导入已有文件：选书（写作台书目）→ 多选文件 → 去重导入 ──
-  const openImportDialog = useCallback(() => {
-    setImportBookId('');
-    setImportFilePaths([]);
-    setImportDialogOpen(true);
-    // 首次打开时预热书目（写作台 loadBooks 失败静默，不阻塞导入主流程）
-    if (useWritingStore.getState().books.length === 0) {
-      void loadBooks().catch(() => undefined);
-    }
-  }, [loadBooks]);
-
-  const handlePickImportFiles = useCallback(async () => {
+  const revealRoot = useCallback(async () => {
+    if (!rootInfo) return;
     try {
-      const selected = await openFileDialog({
-        multiple: true,
-        filters: [
-          {
-            name: t('published.importPickLabel'),
-            extensions: ['epub', 'pdf', 'docx', 'html', 'htm', 'md', 'markdown', 'txt', 'db'],
-          },
-        ],
-      });
-      if (!selected) return;
-      const paths = (Array.isArray(selected) ? selected : [selected]).filter((p) => typeof p === 'string');
-      setImportFilePaths(paths);
+      await invoke('reveal_in_file_manager', { path: rootInfo.path });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      logger.warn('PublishedScenesPage', 'pick import files failed', { error: e });
-      showToast(t('published.importPickFailed', { msg }), 'error');
+      logger.warn('PublishedScenesPage', 'reveal library root failed', { error: e });
+      showToast(t('published.rootOpenFailed', { msg }), 'error');
     }
-  }, [showToast]);
+  }, [rootInfo, showToast]);
 
-  const confirmImport = useCallback(async () => {
-    if (!importBookId) {
-      showToast(t('published.importNeedBook'), 'warning');
-      return;
-    }
-    if (importFilePaths.length === 0) {
-      showToast(t('published.importNeedFiles'), 'warning');
-      return;
-    }
-    const book = books.find((b) => b.id === importBookId);
-    if (!book) return;
-    setImporting(true);
-    try {
-      const [imported, skipped] = await completedWorksApi.importWorks(book.id, book.title, importFilePaths);
-      setImportDialogOpen(false);
-      showToast(t('published.importDone', { imported, skipped }), 'success');
-      void loadWorks();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      logger.warn('PublishedScenesPage', 'import works failed', { error: e });
-      showToast(t('published.importFailed', { msg }), 'error');
-    } finally {
-      setImporting(false);
-    }
-  }, [importBookId, importFilePaths, books, showToast, loadWorks]);
-
-  // ═══════════════════════════════════════════════════
-  //  渲染
-  // ═══════════════════════════════════════════════════
+  // 二级视图的书目现取：即使被一级搜索滤掉，已打开的书也不该从标题栏消失
+  const openBookData = openBookId ? books.find((b) => b.id === openBookId) ?? null : null;
+  const openVersions = useMemo(
+    () => (openBookId ? [...(versionsByBook[openBookId] ?? [])].sort((a, b) => b.seq - a.seq) : []),
+    [openBookId, versionsByBook],
+  );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* ── 标题区 ── */}
-      <Box sx={{ px: 3, pt: 3, pb: 2, flexShrink: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
-              {t('published.title')}
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* ── 页头：一级=标题+作品库指示；二级=返回+书名（一律现取） ── */}
+      <Box sx={{ px: 3, pt: 3, pb: 1.5, flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          {openBookId && (
+            <IconButton size="small" onClick={backToBooks} aria-label={t('published.backToBooks')} data-testid="published-back">
+              <ArrowBackIcon sx={{ fontSize: uiFontSize(20) }} />
+            </IconButton>
+          )}
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: uiFontSize(18), fontWeight: 700 }} noWrap data-testid="published-page-title">
+              {openBookData ? openBookData.title : t('published.title')}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {t('published.subtitle')}
-            </Typography>
+            {!openBookId && (
+              <Typography sx={{ fontSize: uiFontSize(12) }} color="text.secondary">
+                {t('published.subtitleV2')}
+              </Typography>
+            )}
           </Box>
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title={t('published.import')}>
-              <IconButton size="small" onClick={openImportDialog} color="default">
-                <UploadFileIcon sx={{ fontSize: uiFontSize(20) }} />
-              </IconButton>
-            </Tooltip>
+          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+            {rootInfo && (
+              <Tooltip title={rootInfo.path}>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  data-testid="published-root-chip"
+                  label={t('published.rootChipLabel', { path: rootInfo.path })}
+                  onClick={() => void revealRoot()}
+                  sx={{ maxWidth: 360, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }}
+                />
+              </Tooltip>
+            )}
+            {rootInfo && (
+              <Tooltip title={t('published.rootOpen')}>
+                <IconButton size="small" onClick={() => void revealRoot()} data-testid="published-root-open">
+                  <FolderOpenIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title={t('published.refresh')}>
-              <IconButton size="small" onClick={handleRefresh} color="default">
-                <FolderOpenIcon sx={{ fontSize: uiFontSize(20) }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t('published.listView')}>
-              <IconButton
-                size="small"
-                onClick={() => setViewMode('list')}
-                color={viewMode === 'list' ? 'primary' : 'default'}
-              >
-                <ViewListIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t('published.groupByBook')}>
-              <IconButton
-                size="small"
-                onClick={() => {
-                  setGroupByBook((v) => !v);
-                  if (viewMode !== 'list') setViewMode('list');
-                }}
-                color={groupByBook ? 'primary' : 'default'}
-              >
-                <GroupWorkIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t('published.gridView')}>
-              <IconButton
-                size="small"
-                onClick={() => setViewMode('grid')}
-                color={viewMode === 'grid' ? 'primary' : 'default'}
-              >
-                <ViewModuleIcon />
+              <IconButton size="small" onClick={() => { void load(); void loadRoot(); }} data-testid="published-refresh">
+                <RefreshIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
         </Box>
-      </Box>
-
-      {/* ── 批量操作栏 ── */}
-      {selectedIds.size > 0 && (
-        <Box
-          sx={{
-            px: 3,
-            pb: 1,
-            flexShrink: 0,
-            display: 'flex',
-            gap: 1.5,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Checkbox
-              checked={selectedIds.size > 0 && allSelected}
-              indeterminate={selectedIds.size > 0 && !allSelected}
-              onChange={toggleAllSelection}
-              size="small"
-            />
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              {t('published.selectedCount', { count: selectedIds.size })}
-            </Typography>
-          </Box>
-          <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
-            <Tooltip title={t('published.bulkRemove')}>
-              <IconButton size="small" onClick={handleBulkRemoveClick} color="error">
-                <DeleteIcon sx={{ fontSize: uiFontSize(18) }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t('published.cancelSelection')}>
-              <IconButton
-                size="small"
-                onClick={() => {
-                  setSelectedIds(new Set());
-                  setAllSelected(false);
-                }}
-              >
-                <ClearIcon sx={{ fontSize: uiFontSize(18) }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
-      )}
-
-      {/* ── 筛选工具栏 ── */}
-      <Box
-        sx={{
-          px: 3,
-          pb: 2,
-          flexShrink: 0,
-          display: 'flex',
-          gap: 1.5,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-        }}
-      >
-        <TextField
-          size="small"
-          placeholder={t('published.searchPlaceholder')}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ minWidth: 200, flex: 1, maxWidth: 320 }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-
-        <FormControl size="small" sx={{ minWidth: 140 }}>
-          <Select
-            value={selectedBook}
-            onChange={(e) => setSelectedBook(e.target.value as string)}
-            displayEmpty
-            renderValue={(v) => (v ? bookOptions.find((b) => b.id === v)?.title : t('published.allBooks'))}
+        {rootError && (
+          <Typography
+            data-testid="published-root-error"
+            sx={{ fontSize: uiFontSize(11.5), color: 'error.main', mt: 0.75, display: 'block', wordBreak: 'break-all' }}
           >
-            <MenuItem value="">{t('published.allBooks')}</MenuItem>
-            {bookOptions.map((b) => (
-              <MenuItem key={b.id} value={b.id}>
-                {b.title}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 130 }}>
-          <Select
-            value={selectedFormat}
-            onChange={(e) => setSelectedFormat(e.target.value as WorkFormat | '')}
-            displayEmpty
-            renderValue={(v) => (v ? FORMAT_META[v as WorkFormat].label : t('published.allFormats'))}
-          >
-            <MenuItem value="">{t('published.allFormats')}</MenuItem>
-            {formatOptions.map((f) => (
-              <MenuItem key={f} value={f}>
-                {FORMAT_META[f].label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 130 }}>
-          <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
-            <MenuItem value="recent">{t('published.sortRecent')}</MenuItem>
-            <MenuItem value="oldest">{t('published.sortOldest')}</MenuItem>
-            <MenuItem value="name">{t('published.sortName')}</MenuItem>
-            <MenuItem value="size">{t('published.sortSize')}</MenuItem>
-          </Select>
-        </FormControl>
-
-        <Chip
-          size="small"
-          label={t('published.count', { n: filteredWorks.length })}
-          sx={{ ml: 'auto', fontWeight: 500 }}
-        />
-      </Box>
-
-      {/* ── 内容区 ── */}
-      <Box sx={{ flex: 1, overflow: 'auto', px: 3, pb: 3 }}>
-        {/* 已完结但还没有导出产物的书：以前这儿一片空白，用户标完完结找不到自己的书 */}
-        {!loading && finishedPendingBooks.length > 0 && (
-          <FinishedPendingBand books={finishedPendingBooks} onOpenDesk={openDeskForBook} />
+            {t('published.rootLoadFailed', { reason: rootError })}
+          </Typography>
         )}
-        {loading ? (
-          <LoadingSkeleton viewMode={viewMode} />
-        ) : filteredWorks.length === 0 && finishedPendingBooks.length === 0 ? (
-          <EmptyState
-            isFiltered={Boolean(searchQuery || selectedBook || selectedFormat)}
-            onClear={() => {
-              setSearchQuery('');
-              setSelectedBook('');
-              setSelectedFormat('');
+      </Box>
+
+      {/* ── 一级筛选栏 ── */}
+      {!openBookId && (
+        <Box sx={{ px: 3, pb: 2, flexShrink: 0, display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
+            size="small"
+            placeholder={t('published.searchPlaceholder')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            sx={{ minWidth: 200, flex: 1, maxWidth: 320 }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+              },
             }}
           />
-        ) : viewMode === 'grid' ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 2 }}>
-            {filteredWorks.map((work) => (
-              <WorkCard
-                key={work.id}
-                work={work}
-                isSelected={selectedIds.has(work.id)}
-                onToggleSelect={toggleSelection}
-                onRetrieve={handleRetrieve}
-                onMove={handleMove}
-                onRemove={handleRemove}
-              />
-            ))}
-          </Box>
-        ) : viewMode === 'list' && groupByBook ? (
-          <BookGroupList
-            groups={bookGroups}
-            collapsedIds={collapsedBookIds}
-            selectedIds={selectedIds}
-            onToggleGroup={toggleBookGroup}
-            onExpandAll={expandAllGroups}
-            onToggleSelect={toggleSelection}
-            onRetrieve={handleRetrieve}
-            onMove={handleMove}
-            onRemove={handleRemove}
-          />
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {filteredWorks.map((work) => (
-              <WorkRow
-                key={work.id}
-                work={work}
-                isSelected={selectedIds.has(work.id)}
-                onToggleSelect={toggleSelection}
-                onRetrieve={handleRetrieve}
-                onMove={handleMove}
-                onRemove={handleRemove}
-              />
-            ))}
-          </Box>
-        )}
-      </Box>
-
-      {/* ── 移除确认对话框 ── */}
-      <Dialog open={removeDialogOpen} onClose={() => setRemoveDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('published.confirmRemove')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('published.confirmRemoveDesc')}</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRemoveDialogOpen(false)}>{t('ui.cancel')}</Button>
-          <Button onClick={confirmRemove} color="error" variant="contained">
-            {t('ui.confirm')}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ── 批量移除确认对话框 ── */}
-      <Dialog open={bulkRemoveDialogOpen} onClose={() => setBulkRemoveDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('published.confirmBulkRemove')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>{t('published.confirmBulkRemoveDesc', { count: selectedIds.size })}</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setBulkRemoveDialogOpen(false)}>{t('ui.cancel')}</Button>
-          <Button onClick={confirmBulkRemove} color="error" variant="contained">
-            {t('ui.confirm')}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ── 导入已有文件对话框 ── */}
-      <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{t('published.importDialogTitle')}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
-          <DialogContentText>{t('published.importDialogDesc')}</DialogContentText>
-
-          <FormControl size="small" fullWidth>
+          <FormControl size="small" sx={{ minWidth: 140 }}>
             <Select
-              value={importBookId}
-              onChange={(e) => setImportBookId(e.target.value as string)}
-              displayEmpty
-              renderValue={(v) => (v ? books.find((b) => b.id === v)?.title : t('published.importSelectBook'))}
+              value={finalFilter}
+              onChange={(e) => setFinalFilter(e.target.value as FinalFilter)}
+              data-testid="published-final-filter"
             >
-              {books.length === 0 ? (
-                <MenuItem value="" disabled>
-                  {t('published.importNoBooks')}
-                </MenuItem>
-              ) : (
-                books.map((b) => (
-                  <MenuItem key={b.id} value={b.id}>
-                    {b.title}
-                  </MenuItem>
-                ))
-              )}
+              <MenuItem value="">{t('published.filterFinalAll')}</MenuItem>
+              <MenuItem value="has">{t('published.filterHasFinal')}</MenuItem>
+              <MenuItem value="none">{t('published.filterNoFinal')}</MenuItem>
             </Select>
           </FormControl>
-
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button variant="outlined" size="small" startIcon={<UploadFileIcon />} onClick={handlePickImportFiles}>
-              {t('published.importPickFiles')}
-            </Button>
-            <Typography variant="body2" color="text.secondary">
-              {importFilePaths.length > 0
-                ? t('published.importPickedCount', { n: importFilePaths.length })
-                : t('published.importNonePicked')}
-            </Typography>
-          </Box>
-          {importFilePaths.length > 0 && (
-            <Box sx={{ maxHeight: 160, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-              {importFilePaths.map((p) => (
-                <Typography key={p} variant="caption" sx={{ opacity: 0.75, wordBreak: 'break-all' }}>
-                  {p}
-                </Typography>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
+              <MenuItem value="recent">{t('published.sortRecent')}</MenuItem>
+              <MenuItem value="oldest">{t('published.sortOldest')}</MenuItem>
+              <MenuItem value="name">{t('published.sortName')}</MenuItem>
+            </Select>
+          </FormControl>
+          <Chip size="small" label={t('published.bookCount', { n: cards.length })} sx={{ ml: 'auto', fontWeight: 500 }} />
+        </Box>
+      )}
+      {/* ── 内容区 ── */}
+      <Box sx={{ flex: 1, overflow: 'auto', px: 3, pb: 3 }}>
+        {openBookId ? (
+          openVersions.length === 0 ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, pt: 8 }}>
+              <WarningAmberIcon sx={{ fontSize: uiFontSize(34), color: 'warning.main' }} />
+              <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary', textAlign: 'center' }}>
+                {t('published.timelineEmpty')}
+              </Typography>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={() => openDesk(openBookId)}
+                startIcon={<LockIcon sx={{ fontSize: uiFontSize(15) }} />}
+                data-testid="published-l2-lock"
+              >
+                {t('published.goLockVersion')}
+              </Button>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, maxWidth: 860 }}>
+              {openVersions.map((v) => (
+                <VersionRow
+                  key={v.id}
+                  version={v}
+                  expanded={expandedVersionId === v.id}
+                  snapshot={snapshots[v.id]}
+                  snapshotLoading={snapshotLoadingId === v.id}
+                  finalBusy={finalBusyId === v.id}
+                  onToggleDetail={() => void toggleVersionDetail(v.id)}
+                  onSetFinal={() => void handleSetFinal(v)}
+                  onDelete={() => setDeleteTarget(v)}
+                />
               ))}
             </Box>
-          )}
+          )
+        ) : loading ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} variant="rounded" height={132} sx={{ bgcolor: 'action.hover' }} />
+            ))}
+          </Box>
+        ) : cards.length === 0 ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, pt: 10 }}>
+            <LibraryBooksIcon sx={{ fontSize: uiFontSize(44), color: 'text.disabled' }} />
+            <Typography sx={{ fontSize: uiFontSize(15), fontWeight: 650 }}>{t('published.emptyTitleV2')}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary', textAlign: 'center', maxWidth: 420, lineHeight: 1.7 }}>
+              {t('published.emptyHintV2')}
+            </Typography>
+            {(searchQuery || finalFilter) && (
+              <Button
+                size="small"
+                onClick={() => {
+                  setSearchQuery('');
+                  setFinalFilter('');
+                }}
+              >
+                {t('published.clearFilters')}
+              </Button>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+            {cards.map((c) => (
+              <BookWorksCard key={c.book.id} card={c} onOpen={openBook} onLock={openDesk} />
+            ))}
+          </Box>
+        )}
+      </Box>
+
+      {/* ── 删除版本二次确认（§5.3）── */}
+      <Dialog open={Boolean(deleteTarget)} onClose={() => !deleting && setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: uiFontSize(15.5), fontWeight: 650 }}>
+          {t('published.confirmDeleteVersion', { n: deleteTarget?.seq ?? '' })}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: uiFontSize(12.5) }}>{t('published.confirmDeleteVersionDesc')}</DialogContentText>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setImportDialogOpen(false)}>{t('ui.cancel')}</Button>
-          <Button onClick={confirmImport} variant="contained" disabled={importing}>
-            {importing ? t('published.importing') : t('published.import')}
+        <DialogActions sx={{ px: 2.5, pb: 2 }}>
+          <Button size="small" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            {t('published.cancel')}
+          </Button>
+          <Button size="small" color="error" variant="contained" onClick={() => void confirmDeleteVersion()} disabled={deleting} data-testid="published-delete-confirm">
+            {deleting ? <CircularProgress size={14} sx={{ mr: 0.75, color: 'inherit' }} /> : null}
+            {t('published.deleteVersion')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -825,624 +504,231 @@ export default function PublishedScenesPage() {
 }
 
 // ═══════════════════════════════════════════════════
-//  空态：原生空 vs 筛选后空
+//  一级：书卡片
 // ═══════════════════════════════════════════════════
 
-function EmptyState({ isFiltered, onClear }: { isFiltered: boolean; onClear: () => void }) {
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: 'text.secondary',
-        gap: 2.5,
-      }}
-    >
-      <Box
-        sx={{
-          width: 72,
-          height: 72,
-          borderRadius: 3,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: (th) => `${th.palette.primary.main}10`,
-        }}
-      >
-        <BookIcon sx={{ fontSize: uiFontSize(36), color: 'primary.main', opacity: 0.5 }} />
-      </Box>
-      <Box sx={{ textAlign: 'center', maxWidth: 380 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, opacity: 0.7, mb: 1 }}>
-          {isFiltered ? t('published.noResults') : t('published.noneTitle')}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.45, lineHeight: 1.6, mb: isFiltered ? 2 : 0 }}>
-          {isFiltered ? t('published.noResultsHint') : t('published.noneHint')}
-        </Typography>
-        {isFiltered && (
-          <Button variant="outlined" size="small" onClick={onClear}>
-            {t('published.clearFilters')}
-          </Button>
-        )}
-      </Box>
-    </Box>
-  );
-}
-
-// ═══════════════════════════════════════════════════
-//  骨架屏：按视图模式区分网格/列表，与实态 1:1 布局
-// ═══════════════════════════════════════════════════
-
-function LoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {
-  return (
-    <Box sx={{ flex: 1, overflow: 'auto', px: 3, pb: 3 }}>
-      {viewMode === 'grid' ? (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 2 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Box
-              key={i}
-              sx={{
-                border: 1,
-                borderColor: 'divider',
-                borderRadius: 2,
-                p: 2,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1.5,
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Skeleton variant="rounded" width={40} height={40} sx={{ flexShrink: 0 }} />
-                <Box sx={{ flex: 1 }}>
-                  <Skeleton variant="text" width="80%" sx={{ mb: 0.5 }} />
-                  <Skeleton variant="text" width="40%" />
-                </Box>
-              </Box>
-              <Skeleton variant="rounded" width="50%" height={22} />
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 'auto', pt: 0.5 }}>
-                <Skeleton variant="text" width="35%" />
-                <Skeleton variant="rounded" width={72} height={28} />
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Box
-              key={i}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                p: 1.5,
-                borderRadius: 1.5,
-                border: 1,
-                borderColor: 'divider',
-              }}
-            >
-              <Skeleton variant="rounded" width={36} height={36} sx={{ flexShrink: 0 }} />
-              <Box sx={{ flex: 1 }}>
-                <Skeleton variant="text" width="30%" sx={{ mb: 0.5 }} />
-                <Skeleton variant="text" width="50%" />
-              </Box>
-              <Skeleton variant="text" width={90} />
-              <Skeleton variant="rounded" width={72} height={28} />
-            </Box>
-          ))}
-        </Box>
-      )}
-    </Box>
-  );
-}
-
-// ═══════════════════════════════════════════════════
-//  按书名聚合折叠列表（列表视图 + 分组模式）
-// ═══════════════════════════════════════════════════
-
-interface BookGroup {
-  bookId: string;
-  bookTitle: string;
-  works: CompletedWork[];
-}
-
-function BookGroupList({
-  groups,
-  collapsedIds,
-  selectedIds,
-  onToggleGroup,
-  onExpandAll,
-  onToggleSelect,
-  onRetrieve,
-  onMove,
-  onRemove,
+function BookWorksCard({
+  card,
+  onOpen,
+  onLock,
 }: {
-  groups: BookGroup[];
-  collapsedIds: Set<string>;
-  selectedIds: Set<string>;
-  onToggleGroup: (bookId: string) => void;
-  onExpandAll: () => void;
-  onToggleSelect: (id: string) => void;
-  onRetrieve: (w: CompletedWork) => void;
-  onMove: (w: CompletedWork) => void;
-  onRemove: (w: CompletedWork) => void;
+  card: BookCardData;
+  onOpen: (bookId: string) => void;
+  onLock: (bookId: string) => void;
 }) {
-  const theme = useTheme();
-  const selectedInGroup = groups.filter((g) => g.works.some((w) => selectedIds.has(w.id))).length;
-
-  // 组内去掉折叠/展开按钮重复占用空间：行首用 Chevron/Expand 指示，整行可点击切换
-  const renderGroup = (g: BookGroup) => {
-    const collapsed = collapsedIds.has(g.bookId);
-    // 组内各格式数量：同一书多次导出同格式时显示「PDF ×2」
-    const formatCounts = new Map<CompletedWorkFormat, number>();
-    g.works.forEach((w) => {
-      const f = w.format as CompletedWorkFormat;
-      formatCounts.set(f, (formatCounts.get(f) ?? 0) + 1);
-    });
-    const formatChips = Array.from(formatCounts.entries());
-    const groupSelected = g.works.filter((w) => selectedIds.has(w.id)).length;
-    return (
-      <Box key={g.bookId} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {/* 组头 */}
-        <Box
-          role="button"
-          tabIndex={0}
-          onClick={() => onToggleGroup(g.bookId)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onToggleGroup(g.bookId);
-            }
-          }}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            px: 1.5,
-            py: 1,
-            borderRadius: 1.5,
-            border: 1,
-            borderColor: 'divider',
-            bgcolor: 'background.paper',
-            cursor: 'pointer',
-            transition: 'background-color 0.15s, border-color 0.15s',
-            '&:hover': {
-              bgcolor: (th) => alpha(th.palette.primary.main, 0.06),
-              borderColor: (th) => alpha(th.palette.primary.main, 0.3),
-            },
-          }}
-        >
-          <IconButton size="small" sx={{ p: 0.25, flexShrink: 0 }} tabIndex={-1}>
-            {collapsed ? (
-              <ChevronRightIcon sx={{ fontSize: uiFontSize(20) }} />
-            ) : (
-              <ExpandMoreIcon sx={{ fontSize: uiFontSize(20) }} />
-            )}
-          </IconButton>
-          <Tooltip title={g.bookTitle}>
-            <Typography
-              sx={{
-                fontWeight: 600,
-                fontSize: uiFontSize(14),
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                maxWidth: 320,
-              }}
-            >
-              {g.bookTitle}
-            </Typography>
-          </Tooltip>
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-            {formatChips.map(([f, n]) => {
-              const fmtPal = formatPalette(theme, f);
-              return (
-                <Chip
-                  key={f}
-                  size="small"
-                  label={n > 1 ? `${FORMAT_META[f].label} ×${n}` : FORMAT_META[f].label}
-                  sx={{
-                    fontSize: uiFontSize(11),
-                    height: 22,
-                    bgcolor: fmtPal.bg,
-                    color: fmtPal.color,
-                    fontWeight: 600,
-                  }}
-                />
-              );
-            })}
-          </Box>
-          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-            {groupSelected > 0 && (
-              <Chip
-                size="small"
-                color="primary"
-                variant="outlined"
-                label={t('published.groupSelected', { n: groupSelected })}
-                sx={{ fontSize: uiFontSize(11), height: 22 }}
-              />
-            )}
-            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
-              {t('published.groupCount', { n: g.works.length })}
-            </Typography>
-          </Box>
-        </Box>
-        {/* 组内记录 */}
-        {!collapsed && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pl: 1.5 }}>
-            {g.works.map((work) => (
-              <WorkRow
-                key={work.id}
-                work={work}
-                isSelected={selectedIds.has(work.id)}
-                onToggleSelect={onToggleSelect}
-                onRetrieve={onRetrieve}
-                onMove={onMove}
-                onRemove={onRemove}
-              />
-            ))}
-          </Box>
-        )}
-      </Box>
-    );
-  };
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {groups.length > 1 && (
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <Button size="small" variant="text" onClick={onExpandAll} sx={{ fontSize: uiFontSize(12) }}>
-            {t('published.expandAll')}
-          </Button>
-          <Button
-            size="small"
-            variant="text"
-            onClick={() =>
-              groups.forEach((g) => {
-                if (!collapsedIds.has(g.bookId)) onToggleGroup(g.bookId);
-              })
-            }
-            sx={{ fontSize: uiFontSize(12) }}
-          >
-            {t('published.collapseAll')}
-          </Button>
-          <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
-            {selectedInGroup > 0
-              ? t('published.groupSelectedTotal', { n: selectedInGroup })
-              : t('published.groupTotal', { n: groups.length })}
-          </Typography>
-        </Box>
-      )}
-      {groups.map(renderGroup)}
-    </Box>
-  );
-}
-
-// ═══════════════════════════════════════════════════
-//  网格卡片
-// ═══════════════════════════════════════════════════
-
-function WorkCard({
-  work,
-  isSelected,
-  onToggleSelect,
-  onRetrieve,
-  onMove,
-  onRemove,
-}: {
-  work: CompletedWork;
-  isSelected: boolean;
-  onToggleSelect: (id: string) => void;
-  onRetrieve: (w: CompletedWork) => void;
-  onMove: (w: CompletedWork) => void;
-  onRemove: (w: CompletedWork) => void;
-}) {
-  const theme = useTheme();
-  const meta = FORMAT_META[work.format];
-  const pal = formatPalette(theme, work.format);
-  const { Icon } = meta;
+  const { book, versions } = card;
+  const latest = versions.reduce<WorkVersion | null>((m, v) => (!m || v.seq > m.seq ? v : m), null);
+  const finalVersion = versions.find((v) => v.isFinal) ?? null;
+  const finished = isBookFinished(book.status);
 
   return (
     <Box
+      onClick={() => onOpen(book.id)}
+      data-testid={`published-book-card-${book.id}`}
       sx={{
-        border: 1,
-        borderColor: 'divider',
+        p: 2,
         borderRadius: 2,
-        p: 2,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1.5,
-        transition: 'box-shadow 0.2s, transform 0.2s, border-color 0.2s, background-color 0.2s',
-        bgcolor: 'background.paper',
-        position: 'relative',
-        '&:hover': {
-          boxShadow: (th) => th.shadows[2],
-          transform: 'translateY(-2px)',
-          borderColor: (th) => alpha(th.palette.primary.main, 0.35),
-          bgcolor: (th) => alpha(th.palette.primary.main, 0.03),
-        },
-      }}
-    >
-      {/* 复选框（悬浮层左上） */}
-      <Checkbox
-        checked={isSelected}
-        onChange={() => onToggleSelect(work.id)}
-        size="small"
-        sx={{ position: 'absolute', top: 8, right: 8, p: 0.5, zIndex: 1 }}
-      />
-      {/* 格式徽章 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box
-          sx={{
-            width: 40,
-            height: 40,
-            borderRadius: 1.5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: pal.bg,
-          }}
-        >
-          <Icon sx={{ fontSize: uiFontSize(22), color: pal.color }} />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography
-            sx={{
-              fontWeight: 600,
-              fontSize: uiFontSize(15),
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {work.bookTitle}
-          </Typography>
-          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
-            {meta.label} · {formatFileSize(work.fileSize)}
-          </Typography>
-        </Box>
-      </Box>
-
-      {/* 规格 */}
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        <Chip
-          size="small"
-          label={t('published.chaptersWords', {
-            chapters: work.chapterCount,
-            words: formatWordCount(work.wordCount),
-          })}
-          sx={{ fontSize: uiFontSize(11), height: 22 }}
-        />
-        {work.isFileMissing && (
-          <Chip
-            size="small"
-            color="warning"
-            variant="outlined"
-            icon={<WarningAmberIcon sx={{ fontSize: uiFontSize(14) }} />}
-            label={t('published.fileMissing')}
-            sx={{ fontSize: uiFontSize(11), height: 22 }}
-          />
-        )}
-      </Box>
-
-      {/* 日期 + 操作 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 'auto', pt: 0.5 }}>
-        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled' }}>
-          {t('published.exportedOn', { date: formatDate(work.createdAt) })}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title={work.isFileMissing ? t('published.fileMissingHint') : t('published.reDownload')}>
-            <IconButton
-              size="small"
-              onClick={() => onRetrieve(work)}
-              disabled={work.isFileMissing}
-              sx={{ color: 'primary.main' }}
-            >
-              <DownloadIcon sx={{ fontSize: uiFontSize(18) }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={t('published.move')}>
-            <IconButton size="small" onClick={() => onMove(work)} sx={{ color: 'text.secondary' }}>
-              <DriveFileMoveIcon sx={{ fontSize: uiFontSize(18) }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={t('published.revoke')}>
-            <IconButton size="small" onClick={() => onRemove(work)} sx={{ color: 'text.secondary' }}>
-              <DeleteIcon sx={{ fontSize: uiFontSize(18) }} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-    </Box>
-  );
-}
-
-// ═══════════════════════════════════════════════════
-//  列表行
-// ═══════════════════════════════════════════════════
-
-function WorkRow({
-  work,
-  isSelected,
-  onToggleSelect,
-  onRetrieve,
-  onMove,
-  onRemove,
-}: {
-  work: CompletedWork;
-  isSelected: boolean;
-  onToggleSelect: (id: string) => void;
-  onRetrieve: (w: CompletedWork) => void;
-  onMove: (w: CompletedWork) => void;
-  onRemove: (w: CompletedWork) => void;
-}) {
-  const theme = useTheme();
-  const meta = FORMAT_META[work.format];
-  const pal = formatPalette(theme, work.format);
-  const { Icon } = meta;
-
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 2,
-        p: 1.5,
-        borderRadius: 1.5,
-        border: 1,
-        borderColor: isSelected ? (th) => alpha(th.palette.primary.main, 0.35) : 'divider',
-        bgcolor: isSelected ? (th) => alpha(th.palette.primary.main, 0.06) : 'background.paper',
-        transition: 'box-shadow 0.15s, background-color 0.2s, border-color 0.2s',
-        '&:hover': {
-          boxShadow: (th) => th.shadows[1],
-          borderColor: (th) => alpha(th.palette.primary.main, 0.3),
-        },
-      }}
-    >
-      {/* 复选框（列表行左起） */}
-      <Checkbox
-        checked={isSelected}
-        onChange={() => onToggleSelect(work.id)}
-        size="small"
-        sx={{ p: 0.5, flexShrink: 0 }}
-      />
-      <Box
-        sx={{
-          width: 36,
-          height: 36,
-          borderRadius: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: pal.bg,
-          flexShrink: 0,
-        }}
-      >
-        <Icon sx={{ fontSize: uiFontSize(20), color: pal.color }} />
-      </Box>
-
-      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-        <Typography
-          sx={{
-            fontWeight: 600,
-            fontSize: uiFontSize(14),
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {work.bookTitle}
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
-            {meta.label} · {formatFileSize(work.fileSize)}
-          </Typography>
-          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
-            {t('published.chaptersWords', {
-              chapters: work.chapterCount,
-              words: formatWordCount(work.wordCount),
-            })}
-          </Typography>
-          {work.pageCount && (
-            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>{work.pageCount}页</Typography>
-          )}
-        </Box>
-      </Box>
-
-      <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled', flexShrink: 0, minWidth: 90 }}>
-        {formatDate(work.createdAt)}
-      </Typography>
-
-      <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-        {work.isFileMissing && (
-          <Tooltip title={t('published.fileMissingHint')}>
-            <Chip
-              size="small"
-              color="warning"
-              variant="outlined"
-              icon={<WarningAmberIcon sx={{ fontSize: uiFontSize(14) }} />}
-              label={t('published.fileMissing')}
-              sx={{ fontSize: uiFontSize(11), height: 24, mr: 0.5 }}
-            />
-          </Tooltip>
-        )}
-        <Tooltip title={work.isFileMissing ? t('published.fileMissingHint') : t('published.reDownload')}>
-          <IconButton
-            size="small"
-            onClick={() => onRetrieve(work)}
-            disabled={work.isFileMissing}
-            sx={{ color: 'primary.main' }}
-          >
-            <DownloadIcon sx={{ fontSize: uiFontSize(18) }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={t('published.move')}>
-          <IconButton size="small" onClick={() => onMove(work)} sx={{ color: 'text.secondary' }}>
-            <DriveFileMoveIcon sx={{ fontSize: uiFontSize(18) }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={t('published.revoke')}>
-          <IconButton size="small" onClick={() => onRemove(work)} sx={{ color: 'text.secondary' }}>
-            <DeleteIcon sx={{ fontSize: uiFontSize(18) }} />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    </Box>
-  );
-}
-
-// ═══════════════════════════════════════════════════
-//  已完结 · 待导出带（2026-11-03 bug 修复）
-//
-//  completed_works 只登记**导出产物**（format / file_path / file_size / is_file_missing），
-//  书架上把书设成「已完结」改的是 writing_books.status —— 两边原本零关联，标完完结的书
-//  在完结作品页彻底看不到。这里把「已完结 + 零产物」的书显式列出并给出去写作台导出的出口；
-//  刻意不往产物表里伪造一条 CompletedWork：那会塞进空 file_path，并把 is_file_missing
-//  的判读带偏（文件丢失与从未导出会被混成同一件事）。
-// ═══════════════════════════════════════════════════
-
-function FinishedPendingBand({
-  books,
-  onOpenDesk,
-}: {
-  books: Array<{ id: string; title: string }>;
-  onOpenDesk: (bookId: string) => void;
-}) {
-  return (
-    <Box
-      sx={{
-        mb: 2,
-        p: 2,
         border: '1px solid',
         borderColor: 'divider',
-        borderRadius: 2,
         bgcolor: 'background.paper',
+        cursor: 'pointer',
+        transition: 'border-color .15s ease, box-shadow .15s ease',
+        '&:hover': { borderColor: 'primary.light', boxShadow: 2 },
+        display: 'flex',
+        gap: 1.5,
+        alignItems: 'flex-start',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-        <WarningAmberIcon sx={{ fontSize: uiFontSize(18), color: 'warning.main' }} />
-        <Typography sx={{ fontSize: uiFontSize(13.5), fontWeight: 650 }}>
-          {t('published.pendingTitle', { n: books.length })}
+      {/* 封面色块：与书架同一份 coverColor，不是本页存的书目副本 */}
+      <Box
+        sx={{
+          width: 44,
+          height: 58,
+          borderRadius: 1,
+          flexShrink: 0,
+          bgcolor: book.coverColor ? alpha(book.coverColor, 0.85) : 'primary.light',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <MenuBookIcon sx={{ fontSize: uiFontSize(22), color: '#fff' }} />
+      </Box>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography sx={{ fontSize: uiFontSize(14), fontWeight: 650 }} noWrap title={book.title}>
+          {book.title}
         </Typography>
+        <Box sx={{ display: 'flex', gap: 0.6, mt: 0.6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Chip size="small" variant="outlined" label={finished ? t('published.cardFinishedChip') : t('published.cardLockedChip')} color={finished ? 'success' : 'default'} sx={{ height: 20, fontSize: uiFontSize(11) }} />
+          {latest && (
+            <Chip size="small" label={t('published.latestVersionN', { n: latest.seq })} sx={{ height: 20, fontSize: uiFontSize(11) }} data-testid={`published-card-latest-${book.id}`} />
+          )}
+          {finalVersion && (
+            <Chip
+              size="small"
+              color="primary"
+              icon={<CheckCircleIcon sx={{ fontSize: uiFontSize(14) }} />}
+              label={t('published.finalTag')}
+              sx={{ height: 20, fontSize: uiFontSize(11) }}
+              data-testid={`published-card-final-${book.id}`}
+            />
+          )}
+          {versions.length > 0 && (
+            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary' }}>
+              {t('published.versionCountN', { n: versions.length })}
+            </Typography>
+          )}
+        </Box>
+        {versions.length === 0 ? (
+          <Box sx={{ mt: 1.2 }}>
+            <Typography sx={{ fontSize: uiFontSize(12) }} color="text.secondary" data-testid={`published-card-empty-${book.id}`}>
+              {t('published.noVersionYet')}
+            </Typography>
+            <Button
+              size="small"
+              variant="contained"
+              sx={{ mt: 0.75, textTransform: 'none', fontSize: uiFontSize(12) }}
+              startIcon={<LockIcon sx={{ fontSize: uiFontSize(14) }} />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onLock(book.id);
+              }}
+              data-testid={`published-card-lock-${book.id}`}
+            >
+              {t('published.goLockVersion')}
+            </Button>
+          </Box>
+        ) : (
+          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5) }}>
+              {t('published.lockedOn', { date: formatDate(latest ? latest.lockedAt : 0) })}
+            </Typography>
+            <ChevronRightIcon sx={{ fontSize: uiFontSize(15) }} />
+          </Box>
+        )}
       </Box>
-      <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', lineHeight: 1.6, mb: 1.5 }}>
-        {t('published.pendingHint')}
-      </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-        {books.map((b) => (
-          <Button
-            key={b.id}
+    </Box>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+//  二级：版本时间线行（需求 §7）
+// ═══════════════════════════════════════════════════
+
+function VersionRow({
+  version,
+  expanded,
+  snapshot,
+  snapshotLoading,
+  finalBusy,
+  onToggleDetail,
+  onSetFinal,
+  onDelete,
+}: {
+  version: WorkVersion;
+  expanded: boolean;
+  snapshot?: WorkVersionChapter[];
+  snapshotLoading: boolean;
+  finalBusy: boolean;
+  onToggleDetail: () => void;
+  onSetFinal: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <Box
+      data-testid={`published-version-${version.seq}`}
+      sx={{
+        border: '1px solid',
+        borderColor: version.isFinal ? 'primary.light' : 'divider',
+        borderRadius: 2,
+        bgcolor: 'background.paper',
+        overflow: 'hidden',
+      }}
+    >
+      <Box sx={{ p: 1.75, display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
+        <Typography sx={{ fontSize: uiFontSize(14.5), fontWeight: 750 }} data-testid={`published-version-seq-${version.seq}`}>
+          v{version.seq}
+        </Typography>
+        {version.label && (
+          <Chip size="small" variant="outlined" label={version.label} sx={{ height: 20, fontSize: uiFontSize(11) }} />
+        )}
+        {version.isFinal && (
+          <Chip
             size="small"
-            variant="outlined"
-            startIcon={<BookIcon sx={{ fontSize: uiFontSize(15) }} />}
-            onClick={() => onOpenDesk(b.id)}
-          >
-            {b.title}
-          </Button>
-        ))}
+            color="primary"
+            icon={<CheckCircleIcon sx={{ fontSize: uiFontSize(13) }} />}
+            label={t('published.finalTag')}
+            sx={{ height: 20, fontSize: uiFontSize(11) }}
+            data-testid={`published-version-final-${version.seq}`}
+          />
+        )}
+        <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary' }}>
+          {t('published.chaptersWords', { chapters: version.chapterCount, words: formatWordCount(version.wordCount) })}
+        </Typography>
+        <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled' }}>
+          {formatDate(version.lockedAt)}
+        </Typography>
+
+        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Tooltip title={t('published.exportSoonHint')}>
+            {/* B4/B5b 前刻意 disabled：导出必须来自快照流水线，不接旧「另存为」链路 */}
+            <span>
+              <Button size="small" variant="outlined" disabled data-testid={`published-version-export-${version.seq}`}>
+                {t('published.exportBtn')}
+              </Button>
+            </span>
+          </Tooltip>
+          {!version.isFinal && (
+            <Button size="small" onClick={onSetFinal} disabled={finalBusy} data-testid={`published-version-setfinal-${version.seq}`}>
+              {t('published.setFinal')}
+            </Button>
+          )}
+          {version.isFinal && (
+            <Chip size="small" label={t('published.alreadyFinal')} sx={{ height: 20, fontSize: uiFontSize(10.5) }} variant="outlined" />
+          )}
+          <Tooltip title={t('published.deleteVersion')}>
+            <IconButton size="small" onClick={onDelete} sx={{ color: 'text.secondary' }} data-testid={`published-version-delete-${version.seq}`}>
+              <DeleteIcon sx={{ fontSize: uiFontSize(17) }} />
+            </IconButton>
+          </Tooltip>
+          <IconButton size="small" onClick={onToggleDetail} data-testid={`published-version-detail-${version.seq}`}>
+            {expanded ? <ExpandMoreIcon sx={{ fontSize: uiFontSize(18) }} /> : <ChevronRightIcon sx={{ fontSize: uiFontSize(18) }} />}
+          </IconButton>
+        </Box>
       </Box>
+
+      {expanded && (
+        <Box sx={{ px: 1.75, pb: 1.5, borderTop: '1px solid', borderColor: 'divider', pt: 1.25 }}>
+          {version.note && (
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 0.75, whiteSpace: 'pre-wrap' }}>
+              {version.note}
+            </Typography>
+          )}
+          <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', fontFamily: 'monospace', mb: 1 }}>
+            {t('published.fingerprintLabel', { hash: version.contentHash })}
+          </Typography>
+          {snapshotLoading && <Skeleton variant="text" height={18} sx={{ fontSize: uiFontSize(12) }} />}
+          {!snapshotLoading && snapshot && (
+            <Box>
+              <Typography sx={{ fontSize: uiFontSize(11.5), fontWeight: 650, mb: 0.5 }}>
+                {t('published.snapshotChapters', { n: snapshot.length })}
+              </Typography>
+              <Box sx={{ maxHeight: 220, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                {snapshot.map((c) => (
+                  <Box key={`${c.versionId}-${c.sortOrder}`} sx={{ display: 'flex', gap: 1, alignItems: 'baseline' }}>
+                    <Typography sx={{ fontSize: uiFontSize(11.5), flex: 1, minWidth: 0 }} noWrap title={c.title}>
+                      {c.title || t('published.untitledChapter')}
+                    </Typography>
+                    <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', flexShrink: 0 }}>
+                      {formatWordCount(c.wordCount)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      )}
     </Box>
   );
 }

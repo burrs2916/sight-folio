@@ -1,68 +1,88 @@
-// 「已完结」↔「完结作品」关联回归锁（2026-11-03）
+// 「已完结」↔「完结作品」关联回归锁 —— 2026-11-03 B5a 重写。
 //
-// 用户报障：把作品设成「已完结」后，完结作品模块里看不到这本书。
-// 实测数据坐实：writing_books 里该书 status='finished'，completed_works 表 0 行 ——
-// 因为 completed_works 是**导出产物登记表**（format/file_path/file_size/is_file_missing），
-// 而「已完结」只是 writing_books.status 上的创作状态，两条数据原本毫无关联，页面又是
-// 只从产物表起列表，于是标完结的书在完结作品页无处显形。
-//
-// 修法与锁点：页面额外从 books 侧算出「已完结 + 零产物」集合并展示出口；但**不许**为了
-// 让它出现在列表里而伪造一条 CompletedWork（空 file_path 会把 is_file_missing 的判读
-// 带偏：文件真丢了 vs 从来没导出，是两件事）。
+// 历史：本锁最早盯的是临时补丁 FinishedPendingBand（2026-11-03 上午的止血片）。
+// 需求 §12 明确：P0 正式结构落地时该带「由正式结构取代并删除」。B5a 把页面重做为
+// 「一级书卡片 → 二级版本时间线」，R1 的正式口径变成：
+//   **已标完结的书（或已有锁定版本的书）一律成卡**；0 版本卡上直接给锁定出口。
+// 断言相应从「带组件存在」升级为「书卡片是页面的唯一一级实体、旧产物表依赖清零」。
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 const ROOT = process.cwd();
 const page = readFileSync(`${ROOT}/src/pages/PublishedScenesPage.tsx`, 'utf8');
-const zh = JSON.parse(readFileSync(`${ROOT}/src/i18n/zh-CN.json`, 'utf8')) as Record<string, Record<string, string>>;
-const en = JSON.parse(readFileSync(`${ROOT}/src/i18n/en-US.json`, 'utf8')) as Record<string, Record<string, string>>;
+const zhJson = JSON.parse(readFileSync(`${ROOT}/src/i18n/zh-CN.json`, 'utf-8')) as Record<string, Record<string, string>>;
+const enJson = JSON.parse(readFileSync(`${ROOT}/src/i18n/en-US.json`, 'utf-8')) as Record<string, Record<string, string>>;
 
-describe('① 完结作品页必须认得「已标完结的书」', () => {
-  it('用 writingSchema 的唯一判读入口 isBookFinished，而不是散落字符串比较', () => {
-    expect(page).toMatch(/import \{ isBookFinished \} from '..\/utils\/writingSchema';/);
-    expect(page).toMatch(/isBookFinished\(b\.status\)/);
+describe('① R1：完结声明必须能在成品页显形', () => {
+  it('一级卡片入选口径 = 已标完结 或 已有锁定版本（isBookFinished 唯一判读入口）', () => {
+    expect(page).toMatch(/import \{ isBookFinished \} from '\.\.\/utils\/writingSchema';/);
+    expect(page).toMatch(/isBookFinished\(b\.status\) \|\| \(versionsByBook\[b\.id\]\?\.length \?\? 0\) > 0/);
   });
 
-  it('已完结集合要排除已有产物的书（同一本书不许出现两次）', () => {
-    const at = page.indexOf('const finishedPendingBooks');
-    expect(at).toBeGreaterThan(-1);
-    const memo = page.slice(at, at + 1200);
-    expect(memo).toMatch(/new Set\(works\.map\(\(w\) => w\.bookId\)\)/);
-    expect(memo).toMatch(/exportedBookIds\.has\(b\.id\)/);
+  it('0 版本的书渲染「尚无定稿版本」提示与「去写作台锁定一版」出口', () => {
+    expect(page).toMatch(/t\('published\.noVersionYet'\)/);
+    expect(page).toMatch(/t\('published\.goLockVersion'\)/);
+    expect(page).toMatch(/published-card-lock-\$\{book\.id\}/);
   });
 
-  it('空态判定同时考虑待导出的已完结书（否则标完结后仍写「暂无完结作品」）', () => {
-    expect(page).toMatch(/filteredWorks\.length === 0 && finishedPendingBooks\.length === 0 \? \(/);
-  });
-
-  it('冷启动进本页也会刷书目（否则 books 为空，关联静默失效）', () => {
-    const at = page.indexOf('挂载首刷走宏任务');
-    expect(at).toBeGreaterThan(-1);
-    const effect = page.slice(at, at + 600);
-    expect(effect).toMatch(/void loadBooks\(\)/);
-    expect(effect).toMatch(/\[loadWorks, loadBooks\]/);
+  it('临时补丁 FinishedPendingBand 已被正式结构取代（需求 §12），不得回流', () => {
+    expect(page).not.toMatch(/FinishedPendingBand/);
   });
 });
 
-describe('② 不许伪造导出产物', () => {
-  it('页面不直接写产物表：completed_works 的落库只属于导出链路', () => {
-    expect(page).not.toMatch(/completedWorksApi\.save\(/);
-    expect(page).not.toMatch(/save_completed_work/);
+describe('② 书名现取，杜绝副本（需求 §3 设计约束 1）', () => {
+  it('页面不再出现任何 bookTitle 冗余字段读写', () => {
+    expect(page).not.toMatch(/bookTitle/);
   });
 
-  it('待导出带只给「回到写作台」的出口（openWritingDesk），不给假下载', () => {
-    const at = page.indexOf('function FinishedPendingBand');
-    expect(at).toBeGreaterThan(-1);
-    const comp = page.slice(at, at + 2200);
-    expect(comp).toMatch(/onOpenDesk\(b\.id\)/);
+  it('标题一律来自 writingStore 的书目对象（join 语义的前端承担体）', () => {
+    expect(page).toMatch(/useWritingStore\(\(s\) => s\.books\)/);
+    expect(page).toMatch(/books\.find\(\(b\) => b\.id === openBookId\)/);
   });
 });
 
-describe('③ 文案双语齐备（缺一侧会在对端语言渲染成裸 key）', () => {
-  for (const key of ['pendingTitle', 'pendingHint']) {
-    it(`published.${key} 在 zh-CN / en-US 都存在且非空`, () => {
-      expect(zh.published?.[key]?.trim().length ?? 0).toBeGreaterThan(0);
-      expect(en.published?.[key]?.trim().length ?? 0).toBeGreaterThan(0);
+describe('③ 与旧产物登记表彻底切割（B6 退役的前置）', () => {
+  it('不再 import/调用 completedWorksApi 与旧表命令', () => {
+    expect(page).not.toMatch(/completedWorksApi/);
+    expect(page).not.toMatch(/save_completed_work|list_completed_works|import_completed_works|move_completed_work/);
+  });
+
+  it('版本层命令全部接线：list / setFinal / delete / snapshot / 作品库根', () => {
+    for (const call of [
+      /workVersionApi\.list\(/,
+      /workVersionApi\.setFinal\(/,
+      /workVersionApi\.delete\(/,
+      /workVersionApi\.snapshot\(/,
+      /workVersionApi\.getLibraryRoot\(/,
+    ]) {
+      expect(page, `缺命令接线：${call}`).toMatch(call);
+    }
+  });
+
+  it('导出按钮是 disabled 占位（B4 前不接旧「另存为」链路）', () => {
+    expect(page).toMatch(/disabled data-testid=\{`published-version-export-\$\{version\.seq\}`\}/);
+    expect(page).toMatch(/exportSoonHint/);
+  });
+});
+
+describe('④ 文案双语齐备 + 占位符一致（缺一侧 = 对端语言渲染裸 key）', () => {
+  const KEYS = [
+    'subtitleV2', 'backToBooks', 'rootChipLabel', 'rootOpen', 'rootOpenFailed', 'rootLoadFailed',
+    'filterFinalAll', 'filterHasFinal', 'filterNoFinal', 'bookCount', 'timelineEmpty', 'goLockVersion',
+    'setFinal', 'setFinalDone', 'setFinalFailed', 'versionDeleted', 'deletedFilesRetainedHint', 'deleteVersionFailed',
+    'snapshotFailed', 'confirmDeleteVersion', 'confirmDeleteVersionDesc', 'deleteVersion',
+    'emptyTitleV2', 'emptyHintV2', 'cardFinishedChip', 'cardLockedChip', 'latestVersionN', 'finalTag',
+    'versionCountN', 'noVersionYet', 'lockedOn', 'exportBtn', 'exportSoonHint', 'alreadyFinal',
+    'snapshotChapters', 'fingerprintLabel', 'untitledChapter',
+  ];
+  for (const key of KEYS) {
+    it(`published.${key} 双语存在且占位符一致`, () => {
+      const z = zhJson.published?.[key];
+      const e = enJson.published?.[key];
+      expect(z, `zh 缺 published.${key}`).toBeTruthy();
+      expect(e, `en 缺 published.${key}`).toBeTruthy();
+      const ph = (v: string) => (v.match(/\{\w+\}/g) ?? []).sort().join(',');
+      expect(ph(e!), `published.${key} 双语占位符不一致`).toBe(ph(z!));
     });
   }
 });
