@@ -1,5 +1,5 @@
 # 无主代码可达性扫描报告 v2（TS 官方解析器）
-生成: 2026-11-03T05:33:26.791Z  commit: 见 git log
+生成: 2026-11-03T05:48:52.622Z  commit: 见 git log
 应用图根: src/main.tsx(index.html <script>), src/vite-env.d.ts(ambient d.ts (tsconfig include)) …共 2
 测试图根: 251 个
 src 文件 777 | 应用可达 524 | 测试额外 254 | 两图皆不可达 0
