@@ -39,6 +39,7 @@ import {
   ProofreadReminder,
   StatsReminder,
 } from '../../editor/components/writingReminders';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 // 右抽屉（上下文辅助面板）展开态宽度拖拽：范围 240–560，默认 320，跨会话持久化
 const DRAWER_WIDTH_MIN = 240;
@@ -164,13 +165,16 @@ export function WritingDrawer({
   const { begin: beginBodyDrag, release: releaseBodyDrag } = useDragBodyGuard();
 
   /** 拖拽手柄按下：记录起始位置与宽度（手柄在抽屉左缘，向左拖 = 变宽），进入高亮态 */
-  const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    dragStartRef.current = { x: e.clientX, width: drawerWidthRef.current };
-    setDragActive(true);
-    // 拖拽期间禁止选中文本，避免拖动时高亮选中相邻内容
-    beginBodyDrag();
-  }, [beginBodyDrag]);
+  const onResizeStart = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      dragStartRef.current = { x: e.clientX, width: drawerWidthRef.current };
+      setDragActive(true);
+      // 拖拽期间禁止选中文本，避免拖动时高亮选中相邻内容
+      beginBodyDrag();
+    },
+    [beginBodyDrag],
+  );
 
   /** 拖拽移动（window 级）：向左拖 = 变宽，向右拖 = 变窄 */
   const onResizeMove = useCallback((e: PointerEvent) => {
@@ -262,7 +266,7 @@ export function WritingDrawer({
           onClick={() => setCollapsed(false)}
           sx={{ color: 'text.secondary' }}
         >
-          <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 18 }} />
+          <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
         </IconButton>
       </Box>
     );
@@ -335,13 +339,13 @@ export function WritingDrawer({
             disabled={!activeChapter}
             onClick={onOpenChapterDetails}
             sx={{
-              fontSize: 11.5,
+              fontSize: uiFontSize(11.5),
               minWidth: 0,
               px: 0.75,
               textTransform: 'none',
               // startIcon 内 SvgIcon 会被 MUI Button 的 `.MuiButton-startIcon > :nth-of-type(1)`(1.125rem)
               // 覆盖尺寸，必须用更高特异性的选择器才能压住，统一图标 14px 与文字协调
-              '& .MuiButton-startIcon svg': { fontSize: 14 },
+              '& .MuiButton-startIcon svg': { fontSize: uiFontSize(14) },
             }}
           >
             {t('writing.tabChapterDetails')}
@@ -357,7 +361,7 @@ export function WritingDrawer({
               '&:hover': { color: 'primary.main' },
             }}
           >
-            <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 16 }} />
+            <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
           </IconButton>
         </Box>
 
@@ -388,14 +392,16 @@ export function WritingDrawer({
               '&:hover': { bgcolor: 'action.hover' },
             }}
           >
-            <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', flex: 1, minWidth: 0 }}>
+            <Typography
+              sx={{ fontSize: uiFontSize(11), fontWeight: 600, color: 'text.secondary', flex: 1, minWidth: 0 }}
+            >
               {t('writing.healthEntry')}
             </Typography>
             {typeof healthCount === 'number' && (
               <Box
                 component="span"
                 sx={{
-                  fontSize: 11,
+                  fontSize: uiFontSize(11),
                   fontWeight: 700,
                   px: 0.6,
                   borderRadius: 1,
@@ -437,8 +443,10 @@ export function WritingDrawer({
                 borderColor: 'divider',
               }}
             >
-              <NotificationsNoneRoundedIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
-              <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', flex: 1, minWidth: 0 }}>
+              <NotificationsNoneRoundedIcon sx={{ fontSize: uiFontSize(13), color: 'text.disabled' }} />
+              <Typography
+                sx={{ fontSize: uiFontSize(11), fontWeight: 600, color: 'text.secondary', flex: 1, minWidth: 0 }}
+              >
                 {t('writing.drawerReminders')}
               </Typography>
               <IconButton
@@ -451,9 +459,9 @@ export function WritingDrawer({
                 sx={{ color: 'text.disabled' }}
               >
                 {remindersCollapsed ? (
-                  <KeyboardArrowDownRoundedIcon sx={{ fontSize: 16 }} />
+                  <KeyboardArrowDownRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                 ) : (
-                  <KeyboardArrowUpRoundedIcon sx={{ fontSize: 16 }} />
+                  <KeyboardArrowUpRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                 )}
               </IconButton>
             </Box>
@@ -482,7 +490,7 @@ export function WritingDrawer({
                 minHeight: 34,
                 px: 1,
                 '& .MuiTabs-indicator': { height: 2 },
-                '& .MuiTab-root': { minHeight: 34, fontSize: 12, py: 0.5, textTransform: 'none' },
+                '& .MuiTab-root': { minHeight: 34, fontSize: uiFontSize(12), py: 0.5, textTransform: 'none' },
               }}
             >
               <Tab value={0} label={t('writing.corpusTabLibrary')} data-testid="corpus-tab-library" />

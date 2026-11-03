@@ -71,12 +71,11 @@ export function PortraitLegend() {
             right: 52,
             bottom: 12,
             zIndex: 11,
-            backgroundColor: (th) =>
-              th.palette.mode === "dark" ? "rgba(30,30,40,0.85)" : "rgba(255,255,255,0.9)",
+            backgroundColor: "rgb(var(--template-palette-background-paperChannel) / 0.9)",
             border: 1,
             borderColor: "divider",
             backdropFilter: "blur(8px)",
-            "&:hover": { backgroundColor: (th) => (th.palette.mode === "dark" ? "rgba(40,40,55,0.95)" : "#fff") },
+            "&:hover": { backgroundColor: "rgb(var(--template-palette-background-paperChannel) / 0.98)" },
           }}
          aria-label={t("legend.title")}>
           <LegendToggleIcon sx={{ fontSize: 16 }} />

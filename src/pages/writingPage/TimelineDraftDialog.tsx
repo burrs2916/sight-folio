@@ -21,6 +21,7 @@ import { useI18n } from '../../i18n';
 import { useWritingStore } from '../../store/writingStore';
 import { isComplete } from '../../utils/writingTimeline';
 import { logger } from '../../utils/logger';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface TimelineDraftDialogProps {
   open: boolean;
@@ -43,8 +44,7 @@ export function TimelineDraftDialog({ open, onClose }: TimelineDraftDialogProps)
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const editOf = (id: string, at: string, event: string): RowEdit =>
-    edits[id] ?? { at: at ?? '', event: event ?? '' };
+  const editOf = (id: string, at: string, event: string): RowEdit => edits[id] ?? { at: at ?? '', event: event ?? '' };
 
   const ready = (v: RowEdit) => v.at.trim() !== '' && v.event.trim() !== '';
 
@@ -80,7 +80,7 @@ export function TimelineDraftDialog({ open, onClose }: TimelineDraftDialogProps)
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle
         sx={{
-          fontSize: 15,
+          fontSize: uiFontSize(15),
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
@@ -153,9 +153,7 @@ export function TimelineDraftDialog({ open, onClose }: TimelineDraftDialogProps)
                     label={t('writing.timelineEvent')}
                     placeholder={t('writing.timelineEventHint')}
                     value={v.event}
-                    onChange={(ev) =>
-                      setEdits((prev) => ({ ...prev, [e.id]: { ...v, event: ev.target.value } }))
-                    }
+                    onChange={(ev) => setEdits((prev) => ({ ...prev, [e.id]: { ...v, event: ev.target.value } }))}
                   />
                 </Box>
                 <Button
@@ -168,9 +166,9 @@ export function TimelineDraftDialog({ open, onClose }: TimelineDraftDialogProps)
                   {t('ui.save')}
                 </Button>
               </Box>
-             );
-           })
-         )}
+            );
+          })
+        )}
       </DialogContent>
       <DialogActions>
         {/* 底部只报"还剩几条"：这一数与报告里那条汇总同源（都来自 isComplete），
@@ -185,4 +183,3 @@ export function TimelineDraftDialog({ open, onClose }: TimelineDraftDialogProps)
     </Dialog>
   );
 }
-

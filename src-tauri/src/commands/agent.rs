@@ -648,6 +648,8 @@ pub async fn run_agent(
     let cancel_token = crate::plugins::ai_agent::register_run_token(&run_id);
 
     // 5. 构建 Agent Engine
+    // max_tokens 用「本次实际生效的模型」的库值：effective_model_id 已把前端模型选择器的
+    // 覆盖算进来（见上方 model 解析），所以切换模型时输出上限跟着模型走。
     let engine = crate::plugins::ai_agent::engine::AgentEngine::new(
         llm_provider_arc,
         tools,
@@ -655,6 +657,7 @@ pub async fn run_agent(
         agent.system_prompt.clone(),
         agent.temperature,
         agent.max_iterations,
+        model.max_tokens,
     );
 
     // 6. 准备对话

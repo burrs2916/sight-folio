@@ -11,8 +11,9 @@
 // 数据口径：
 // - 封面：素材库 assets/writing/covers-{bookId}/（与工作室书属性卡 BookMetaPanel
 //   同一条链路，**有文件=有封面**，零后端改动）；无封面回退 coverColor 色块 + 书名首字。
-// - 完结状态：book.status（自由字符串），'finished' = 已完本；编辑入口归工作室/
-//   写作台书设置，本页只展示（2026-09-21 拍板）。
+// - 完结状态：book.status 四态口径（唯一词表见 utils/writingSchema BOOK_STATUSES），
+//   书卡这枚 Chip **可点直接改**（2026-11-03 插单六：此前书架只展示、写作台从未实现
+//   承诺的编辑入口，导致状态实际只能在画布工作台右栏改，等于改不动）。
 // - 分类：book.genre 经 genreDef 本地化（不再显示原始 id）。
 // - 卷/章/字数：逐书 listChapters 元数据（不碰正文内容）。
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -26,14 +27,17 @@ import IconButton from '@mui/material/IconButton';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import LocalOfferRoundedIcon from '@mui/icons-material/LocalOfferRounded';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import { useWritingStore } from '../store/writingStore';
 import { assetApi, writingApi, type WritingBook } from '../services/tauri';
 import { genreDef } from '../utils/writingSchema';
+import { uiFontSize } from '../theme/appearanceScales';
+import { BookStatusChip } from './BookStatusControl';
 import { openBookInStudio, createBookNamed } from '../utils/studioBook';
 import { NewBookDialog, type NewBookResult } from './NewBookDialog';
-import { BookMetaDialog } from './BookMetaDialog';
+import { BookInfoDialog } from './BookInfoDialog';
 import { useToastStore } from '../store/toastStore';
 import { t, getLang } from '../i18n';
 import { openWritingDesk as openWritingDeskWindow } from '../utils/writingDeskWindow';
@@ -55,13 +59,13 @@ export default function BookshelfPage() {
   const books = useWritingStore((s) => s.books);
   const booksLoading = useWritingStore((s) => s.booksLoading);
   const loadBooks = useWritingStore((s) => s.loadBooks);
-  const setBookMeta = useWritingStore((s) => s.setBookMeta);
 
   const [stats, setStats] = useState<Record<string, BookStats>>({});
   const [covers, setCovers] = useState<Record<string, string | null>>({});
   const [opening, setOpening] = useState<string | null>(null);
-  // 羽化 P：书架卡片就地改体裁/载体（此前只有写作台能改，与 metaHint「随时可改」不符）
-  const [metaBook, setMetaBook] = useState<WritingBook | null>(null);
+  // 「作品信息」对话框（插单七）：状态 + 体裁×载体一次改完。
+  // 插单六那枚可点 chip 被李先生驳回为「没人知道能点」，故补常驻文字按钮当主入口。
+  const [infoBook, setInfoBook] = useState<WritingBook | null>(null);
 
   useEffect(() => {
     void loadBooks();
@@ -162,11 +166,6 @@ export default function BookshelfPage() {
     (e: unknown) => showToast(t('dashboard.createFail', { msg: String(e) }), 'error'),
     [showToast],
   );
-  const handleMetaSaved = useCallback(() => showToast(t('writing.saved'), 'success'), [showToast]);
-  const handleMetaError = useCallback(
-    (e: unknown) => showToast(t('studio.opFailed', { msg: String(e) }), 'error'),
-    [showToast],
-  );
 
   const fmtDate = (ts: number) =>
     ts > 0 ? new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
@@ -210,7 +209,6 @@ export default function BookshelfPage() {
             const st = stats[b.id];
             const cover = covers[b.id];
             const gd = genreDef(b.genre);
-            const finished = b.status === 'finished';
             return (
               <Box
                 key={b.id}
@@ -307,15 +305,15 @@ export default function BookshelfPage() {
                         <EditRoundedIcon sx={{ fontSize: 17 }} />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title={t('writing.editBookMeta')}>
+                    <Tooltip title={t('writing.bookInfo.title')}>
                       <IconButton
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setMetaBook(b);
+                          setInfoBook(b);
                         }}
                         sx={{ bgcolor: 'background.paper', '&:hover': { bgcolor: 'background.paper' } }}
-                        aria-label={t('writing.editBookMeta')}
+                        aria-label={t('writing.bookInfo.title')}
                       >
                         <LocalOfferRoundedIcon sx={{ fontSize: 17 }} />
                       </IconButton>
@@ -329,13 +327,7 @@ export default function BookshelfPage() {
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
                     {gd && <Chip size="small" label={t(gd.labelKey)} sx={chipSx} />}
-                    <Chip
-                      size="small"
-                      label={finished ? t('dashboard.statusFinished') : t('dashboard.statusOngoing')}
-                      color={finished ? 'success' : 'default'}
-                      variant={finished ? 'filled' : 'outlined'}
-                      sx={chipSx}
-                    />
+                    <BookStatusChip bookId={b.id} status={b.status} chipSx={chipSx} />
                   </Box>
                   <Typography sx={{ fontSize: 10.5, color: 'text.secondary', mt: 0.6 }}>
                     {st
@@ -349,6 +341,29 @@ export default function BookshelfPage() {
                   <Typography sx={{ fontSize: 9.5, color: 'text.disabled', mt: 0.25 }}>
                     {st && st.lastUpdated > 0 ? t('dashboard.lastUpdated', { d: fmtDate(st.lastUpdated) }) : ''}
                   </Typography>
+                  {/* 插单七主入口：**常驻**带文字按钮（不是 hover 才出现的图标、也不是一枚看着像徽章的 chip）。
+                      李先生的原话是「悬浮到连载中上面再去改，谁知道该怎么改」——入口必须自己写着它干什么。 */}
+                  <Button
+                    size="small"
+                    startIcon={<TuneRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInfoBook(b);
+                    }}
+                    sx={{
+                      mt: 0.5,
+                      mb: -0.5,
+                      px: 0.5,
+                      ml: -0.5,
+                      minHeight: 0,
+                      textTransform: 'none',
+                      fontSize: uiFontSize(10.5),
+                      color: 'text.secondary',
+                      '&:hover': { color: 'primary.main', bgcolor: 'transparent' },
+                    }}
+                  >
+                    {t('writing.bookInfo.title')}
+                  </Button>
                 </Box>
               </Box>
             );
@@ -362,17 +377,7 @@ export default function BookshelfPage() {
         onCreated={handleBookCreated}
         onError={handleBookCreateError}
       />
-      <BookMetaDialog
-        open={metaBook !== null}
-        initialGenre={metaBook?.genre ?? ''}
-        initialMedium={metaBook?.medium ?? ''}
-        onClose={() => setMetaBook(null)}
-        onSave={async (genre, medium) => {
-          if (metaBook) await setBookMeta(metaBook.id, { genre, medium });
-        }}
-        onSaved={handleMetaSaved}
-        onError={handleMetaError}
-      />
+      {infoBook && <BookInfoDialog book={infoBook} onClose={() => setInfoBook(null)} />}
     </Box>
   );
 }

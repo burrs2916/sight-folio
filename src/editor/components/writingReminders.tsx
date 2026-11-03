@@ -4,6 +4,14 @@
 // 视觉与文案与 WritingChapterEditor（chrome="paper"）原纸面卡实现一致；
 // 跳转统一走 dispatchChapterJump：主窗口就地执行、写作台窗口 emit 事件
 // 由主窗口接管（跨窗口精确联动，见 utils/writingDeskJump）。
+//
+// ─── 颜色归属（T5：边框 / 描边 / 文字纳入主题链路，2026-11-02）───────────────
+// 本组件此前把琥珀 / 草绿 / 红 / 蓝四族色值写死（'#b45309'、'rgba(245,158,11,0.18)'…），
+// 只在浅色方案下挑过值，深色纸面上直接糊掉。这四族表达的是「这条提醒此刻是什么性质」，
+// 属于语义色而非区域外壳色 —— 归属三分里的第 ③ 类：不再写死字面量，一律经
+// useSemanticColors() 按「当前明暗 + 当前卡片底」派生，前景（文字 / 图标 / 左边条）与
+// 它的淡底 / 描边同源，浅色与深色两套下都满足 4.5:1。
+// 提醒条整行淡底用 wash 叠层、描边用 border 叠层、左边条用已校正前景色。
 import type { WritingForeshadowing } from '../../services/tauri';
 import type { WritingChapter } from '../../services/writing';
 import type { ProofreadFinding } from '../../utils/writingProofread';
@@ -11,7 +19,7 @@ import { beatEventText, beatImported } from '../../utils/writingTimeline';
 import { computeWritingKpis, buildChapterWordRows } from '../../utils/writingStats';
 import { dispatchChapterJump } from '../../utils/writingDeskJump';
 import { t } from '../../i18n';
-import { CV } from '../renderers/canvasTheme';
+import { useSemanticColors } from '../../theme/useSemanticColors';
 
 /** 伏笔回收提醒条：当前章有待回收（pending）伏笔时轻量提示，点击跳伏笔页签并选中该伏笔。 */
 export function ForeshadowReminder({
@@ -21,6 +29,7 @@ export function ForeshadowReminder({
   foreshadowings: WritingForeshadowing[];
   genre: string;
 }) {
+  const c = useSemanticColors().tone.warning;
   if (foreshadowings.length === 0) return null;
   return (
     <div
@@ -29,16 +38,16 @@ export function ForeshadowReminder({
         alignItems: 'center',
         gap: 6,
         padding: '5px 12px',
-        background: 'rgba(180,83,9,0.08)',
-        borderBottom: '1px solid rgba(180,83,9,0.18)',
-        borderLeft: '3px solid #b45309',
+        background: c.tint,
+        borderBottom: `1px solid ${c.border}`,
+        borderLeft: `3px solid ${c.color}`,
         flexShrink: 0,
         minWidth: 0,
         overflow: 'hidden',
       }}
     >
-      <span style={{ fontSize: 12, color: '#92400e', flexShrink: 0, fontWeight: 700 }}>&#9889;</span>
-      <span style={{ fontSize: 11, color: '#92400e', flexShrink: 0, fontWeight: 600 }}>
+      <span style={{ fontSize: 12, color: c.color, flexShrink: 0, fontWeight: 700 }}>&#9889;</span>
+      <span style={{ fontSize: 11, color: c.color, flexShrink: 0, fontWeight: 600 }}>
         {t('writing.foreshadowPayableTitle')}
       </span>
       <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, overflow: 'hidden' }}>
@@ -52,9 +61,9 @@ export function ForeshadowReminder({
               fontSize: 10.5,
               padding: '1px 6px',
               borderRadius: 4,
-              border: '1px solid rgba(180,83,9,0.35)',
-              background: 'rgba(180,83,9,0.10)',
-              color: '#92400e',
+              border: `1px solid ${c.border}`,
+              background: c.bg,
+              color: c.color,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               flexShrink: 0,
@@ -65,7 +74,7 @@ export function ForeshadowReminder({
           </button>
         ))}
         {foreshadowings.length > 3 && (
-          <span style={{ fontSize: 10.5, color: '#92400e', flexShrink: 0, alignSelf: 'center' }}>
+          <span style={{ fontSize: 10.5, color: c.color, flexShrink: 0, alignSelf: 'center' }}>
             +{foreshadowings.length - 3}
           </span>
         )}
@@ -82,6 +91,7 @@ export function InspirationReminder({
   inspirations: { id: string; title?: string; summary?: string }[];
   genre: string;
 }) {
+  const c = useSemanticColors().tone.success;
   if (inspirations.length === 0) return null;
   return (
     <div
@@ -90,16 +100,16 @@ export function InspirationReminder({
         alignItems: 'center',
         gap: 6,
         padding: '5px 12px',
-        background: 'rgba(132,204,22,0.08)',
-        borderBottom: '1px solid rgba(132,204,22,0.18)',
-        borderLeft: '3px solid #84cc16',
+        background: c.tint,
+        borderBottom: `1px solid ${c.border}`,
+        borderLeft: `3px solid ${c.color}`,
         flexShrink: 0,
         minWidth: 0,
         overflow: 'hidden',
       }}
     >
-      <span style={{ fontSize: 12, color: '#65a30d', flexShrink: 0, fontWeight: 700 }}>&#9734;</span>
-      <span style={{ fontSize: 11, color: '#65a30d', flexShrink: 0, fontWeight: 600 }}>
+      <span style={{ fontSize: 12, color: c.color, flexShrink: 0, fontWeight: 700 }}>&#9734;</span>
+      <span style={{ fontSize: 11, color: c.color, flexShrink: 0, fontWeight: 600 }}>
         {t('writing.inspirationPayableTitle')}
       </span>
       <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, overflow: 'hidden' }}>
@@ -113,9 +123,9 @@ export function InspirationReminder({
               fontSize: 10.5,
               padding: '1px 6px',
               borderRadius: 4,
-              border: '1px solid rgba(132,204,22,0.35)',
-              background: 'rgba(132,204,22,0.10)',
-              color: '#65a30d',
+              border: `1px solid ${c.border}`,
+              background: c.bg,
+              color: c.color,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               flexShrink: 0,
@@ -126,7 +136,7 @@ export function InspirationReminder({
           </button>
         ))}
         {inspirations.length > 3 && (
-          <span style={{ fontSize: 10.5, color: '#65a30d', flexShrink: 0, alignSelf: 'center' }}>
+          <span style={{ fontSize: 10.5, color: c.color, flexShrink: 0, alignSelf: 'center' }}>
             +{inspirations.length - 3}
           </span>
         )}
@@ -138,8 +148,10 @@ export function InspirationReminder({
 /** 校对提醒条：当前章有文本发现（错别字/重复用词/敏感词/长段等）时轻量提示，
  *  点击跳校对页签并定位到该 issue（T5 proofreadFocusKey 精确联动）。 */
 export function ProofreadReminder({ issues, genre }: { issues: ProofreadFinding[]; genre: string }) {
+  const T = useSemanticColors().tone;
   if (issues.length === 0) return null;
   const hasBlock = issues.some((i) => i.severity === 'block');
+  const c = hasBlock ? T.danger : T.warning;
   return (
     <div
       style={{
@@ -147,18 +159,16 @@ export function ProofreadReminder({ issues, genre }: { issues: ProofreadFinding[
         alignItems: 'center',
         gap: 6,
         padding: '5px 12px',
-        background: hasBlock ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)',
-        borderBottom: `1px solid ${hasBlock ? 'rgba(239,68,68,0.18)' : 'rgba(245,158,11,0.18)'}`,
-        borderLeft: `3px solid ${hasBlock ? '#ef4444' : '#f59e0b'}`,
+        background: c.tint,
+        borderBottom: `1px solid ${c.border}`,
+        borderLeft: `3px solid ${c.color}`,
         flexShrink: 0,
         minWidth: 0,
         overflow: 'hidden',
       }}
     >
-      <span style={{ fontSize: 12, color: hasBlock ? '#dc2626' : '#d97706', flexShrink: 0, fontWeight: 700 }}>
-        &#9888;
-      </span>
-      <span style={{ fontSize: 11, color: hasBlock ? '#dc2626' : '#d97706', flexShrink: 0, fontWeight: 600 }}>
+      <span style={{ fontSize: 12, color: c.color, flexShrink: 0, fontWeight: 700 }}>&#9888;</span>
+      <span style={{ fontSize: 11, color: c.color, flexShrink: 0, fontWeight: 600 }}>
         {t('writing.proofreadPayableTitle')}
       </span>
       <div style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, overflow: 'hidden' }}>
@@ -181,9 +191,9 @@ export function ProofreadReminder({ issues, genre }: { issues: ProofreadFinding[
                 fontSize: 10.5,
                 padding: '1px 6px',
                 borderRadius: 4,
-                border: `1px solid ${hasBlock ? 'rgba(239,68,68,0.35)' : 'rgba(245,158,11,0.35)'}`,
-                background: hasBlock ? 'rgba(239,68,68,0.10)' : 'rgba(245,158,11,0.10)',
-                color: hasBlock ? '#dc2626' : '#d97706',
+                border: `1px solid ${c.border}`,
+                background: c.bg,
+                color: c.color,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 flexShrink: 0,
@@ -196,7 +206,7 @@ export function ProofreadReminder({ issues, genre }: { issues: ProofreadFinding[
           );
         })}
         {issues.length > 3 && (
-          <span style={{ fontSize: 10.5, color: hasBlock ? '#dc2626' : '#d97706', flexShrink: 0, alignSelf: 'center' }}>
+          <span style={{ fontSize: 10.5, color: c.color, flexShrink: 0, alignSelf: 'center' }}>
             +{issues.length - 3}
           </span>
         )}
@@ -215,6 +225,7 @@ export function StatsReminder({
   chapters: WritingChapter[];
   genre: string;
 }) {
+  const T = useSemanticColors().tone;
   if (!chapter) return null;
   const bookChapters = chapters.filter((c) => c.bookId === chapter.bookId);
   const totalWords = bookChapters.reduce((sum, c) => sum + (c.wordCount ?? 0), 0);
@@ -224,7 +235,9 @@ export function StatsReminder({
   void kpis;
   const row = buildChapterWordRows(bookChapters).find((r) => r.id === chapter.id);
   const outlier = row?.outlier ?? null;
-  const barColor = outlier === 'long' ? '#b45309' : outlier === 'short' ? '#f59e0b' : '#2563eb';
+  const info = T.info;
+  // 离群（偏长 / 偏短）一律走 warning 族，靠标签文案区分，不再各配一个近似琥珀
+  const barColor = outlier ? T.warning.color : info.color;
   return (
     <div
       style={{
@@ -232,16 +245,16 @@ export function StatsReminder({
         alignItems: 'center',
         gap: 8,
         padding: '4px 12px',
-        background: 'rgba(37,99,235,0.06)',
-        borderBottom: '1px solid rgba(37,99,235,0.15)',
-        borderLeft: '3px solid #2563eb',
+        background: info.tint,
+        borderBottom: `1px solid ${info.border}`,
+        borderLeft: `3px solid ${info.color}`,
         flexShrink: 0,
         minWidth: 0,
         overflow: 'hidden',
       }}
     >
-      <span style={{ fontSize: 11, color: '#2563eb', flexShrink: 0, fontWeight: 700 }}>∑</span>
-      <span style={{ fontSize: 11, color: '#1e40af', flexShrink: 0, fontWeight: 600 }}>
+      <span style={{ fontSize: 11, color: info.color, flexShrink: 0, fontWeight: 700 }}>∑</span>
+      <span style={{ fontSize: 11, color: info.color, flexShrink: 0, fontWeight: 600 }}>
         {words.toLocaleString()}
         {' · '}
         {share}%
@@ -253,16 +266,14 @@ export function StatsReminder({
           minWidth: 40,
           height: 5,
           borderRadius: 3,
-          background: 'rgba(37,99,235,0.18)',
+          background: info.bg,
           overflow: 'hidden',
         }}
       >
         <div style={{ width: `${Math.max(1, share)}%`, height: '100%', borderRadius: 3, background: barColor }} />
       </div>
       {outlier && (
-        <span
-          style={{ fontSize: 10, fontWeight: 700, color: outlier === 'long' ? '#b45309' : '#d97706', flexShrink: 0 }}
-        >
+        <span style={{ fontSize: 10, fontWeight: 700, color: T.warning.color, flexShrink: 0 }}>
           {outlier === 'long' ? t('writing.statsOutlierLong') : t('writing.statsOutlierShort')}
         </span>
       )}
@@ -272,7 +283,7 @@ export function StatsReminder({
         title={t('writing.statsJumpChapter')}
         style={{
           fontSize: 10,
-          color: '#2563eb',
+          color: info.color,
           cursor: 'pointer',
           border: 'none',
           background: 'transparent',

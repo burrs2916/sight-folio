@@ -144,6 +144,15 @@ interface AgentState {
    */
   truncateMessagesFrom: (messageId: string) => Promise<AiMessage | null>;
 
+  /**
+   * 删除**单条**消息（仅该条，其后对话原样保留），返回是否真正删除。
+   * 与 truncateMessagesFrom 语义不同、各管各的：那个是「撤掉这一轮重来」（重试/编辑重发的前置），
+   * 这个是「转录清理」（抹掉一条误发/无用的消息，不回滚后面的对话）。
+   * 删用户消息时配对的助手回复会留下（它由原始请求生成、已落库）——清理语义下这是预期行为，
+   * 想连回复一起撤就用 truncateMessagesFrom。流式期间拒绝执行（后端正在写库，删除会与落库竞争）。
+   */
+  deleteMessage: (messageId: string) => Promise<boolean>;
+
   selectAgent: (agentId: string | null) => void;
   selectConversation: (conversationId: string | null) => void;
 
@@ -412,6 +421,28 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
     set((s) => ({ messages: s.messages.slice(0, idx) }));
     return first ?? null;
+  },
+
+  deleteMessage: async (messageId) => {
+    const state = get();
+    if (state.isStreaming || state.interruptRequested) {
+      logger.warn('AgentStore', 'deleteMessage ignored while streaming');
+      return false;
+    }
+    const idx = state.messages.findIndex((m) => m.id === messageId);
+    if (idx < 0) return false;
+    // 乐观渲染的本地消息（local_ 前缀）还没落库，只从界面摘掉即可（也是发送失败后残留气泡的清理通道）
+    if (!messageId.startsWith('local_')) {
+      try {
+        await agentApi.deleteMessages([messageId]);
+      } catch (error) {
+        // 删库失败就不能改本地视图：否则界面少一条、库里还在，重开会话又冒出来
+        logger.error('AgentStore', 'deleteMessage failed', { error });
+        throw error;
+      }
+    }
+    set((s) => ({ messages: s.messages.filter((m) => m.id !== messageId) }));
+    return true;
   },
 
   sendMessage: async (

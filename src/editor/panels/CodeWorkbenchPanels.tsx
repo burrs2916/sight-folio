@@ -243,8 +243,8 @@ export function QuickOpen({
                 px: 2,
                 py: 0.8,
                 cursor: "pointer",
-                bgcolor: i === sel ? "rgba(59,130,246,0.14)" : "transparent",
-                "&:hover": { bgcolor: "rgba(59,130,246,0.08)" },
+                bgcolor: i === sel ? "rgb(var(--template-palette-primary-mainChannel) / 0.14)" : "transparent",
+                "&:hover": { bgcolor: "rgb(var(--template-palette-primary-mainChannel) / 0.08)" },
               }}
             >
               <LanguageIcon lang={item.f.language} size={15} />
@@ -544,8 +544,8 @@ export function DefinitionPicker({
                       cursor: "pointer",
                       borderRadius: 1,
                       userSelect: "none",
-                      bgcolor: "rgba(0,0,0,0.04)",
-                      "&:hover": { bgcolor: "rgba(0,0,0,0.08)" },
+                      bgcolor: "rgb(var(--template-palette-text-primaryChannel) / 0.04)",
+                      "&:hover": { bgcolor: "rgb(var(--template-palette-text-primaryChannel) / 0.08)" },
                     }}
                   >
                     <Box
@@ -622,7 +622,7 @@ export function DefinitionPicker({
                                 bgcolor: isDef ? "rgba(239,159,39,0.16)" : "transparent",
                                 color: isDef ? "text.primary" : "text.secondary",
                                 "&:hover": {
-                                  bgcolor: isDef ? "rgba(239,159,39,0.24)" : "rgba(59,130,246,0.10)",
+                                  bgcolor: isDef ? "rgba(239,159,39,0.24)" : "rgb(var(--template-palette-primary-mainChannel) / 0.1)",
                                 },
                               }}
                             >
@@ -682,8 +682,8 @@ export function DefinitionPicker({
                             py: 0.5,
                             borderRadius: 1,
                             cursor: "pointer",
-                            bgcolor: active ? "rgba(59,130,246,0.14)" : "transparent",
-                            "&:hover": { bgcolor: "rgba(59,130,246,0.08)" },
+                            bgcolor: active ? "rgb(var(--template-palette-primary-mainChannel) / 0.14)" : "transparent",
+                            "&:hover": { bgcolor: "rgb(var(--template-palette-primary-mainChannel) / 0.08)" },
                           }}
                         >
                           <Box
@@ -1156,8 +1156,8 @@ export function GoToSymbol({
                   px: 2,
                   py: 0.8,
                   cursor: "pointer",
-                  bgcolor: i === sel ? "rgba(59,130,246,0.14)" : "transparent",
-                  "&:hover": { bgcolor: "rgba(59,130,246,0.08)" },
+                  bgcolor: i === sel ? "rgb(var(--template-palette-primary-mainChannel) / 0.14)" : "transparent",
+                  "&:hover": { bgcolor: "rgb(var(--template-palette-primary-mainChannel) / 0.08)" },
                 }}
               >
                 <Typography

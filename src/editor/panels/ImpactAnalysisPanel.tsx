@@ -17,29 +17,29 @@
  * - 「影响面画像」按钮：把这张关系图铺到画布上（左上游 / 右下游分环）
  */
 
-import { useMemo, useState, useEffect } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Tooltip from "@mui/material/Tooltip";
-import Button from "@mui/material/Button";
-import Divider from "@mui/material/Divider";
-import Collapse from "@mui/material/Collapse";
-import HubIcon from "@mui/icons-material/Hub";
-import CallReceivedIcon from "@mui/icons-material/CallReceived";
-import CallMadeIcon from "@mui/icons-material/CallMade";
-import BlurOnIcon from "@mui/icons-material/BlurOn";
-import LoopIcon from "@mui/icons-material/Loop";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import CenterFocusStrongIcon from "@mui/icons-material/CenterFocusStrong";
+import { useMemo, useState, useEffect } from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
+import Tooltip from '@mui/material/Tooltip';
+import Button from '@mui/material/Button';
+import Divider from '@mui/material/Divider';
+import Collapse from '@mui/material/Collapse';
+import HubIcon from '@mui/icons-material/Hub';
+import CallReceivedIcon from '@mui/icons-material/CallReceived';
+import CallMadeIcon from '@mui/icons-material/CallMade';
+import BlurOnIcon from '@mui/icons-material/BlurOn';
+import LoopIcon from '@mui/icons-material/Loop';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong';
 
-import { useProjectStore } from "../../store/projectStore";
-import { useSceneStore } from "../../store/sceneStore";
-import { useToastStore } from "../../store/toastStore";
-import { openSourceAt } from "../../store/sourceViewerStore";
-import { runImpactPortraitFor } from "../utils/portraits";
-import { locateFileInCanvas } from "../utils/canvasLink";
+import { useProjectStore } from '../../store/projectStore';
+import { useSceneStore } from '../../store/sceneStore';
+import { useToastStore } from '../../store/toastStore';
+import { openSourceAt } from '../../store/sourceViewerStore';
+import { runImpactPortraitFor } from '../utils/portraits';
+import { locateFileInCanvas } from '../utils/canvasLink';
 import {
   analyzeFileImpact,
   analyzeImpact,
@@ -48,16 +48,11 @@ import {
   summarizeImpact,
   IMPACT_LEVEL_META,
   type ImpactNode,
-} from "../utils/impactGraph";
-import { impactLevelHint, impactLevelLabel } from "../utils/impactGraph";
-import { t, resolveFragments } from "../../i18n";
-import {
-  roleOf,
-  FLOW_ROLE_COLOR,
-  FLOW_ROLE_HINT,
-  FLOW_ROLE_LABEL,
-  type FlowRole,
-} from "../utils/dataFlowPortrait";
+} from '../utils/impactGraph';
+import { impactLevelHint, impactLevelLabel } from '../utils/impactGraph';
+import { t, resolveFragments } from '../../i18n';
+import { roleOf, FLOW_ROLE_COLOR, FLOW_ROLE_HINT, FLOW_ROLE_LABEL, type FlowRole } from '../utils/dataFlowPortrait';
+import { uiFontSize } from '../../theme/appearanceScales';
 // 画布选中的实体只携带 id/type/name/config（与 EntityPortraitPanel 的 PortraitEntity 一致），
 // 这里用最小接口即可，避免强依赖完整的 SceneComponent（含 transform/layerId 等画布专用字段）。
 interface PortraitEntityLike {
@@ -72,73 +67,70 @@ interface Props {
 }
 
 /** 一行影响面节点（可点击进源码） */
-function NodeRow({
-  node,
-  color,
-  onOpen,
-}: {
-  node: ImpactNode;
-  color: string;
-  onOpen: () => void;
-}) {
+function NodeRow({ node, color, onOpen }: { node: ImpactNode; color: string; onOpen: () => void }) {
   return (
     <Box
       onClick={onOpen}
       sx={{
-        display: "flex",
-        alignItems: "center",
+        display: 'flex',
+        alignItems: 'center',
         gap: 0.75,
         px: 0.75,
         py: 0.5,
         borderRadius: 0.75,
-        cursor: "pointer",
-        borderLeft: "2px solid",
+        cursor: 'pointer',
+        borderLeft: '2px solid',
         borderColor: color,
-        bgcolor: "action.hover",
-        "&:hover": { bgcolor: "action.selected" },
+        bgcolor: 'action.hover',
+        '&:hover': { bgcolor: 'action.selected' },
       }}
     >
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography
           sx={{
-            fontSize: 10.5,
+            fontSize: uiFontSize(10.5),
             fontWeight: 600,
-            fontFamily: "monospace",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            fontFamily: 'monospace',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
           {node.receiverType ? `${node.receiverType}.${node.name}` : node.name}
         </Typography>
         <Typography
           sx={{
-            fontSize: 9,
-            color: "text.secondary",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            fontSize: uiFontSize(9),
+            color: 'text.secondary',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
           {node.filePath}:{node.callLine}
-          {node.viaName ? t("impact.via", { name: node.viaName }) : ""}
+          {node.viaName ? t('impact.via', { name: node.viaName }) : ''}
         </Typography>
       </Box>
       {node.receiverType && (
-        <Tooltip title={t("impact.receiverTypeTip", { type: node.receiverType })}>
+        <Tooltip title={t('impact.receiverTypeTip', { type: node.receiverType })}>
           <Chip
             label={node.receiverType}
             size="small"
-            sx={{ height: 14, fontSize: 8, maxWidth: 70, "& .MuiChip-label": { px: 0.5, overflow: "hidden", textOverflow: "ellipsis" } }}
+            sx={{
+              height: 14,
+              fontSize: uiFontSize(8),
+              maxWidth: 70,
+              '& .MuiChip-label': { px: 0.5, overflow: 'hidden', textOverflow: 'ellipsis' },
+            }}
           />
         </Tooltip>
       )}
       {node.crossFile && (
-        <Tooltip title={t("impact.crossTip")}>
+        <Tooltip title={t('impact.crossTip')}>
           <Chip
-            label={t("impact.cross")}
+            label={t('impact.cross')}
             size="small"
-            sx={{ height: 14, fontSize: 8, "& .MuiChip-label": { px: 0.5 } }}
+            sx={{ height: 14, fontSize: uiFontSize(8), '& .MuiChip-label': { px: 0.5 } }}
           />
         </Tooltip>
       )}
@@ -170,46 +162,44 @@ function DirectionBlock({
       <Box
         onClick={() => setOpen((v) => !v)}
         sx={{
-          display: "flex",
-          alignItems: "center",
+          display: 'flex',
+          alignItems: 'center',
           gap: 0.5,
-          cursor: "pointer",
+          cursor: 'pointer',
           py: 0.5,
-          userSelect: "none",
+          userSelect: 'none',
         }}
       >
         {open ? (
-          <ExpandMoreIcon sx={{ fontSize: 15, color: "text.secondary" }} />
+          <ExpandMoreIcon sx={{ fontSize: uiFontSize(15), color: 'text.secondary' }} />
         ) : (
-          <ChevronRightIcon sx={{ fontSize: 15, color: "text.secondary" }} />
+          <ChevronRightIcon sx={{ fontSize: uiFontSize(15), color: 'text.secondary' }} />
         )}
-        <Box sx={{ color, display: "inline-flex" }}>{icon}</Box>
-        <Typography sx={{ fontSize: 10.5, fontWeight: 700, color }}>
+        <Box sx={{ color, display: 'inline-flex' }}>{icon}</Box>
+        <Typography sx={{ fontSize: uiFontSize(10.5), fontWeight: 700, color }}>
           {title} ({total})
         </Typography>
-        <Typography sx={{ fontSize: 9, color: "text.secondary", ml: "auto" }}>{hint}</Typography>
+        <Typography sx={{ fontSize: uiFontSize(9), color: 'text.secondary', ml: 'auto' }}>{hint}</Typography>
       </Box>
       <Collapse in={open}>
         {total === 0 ? (
-          <Typography sx={{ fontSize: 9.5, color: "text.secondary", pl: 2.5, pb: 0.75 }}>
-            {t("impact.none")}
+          <Typography sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary', pl: 2.5, pb: 0.75 }}>
+            {t('impact.none')}
           </Typography>
         ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, pl: 1.25, pb: 0.75 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, pl: 1.25, pb: 0.75 }}>
             {layers.map((layer, i) => (
               <Box key={i}>
-                <Typography
-                  sx={{ fontSize: 8.5, color: "text.secondary", letterSpacing: 0.5, mb: 0.25 }}
-                >
-                  {t("impact.hop", { n: i + 1, m: layer.length })}
+                <Typography sx={{ fontSize: uiFontSize(8.5), color: 'text.secondary', letterSpacing: 0.5, mb: 0.25 }}>
+                  {t('impact.hop', { n: i + 1, m: layer.length })}
                 </Typography>
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
                   {layer.slice(0, 12).map((n) => (
                     <NodeRow key={n.symbolId} node={n} color={color} onOpen={() => onOpen(n)} />
                   ))}
                   {layer.length > 12 && (
-                    <Typography sx={{ fontSize: 9, color: "text.secondary", pl: 1 }}>
-                      {t("impact.more", { n: layer.length - 12 })}
+                    <Typography sx={{ fontSize: uiFontSize(9), color: 'text.secondary', pl: 1 }}>
+                      {t('impact.more', { n: layer.length - 12 })}
                     </Typography>
                   )}
                 </Box>
@@ -238,8 +228,8 @@ export function ImpactAnalysisPanel({ entity }: Props) {
   /** 选中实体 → 对应扫描文件（画布实体只带 relPath / 文件名） */
   const targetFile = useMemo(() => {
     if (!entity) return null;
-    const cfgPath = String(entity.config?.filePath ?? "");
-    const cfgName = String(entity.config?.fileName ?? entity.name ?? "");
+    const cfgPath = String(entity.config?.filePath ?? '');
+    const cfgName = String(entity.config?.fileName ?? entity.name ?? '');
     return (
       files.find((f) => !f.isDirectory && f.relPath === cfgPath) ??
       files.find((f) => !f.isDirectory && f.name === cfgName) ??
@@ -252,10 +242,7 @@ export function ImpactAnalysisPanel({ entity }: Props) {
     setRootSymbolId(null);
   }, [targetFile?.id]);
 
-  const candidates = useMemo(
-    () => (targetFile ? impactCandidates(symbols, targetFile.id) : []),
-    [symbols, targetFile]
-  );
+  const candidates = useMemo(() => (targetFile ? impactCandidates(symbols, targetFile.id) : []), [symbols, targetFile]);
 
   /** 每个候选符号的直接调用者数（列表右侧的数字，决定先看谁） */
   const callerCounts = useMemo(() => {
@@ -285,21 +272,20 @@ export function ImpactAnalysisPanel({ entity }: Props) {
 
   const fileReport = useMemo(
     () => (targetFile ? analyzeFileImpact(callEdges, targetFile.id, { index }) : null),
-    [callEdges, targetFile, index]
+    [callEdges, targetFile, index],
   );
 
   const symbolReport = useMemo(
-    () =>
-      rootSymbolId ? analyzeImpact(callEdges, rootSymbolId, { symbols, index, maxDepth: 3 }) : null,
-    [callEdges, rootSymbolId, symbols, index]
+    () => (rootSymbolId ? analyzeImpact(callEdges, rootSymbolId, { symbols, index, maxDepth: 3 }) : null),
+    [callEdges, rootSymbolId, symbols, index],
   );
 
   const openNode = (n: ImpactNode) => {
     if (!n.fileId) {
-      showToast(t("impact.notInScan", { name: n.name }), "warning");
+      showToast(t('impact.notInScan', { name: n.name }), 'warning');
       return;
     }
-    openSourceAt(n.fileId, n.callLine, t("impact.callPoint", { via: n.viaName || t("impact.target"), name: n.name }));
+    openSourceAt(n.fileId, n.callLine, t('impact.callPoint', { via: n.viaName || t('impact.target'), name: n.name }));
   };
 
   const drawPortrait = async () => {
@@ -320,13 +306,13 @@ export function ImpactAnalysisPanel({ entity }: Props) {
   // ── 空态：没选实体 / 没有调用图数据 ──
   if (callEdges.length === 0) {
     return (
-      <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>
-        <HubIcon sx={{ fontSize: 38, opacity: 0.2, mb: 1 }} />
-        <Typography variant="caption" sx={{ display: "block" }}>
-          {t("impact.noCallGraph")}
+      <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+        <HubIcon sx={{ fontSize: uiFontSize(38), opacity: 0.2, mb: 1 }} />
+        <Typography variant="caption" sx={{ display: 'block' }}>
+          {t('impact.noCallGraph')}
         </Typography>
-        <Typography variant="caption" sx={{ display: "block", fontSize: 9.5, mt: 0.5 }}>
-          {t("impact.noCallGraphHint")}
+        <Typography variant="caption" sx={{ display: 'block', fontSize: uiFontSize(9.5), mt: 0.5 }}>
+          {t('impact.noCallGraphHint')}
         </Typography>
       </Box>
     );
@@ -334,19 +320,19 @@ export function ImpactAnalysisPanel({ entity }: Props) {
 
   if (!targetFile) {
     return (
-      <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>
-        <CenterFocusStrongIcon sx={{ fontSize: 38, opacity: 0.2, mb: 1 }} />
-        <Typography variant="caption" sx={{ display: "block" }}>
-          {t("impact.selectFile")}
+      <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+        <CenterFocusStrongIcon sx={{ fontSize: uiFontSize(38), opacity: 0.2, mb: 1 }} />
+        <Typography variant="caption" sx={{ display: 'block' }}>
+          {t('impact.selectFile')}
         </Typography>
-        <Typography variant="caption" sx={{ display: "block", fontSize: 9.5, mt: 0.5 }}>
-          {t("impact.selectFileHint")}
+        <Typography variant="caption" sx={{ display: 'block', fontSize: uiFontSize(9.5), mt: 0.5 }}>
+          {t('impact.selectFileHint')}
         </Typography>
       </Box>
     );
   }
 
-  const level = symbolReport?.level ?? fileReport?.level ?? "isolated";
+  const level = symbolReport?.level ?? fileReport?.level ?? 'isolated';
   const levelMeta = IMPACT_LEVEL_META[level];
   const blast = symbolReport?.blastRadius ?? {
     symbols: fileReport?.blastRadius.symbols ?? 0,
@@ -357,11 +343,11 @@ export function ImpactAnalysisPanel({ entity }: Props) {
   return (
     <Box
       sx={{
-        height: "100%",
-        overflow: "auto",
+        height: '100%',
+        overflow: 'auto',
         p: 1.25,
-        display: "flex",
-        flexDirection: "column",
+        display: 'flex',
+        flexDirection: 'column',
         gap: 1.25,
       }}
     >
@@ -375,28 +361,28 @@ export function ImpactAnalysisPanel({ entity }: Props) {
           bgcolor: `${levelMeta.color}12`,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
           <Chip
             label={impactLevelLabel(level)}
             size="small"
             sx={{
               height: 17,
-              fontSize: 9,
+              fontSize: uiFontSize(9),
               fontWeight: 700,
-              color: "#fff",
+              color: '#fff',
               bgcolor: levelMeta.color,
             }}
           />
-          <Typography sx={{ fontSize: 10, fontWeight: 700, minWidth: 0, flex: 1 }} noWrap>
+          <Typography sx={{ fontSize: uiFontSize(10), fontWeight: 700, minWidth: 0, flex: 1 }} noWrap>
             {symbolReport ? symbolReport.rootName : targetFile.name}
           </Typography>
           {symbolReport?.cyclic && (
-            <Tooltip title={t("impact.cycleTip")}>
-              <LoopIcon sx={{ fontSize: 14, color: "warning.main" }} />
+            <Tooltip title={t('impact.cycleTip')}>
+              <LoopIcon sx={{ fontSize: uiFontSize(14), color: 'warning.main' }} />
             </Tooltip>
           )}
         </Box>
-        <Typography sx={{ fontSize: 9.5, color: "text.secondary", display: "block" }}>
+        <Typography sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary', display: 'block' }}>
           {symbolReport ? summarizeImpact(symbolReport) : impactLevelHint(level)}
         </Typography>
         {/*
@@ -409,43 +395,39 @@ export function ImpactAnalysisPanel({ entity }: Props) {
             const role = flowRoleByName.get(symbolReport.rootName);
             if (!role) return null;
             return (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.4, mt: 0.4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.4 }}>
                 <Box
                   sx={{
                     width: 6,
                     height: 6,
-                    borderRadius: "50%",
+                    borderRadius: '50%',
                     flexShrink: 0,
                     backgroundColor: FLOW_ROLE_COLOR[role],
                   }}
                 />
-                <Typography sx={{ fontSize: 9, color: "text.secondary" }}>
-                  {role === "blocker"
-                    ? t("impact.flowBlocker")
-                    : role === "sink"
-                      ? t("impact.flowSink")
-                      : t("impact.flowConduit")}
+                <Typography sx={{ fontSize: uiFontSize(9), color: 'text.secondary' }}>
+                  {role === 'blocker'
+                    ? t('impact.flowBlocker')
+                    : role === 'sink'
+                      ? t('impact.flowSink')
+                      : t('impact.flowConduit')}
                 </Typography>
               </Box>
             );
           })()}
-        <Box sx={{ display: "flex", gap: 1.5, mt: 0.75 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, mt: 0.75 }}>
           {[
-            { label: t("impact.blastSymbols"), value: blast.symbols },
-            { label: t("impact.blastFiles"), value: blast.files },
+            { label: t('impact.blastSymbols'), value: blast.symbols },
+            { label: t('impact.blastFiles'), value: blast.files },
             {
-              label: t("impact.blastDepth"),
+              label: t('impact.blastDepth'),
               value: symbolReport ? blast.maxDepth : (fileReport?.activeSymbols ?? 0),
-              alt: symbolReport ? undefined : t("impact.participants"),
+              alt: symbolReport ? undefined : t('impact.participants'),
             },
           ].map((s) => (
             <Box key={s.label}>
-              <Typography sx={{ fontSize: 15, fontWeight: 800, lineHeight: 1.1 }}>
-                {s.value}
-              </Typography>
-              <Typography sx={{ fontSize: 8.5, color: "text.secondary" }}>
-                {s.alt ?? s.label}
-              </Typography>
+              <Typography sx={{ fontSize: uiFontSize(15), fontWeight: 800, lineHeight: 1.1 }}>{s.value}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(8.5), color: 'text.secondary' }}>{s.alt ?? s.label}</Typography>
             </Box>
           ))}
         </Box>
@@ -454,51 +436,47 @@ export function ImpactAnalysisPanel({ entity }: Props) {
       <Button
         size="small"
         variant="outlined"
-        startIcon={<HubIcon sx={{ fontSize: 15 }} />}
+        startIcon={<HubIcon sx={{ fontSize: uiFontSize(15) }} />}
         disabled={running || !activeSceneId}
         onClick={() => void drawPortrait()}
-        sx={{ fontSize: 10, py: 0.4, textTransform: "none" }}
+        sx={{ fontSize: uiFontSize(10), py: 0.4, textTransform: 'none' }}
       >
-        {running ? t("impact.generate") : t("impact.portraitBtn")}
+        {running ? t('impact.generate') : t('impact.portraitBtn')}
       </Button>
 
       {/* ── 文件级：改这个文件会波及哪些文件 ── */}
       {fileReport && fileReport.affectedFiles.length > 0 && (
         <Box>
-          <Typography
-            sx={{ fontSize: 9.5, fontWeight: 700, color: "text.secondary", letterSpacing: 0.5 }}
-          >
-            {t("impact.fileBlast", { n: fileReport.affectedFiles.length })}
+          <Typography sx={{ fontSize: uiFontSize(9.5), fontWeight: 700, color: 'text.secondary', letterSpacing: 0.5 }}>
+            {t('impact.fileBlast', { n: fileReport.affectedFiles.length })}
           </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4, mt: 0.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, mt: 0.5 }}>
             {fileReport.affectedFiles.slice(0, 8).map((af) => (
               <Box
                 key={af.fileId}
                 onClick={() => {
                   const f = files.find((x) => x.id === af.fileId);
-                  locateFileInCanvas(f, () =>
-                    showToast(t("impact.notOnCanvas", { path: af.filePath }), "warning")
-                  );
+                  locateFileInCanvas(f, () => showToast(t('impact.notOnCanvas', { path: af.filePath }), 'warning'));
                 }}
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: 0.75,
                   px: 0.75,
                   py: 0.4,
                   borderRadius: 0.75,
-                  cursor: "pointer",
-                  bgcolor: "action.hover",
-                  "&:hover": { bgcolor: "action.selected" },
+                  cursor: 'pointer',
+                  bgcolor: 'action.hover',
+                  '&:hover': { bgcolor: 'action.selected' },
                 }}
               >
-                <Typography sx={{ fontSize: 10, minWidth: 0, flex: 1 }} noWrap>
+                <Typography sx={{ fontSize: uiFontSize(10), minWidth: 0, flex: 1 }} noWrap>
                   {af.filePath}
                 </Typography>
                 <Chip
-                  label={t("impact.places", { n: af.symbolCount })}
+                  label={t('impact.places', { n: af.symbolCount })}
                   size="small"
-                  sx={{ height: 14, fontSize: 8, "& .MuiChip-label": { px: 0.5 } }}
+                  sx={{ height: 14, fontSize: uiFontSize(8), '& .MuiChip-label': { px: 0.5 } }}
                 />
               </Box>
             ))}
@@ -510,17 +488,15 @@ export function ImpactAnalysisPanel({ entity }: Props) {
 
       {/* ── 符号选择器：挑一个函数作为影响面的圆心 ── */}
       <Box>
-        <Typography
-          sx={{ fontSize: 9.5, fontWeight: 700, color: "text.secondary", letterSpacing: 0.5 }}
-        >
-          {t("impact.callableSymbols", { n: candidates.length })}
+        <Typography sx={{ fontSize: uiFontSize(9.5), fontWeight: 700, color: 'text.secondary', letterSpacing: 0.5 }}>
+          {t('impact.callableSymbols', { n: candidates.length })}
         </Typography>
         {candidates.length === 0 ? (
-          <Typography sx={{ fontSize: 9.5, color: "text.secondary", mt: 0.5 }}>
-            {t("impact.noSymbols")}
+          <Typography sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary', mt: 0.5 }}>
+            {t('impact.noSymbols')}
           </Typography>
         ) : (
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
             {candidates.slice(0, 40).map((s) => {
               const cnt = callerCounts.get(s.id) ?? 0;
               const active = s.id === rootSymbolId;
@@ -529,15 +505,20 @@ export function ImpactAnalysisPanel({ entity }: Props) {
                 <Tooltip
                   key={s.id}
                   title={
-                    t("impact.symbolTip", { kind: s.kind, line: s.lineStart, n: cnt }) +
-                    (role ? t("impact.flowTip", { label: resolveFragments(FLOW_ROLE_LABEL[role]), hint: resolveFragments(FLOW_ROLE_HINT[role]) }) : "")
+                    t('impact.symbolTip', { kind: s.kind, line: s.lineStart, n: cnt }) +
+                    (role
+                      ? t('impact.flowTip', {
+                          label: resolveFragments(FLOW_ROLE_LABEL[role]),
+                          hint: resolveFragments(FLOW_ROLE_HINT[role]),
+                        })
+                      : '')
                   }
                 >
                   <Chip
-                    label={`${s.name}${cnt > 0 ? ` ${cnt}` : ""}`}
+                    label={`${s.name}${cnt > 0 ? ` ${cnt}` : ''}`}
                     size="small"
-                    color={active ? "primary" : "default"}
-                    variant={active ? "filled" : "outlined"}
+                    color={active ? 'primary' : 'default'}
+                    variant={active ? 'filled' : 'outlined'}
                     onClick={() => setRootSymbolId(active ? null : s.id)}
                     // 数据流角色色点：绿=阻断（调用方多半不用回归）橙=透传 红=写外部状态
                     icon={
@@ -546,7 +527,7 @@ export function ImpactAnalysisPanel({ entity }: Props) {
                           sx={{
                             width: 6,
                             height: 6,
-                            borderRadius: "50%",
+                            borderRadius: '50%',
                             ml: 0.55,
                             flexShrink: 0,
                             backgroundColor: FLOW_ROLE_COLOR[role],
@@ -556,10 +537,10 @@ export function ImpactAnalysisPanel({ entity }: Props) {
                     }
                     sx={{
                       height: 18,
-                      fontSize: 9,
-                      fontFamily: "monospace",
+                      fontSize: uiFontSize(9),
+                      fontFamily: 'monospace',
                       maxWidth: 160,
-                      "& .MuiChip-label": { px: 0.6 },
+                      '& .MuiChip-label': { px: 0.6 },
                     }}
                   />
                 </Tooltip>
@@ -569,19 +550,19 @@ export function ImpactAnalysisPanel({ entity }: Props) {
         )}
         {/* 数据流图例：只在真有摘要时出现，避免不支持的语言里挂一行没用的说明 */}
         {flowRoleByName.size > 0 && (
-          <Box sx={{ display: "flex", gap: 1, mt: 0.6, flexWrap: "wrap" }}>
-            {(["sink", "conduit", "blocker"] as FlowRole[]).map((r) => (
-              <Box key={r} sx={{ display: "flex", alignItems: "center", gap: 0.3 }}>
+          <Box sx={{ display: 'flex', gap: 1, mt: 0.6, flexWrap: 'wrap' }}>
+            {(['sink', 'conduit', 'blocker'] as FlowRole[]).map((r) => (
+              <Box key={r} sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
                 <Box
                   sx={{
                     width: 6,
                     height: 6,
-                    borderRadius: "50%",
+                    borderRadius: '50%',
                     backgroundColor: FLOW_ROLE_COLOR[r],
                   }}
                 />
-                <Typography sx={{ fontSize: 8.5, color: "text.secondary" }}>
-                  {resolveFragments(FLOW_ROLE_LABEL[r]).split(" · ")[0]}
+                <Typography sx={{ fontSize: uiFontSize(8.5), color: 'text.secondary' }}>
+                  {resolveFragments(FLOW_ROLE_LABEL[r]).split(' · ')[0]}
                 </Typography>
               </Box>
             ))}
@@ -594,17 +575,17 @@ export function ImpactAnalysisPanel({ entity }: Props) {
         <>
           <Divider />
           <DirectionBlock
-            title={t("impact.upstream")}
-            hint={t("impact.upstreamHint")}
-            icon={<CallReceivedIcon sx={{ fontSize: 14 }} />}
+            title={t('impact.upstream')}
+            hint={t('impact.upstreamHint')}
+            icon={<CallReceivedIcon sx={{ fontSize: uiFontSize(14) }} />}
             color="#ef4444"
             layers={symbolReport.upstreamByDepth}
             onOpen={openNode}
           />
           <DirectionBlock
-            title={t("impact.downstream")}
-            hint={t("impact.downstreamHint")}
-            icon={<CallMadeIcon sx={{ fontSize: 14 }} />}
+            title={t('impact.downstream')}
+            hint={t('impact.downstreamHint')}
+            icon={<CallMadeIcon sx={{ fontSize: uiFontSize(14) }} />}
             color="#3b82f6"
             layers={symbolReport.downstreamByDepth}
             onOpen={openNode}
@@ -612,11 +593,9 @@ export function ImpactAnalysisPanel({ entity }: Props) {
         </>
       ) : (
         candidates.length > 0 && (
-          <Box sx={{ textAlign: "center", py: 1.5, color: "text.secondary" }}>
-            <BlurOnIcon sx={{ fontSize: 26, opacity: 0.25, display: "block", mx: "auto" }} />
-            <Typography sx={{ fontSize: 9.5, mt: 0.5 }}>
-              {t("impact.pickSymbol")}
-            </Typography>
+          <Box sx={{ textAlign: 'center', py: 1.5, color: 'text.secondary' }}>
+            <BlurOnIcon sx={{ fontSize: uiFontSize(26), opacity: 0.25, display: 'block', mx: 'auto' }} />
+            <Typography sx={{ fontSize: uiFontSize(9.5), mt: 0.5 }}>{t('impact.pickSymbol')}</Typography>
           </Box>
         )
       )}

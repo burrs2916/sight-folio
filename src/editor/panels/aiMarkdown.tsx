@@ -5,6 +5,13 @@
 //   dangerouslySetInnerHTML 有 XSS 面。这里手写解析、全部输出 React 元素，绝不 innerHTML。
 // - 语法高亮：聊天区用等宽 <pre>（避免把 Monaco 拖进侧栏包）；diff 预览才用真 Monaco（on-demand 懒加载）。
 // - 代码块支持 ```语言 path:行号 头部，解析出 path/line 供「插入光标」/「应用到文件」使用。
+// - 字号（第 40 轮批次 3/4 接口）：全树字号走 uiFontSize()（吃「设置 → 字体大小」档位，
+//   medium 档逐像素不变）；`fontSize` prop 是**变体倍率入口**（倍率算术真源在 aiMarkdownScale.ts），
+//   变体消费方（写作台对话弹窗 13px；第 41 轮批次 4 并入的对话页 ChatMarkdown 14px 变体）
+//   只传一个正文 px，标题/代码/图标按 BODY_FONT_PX 比例同步缩放，禁止再 fork 一份字号常量副本。
+// - 第 41 轮批次 4 并源：对话页特有的三样功能已上移为本渲染器统一能力（侧栏同受益）——
+//   [text](url) 链接（仅 http/https，危险协议降级纯文本）、整段 `> ` 引用块、
+//   strong/em 内部继续解析行内标记（**粗体里的 `code`** 不再裸奔）。
 
 import React from 'react';
 import Box from '@mui/material/Box';
@@ -17,6 +24,7 @@ import NorthWestIcon from '@mui/icons-material/NorthWest';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import { t } from '../../i18n';
 import { highlightCode } from './codeHighlight';
+import { BODY_FONT_PX, variantScale, vpx } from './aiMarkdownScale';
 
 export interface CodeBlockMeta {
   lang: string;
@@ -186,9 +194,9 @@ export function repairStreamingTailInline(tail: string): string {
   return repaired;
 }
 
-/** 内联格式：解析 `code` / **bold** / *italic* 为 React 节点（无 innerHTML） */
+/** 内联格式：解析 `code` / **bold** / *italic* / [text](url) 为 React 节点（无 innerHTML） */
 function renderInline(text: string, keyBase: string): React.ReactNode[] {
-  const re = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  const re = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]\n]+\]\([^)\s]+\))/g;
   const parts = text.split(re);
   return parts.map((part, idx) => {
     if (!part) return null;
@@ -204,7 +212,10 @@ function renderInline(text: string, keyBase: string): React.ReactNode[] {
             px: 0.5,
             py: 0.1,
             borderRadius: 0.5,
-            bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+            bgcolor: (th) =>
+              th.palette.mode === 'dark'
+                ? 'rgb(var(--template-palette-text-primaryChannel) / 0.08)'
+                : 'rgb(var(--template-palette-text-primaryChannel) / 0.06)',
           }}
         >
           {part.slice(1, -1)}
@@ -212,17 +223,42 @@ function renderInline(text: string, keyBase: string): React.ReactNode[] {
       );
     }
     if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
-      return <strong key={key}>{part.slice(2, -2)}</strong>;
+      // 第 41 轮批次 4：内层继续解析（**粗体里的 `code`/斜体** 不再裸奔），口径同对话页旧实现
+      return <strong key={key}>{renderInline(part.slice(2, -2), key)}</strong>;
     }
     if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
-      return <em key={key}>{part.slice(1, -1)}</em>;
+      return <em key={key}>{renderInline(part.slice(1, -1), key)}</em>;
+    }
+    const link = part.match(/^\[([^\]\n]+)\]\(([^)\s]+)\)$/);
+    if (link) {
+      // 仅允许 http/https 协议，阻断 javascript: 等危险链接（危险协议降级为「文本（url）」纯文本）
+      const url = link[2];
+      if (/^https?:\/\//i.test(url)) {
+        return (
+          <Box
+            component="a"
+            key={key}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ color: 'primary.main', textDecoration: 'underline' }}
+          >
+            {link[1]}
+          </Box>
+        );
+      }
+      return (
+        <React.Fragment key={key}>
+          {link[1]}（{url}）
+        </React.Fragment>
+      );
     }
     return <React.Fragment key={key}>{part}</React.Fragment>;
   });
 }
 
-/** 渲染一段纯文本（支持标题 / 列表 / 段落 / 内联） */
-function renderText(value: string, keyBase: string): React.ReactNode {
+/** 渲染一段纯文本（支持标题 / 列表 / 引用块 / 段落 / 内联）；k = 变体倍率（见 variantScale） */
+function renderText(value: string, keyBase: string, k: number): React.ReactNode {
   const blocks = value.split(/\n{2,}/);
   return blocks.map((blk, bi) => {
     const key = `${keyBase}-t${bi}`;
@@ -239,7 +275,7 @@ function renderText(value: string, keyBase: string): React.ReactNode {
           sx={{
             display: 'block',
             fontWeight: 700,
-            fontSize: 12 + (4 - level) * 0.5,
+            fontSize: vpx(12 + (4 - level) * 0.5, k),
             mt: 0.5,
             mb: 0.25,
             color: 'text.primary',
@@ -263,7 +299,7 @@ function renderText(value: string, keyBase: string): React.ReactNode {
                   component="span"
                   sx={{
                     display: 'block',
-                    fontSize: 11.5,
+                    fontSize: vpx(BODY_FONT_PX, k),
                     lineHeight: 1.5,
                     color: 'text.primary',
                     whiteSpace: 'pre-wrap',
@@ -278,6 +314,31 @@ function renderText(value: string, keyBase: string): React.ReactNode {
         </Box>
       );
     }
+    // 引用块（第 41 轮批次 4 从对话页渲染器移植）：整段每行都以 > 开头才算引用，混排时按普通段落处理
+    const quoteLines = trimmed.split('\n');
+    if (quoteLines.every((l) => /^\s*>\s?/.test(l))) {
+      const quoted = quoteLines.map((l) => l.replace(/^\s*>\s?/, '')).join('\n');
+      return (
+        <Box
+          key={key}
+          sx={{
+            my: 0.5,
+            pl: 1.25,
+            borderLeft: 3,
+            borderColor: 'primary.light',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{ display: 'block', fontSize: vpx(BODY_FONT_PX, k), lineHeight: 1.55, color: 'text.secondary' }}
+          >
+            {renderInline(quoted, key)}
+          </Typography>
+        </Box>
+      );
+    }
     // 普通段落
     return (
       <Typography
@@ -286,7 +347,7 @@ function renderText(value: string, keyBase: string): React.ReactNode {
         component="p"
         sx={{
           display: 'block',
-          fontSize: 11.5,
+          fontSize: vpx(BODY_FONT_PX, k),
           lineHeight: 1.55,
           color: 'text.primary',
           whiteSpace: 'pre-wrap',
@@ -310,14 +371,17 @@ export interface MarkdownViewProps {
   canApply?: boolean;
   /** 流式增量模式：稳定前缀增量渲染（历史代码块不再全量重新高亮）、未闭合围栏/尾段按字面渲染 */
   streaming?: boolean;
+  /** 字号变体（正文 px）：整树按 BODY_FONT_PX 比例缩放；缺省 = 工作台侧栏 11.5px 零漂移 */
+  fontSize?: number;
 }
 
 function CodeBlockCard({
   meta,
+  k,
   onCodeInsert,
   onCodeApply,
   canApply,
-}: { meta: CodeBlockMeta } & Pick<MarkdownViewProps, 'onCodeInsert' | 'onCodeApply' | 'canApply'>) {
+}: { meta: CodeBlockMeta; k: number } & Pick<MarkdownViewProps, 'onCodeInsert' | 'onCodeApply' | 'canApply'>) {
   const dark = useTheme().palette.mode === 'dark';
   const [copied, setCopied] = React.useState(false);
   // 语法高亮（对标 VS Code Copilot Chat 代码块）：零依赖、零 innerHTML。
@@ -349,7 +413,7 @@ function CodeBlockCard({
         borderColor: 'divider',
         borderRadius: 1,
         overflow: 'hidden',
-        bgcolor: (th) => (th.palette.mode === 'dark' ? '#0d1117' : '#f6f8fa'),
+        bgcolor: 'rgb(var(--template-palette-background-defaultChannel) / 0.6)',
       }}
     >
       <Box
@@ -361,13 +425,16 @@ function CodeBlockCard({
           py: 0.4,
           borderBottom: 1,
           borderColor: 'divider',
-          bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
+          bgcolor: (th) =>
+            th.palette.mode === 'dark'
+              ? 'rgb(var(--template-palette-text-primaryChannel) / 0.03)'
+              : 'rgb(var(--template-palette-text-primaryChannel) / 0.02)',
         }}
       >
         <Typography
           variant="caption"
           sx={{
-            fontSize: 9.5,
+            fontSize: vpx(9.5, k),
             fontWeight: 600,
             color: 'text.secondary',
             textTransform: 'uppercase',
@@ -383,7 +450,7 @@ function CodeBlockCard({
           <Typography
             variant="caption"
             sx={{
-              fontSize: 9.5,
+              fontSize: vpx(9.5, k),
               color: 'text.secondary',
               flex: 1,
               overflow: 'hidden',
@@ -402,7 +469,7 @@ function CodeBlockCard({
               onClick={() => onCodeInsert?.(meta)}
               aria-label={t('workbench.aiCode.insert')}
             >
-              <NorthWestIcon sx={{ fontSize: 14 }} />
+              <NorthWestIcon sx={{ fontSize: vpx(14, k) }} />
             </IconButton>
           </Tooltip>
         )}
@@ -414,7 +481,7 @@ function CodeBlockCard({
               onClick={() => onCodeApply?.(meta)}
               aria-label={t('workbench.aiCode.apply')}
             >
-              <FileUploadIcon sx={{ fontSize: 14 }} />
+              <FileUploadIcon sx={{ fontSize: vpx(14, k) }} />
             </IconButton>
           </Tooltip>
         )}
@@ -425,7 +492,7 @@ function CodeBlockCard({
             onClick={copy}
             aria-label={copied ? t('workbench.aiCode.copied') : t('workbench.aiCode.copy')}
           >
-            <ContentCopyIcon sx={{ fontSize: 14 }} />
+            <ContentCopyIcon sx={{ fontSize: vpx(14, k) }} />
           </IconButton>
         </Tooltip>
       </Box>
@@ -434,7 +501,7 @@ function CodeBlockCard({
         sx={{
           m: 0,
           p: 1,
-          fontSize: 11,
+          fontSize: vpx(11, k),
           lineHeight: 1.45,
           fontFamily: 'monospace',
           overflowX: 'auto',
@@ -450,26 +517,32 @@ function CodeBlockCard({
 
 /** 将正文解析为 React 节点（key 从 keyBase 起递增，供增量缓存合并时保证 key 唯一） */
 function buildNodes(props: MarkdownViewProps, content: string, keyBase: number): React.ReactNode[] {
+  const k = variantScale(props.fontSize);
   return parseBlocks(content).map((n, idx) => {
     const key = keyBase + idx;
     return n.type === 'code' ? (
       <CodeBlockCard
         key={key}
         meta={n.meta}
+        k={k}
         onCodeInsert={props.onCodeInsert}
         onCodeApply={props.onCodeApply}
         canApply={props.canApply}
       />
     ) : (
-      <React.Fragment key={key}>{renderText(n.value, `n${key}`)}</React.Fragment>
+      <React.Fragment key={key}>{renderText(n.value, `n${key}`, k)}</React.Fragment>
     );
   });
 }
 
-// 流式增量缓存：key = 已渲染的稳定前缀文本（确定性纯函数缓存，跨组件实例/重渲染安全）。
-// 只保留最近 STREAMING_CACHE_LIMIT 条，防止长时间流式内存膨胀（对齐 openclaw 的 STREAMING_CACHE_LIMIT）。
+// 流式增量缓存：key = 变体倍率 + 已渲染的稳定前缀文本（确定性纯函数缓存，跨组件实例/重渲染安全）。
+// 倍率进缓存键是第 40 轮的修正：同一文本会被不同 fontSize 的变体消费（侧栏 11.5 / 对话弹窗 13），
+// 不带变体的话后到的变体会命中先到的字号节点——尺寸静默错套。跨变体互不命中 = 各自全量重建。
+// 只保留最近 STREAMING_CACHE_LIMIT 条（跨变体共享额度、先到先逐出），防止长时间流式内存膨胀。
 const STREAMING_CACHE_LIMIT = 8;
 const streamingStableCache = new Map<string, React.ReactNode[]>();
+
+const cacheKeyOf = (k: number, text: string) => `${k}|${text}`;
 
 /**
  * 渲染流式稳定前缀：命中最长已渲染前缀时增量追加（历史节点引用不变 → CodeBlockCard 的
@@ -477,22 +550,26 @@ const streamingStableCache = new Map<string, React.ReactNode[]>();
  */
 function renderStreamingStable(props: MarkdownViewProps, stable: string): React.ReactNode[] {
   if (!stable) return [];
-  let best: { key: string; nodes: React.ReactNode[] } | null = null;
+  const k = variantScale(props.fontSize);
+  let best: { text: string; nodes: React.ReactNode[] } | null = null;
   for (const [key, nodes] of streamingStableCache) {
-    if (key.length === 0) continue;
-    if (best && key.length <= best.key.length) continue;
-    if (stable.startsWith(key)) best = { key, nodes };
+    const sep = key.indexOf('|');
+    const entryK = key.slice(0, sep);
+    const text = key.slice(sep + 1);
+    if (!text || entryK !== String(k)) continue;
+    if (best && text.length <= best.text.length) continue;
+    if (stable.startsWith(text)) best = { text, nodes };
   }
   let nodes: React.ReactNode[];
   if (best) {
     // 增量：只解析新增片段
-    const added = stable.slice(best.key.length);
+    const added = stable.slice(best.text.length);
     const addedNodes = added ? buildNodes(props, added, best.nodes.length) : [];
     nodes = [...best.nodes, ...addedNodes];
   } else {
     nodes = buildNodes(props, stable, 0);
   }
-  streamingStableCache.set(stable, nodes);
+  streamingStableCache.set(cacheKeyOf(k, stable), nodes);
   if (streamingStableCache.size > STREAMING_CACHE_LIMIT) {
     const oldest = streamingStableCache.keys().next().value;
     if (oldest !== undefined) streamingStableCache.delete(oldest);
@@ -503,12 +580,13 @@ function renderStreamingStable(props: MarkdownViewProps, stable: string): React.
 /** 流式增量渲染：稳定前缀缓存复用（新增 chunk 只解析增量，历史代码块不重新高亮）；尾部按字面渲染 */
 function StreamingMarkdown(props: MarkdownViewProps) {
   const { content } = props;
+  const k = variantScale(props.fontSize);
   const { stable, tail, openFence } = React.useMemo(() => splitStreamingMarkdown(content), [content]);
   const stableNodes = React.useMemo(
     () => renderStreamingStable(props, stable),
-    // props 其余字段（content）不参与缓存键：内容变化由 stable 驱动，回调变化才重建
+    // props 其余字段（content）不参与缓存键：内容变化由 stable 驱动，回调/字号变体变化才重建
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stable, props.onCodeInsert, props.onCodeApply, props.canApply],
+    [stable, props.onCodeInsert, props.onCodeApply, props.canApply, props.fontSize],
   );
   const tailNode = React.useMemo(() => {
     if (!tail) return null;
@@ -521,14 +599,14 @@ function StreamingMarkdown(props: MarkdownViewProps) {
           sx={{
             m: 0,
             p: 1,
-            fontSize: 11,
+            fontSize: vpx(11, k),
             lineHeight: 1.45,
             fontFamily: 'monospace',
             overflowX: 'auto',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             color: 'text.primary',
-            bgcolor: (th) => (th.palette.mode === 'dark' ? '#0d1117' : '#f6f8fa'),
+            bgcolor: 'rgb(var(--template-palette-background-defaultChannel) / 0.6)',
           }}
         >
           {body}
@@ -537,11 +615,11 @@ function StreamingMarkdown(props: MarkdownViewProps) {
     }
     // 未空行收束的尾段：先修补未闭合的行内标记（对标 openclaw remend，避免星号/反引号闪烁），
     // 再按段落字面渲染（内联标记未闭合时原样显示，不闪烁）
-    return <Box sx={{ fontSize: 11.5 }}>{renderText(repairStreamingTailInline(tail), 'tail')}</Box>;
-  }, [tail, openFence]);
+    return <Box sx={{ fontSize: vpx(BODY_FONT_PX, k) }}>{renderText(repairStreamingTailInline(tail), 'tail', k)}</Box>;
+  }, [tail, openFence, k]);
 
   return (
-    <Box sx={{ fontSize: 11.5 }}>
+    <Box sx={{ fontSize: vpx(BODY_FONT_PX, k) }}>
       {stableNodes}
       {tailNode}
     </Box>
@@ -549,21 +627,23 @@ function StreamingMarkdown(props: MarkdownViewProps) {
 }
 
 /** 静态模式（非流式）：每次 content 变化全量解析（历史消息/终稿） */
-function StaticMarkdown({ content, onCodeInsert, onCodeApply, canApply }: MarkdownViewProps) {
+function StaticMarkdown({ content, fontSize, onCodeInsert, onCodeApply, canApply }: MarkdownViewProps) {
+  const k = variantScale(fontSize);
   const nodes = React.useMemo(() => parseBlocks(content), [content]);
   return (
-    <Box sx={{ fontSize: 11.5 }}>
+    <Box sx={{ fontSize: vpx(BODY_FONT_PX, k) }}>
       {nodes.map((n, idx) =>
         n.type === 'code' ? (
           <CodeBlockCard
             key={idx}
             meta={n.meta}
+            k={k}
             onCodeInsert={onCodeInsert}
             onCodeApply={onCodeApply}
             canApply={canApply}
           />
         ) : (
-          <React.Fragment key={idx}>{renderText(n.value, `n${idx}`)}</React.Fragment>
+          <React.Fragment key={idx}>{renderText(n.value, `n${idx}`, k)}</React.Fragment>
         ),
       )}
     </Box>

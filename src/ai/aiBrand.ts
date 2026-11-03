@@ -11,6 +11,10 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
  *     较原 #6366f1 → #8b5cf6 整体加深一档，保证按钮白字 ≥4.5:1）
  *
  * 诊断动作（针对具体问题的"修"）仍用 AutoFixHigh，与"AI 助手"本体区分开。
+ *
+ * 归属：这组颜色是**语义 / 品牌标识**，刻意不随外观预设（主题皮肤）联动 ——
+ * 换皮肤时 AI 入口必须仍是同一抹靛紫，否则用户"在哪调用 AI"的稳定认知会被打断。
+ * 因此禁止把本文件的常量替换成 var(--template-palette-primary-*)。
  */
 export const AI_GRADIENT = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
 /** 暗色模式下的 AI 渐变（主色提亮一档，保证暗背景下文字可读） */

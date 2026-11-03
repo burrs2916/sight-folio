@@ -195,7 +195,7 @@ function FilterToggle({
             borderColor: active ? "#EF9F27" : "divider",
             bgcolor: active ? "rgba(239,159,39,0.16)" : "transparent",
             color: active ? "#EF9F27" : "text.secondary",
-            "&:hover": { bgcolor: active ? "rgba(239,159,39,0.24)" : "rgba(255,255,255,0.06)" },
+            "&:hover": { bgcolor: active ? "rgba(239,159,39,0.24)" : "rgb(var(--template-palette-text-primaryChannel) / 0.06)" },
           }}
          aria-label={tooltip}>
           <Typography variant="caption" sx={{ fontWeight: 700, fontFamily: "monospace", lineHeight: 1 }}>
@@ -686,7 +686,7 @@ export function WorkbenchSearchPanel({ open, onClose, onJump }: WorkbenchSearchP
                 width: 30,
                 height: 30,
                 color: replaceMode ? "#EF9F27" : "text.secondary",
-                "&:hover": { bgcolor: "rgba(255,255,255,0.06)" },
+                "&:hover": { bgcolor: "rgb(var(--template-palette-text-primaryChannel) / 0.06)" },
               }}
              aria-label={t("workbench.search.replaceToggleHint")}>
               <FindReplaceIcon fontSize="small" />
@@ -821,7 +821,7 @@ export function WorkbenchSearchPanel({ open, onClose, onJump }: WorkbenchSearchP
                   sx={{
                     px: 1.5,
                     py: 0.25,
-                    bgcolor: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                    bgcolor: dark ? "rgb(var(--template-palette-text-primaryChannel) / 0.04)" : "rgb(var(--template-palette-text-primaryChannel) / 0.03)",
                     display: "flex",
                     alignItems: "center",
                     gap: 1,

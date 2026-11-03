@@ -15,6 +15,7 @@ import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
 import { t } from "../../i18n";
 import { monacoLanguageOf } from "../../utils/languageMeta";
+import { useCodeFont } from "../../hooks/useCodeFont";
 import type { WorkbenchTab } from "../../store/codeWorkbenchStore";
 
 /** 懒加载 DiffEditor：先 monacoSetup 装配 loader，再加载 @monaco-editor/react 的 DiffEditor（共享 monaco chunk） */
@@ -53,6 +54,8 @@ function EditorFallback() {
 
 /** 只读对比视图：左边 original（磁盘/另一文件），右边 modified（工作缓冲区/当前文件），Monaco 内置变更导航（沟槽箭头跳上/下一处差异）。 */
 export function MonacoDiffEditor({ tab, themeMode }: MonacoDiffEditorProps) {
+  // 字号跟随「设置 → 字体大小」（此前写死 13，切档位在差异对照上毫无反应）
+  const codeFont = useCodeFont("diff");
   const diff = tab.diff;
   if (!diff) return null;
   const lang = monacoLanguageOf(tab.language ?? "");
@@ -108,7 +111,7 @@ export function MonacoDiffEditor({ tab, themeMode }: MonacoDiffEditorProps) {
               automaticLayout: true,
               minimap: { enabled: false },
               scrollBeyondLastLine: false,
-              fontSize: 13,
+              fontSize: codeFont.fontSize,
               originalEditable: false,
               renderOverviewRuler: true,
               ignoreTrimWhitespace: false,

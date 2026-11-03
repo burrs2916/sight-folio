@@ -47,6 +47,7 @@ import { useAgentStore } from '../../store/agentStore';
 import { useToastStore } from '../../store/toastStore';
 import { t } from '../../i18n';
 import { logger } from '../../utils/logger';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface InspirationExpandPanelProps {
   open: boolean;
@@ -221,8 +222,8 @@ export function InspirationExpandPanel({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <PsychologyRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+      <DialogTitle sx={{ fontSize: uiFontSize(15), display: 'flex', alignItems: 'center', gap: 1 }}>
+        <PsychologyRoundedIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>{t('writing.inspirationExpandTitle')}</Box>
         {!noAgent && (
           <Select
@@ -231,16 +232,16 @@ export function InspirationExpandPanel({
             onChange={(e) => onAgentChange(e.target.value)}
             displayEmpty
             disabled={isStreaming}
-            sx={{ height: 26, '& .MuiSelect-select': { py: 0, fontSize: 12 } }}
+            sx={{ height: 26, '& .MuiSelect-select': { py: 0, fontSize: uiFontSize(12) } }}
             data-testid="inspiration-expand-agent"
           >
             {!agentId && (
-              <MenuItem value="" sx={{ fontSize: 12 }}>
+              <MenuItem value="" sx={{ fontSize: uiFontSize(12) }}>
                 {t('writing.aiAgent')}
               </MenuItem>
             )}
             {agents.map((a) => (
-              <MenuItem key={a.id} value={a.id} sx={{ fontSize: 12 }}>
+              <MenuItem key={a.id} value={a.id} sx={{ fontSize: uiFontSize(12) }}>
                 {a.name}
               </MenuItem>
             ))}
@@ -250,12 +251,12 @@ export function InspirationExpandPanel({
           {isOwnStreaming && (
             <Tooltip title={t('writing.aiChatStop')}>
               <IconButton size="small" color="error" onClick={() => useAgentStore.getState().requestInterrupt()}>
-                <StopRoundedIcon sx={{ fontSize: 18 }} />
+                <StopRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
               </IconButton>
             </Tooltip>
           )}
           <IconButton size="small" onClick={onClose} aria-label={t('ui.close')}>
-            <CloseRoundedIcon sx={{ fontSize: 18 }} />
+            <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
           </IconButton>
         </Box>
       </DialogTitle>
@@ -263,7 +264,7 @@ export function InspirationExpandPanel({
         {/* 无 agent：给「去配置」出口（对齐 AiCorpusPanel 引导） */}
         {noAgent ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, px: 2, py: 6 }}>
-            <Typography sx={{ fontSize: 12.5, color: 'text.secondary', textAlign: 'center' }}>
+            <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary', textAlign: 'center' }}>
               {t('writing.inspirationExpandNoAgent')}
             </Typography>
             <Button size="small" variant="outlined" onClick={onOpenSettings}>
@@ -277,11 +278,11 @@ export function InspirationExpandPanel({
         ) : beats.length === 0 ? (
           // 念头池空：引导先去灵念头池记一条（与灵感工作台口径一致：looseBeats）
           <Box sx={{ textAlign: 'center', py: 7 }}>
-            <PsychologyRoundedIcon sx={{ fontSize: 34, color: 'text.disabled', mb: 1 }} />
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+            <PsychologyRoundedIcon sx={{ fontSize: uiFontSize(34), color: 'text.disabled', mb: 1 }} />
+            <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>
               {t('writing.inspirationExpandEmpty')}
             </Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5 }}>
+            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.5 }}>
               {t('writing.inspirationExpandEmptyHint')}
             </Typography>
           </Box>
@@ -326,14 +327,18 @@ export function InspirationExpandPanel({
                     data-testid="inspiration-expand-beat"
                   >
                     <Typography
-                      sx={{ fontSize: 12.5, fontWeight: b.id === selectedBeatId ? 700 : 500, lineHeight: 1.4 }}
+                      sx={{
+                        fontSize: uiFontSize(12.5),
+                        fontWeight: b.id === selectedBeatId ? 700 : 500,
+                        lineHeight: 1.4,
+                      }}
                     >
                       {b.title || t('writing.inspirationExpandUntitled')}
                     </Typography>
                     {b.summary && (
                       <Typography
                         sx={{
-                          fontSize: 11,
+                          fontSize: uiFontSize(11),
                           color: 'text.secondary',
                           mt: 0.25,
                           lineHeight: 1.5,
@@ -354,7 +359,7 @@ export function InspirationExpandPanel({
                             size="small"
                             label={n}
                             variant="outlined"
-                            sx={{ height: 17, fontSize: 10 }}
+                            sx={{ height: 17, fontSize: uiFontSize(10) }}
                           />
                         ))}
                         {sceneNames.slice(0, 2).map((n) => (
@@ -364,7 +369,7 @@ export function InspirationExpandPanel({
                             label={n}
                             variant="outlined"
                             color="info"
-                            sx={{ height: 17, fontSize: 10 }}
+                            sx={{ height: 17, fontSize: uiFontSize(10) }}
                           />
                         ))}
                       </Stack>
@@ -378,24 +383,24 @@ export function InspirationExpandPanel({
             <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 320 }}>
               {!selectedBeat ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-                  <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
                     {t('writing.inspirationExpandPickOne')}
                   </Typography>
                 </Box>
               ) : (
                 <>
                   <Box sx={{ px: 0.5, pb: 1 }}>
-                    <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>
+                    <Typography sx={{ fontSize: uiFontSize(13.5), fontWeight: 700 }}>
                       {selectedBeat.title || t('writing.inspirationExpandUntitled')}
                     </Typography>
                     {selectedBeat.summary && (
-                      <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25, lineHeight: 1.6 }}>
+                      <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mt: 0.25, lineHeight: 1.6 }}>
                         {selectedBeat.summary}
                       </Typography>
                     )}
                     {/* 扩写控制条：版本数 + 扩写/换一批 */}
                     <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center' }}>
-                      <Typography sx={{ fontSize: 11.5, color: 'text.secondary', flexShrink: 0 }}>
+                      <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', flexShrink: 0 }}>
                         {t('writing.inspirationExpandCount')}
                       </Typography>
                       <Select
@@ -403,26 +408,26 @@ export function InspirationExpandPanel({
                         value={count}
                         onChange={(e) => setCount(Number(e.target.value))}
                         disabled={isStreaming}
-                        sx={{ height: 26, '& .MuiSelect-select': { py: 0, fontSize: 12 } }}
+                        sx={{ height: 26, '& .MuiSelect-select': { py: 0, fontSize: uiFontSize(12) } }}
                         data-testid="inspiration-expand-count"
                       >
                         {COUNT_STEPS.map((c) => (
-                          <MenuItem key={c} value={c} sx={{ fontSize: 12 }}>
+                          <MenuItem key={c} value={c} sx={{ fontSize: uiFontSize(12) }}>
                             {c}
                           </MenuItem>
                         ))}
                       </Select>
                       {isOwnStreaming ? (
-                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
                           {t('writing.inspirationExpandRunning')}
                         </Typography>
                       ) : genAttempted ? (
                         <Button
                           size="small"
                           variant="outlined"
-                          startIcon={<ReplayRoundedIcon sx={{ fontSize: 15 }} />}
+                          startIcon={<ReplayRoundedIcon sx={{ fontSize: uiFontSize(15) }} />}
                           onClick={() => void handleRegenerate()}
-                          sx={{ textTransform: 'none', fontSize: 12 }}
+                          sx={{ textTransform: 'none', fontSize: uiFontSize(12) }}
                           data-testid="inspiration-expand-regenerate"
                         >
                           {t('writing.inspirationExpandRegenerate')}
@@ -431,9 +436,9 @@ export function InspirationExpandPanel({
                         <Button
                           size="small"
                           variant="contained"
-                          startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: 15 }} />}
+                          startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(15) }} />}
                           onClick={() => void handleExpand()}
-                          sx={{ textTransform: 'none', fontSize: 12 }}
+                          sx={{ textTransform: 'none', fontSize: uiFontSize(12) }}
                           data-testid="inspiration-expand-run"
                         >
                           {t('writing.inspirationExpandRun')}
@@ -448,7 +453,7 @@ export function InspirationExpandPanel({
                       <Alert
                         severity="error"
                         variant="outlined"
-                        sx={{ fontSize: 12, '& .MuiAlert-message': { py: 0.25 } }}
+                        sx={{ fontSize: uiFontSize(12), '& .MuiAlert-message': { py: 0.25 } }}
                       >
                         {lastStreamError === 'timeout' ? t('writing.aiTimeout') : lastStreamError}
                       </Alert>
@@ -458,11 +463,11 @@ export function InspirationExpandPanel({
                     <Box sx={{ px: 0.5, py: 0.5 }}>
                       <Chip
                         size="small"
-                        icon={<StopRoundedIcon sx={{ fontSize: 12 }} />}
+                        icon={<StopRoundedIcon sx={{ fontSize: uiFontSize(12) }} />}
                         label={t('writing.aiStopped')}
                         color="error"
                         variant="outlined"
-                        sx={{ fontSize: 10.5, height: 20 }}
+                        sx={{ fontSize: uiFontSize(10.5), height: 20 }}
                       />
                     </Box>
                   )}
@@ -471,14 +476,19 @@ export function InspirationExpandPanel({
                   <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 0.5, py: 0.5 }}>
                     {showStreamPreview && (
                       <Typography
-                        sx={{ fontSize: 12.5, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'text.secondary' }}
+                        sx={{
+                          fontSize: uiFontSize(12.5),
+                          lineHeight: 1.7,
+                          whiteSpace: 'pre-wrap',
+                          color: 'text.secondary',
+                        }}
                       >
                         {streamText}
                       </Typography>
                     )}
                     {!isOwnStreaming && genAttempted && versions.length === 0 && (
                       <Box sx={{ textAlign: 'center', py: 5 }}>
-                        <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>
+                        <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
                           {t('writing.inspirationExpandNone')}
                         </Typography>
                       </Box>
@@ -504,20 +514,20 @@ export function InspirationExpandPanel({
                               label={v.title}
                               color="primary"
                               variant="outlined"
-                              sx={{ height: 19, fontSize: 11 }}
+                              sx={{ height: 19, fontSize: uiFontSize(11) }}
                             />
                             <Box sx={{ flex: 1 }} />
                             <Button
                               size="small"
                               variant="contained"
-                              sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: 12, textTransform: 'none' }}
+                              sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: uiFontSize(12), textTransform: 'none' }}
                               onClick={() => onInsertText(v.body)}
                               data-testid={`inspiration-expand-insert-${i}`}
                             >
                               {t('writing.corpusInsert')}
                             </Button>
                           </Box>
-                          <Typography sx={{ fontSize: 12.5, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                          <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                             {v.body}
                           </Typography>
                         </Box>

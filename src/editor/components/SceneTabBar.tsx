@@ -581,13 +581,13 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
           alignItems: 'center',
           gap: 0.5,
           backgroundColor: (theme) =>
-            theme.palette.mode === 'dark' ? 'rgba(30,30,42,0.85)' : 'rgba(255,255,255,0.85)',
+            'rgb(var(--template-palette-background-paperChannel) / 0.85)',
           borderRadius: 1.5,
           px: 0.5,
           py: 0.25,
           backdropFilter: 'blur(12px)',
           border: 1,
-          borderColor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+          borderColor: (theme) => (theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-text-primaryChannel) / 0.08)' : 'rgb(var(--template-palette-text-primaryChannel) / 0.06)'),
           opacity: 0.4,
           transition: 'opacity 0.2s',
           '&:hover': { opacity: 1 },
@@ -607,15 +607,15 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
               color: activeViewId === view.id ? 'primary.main' : 'text.secondary',
               backgroundColor:
                 activeViewId === view.id
-                  ? (theme) => (theme.palette.mode === 'dark' ? 'rgba(144,202,249,0.15)' : 'rgba(25,118,210,0.08)')
+                  ? (theme) => (theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-primary-mainChannel) / 0.15)' : 'rgb(var(--template-palette-primary-mainChannel) / 0.08)')
                   : 'transparent',
               fontWeight: activeViewId === view.id ? 600 : 400,
               transition: 'all 0.15s',
               '&:hover': {
                 backgroundColor:
                   activeViewId === view.id
-                    ? (theme) => (theme.palette.mode === 'dark' ? 'rgba(144,202,249,0.2)' : 'rgba(25,118,210,0.12)')
-                    : (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                    ? (theme) => (theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-primary-mainChannel) / 0.2)' : 'rgb(var(--template-palette-primary-mainChannel) / 0.12)')
+                    : (theme) => (theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-text-primaryChannel) / 0.06)' : 'rgb(var(--template-palette-text-primaryChannel) / 0.04)'),
               },
             }}
           >

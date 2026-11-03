@@ -1,4 +1,4 @@
-import { createTheme, alpha, PaletteMode, Shadows } from '@mui/material/styles';
+import { createTheme, Shadows } from '@mui/material/styles';
 
 declare module '@mui/material/Paper' {
   interface PaperPropsVariantOverrides {
@@ -28,8 +28,6 @@ declare module '@mui/material/styles' {
 }
 
 const defaultTheme = createTheme();
-
-const customShadows: Shadows = [...defaultTheme.shadows];
 
 export const brand = {
   50: '#f4f0fb',
@@ -124,268 +122,19 @@ export const indigo = {
   900: '#312e81',
 };
 
-export const getDesignTokens = (mode: PaletteMode) => {
-  customShadows[1] =
-    mode === 'dark'
-      ? '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3)'
-      : '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)';
-
-  return {
-    palette: {
-      mode,
-      primary: {
-        light: brand[300],
-        main: brand[700],
-        dark: brand[800],
-        contrastText: '#ffffff',
-        ...(mode === 'dark' && {
-          contrastText: '#ffffff',
-          light: brand[400],
-          main: brand[600],
-          dark: brand[700],
-        }),
-      },
-      secondary: {
-        light: gray[300],
-        main: gray[500],
-        dark: gray[700],
-        contrastText: '#ffffff',
-      },
-      info: {
-        light: blue[300],
-        main: blue[500],
-        dark: blue[700],
-        contrastText: '#ffffff',
-      },
-      warning: {
-        light: orange[300],
-        main: orange[500],
-        dark: orange[700],
-        contrastText: '#ffffff',
-      },
-      error: {
-        light: red[300],
-        main: red[500],
-        dark: red[700],
-        contrastText: '#ffffff',
-      },
-      success: {
-        light: green[300],
-        main: green[500],
-        dark: green[700],
-        contrastText: '#ffffff',
-      },
-      grey: {
-        ...gray,
-      },
-      divider: mode === 'dark' ? alpha(gray[700], 0.6) : alpha(gray[300], 0.4),
-      background: {
-        default: mode === 'dark' ? gray[900] : '#FBF7EF',
-        paper: mode === 'dark' ? gray[800] : '#ffffff',
-      },
-      text: {
-        primary: gray[800],
-        secondary: gray[600],
-        ...(mode === 'dark' && { primary: '#f9fafb', secondary: gray[400] }),
-      },
-      action: {
-        hover: alpha(gray[200], 0.2),
-        selected: `${alpha(gray[200], 0.3)}`,
-        ...(mode === 'dark' && {
-          hover: alpha(gray[600], 0.2),
-          selected: alpha(gray[600], 0.3),
-        }),
-      },
-    },
-    typography: {
-      fontFamily:
-        '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-      h1: {
-        fontSize: defaultTheme.typography.pxToRem(48),
-        fontWeight: 600,
-        lineHeight: 1.25,
-        letterSpacing: -0.02,
-      },
-      h2: {
-        fontSize: defaultTheme.typography.pxToRem(36),
-        fontWeight: 600,
-        lineHeight: 1.25,
-      },
-      h3: {
-        fontSize: defaultTheme.typography.pxToRem(30),
-        fontWeight: 600,
-        lineHeight: 1.25,
-      },
-      h4: {
-        fontSize: defaultTheme.typography.pxToRem(24),
-        fontWeight: 600,
-        lineHeight: 1.5,
-      },
-      h5: {
-        fontSize: defaultTheme.typography.pxToRem(20),
-        fontWeight: 600,
-        lineHeight: 1.5,
-      },
-      h6: {
-        fontSize: defaultTheme.typography.pxToRem(18),
-        fontWeight: 600,
-        lineHeight: 1.6,
-      },
-      subtitle1: {
-        fontSize: defaultTheme.typography.pxToRem(18),
-        lineHeight: 1.6,
-      },
-      subtitle2: {
-        fontSize: defaultTheme.typography.pxToRem(14),
-        fontWeight: 500,
-        lineHeight: 1.6,
-      },
-      body1: {
-        fontSize: defaultTheme.typography.pxToRem(16),
-        lineHeight: 1.6,
-      },
-      body2: {
-        fontSize: defaultTheme.typography.pxToRem(14),
-        fontWeight: 400,
-        lineHeight: 1.6,
-      },
-      caption: {
-        fontSize: defaultTheme.typography.pxToRem(12),
-        fontWeight: 400,
-        lineHeight: 1.5,
-      },
-      button: {
-        textTransform: 'none',
-        fontWeight: 500,
-      },
-    },
-    shape: {
-      borderRadius: 6,
-    },
-    shadows: customShadows,
-  };
-};
-
-export const colorSchemes = {
-  light: {
-    palette: {
-      primary: {
-        light: brand[300],
-        main: brand[700],
-        dark: brand[800],
-        contrastText: '#ffffff',
-      },
-      secondary: {
-        light: gray[300],
-        main: gray[500],
-        dark: gray[700],
-        contrastText: '#ffffff',
-      },
-      info: {
-        light: blue[300],
-        main: blue[500],
-        dark: blue[700],
-        contrastText: '#ffffff',
-      },
-      warning: {
-        light: orange[300],
-        main: orange[500],
-        dark: orange[700],
-        contrastText: '#ffffff',
-      },
-      error: {
-        light: red[300],
-        main: red[500],
-        dark: red[700],
-        contrastText: '#ffffff',
-      },
-      success: {
-        light: green[300],
-        main: green[500],
-        dark: green[700],
-        contrastText: '#ffffff',
-      },
-      grey: {
-        ...gray,
-      },
-      divider: alpha(gray[300], 0.4),
-      background: {
-        default: '#FBF7EF',
-        paper: '#ffffff',
-      },
-      text: {
-        primary: gray[800],
-        secondary: gray[600],
-      },
-      action: {
-        hover: alpha(gray[200], 0.2),
-        selected: `${alpha(gray[200], 0.3)}`,
-      },
-      baseShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
-    },
-  },
-  dark: {
-    palette: {
-      primary: {
-        light: brand[400],
-        main: brand[600],
-        dark: brand[700],
-        contrastText: '#ffffff',
-      },
-      secondary: {
-        light: gray[300],
-        main: gray[500],
-        dark: gray[700],
-        contrastText: '#ffffff',
-      },
-      info: {
-        light: blue[300],
-        main: blue[500],
-        dark: blue[700],
-        contrastText: '#ffffff',
-      },
-      warning: {
-        light: orange[300],
-        main: orange[500],
-        dark: orange[700],
-        contrastText: '#ffffff',
-      },
-      error: {
-        light: red[300],
-        main: red[500],
-        dark: red[700],
-        contrastText: '#ffffff',
-      },
-      success: {
-        light: green[300],
-        main: green[500],
-        dark: green[700],
-        contrastText: '#ffffff',
-      },
-      grey: {
-        ...gray,
-      },
-      divider: alpha(gray[700], 0.6),
-      background: {
-        default: gray[900],
-        paper: gray[800],
-      },
-      text: {
-        primary: '#f9fafb',
-        secondary: gray[400],
-      },
-      action: {
-        hover: alpha(gray[600], 0.2),
-        selected: alpha(gray[600], 0.3),
-      },
-      baseShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3)',
-    },
-  },
-};
+/**
+ * 界面字体「跟随系统」档的字体栈（第二十三轮收口为具名常量）。
+ *
+ * 这是全仓「UI 字体」的历史取值：新增「界面字体」设置项后，`system` 档必须逐字符等于这串，
+ * 否则升级当天所有人的界面字族会被静默换掉（本仓反复在清的那类「改 A 设置顺手改了 B」）。
+ * 消费方：本文件的默认读数 + theme/appearanceScales 的 UI_FONT_STACKS.system，
+ * 实际注入点 theme/AppTheme.tsx 按档位取后者。
+ */
+export const UI_FONT_STACK_SYSTEM =
+  '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 export const typography = {
-  fontFamily:
-    '-apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  fontFamily: UI_FONT_STACK_SYSTEM,
   h1: {
     fontSize: defaultTheme.typography.pxToRem(48),
     fontWeight: 600,
@@ -444,10 +193,6 @@ export const typography = {
     textTransform: 'none',
     fontWeight: 500,
   },
-};
-
-export const shape = {
-  borderRadius: 6,
 };
 
 const defaultShadows: Shadows = [

@@ -63,6 +63,7 @@ import { groupRefsBySymbol } from '../utils/symbolRefs';
 import type { ProjectSymbolRef, ChangeCoupling } from '../../services/tauri';
 import type { SceneComponent, LayerNode } from '../../types/editor';
 import { t, resolveFragments } from '../../i18n';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 const PANEL_WIDTH = 200;
 const PANEL_COLLAPSED_WIDTH = 40;
@@ -75,15 +76,15 @@ const PANEL_COLLAPSED_WIDTH = 40;
 const INSTANCE_ROW_H = 34;
 
 const SYMBOL_KIND_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  class: { label: 'class', color: '#EC4899', icon: <ViewModuleIcon sx={{ fontSize: 12 }} /> },
-  function: { label: 'function', color: '#06B6D4', icon: <FunctionsIcon sx={{ fontSize: 12 }} /> },
-  interface: { label: 'interface', color: '#8B5CF6', icon: <DataObjectIcon sx={{ fontSize: 12 }} /> },
-  struct: { label: 'struct', color: '#F59E0B', icon: <ViewModuleIcon sx={{ fontSize: 12 }} /> },
-  enum: { label: 'enum', color: '#10B981', icon: <DataObjectIcon sx={{ fontSize: 12 }} /> },
-  trait: { label: 'trait', color: '#14B8A6', icon: <DataObjectIcon sx={{ fontSize: 12 }} /> },
-  type_alias: { label: 'type_alias', color: '#94A3B8', icon: <DataObjectIcon sx={{ fontSize: 12 }} /> },
-  module: { label: 'module', color: '#6366F1', icon: <InventoryIcon sx={{ fontSize: 12 }} /> },
-  const: { label: 'const', color: '#64748B', icon: <DataObjectIcon sx={{ fontSize: 12 }} /> },
+  class: { label: 'class', color: '#EC4899', icon: <ViewModuleIcon sx={{ fontSize: uiFontSize(12) }} /> },
+  function: { label: 'function', color: '#06B6D4', icon: <FunctionsIcon sx={{ fontSize: uiFontSize(12) }} /> },
+  interface: { label: 'interface', color: '#8B5CF6', icon: <DataObjectIcon sx={{ fontSize: uiFontSize(12) }} /> },
+  struct: { label: 'struct', color: '#F59E0B', icon: <ViewModuleIcon sx={{ fontSize: uiFontSize(12) }} /> },
+  enum: { label: 'enum', color: '#10B981', icon: <DataObjectIcon sx={{ fontSize: uiFontSize(12) }} /> },
+  trait: { label: 'trait', color: '#14B8A6', icon: <DataObjectIcon sx={{ fontSize: uiFontSize(12) }} /> },
+  type_alias: { label: 'type_alias', color: '#94A3B8', icon: <DataObjectIcon sx={{ fontSize: uiFontSize(12) }} /> },
+  module: { label: 'module', color: '#6366F1', icon: <InventoryIcon sx={{ fontSize: uiFontSize(12) }} /> },
+  const: { label: 'const', color: '#64748B', icon: <DataObjectIcon sx={{ fontSize: uiFontSize(12) }} /> },
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -145,14 +146,14 @@ function GroupHeader({
       }}
     >
       <Box sx={{ color: color || 'text.secondary', display: 'flex', alignItems: 'center' }}>{icon}</Box>
-      <Typography variant="caption" sx={{ flex: 1, fontWeight: 600, fontSize: 11 }}>
+      <Typography variant="caption" sx={{ flex: 1, fontWeight: 600, fontSize: uiFontSize(11) }}>
         {label}
       </Typography>
-      <Chip label={count} size="small" sx={{ height: 15, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }} />
+      <Chip label={count} size="small" sx={{ height: 15, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }} />
       {open ? (
-        <ExpandLessIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+        <ExpandLessIcon sx={{ fontSize: uiFontSize(14), color: 'text.disabled' }} />
       ) : (
-        <ExpandMoreIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+        <ExpandMoreIcon sx={{ fontSize: uiFontSize(14), color: 'text.disabled' }} />
       )}
     </Box>
   );
@@ -207,7 +208,7 @@ function InstanceRow({
           variant="caption"
           sx={{
             display: 'block',
-            fontSize: 11,
+            fontSize: uiFontSize(11),
             fontWeight: 500,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -221,7 +222,7 @@ function InstanceRow({
             variant="caption"
             sx={{
               display: 'block',
-              fontSize: 9,
+              fontSize: uiFontSize(9),
               color: 'text.secondary',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -808,7 +809,7 @@ function EntityInstancesTab() {
           textAlign: 'center',
         }}
       >
-        <AccountTreeIcon sx={{ fontSize: 40, opacity: 0.3 }} />
+        <AccountTreeIcon sx={{ fontSize: uiFontSize(40), opacity: 0.3 }} />
         <Typography variant="body2" sx={{ fontWeight: 500 }}>
           {t('leftPanel.noInstances')}
         </Typography>
@@ -837,29 +838,29 @@ function EntityInstancesTab() {
         <Chip
           label={t('leftPanel.statModules', { n: modules.length })}
           size="small"
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
         />
         <Chip
           label={t('leftPanel.statFiles', { n: fileCount })}
           size="small"
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
         />
         <Chip
           label={t('leftPanel.statSymbols', { n: totalSymbols })}
           size="small"
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
         />
         <Chip
           label={t('leftPanel.statRefs', { n: totalRefs })}
           size="small"
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 }, bgcolor: 'action.selected' }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 }, bgcolor: 'action.selected' }}
           title={t('leftPanel.statRefsTip')}
         />
         <Chip
           label={t('leftPanel.statHighRisk', { n: highComplexity })}
           size="small"
           color={highComplexity > 0 ? 'warning' : 'default'}
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
           title={t('leftPanel.statHighRiskTip')}
         />
         <Chip
@@ -868,27 +869,27 @@ function EntityInstancesTab() {
           color={
             findings.some((f) => f.severity === 'critical') ? 'error' : findings.length > 0 ? 'warning' : 'default'
           }
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
         />
         <Chip
           label={t('leftPanel.statDead', { n: visibleDeadSymbols.length })}
           size="small"
           color={visibleDeadSymbols.length > 0 ? 'warning' : 'default'}
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
           title={t('leftPanel.statDeadTip')}
         />
         <Chip
           label={t('leftPanel.statClones', { n: cloneGroups.length })}
           size="small"
           color={totalWaste >= 300 ? 'error' : cloneGroups.length > 0 ? 'warning' : 'default'}
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
           title={t('leftPanel.statClonesTip', { n: totalWaste })}
         />
         <Chip
           label={t('leftPanel.statCoupling', { n: visibleCoupling.length })}
           size="small"
           color={hiddenCouplingCount > 0 ? 'warning' : visibleCoupling.length > 0 ? 'default' : 'default'}
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
           title={t('leftPanel.statCouplingTip', { hidden: hiddenCouplingCount, cross: crossModuleCount })}
         />
       </Box>
@@ -914,18 +915,21 @@ function EntityInstancesTab() {
             px: 0.75,
             height: 24,
             borderRadius: 0.75,
-            bgcolor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+            bgcolor: (t) =>
+              t.palette.mode === 'dark'
+                ? 'rgb(var(--template-palette-text-primaryChannel) / 0.06)'
+                : 'rgb(var(--template-palette-text-primaryChannel) / 0.04)',
             border: 1,
             borderColor: filtering ? 'primary.main' : 'transparent',
             transition: 'border-color 0.15s',
           }}
         >
-          <SearchIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
+          <SearchIcon sx={{ fontSize: uiFontSize(13), color: 'text.disabled' }} />
           <InputBase
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('leftPanel.searchPlaceholder')}
-            sx={{ flex: 1, fontSize: 11, '& input': { p: 0 } }}
+            sx={{ flex: 1, fontSize: uiFontSize(11), '& input': { p: 0 } }}
             inputProps={{ 'aria-label': t('leftPanel.searchAria') }}
           />
           {filtering && (
@@ -936,7 +940,7 @@ function EntityInstancesTab() {
               title={t('leftPanel.clearSearch')}
               aria-label={t('leftPanel.clearSearch')}
             >
-              <ClearIcon sx={{ fontSize: 12 }} />
+              <ClearIcon sx={{ fontSize: uiFontSize(12) }} />
             </IconButton>
           )}
         </Box>
@@ -949,7 +953,7 @@ function EntityInstancesTab() {
               sx={{ p: 0.25, borderRadius: 0.75 }}
               aria-label={t('leftPanel.highlightTip')}
             >
-              <HighlightAltIcon sx={{ fontSize: 15 }} />
+              <HighlightAltIcon sx={{ fontSize: uiFontSize(15) }} />
             </IconButton>
           </span>
         </Tooltip>
@@ -958,7 +962,7 @@ function EntityInstancesTab() {
       <Box sx={{ flex: 1, overflowY: 'auto', py: 0.5, '&::-webkit-scrollbar': { width: 4 } }}>
         {/* ─── 项目树组（替代原「模块」平铺组：任意层级目录树，可展开/收起/定位子目录）─── */}
         <GroupHeader
-          icon={<FolderIcon sx={{ fontSize: 13 }} />}
+          icon={<FolderIcon sx={{ fontSize: uiFontSize(13) }} />}
           label={t('leftPanel.groupTree')}
           count={t('leftPanel.treeCount', { dirs: treeCount.dirs, files: treeCount.files })}
           open={!!openGroups.tree}
@@ -968,7 +972,7 @@ function EntityInstancesTab() {
         <Collapse in={openGroups.tree} unmountOnExit>
           <Typography
             variant="caption"
-            sx={{ display: 'block', px: 1.5, pt: 0.25, fontSize: 9, color: 'text.disabled' }}
+            sx={{ display: 'block', px: 1.5, pt: 0.25, fontSize: uiFontSize(9), color: 'text.disabled' }}
           >
             {t('leftPanel.projectTreeHint')}
           </Typography>
@@ -982,7 +986,7 @@ function EntityInstancesTab() {
 
         {/* ─── 符号组（按类型） ─── */}
         <GroupHeader
-          icon={<CodeIcon sx={{ fontSize: 13 }} />}
+          icon={<CodeIcon sx={{ fontSize: uiFontSize(13) }} />}
           label={t('leftPanel.groupSymbols')}
           count={countLabel(shownSymbols.length, totalSymbols, filtering)}
           open={!!openGroups.symbols}
@@ -993,7 +997,7 @@ function EntityInstancesTab() {
           {symbolGroups.length === 0 && (
             <Typography
               variant="caption"
-              sx={{ display: 'block', px: 2, py: 0.5, fontSize: 10, color: 'text.disabled' }}
+              sx={{ display: 'block', px: 2, py: 0.5, fontSize: uiFontSize(10), color: 'text.disabled' }}
             >
               {filtering ? t('leftPanel.noMatchSymbols') : t('leftPanel.noSymbols')}
             </Typography>
@@ -1003,13 +1007,16 @@ function EntityInstancesTab() {
             const meta = SYMBOL_KIND_META[kind] ?? {
               label: kind,
               color: '#94A3B8',
-              icon: <DataObjectIcon sx={{ fontSize: 12 }} />,
+              icon: <DataObjectIcon sx={{ fontSize: uiFontSize(12) }} />,
             };
             return (
               <Box key={kind}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, py: 0.25 }}>
                   <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: meta.color, flexShrink: 0 }} />
-                  <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, color: 'text.secondary' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: uiFontSize(10), fontWeight: 600, color: 'text.secondary' }}
+                  >
                     {symbolKindLabel(meta.label)} {grp.total}
                     {grp.total > list.length ? t('leftPanel.showFirst', { n: list.length }) : ''}
                   </Typography>
@@ -1053,8 +1060,11 @@ function EntityInstancesTab() {
                               }}
                               title={t('leftPanel.unreferencedTip')}
                             >
-                              <BlockIcon sx={{ fontSize: 9 }} />
-                              <Typography variant="caption" sx={{ fontSize: 9, lineHeight: 1, fontWeight: 600 }}>
+                              <BlockIcon sx={{ fontSize: uiFontSize(9) }} />
+                              <Typography
+                                variant="caption"
+                                sx={{ fontSize: uiFontSize(9), lineHeight: 1, fontWeight: 600 }}
+                              >
                                 {t('leftPanel.unreferenced')}
                               </Typography>
                             </Box>
@@ -1073,8 +1083,11 @@ function EntityInstancesTab() {
                               }}
                               title={t('leftPanel.refTip', { n: refCount })}
                             >
-                              <CallMadeIcon sx={{ fontSize: 9 }} />
-                              <Typography variant="caption" sx={{ fontSize: 9, lineHeight: 1, fontWeight: 600 }}>
+                              <CallMadeIcon sx={{ fontSize: uiFontSize(9) }} />
+                              <Typography
+                                variant="caption"
+                                sx={{ fontSize: uiFontSize(9), lineHeight: 1, fontWeight: 600 }}
+                              >
                                 {refCount}
                               </Typography>
                             </Box>
@@ -1085,7 +1098,7 @@ function EntityInstancesTab() {
                       {isExpanded && (
                         <Box sx={{ pl: 3, pr: 1, pb: 0.5 }}>
                           {refCount === 0 && (
-                            <Typography variant="caption" sx={{ fontSize: 10, color: 'text.disabled' }}>
+                            <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>
                               {t('leftPanel.noRefPoints')}
                             </Typography>
                           )}
@@ -1093,7 +1106,7 @@ function EntityInstancesTab() {
                             <InstanceRow
                               key={`${r.fromFileId}-${r.refLine}-${idx}`}
                               onClick={() => handleRefClick(r)}
-                              icon={<CallMadeIcon sx={{ fontSize: 11 }} />}
+                              icon={<CallMadeIcon sx={{ fontSize: uiFontSize(11) }} />}
                               badgeColor="#10B981"
                               title={`${r.fromFilePath}:${r.refLine}`}
                               subtitle={
@@ -1106,7 +1119,10 @@ function EntityInstancesTab() {
                             />
                           ))}
                           {refCount > 20 && (
-                            <Typography variant="caption" sx={{ fontSize: 9, color: 'text.disabled', pl: 1 }}>
+                            <Typography
+                              variant="caption"
+                              sx={{ fontSize: uiFontSize(9), color: 'text.disabled', pl: 1 }}
+                            >
                               {t('leftPanel.moreRefs', { n: refCount - 20 })}
                             </Typography>
                           )}
@@ -1122,7 +1138,7 @@ function EntityInstancesTab() {
 
         {/* ─── 审查发现组 ─── */}
         <GroupHeader
-          icon={<RuleIcon sx={{ fontSize: 13 }} />}
+          icon={<RuleIcon sx={{ fontSize: uiFontSize(13) }} />}
           label={t('leftPanel.groupFindings')}
           count={countLabel(shownFindings.length, visibleFindings.length, filtering)}
           open={!!openGroups.findings}
@@ -1137,7 +1153,7 @@ function EntityInstancesTab() {
             empty={
               <Typography
                 variant="caption"
-                sx={{ display: 'block', px: 2, py: 0.5, fontSize: 10, color: 'text.disabled' }}
+                sx={{ display: 'block', px: 2, py: 0.5, fontSize: uiFontSize(10), color: 'text.disabled' }}
               >
                 {filtering ? t('leftPanel.noMatchFindings') : t('leftPanel.noFindings')}
               </Typography>
@@ -1166,7 +1182,7 @@ function EntityInstancesTab() {
 
         {/* ─── 技术债组（TODO/FIXME/HACK 等标记）─── */}
         <GroupHeader
-          icon={<BuildIcon sx={{ fontSize: 13 }} />}
+          icon={<BuildIcon sx={{ fontSize: uiFontSize(13) }} />}
           label={t('leftPanel.groupTechDebt')}
           count={countLabel(shownTechDebt.length, visibleTechDebt.length, filtering)}
           open={!!openGroups.techDebt}
@@ -1177,7 +1193,7 @@ function EntityInstancesTab() {
           {techDebtGroups.length === 0 && (
             <Typography
               variant="caption"
-              sx={{ display: 'block', px: 2, py: 0.5, fontSize: 10, color: 'text.disabled' }}
+              sx={{ display: 'block', px: 2, py: 0.5, fontSize: uiFontSize(10), color: 'text.disabled' }}
             >
               {filtering ? t('leftPanel.noMatchTechDebt') : t('leftPanel.noTechDebt')}
             </Typography>
@@ -1198,7 +1214,10 @@ function EntityInstancesTab() {
                       flexShrink: 0,
                     }}
                   />
-                  <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, color: 'text.secondary' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: uiFontSize(10), fontWeight: 600, color: 'text.secondary' }}
+                  >
                     {label}（{marker}）{grp.total}
                     {grp.total > list.length ? t('leftPanel.showFirst', { n: list.length }) : ''}
                   </Typography>
@@ -1213,7 +1232,7 @@ function EntityInstancesTab() {
                       <InstanceRow
                         height={INSTANCE_ROW_H}
                         onClick={() => handleTechDebtClick(d)}
-                        icon={<BuildIcon sx={{ fontSize: 11 }} />}
+                        icon={<BuildIcon sx={{ fontSize: uiFontSize(11) }} />}
                         badgeColor={SEVERITY_COLORS[d.severity] ?? '#94A3B8'}
                         title={`${fileBase}:${d.lineNo}`}
                         subtitle={d.snippet.length > 40 ? d.snippet.slice(0, 39) + '…' : d.snippet}
@@ -1228,7 +1247,7 @@ function EntityInstancesTab() {
 
         {/* ─── 死代码组（零引用符号，可对照「死代码画像」画布）─── */}
         <GroupHeader
-          icon={<BlockIcon sx={{ fontSize: 13 }} />}
+          icon={<BlockIcon sx={{ fontSize: uiFontSize(13) }} />}
           label={t('leftPanel.groupDead')}
           count={countLabel(shownDeadSymbols.length, visibleDeadSymbols.length, filtering)}
           open={!!openGroups.dead}
@@ -1243,7 +1262,7 @@ function EntityInstancesTab() {
             empty={
               <Typography
                 variant="caption"
-                sx={{ display: 'block', px: 2, py: 0.5, fontSize: 10, color: 'text.disabled' }}
+                sx={{ display: 'block', px: 2, py: 0.5, fontSize: uiFontSize(10), color: 'text.disabled' }}
               >
                 {filtering ? t('leftPanel.noMatchDead') : t('leftPanel.noDead')}
               </Typography>
@@ -1261,7 +1280,7 @@ function EntityInstancesTab() {
                 <InstanceRow
                   height={INSTANCE_ROW_H}
                   onClick={() => handleDeadClick(d)}
-                  icon={<BlockIcon sx={{ fontSize: 11 }} />}
+                  icon={<BlockIcon sx={{ fontSize: uiFontSize(11) }} />}
                   badgeColor={confColor}
                   title={d.name}
                   subtitle={`${fileBase}:${d.lineStart} · ${d.kind} · ${t('leftPanel.deadConfidence', { conf: confLabel })}`}
@@ -1273,7 +1292,7 @@ function EntityInstancesTab() {
 
         {/* ─── 重复代码组（克隆检测，可对照「重复代码画像」画布）─── */}
         <GroupHeader
-          icon={<ContentCopyIcon sx={{ fontSize: 13 }} />}
+          icon={<ContentCopyIcon sx={{ fontSize: uiFontSize(13) }} />}
           label={t('leftPanel.groupClones')}
           count={countLabel(shownClones.length, visibleClones.length, filtering)}
           open={!!openGroups.clones}
@@ -1284,7 +1303,7 @@ function EntityInstancesTab() {
           {visibleClones.length === 0 && (
             <Typography
               variant="caption"
-              sx={{ display: 'block', px: 2, py: 0.5, fontSize: 10, color: 'text.disabled' }}
+              sx={{ display: 'block', px: 2, py: 0.5, fontSize: uiFontSize(10), color: 'text.disabled' }}
             >
               {t('leftPanel.noClones')}
             </Typography>
@@ -1292,7 +1311,7 @@ function EntityInstancesTab() {
           {cloneGroups.length > 0 && (
             <Typography
               variant="caption"
-              sx={{ display: 'block', px: 2, pb: 0.25, fontSize: 9, color: 'text.disabled' }}
+              sx={{ display: 'block', px: 2, pb: 0.25, fontSize: uiFontSize(9), color: 'text.disabled' }}
             >
               {t('leftPanel.cloneWasteSummary', { n: totalWaste })}
             </Typography>
@@ -1306,7 +1325,10 @@ function EntityInstancesTab() {
               <Box key={gid}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, py: 0.25 }}>
                   <Box sx={{ width: 6, height: 6, borderRadius: 0.3, bgcolor: sevColor, flexShrink: 0 }} />
-                  <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, color: 'text.secondary' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: uiFontSize(10), fontWeight: 600, color: 'text.secondary' }}
+                  >
                     {t('leftPanel.cloneGroup', { n: list.length, lines, waste })}
                   </Typography>
                   {type2Count > 0 && (
@@ -1315,7 +1337,7 @@ function EntityInstancesTab() {
                       size="small"
                       sx={{
                         height: 13,
-                        fontSize: 8,
+                        fontSize: uiFontSize(8),
                         ml: 0.5,
                         bgcolor: '#8B5CF6',
                         color: '#fff',
@@ -1338,7 +1360,7 @@ function EntityInstancesTab() {
                       <InstanceRow
                         height={INSTANCE_ROW_H}
                         onClick={() => handleCloneClick(c, list)}
-                        icon={<ContentCopyIcon sx={{ fontSize: 11 }} />}
+                        icon={<ContentCopyIcon sx={{ fontSize: uiFontSize(11) }} />}
                         badgeColor={sevColor}
                         title={
                           c.cloneType === 'type2'
@@ -1360,7 +1382,7 @@ function EntityInstancesTab() {
 
         {/* ─── 变更耦合组（无静态依赖却总一起改 → 隐藏的跨模块架构耦合）─── */}
         <GroupHeader
-          icon={<LinkIcon sx={{ fontSize: 13 }} />}
+          icon={<LinkIcon sx={{ fontSize: uiFontSize(13) }} />}
           label={t('leftPanel.groupCoupling')}
           count={countLabel(shownCoupling.length, visibleCoupling.length, filtering)}
           open={!!openGroups.coupling}
@@ -1375,7 +1397,7 @@ function EntityInstancesTab() {
             empty={
               <Typography
                 variant="caption"
-                sx={{ display: 'block', px: 2, py: 0.5, fontSize: 10, color: 'text.disabled' }}
+                sx={{ display: 'block', px: 2, py: 0.5, fontSize: uiFontSize(10), color: 'text.disabled' }}
               >
                 {filtering ? t('leftPanel.noMatchCoupling') : t('leftPanel.noCoupling')}
               </Typography>
@@ -1398,12 +1420,12 @@ function EntityInstancesTab() {
                   height={INSTANCE_ROW_H}
                   key={c.id}
                   onClick={() => handleCouplingClick(c)}
-                  icon={<LinkIcon sx={{ fontSize: 11 }} />}
+                  icon={<LinkIcon sx={{ fontSize: uiFontSize(11) }} />}
                   badgeColor={riskColor}
                   title={
                     <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25 }}>
                       {aBase}
-                      <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>
+                      <Box component="span" sx={{ color: 'text.disabled', fontSize: uiFontSize(10) }}>
                         ⇄
                       </Box>
                       {bBase}
@@ -1426,7 +1448,7 @@ function EntityInstancesTab() {
                             borderRadius: '50%',
                             bgcolor: '#8B5CF6',
                             color: '#fff',
-                            fontSize: 8,
+                            fontSize: uiFontSize(8),
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
@@ -1449,7 +1471,7 @@ function EntityInstancesTab() {
 
         {/* ─── 实体类型（拖拽模板，保留原能力，默认折叠） ─── */}
         <GroupHeader
-          icon={<ExtensionIcon sx={{ fontSize: 13 }} />}
+          icon={<ExtensionIcon sx={{ fontSize: uiFontSize(13) }} />}
           label={t('leftPanel.groupTypes')}
           count={componentRegistry.getAll().length}
           open={!!openGroups.types}
@@ -1463,7 +1485,7 @@ function EntityInstancesTab() {
               type={d.type}
               name={d.name}
               description={d.description ?? ''}
-              icon={ICON_MAP[d.icon] ?? <DescriptionIcon sx={{ fontSize: 18 }} />}
+              icon={ICON_MAP[d.icon] ?? <DescriptionIcon sx={{ fontSize: uiFontSize(18) }} />}
             />
           ))}
         </Collapse>
@@ -1549,7 +1571,7 @@ function CanvasEntityTreeTab() {
           textAlign: 'center',
         }}
       >
-        <LayersIcon sx={{ fontSize: 40, opacity: 0.3 }} />
+        <LayersIcon sx={{ fontSize: uiFontSize(40), opacity: 0.3 }} />
         <Typography variant="body2" sx={{ fontWeight: 500 }}>
           {t('leftPanel.treeEmpty')}
         </Typography>
@@ -1566,12 +1588,12 @@ function CanvasEntityTreeTab() {
         <Chip
           label={t('leftPanel.statEntities', { n: components.length })}
           size="small"
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
         />
         <Chip
           label={t('leftPanel.statLayers', { n: layers.length })}
           size="small"
-          sx={{ height: 16, fontSize: 9, '& .MuiChip-label': { px: 0.5 } }}
+          sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.5 } }}
         />
       </Box>
       {groups.map(({ layer, items }) => {
@@ -1600,18 +1622,18 @@ function CanvasEntityTreeTab() {
               <Box
                 sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: layer.color || '#94A3B8', flexShrink: 0 }}
               />
-              <Typography variant="caption" sx={{ flex: 1, fontWeight: 600, fontSize: 11 }}>
+              <Typography variant="caption" sx={{ flex: 1, fontWeight: 600, fontSize: uiFontSize(11) }}>
                 {resolveFragments(layer.name)}
               </Typography>
               <Chip
                 label={items.length}
                 size="small"
-                sx={{ height: 14, fontSize: 8, '& .MuiChip-label': { px: 0.5 } }}
+                sx={{ height: 14, fontSize: uiFontSize(8), '& .MuiChip-label': { px: 0.5 } }}
               />
               {open ? (
-                <ExpandLessIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                <ExpandLessIcon sx={{ fontSize: uiFontSize(14), color: 'text.disabled' }} />
               ) : (
-                <ExpandMoreIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                <ExpandMoreIcon sx={{ fontSize: uiFontSize(14), color: 'text.disabled' }} />
               )}
             </Box>
             {open &&
@@ -1623,7 +1645,12 @@ function CanvasEntityTreeTab() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pl: 1.5, py: 0.2 }}>
                       <Typography
                         variant="caption"
-                        sx={{ fontSize: 9, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase' }}
+                        sx={{
+                          fontSize: uiFontSize(9),
+                          fontWeight: 600,
+                          color: 'text.secondary',
+                          textTransform: 'uppercase',
+                        }}
                       >
                         {resolveFragments(def?.name ?? type)} {list.length}
                       </Typography>
@@ -1634,7 +1661,7 @@ function CanvasEntityTreeTab() {
                         <InstanceRow
                           key={c.id}
                           onClick={() => handleEntityClick(c.id)}
-                          icon={ICON_MAP[iconName] ?? <DescriptionIcon sx={{ fontSize: 11 }} />}
+                          icon={ICON_MAP[iconName] ?? <DescriptionIcon sx={{ fontSize: uiFontSize(11) }} />}
                           badgeColor={!c.visible ? '#94A3B8' : isSel ? '#6366F1' : undefined}
                           title={resolveFragments(c.name) || c.type}
                           subtitle={
@@ -1656,18 +1683,18 @@ function CanvasEntityTreeTab() {
 }
 
 const ICON_MAP: Record<string, React.ReactNode> = {
-  description: <DescriptionIcon sx={{ fontSize: 18 }} />,
-  folder: <FolderIcon sx={{ fontSize: 18 }} />,
-  inventory_2: <InventoryIcon sx={{ fontSize: 18 }} />,
-  link: <LinkIcon sx={{ fontSize: 18 }} />,
-  layers: <LayersIcon sx={{ fontSize: 18 }} />,
-  text_fields: <TextFieldsIcon sx={{ fontSize: 18 }} />,
-  code: <CodeIcon sx={{ fontSize: 18 }} />,
+  description: <DescriptionIcon sx={{ fontSize: uiFontSize(18) }} />,
+  folder: <FolderIcon sx={{ fontSize: uiFontSize(18) }} />,
+  inventory_2: <InventoryIcon sx={{ fontSize: uiFontSize(18) }} />,
+  link: <LinkIcon sx={{ fontSize: uiFontSize(18) }} />,
+  layers: <LayersIcon sx={{ fontSize: uiFontSize(18) }} />,
+  text_fields: <TextFieldsIcon sx={{ fontSize: uiFontSize(18) }} />,
+  code: <CodeIcon sx={{ fontSize: uiFontSize(18) }} />,
   // 写作实体图标（writing-analyzer manifest：章节/人物/世界观/大纲）
-  menu_book: <MenuBookIcon sx={{ fontSize: 18 }} />,
-  person: <PersonIcon sx={{ fontSize: 18 }} />,
-  public: <PublicIcon sx={{ fontSize: 18 }} />,
-  account_tree: <AccountTreeIcon sx={{ fontSize: 18 }} />,
+  menu_book: <MenuBookIcon sx={{ fontSize: uiFontSize(18) }} />,
+  person: <PersonIcon sx={{ fontSize: uiFontSize(18) }} />,
+  public: <PublicIcon sx={{ fontSize: uiFontSize(18) }} />,
+  account_tree: <AccountTreeIcon sx={{ fontSize: uiFontSize(18) }} />,
 };
 
 interface EntityItemProps {
@@ -1694,7 +1721,7 @@ function EntityItem({ type, name, description, icon }: EntityItemProps) {
         cursor: 'grab',
         userSelect: 'none',
         '&:hover': {
-          backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'),
+          backgroundColor: 'rgb(var(--template-palette-text-primaryChannel) / 0.04)',
         },
         '&:active': {
           cursor: 'grabbing',
@@ -1711,19 +1738,22 @@ function EntityItem({ type, name, description, icon }: EntityItemProps) {
           flexShrink: 0,
           borderRadius: 1,
           color: 'primary.main',
-          backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)'),
+          backgroundColor: (t) =>
+            t.palette.mode === 'dark'
+              ? 'rgb(var(--template-palette-primary-mainChannel) / 0.15)'
+              : 'rgb(var(--template-palette-primary-mainChannel) / 0.08)',
         }}
       >
         {icon}
       </Box>
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: 12, lineHeight: 1.3 }}>
+        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: uiFontSize(12), lineHeight: 1.3 }}>
           {resolveFragments(name)}
         </Typography>
         <Typography
           variant="caption"
           color="text.secondary"
-          sx={{ display: 'block', fontSize: 10, lineHeight: 1.4, mt: 0.25 }}
+          sx={{ display: 'block', fontSize: uiFontSize(10), lineHeight: 1.4, mt: 0.25 }}
         >
           {resolveFragments(description)}
         </Typography>
@@ -1806,7 +1836,10 @@ export function ComponentCenterPanel({
           pt: 1,
           borderRight: 1,
           borderColor: 'divider',
-          backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(18, 18, 24, 0.6)' : 'rgba(250, 250, 252, 0.8)'),
+          backgroundColor: (t) =>
+            t.palette.mode === 'dark'
+              ? 'rgb(var(--template-palette-background-paperChannel) / 0.6)'
+              : 'rgb(var(--template-palette-background-paperChannel) / 0.8)',
           transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
@@ -1819,12 +1852,15 @@ export function ComponentCenterPanel({
               height: 28,
               borderRadius: 1,
               '&:hover': {
-                backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'),
+                backgroundColor: (t) =>
+                  t.palette.mode === 'dark'
+                    ? 'rgb(var(--template-palette-text-primaryChannel) / 0.08)'
+                    : 'rgb(var(--template-palette-text-primaryChannel) / 0.06)',
               },
             }}
             aria-label={t('leftPanel.expand')}
           >
-            <ChevronRightIcon sx={{ fontSize: 16 }} />
+            <ChevronRightIcon sx={{ fontSize: uiFontSize(16) }} />
           </IconButton>
         </Tooltip>
       </Box>
@@ -1840,7 +1876,10 @@ export function ComponentCenterPanel({
         flexDirection: 'column',
         borderRight: 1,
         borderColor: 'divider',
-        backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(18, 18, 24, 0.6)' : 'rgba(250, 250, 252, 0.8)'),
+        backgroundColor: (t) =>
+          t.palette.mode === 'dark'
+            ? 'rgb(var(--template-palette-background-paperChannel) / 0.6)'
+            : 'rgb(var(--template-palette-background-paperChannel) / 0.8)',
         minHeight: 0,
         position: 'relative',
         // 拖宽中关掉 width 过渡：0.2s 动画叠在鼠标逐帧改宽上会让面板「拖后」半拍
@@ -1858,26 +1897,30 @@ export function ComponentCenterPanel({
         <Tab
           label={t(isBookScene ? 'leftPanel.tabElements' : 'leftPanel.tabEntities')}
           value="entities"
-          sx={{ minHeight: 36, fontSize: 12, py: 0.5 }}
+          sx={{ minHeight: 36, fontSize: uiFontSize(12), py: 0.5 }}
         />
         {!isBookScene && (
-          <Tab label={t('leftPanel.tabFiles')} value="files" sx={{ minHeight: 36, fontSize: 12, py: 0.5 }} />
+          <Tab
+            label={t('leftPanel.tabFiles')}
+            value="files"
+            sx={{ minHeight: 36, fontSize: uiFontSize(12), py: 0.5 }}
+          />
         )}
         {/* 目录树：书场景解禁（画布工作区的元素定位入口），代码场景原样 */}
         <Tab
           label={t(isBookScene ? 'leftPanel.tabDirectory' : 'leftPanel.tabTree')}
           value="tree"
-          sx={{ minHeight: 36, fontSize: 12, py: 0.5 }}
+          sx={{ minHeight: 36, fontSize: uiFontSize(12), py: 0.5 }}
         />
         {/* plugins Tab 已随代码分析收口整体移除：唯一分析器是 writing-analyzer，
             「多语言插件切换 + 语言聚焦」体系无切换对象，留着只剩误导。 */}
         {!isBookScene && (
           <Tab
-            icon={<LayersIcon sx={{ fontSize: 13 }} />}
+            icon={<LayersIcon sx={{ fontSize: uiFontSize(13) }} />}
             iconPosition="start"
             label={t('leftPanel.tabLayers')}
             value="layers"
-            sx={{ minHeight: 36, fontSize: 12, py: 0.5 }}
+            sx={{ minHeight: 36, fontSize: uiFontSize(12), py: 0.5 }}
           />
         )}
       </Tabs>
@@ -1911,12 +1954,15 @@ export function ComponentCenterPanel({
             transition: 'opacity 0.2s, background-color 0.2s',
             '&:hover': {
               opacity: 1,
-              backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'),
+              backgroundColor: (t) =>
+                t.palette.mode === 'dark'
+                  ? 'rgb(var(--template-palette-text-primaryChannel) / 0.12)'
+                  : 'rgb(var(--template-palette-text-primaryChannel) / 0.08)',
             },
           }}
           aria-label={t('leftPanel.collapse')}
         >
-          <ChevronLeftIcon sx={{ fontSize: 12 }} />
+          <ChevronLeftIcon sx={{ fontSize: uiFontSize(12) }} />
         </IconButton>
       </Tooltip>
     </Box>

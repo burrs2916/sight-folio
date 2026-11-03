@@ -26,6 +26,12 @@ import PhotoRoundedIcon from '@mui/icons-material/PhotoRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useWritingStore } from '../../store/writingStore';
 import { useAssetPickerStore } from '../../store/assetPickerStore';
+// 正文排版通道（第二十六轮）：字号 / 行高 / 段距 / 字族 / 缩进 / 页宽 / 纸色
+import { useBodyTypographyCssVars } from '../../hooks/useBodyTypography';
+// 自动保存节奏（第二十五轮）：与正文编辑器同一档位，档位 → 毫秒只在 store 一处定义
+import { useWritingPrefsStore, saveDebounceMs, shouldCenterCaret } from '../../store/writingPrefsStore';
+// 打字机滚动（第二十七轮接通本消费点）：档位判定与居中算法都与写作台同一份，不是第二条实现
+import { centerCaretInViewport } from '../../utils/typewriterScroll';
 import { logger } from '../../utils/logger';
 import { openWritingDesk } from '../../utils/writingDeskWindow';
 import { resolveFragments, t } from '../../i18n';
@@ -48,7 +54,9 @@ import {
   resolveAssetRefSrc,
 } from '../extensions/writingImage';
 
-export const SAVE_DEBOUNCE_MS = 800;
+// 自动保存的防抖窗口不再是本文件的常量（第二十五轮接通「设置 → 写作偏好 → 自动保存节奏」）：
+// 此前这里另写一份 800ms，画布内的章节编辑器永远停在标准档，抽屉里改成「快 / 稳健」都不生效。
+// 档位 → 毫秒的换算只在 store/writingPrefsStore 一处，消费点现取当前档位。
 export const COLOR_CHAPTER = '#8b5cf6';
 
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved';
@@ -148,6 +156,10 @@ export function WritingChapterEditor({
   const filePath = typeof config.filePath === 'string' ? config.filePath : '';
   const bookId = filePath.match(/^writing:\/\/([^/]+)\//)?.[1] ?? '';
 
+  // 正文排版通道（第二十六轮）：抽屉「正文默认排版」/ 书级排版要真的作用到画布里的正文，
+  // 而不只是作用在写作台。换算只在 utils/typography 一处，这里只负责订阅与注入。
+  const bodyTypographyVars = useBodyTypographyCssVars(bookId || null);
+
   const books = useWritingStore((s) => s.books);
   const chapters = useWritingStore((s) => s.chapters);
   const book = books.find((b) => b.id === bookId) ?? null;
@@ -210,7 +222,7 @@ export function WritingChapterEditor({
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => {
         void flushSave();
-      }, SAVE_DEBOUNCE_MS);
+      }, saveDebounceMs(useWritingPrefsStore.getState().config.saveCadence));
     },
     [flushSave, setSaveState, readOnly],
   );
@@ -235,6 +247,19 @@ export function WritingChapterEditor({
       const id = chapterIdRef.current;
       if (!id) return;
       scheduleSave(id, ed.getHTML(), countWords(ed));
+    },
+    // 打字机滚动（第二十七轮补消费点）：这一域的档位第 25 轮就有了，但只有写作台读它，
+    // 画布里的纸面卡 / 容器页签压根没有 onSelectionUpdate —— 「打字机滚动=总是」在画布
+    // 选了完全没反应。现接同一份判定 + 同一份居中算法：
+    //  · 档位**现取**（tiptap 回调闭包会冻住旧值，见第 25 轮 saveDebounceMs 的同类教训）；
+    //  · 只读审阅不滚：画布正文默认是设计/审阅态，没有「一直在打字」这件事，
+    //    点一下就把内容跳到中部纯属打扰。
+    onSelectionUpdate: ({ editor: ed }) => {
+      if (!ed.isEditable) return;
+      const prefs = useWritingPrefsStore.getState().config;
+      if (!shouldCenterCaret(prefs.typewriterScroll, prefs.focusMode)) return;
+      // 不传 scrollEl：画布这边滚动容器就是 ProseMirror 自己（canvasEntity.css 的 overflow-y）
+      centerCaretInViewport(ed);
     },
   });
 
@@ -378,13 +403,17 @@ export function WritingChapterEditor({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflow: 'hidden',
-          cursor: readOnly ? 'default' : 'text',
-          position: 'relative',
-        }}
+        style={
+          {
+            flex: 1,
+            minHeight: 0,
+            overflow: 'hidden',
+            cursor: readOnly ? 'default' : 'text',
+            position: 'relative',
+            // 排版档位经 CSS 变量交给 canvasEntity.css 的 .ps-workbench 规则（画布零 Emotion 约定）
+            ...bodyTypographyVars,
+          } as React.CSSProperties
+        }
       >
         <EditorContent editor={editor} />
         {/* 空章占位（2026-09-19）：只读 + 零字数时给引导——这一章还没写，去写作台开写。
@@ -421,8 +450,19 @@ export function WritingChapterEditor({
             >
               ✎
             </div>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: '#64748b' }}>{t('writing.emptyChapterTitle')}</div>
-            <div style={{ fontSize: 11.5, color: '#94a3b8', maxWidth: 300, lineHeight: 1.7 }}>
+            {/* T5：纸面卡底随主题（CV.paper = --template-palette-background-paper），
+                故空态标题/说明随主题取色；紫色虚线方块是「写作」语义强调，固定不变。 */}
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--template-palette-text-secondary, #64748b)' }}>
+              {t('writing.emptyChapterTitle')}
+            </div>
+            <div
+              style={{
+                fontSize: 11.5,
+                color: 'var(--template-palette-text-disabled, #94a3b8)',
+                maxWidth: 300,
+                lineHeight: 1.7,
+              }}
+            >
               {t('writing.emptyChapterDesc')}
             </div>
           </div>
@@ -613,7 +653,15 @@ export function WritingChapterEditor({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
-        style={{ flex: 1, minHeight: 0, overflow: 'hidden', cursor: 'text' }}
+        style={
+          {
+            flex: 1,
+            minHeight: 0,
+            overflow: 'hidden',
+            cursor: 'text',
+            ...bodyTypographyVars,
+          } as React.CSSProperties
+        }
       >
         <EditorContent editor={editor} />
       </div>

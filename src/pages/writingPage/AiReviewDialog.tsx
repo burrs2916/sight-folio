@@ -16,6 +16,7 @@ import {
 import type { AiAnalysisPreset } from '../../ai/contextTypes';
 import { pickLang, t } from '../../i18n';
 import type { AiAgent } from '../../services/agent';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface AiReviewDialogProps {
   open: boolean;
@@ -58,10 +59,10 @@ export function AiReviewDialog({
 }: AiReviewDialogProps) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontSize: 15 }}>{t('writing.aiReview')}</DialogTitle>
+      <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{t('writing.aiReview')}</DialogTitle>
       <DialogContent>
         <FormControl fullWidth sx={{ mt: 1 }}>
-          <FormLabel sx={{ fontSize: 13 }}>{t('writing.aiPreset')}</FormLabel>
+          <FormLabel sx={{ fontSize: uiFontSize(13) }}>{t('writing.aiPreset')}</FormLabel>
           <RadioGroup value={presetKey} onChange={(e) => onPresetChange(e.target.value)}>
             {/* 发射中锁定：与内联 AI 同一口径——本次发射用的是发起时的预设，
                 中途改选只会让 UI 与实际派发的任务错位。 */}
@@ -72,8 +73,10 @@ export function AiReviewDialog({
                 control={<Radio size="small" disabled={launching} />}
                 label={
                   <Box>
-                    <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{pickLang(p.title)}</Typography>
-                    <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>{pickLang(p.description)}</Typography>
+                    <Typography sx={{ fontSize: uiFontSize(13.5), fontWeight: 600 }}>{pickLang(p.title)}</Typography>
+                    <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary' }}>
+                      {pickLang(p.description)}
+                    </Typography>
                   </Box>
                 }
               />
@@ -81,10 +84,12 @@ export function AiReviewDialog({
           </RadioGroup>
         </FormControl>
         <FormControl fullWidth sx={{ mt: 1.5 }}>
-          <FormLabel sx={{ fontSize: 13 }}>{t('writing.aiAgent')}</FormLabel>
+          <FormLabel sx={{ fontSize: uiFontSize(13) }}>{t('writing.aiAgent')}</FormLabel>
           {agents.length === 0 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-              <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t('writing.aiNoAgent')}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
+                {t('writing.aiNoAgent')}
+              </Typography>
               <Button size="small" variant="outlined" onClick={onGoSettings}>
                 {t('writing.aiGoConfigure')}
               </Button>
@@ -96,7 +101,7 @@ export function AiReviewDialog({
                   key={agent.id}
                   value={agent.id}
                   control={<Radio size="small" disabled={launching} />}
-                  label={<Typography sx={{ fontSize: 13.5 }}>{agent.name}</Typography>}
+                  label={<Typography sx={{ fontSize: uiFontSize(13.5) }}>{agent.name}</Typography>}
                 />
               ))}
             </RadioGroup>

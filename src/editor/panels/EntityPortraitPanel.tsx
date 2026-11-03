@@ -1,46 +1,56 @@
 // sight-folio: 实体画像卡
 // 对选中实体进行详细介绍与解释，让用户理解实体的作用。
 // 画像全部数据驱动：依赖关系图为 SVG 动态渲染，架构分层条随 layers 配置动态生成。
-import { Fragment, useEffect, useMemo, useState } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
-import Collapse from "@mui/material/Collapse";
-import Tabs from "@mui/material/Tabs";
-import Tab from "@mui/material/Tab";
-import Button from "@mui/material/Button";
-import LinkIcon from "@mui/icons-material/Link";
-import AccountTreeIcon from "@mui/icons-material/AccountTree";
-import LayersIcon from "@mui/icons-material/Layers";
-import RuleIcon from "@mui/icons-material/Rule";
-import CallSplitIcon from "@mui/icons-material/CallSplit";
-import SubdirectoryArrowRightIcon from "@mui/icons-material/SubdirectoryArrowRight";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import CodeIcon from "@mui/icons-material/Code";
-import ImageIcon from "@mui/icons-material/Image";
-import OpenInFullIcon from "@mui/icons-material/OpenInFull";
-import FontDownloadIcon from "@mui/icons-material/FontDownload";
-import MovieIcon from "@mui/icons-material/Movie";
-import AutoAwesomeMosaicIcon from "@mui/icons-material/AutoAwesomeMosaic";
-import ArchiveIcon from "@mui/icons-material/Archive";
-import DescriptionIcon from "@mui/icons-material/Description";
-import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
-import GridViewIcon from "@mui/icons-material/GridView";
-import CoronavirusIcon from "@mui/icons-material/Coronavirus";
-import { useProjectStore } from "../../store/projectStore";
-import { useToastStore } from "../../store/toastStore";
-import { useEditorStore } from "../../store/editorStore";
-import type { ProjectFile } from "../../services/tauri";
-import { EntityRendererPreview } from "../components/EntityRendererPreview";
-import { navigateToSource, navigateToSourceByPath, readLineFromMetadata } from "../utils/sourceNavigate";
-import { openDirectorySubtree, runImpactPortraitFor } from "../utils/portraits";
-import { useSceneStore } from "../../store/sceneStore";
-import { assetFormatLabel, assetKindOf, type AssetKind } from "../utils/fileKind";
-import { t, resolveFragments } from "../../i18n";
-import { languageColor } from "../../utils/languageMeta";
-import { PATTERN_CATEGORY_COLORS, PATTERN_CATEGORY_LABEL_KEY, patternLabel, QUADRANT_META, QUADRANT_HINT, QUADRANT_HINT_RISK, QUADRANT_HINT_DUP, QUADRANT_HINT_SIZE, type RiskQuadrant } from "../utils/fileInsights";
-import { triggerDiagnosis } from "../../ai/triggerDiagnosis";
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
+import Paper from '@mui/material/Paper';
+import Collapse from '@mui/material/Collapse';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Button from '@mui/material/Button';
+import LinkIcon from '@mui/icons-material/Link';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import LayersIcon from '@mui/icons-material/Layers';
+import RuleIcon from '@mui/icons-material/Rule';
+import CallSplitIcon from '@mui/icons-material/CallSplit';
+import SubdirectoryArrowRightIcon from '@mui/icons-material/SubdirectoryArrowRight';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import CodeIcon from '@mui/icons-material/Code';
+import ImageIcon from '@mui/icons-material/Image';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
+import FontDownloadIcon from '@mui/icons-material/FontDownload';
+import MovieIcon from '@mui/icons-material/Movie';
+import AutoAwesomeMosaicIcon from '@mui/icons-material/AutoAwesomeMosaic';
+import ArchiveIcon from '@mui/icons-material/Archive';
+import DescriptionIcon from '@mui/icons-material/Description';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import GridViewIcon from '@mui/icons-material/GridView';
+import CoronavirusIcon from '@mui/icons-material/Coronavirus';
+import { useProjectStore } from '../../store/projectStore';
+import { useToastStore } from '../../store/toastStore';
+import { useEditorStore } from '../../store/editorStore';
+import type { ProjectFile } from '../../services/tauri';
+import { EntityRendererPreview } from '../components/EntityRendererPreview';
+import { navigateToSource, navigateToSourceByPath, readLineFromMetadata } from '../utils/sourceNavigate';
+import { openDirectorySubtree, runImpactPortraitFor } from '../utils/portraits';
+import { useSceneStore } from '../../store/sceneStore';
+import { assetFormatLabel, assetKindOf, type AssetKind } from '../utils/fileKind';
+import { t, resolveFragments } from '../../i18n';
+import { languageColor } from '../../utils/languageMeta';
+import {
+  PATTERN_CATEGORY_COLORS,
+  PATTERN_CATEGORY_LABEL_KEY,
+  patternLabel,
+  QUADRANT_META,
+  QUADRANT_HINT,
+  QUADRANT_HINT_RISK,
+  QUADRANT_HINT_DUP,
+  QUADRANT_HINT_SIZE,
+  type RiskQuadrant,
+} from '../utils/fileInsights';
+import { triggerDiagnosis } from '../../ai/triggerDiagnosis';
 import {
   buildImagePreviewData,
   formatImageSize,
@@ -49,49 +59,51 @@ import {
   formatDimensions,
   useAssetImage,
   type ImageDimensions,
-  useProjectRoot} from "../utils/imageAsset";
+  useProjectRoot,
+} from '../utils/imageAsset';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 const TYPE_LABELS: Record<string, string> = {
-  file: "file",
-  image: "image",
-  asset: "asset",
-  folder: "folder",
-  module: "module",
-  class: "class",
-  function: "function",
-  interface: "interface",
-  "dependency-edge": "dependencyEdge",
-  "layer-marker": "layerMarker",
-  "annotation-text": "annotationText",
-  "code-preview": "codePreview",
+  file: 'file',
+  image: 'image',
+  asset: 'asset',
+  folder: 'folder',
+  module: 'module',
+  class: 'class',
+  function: 'function',
+  interface: 'interface',
+  'dependency-edge': 'dependencyEdge',
+  'layer-marker': 'layerMarker',
+  'annotation-text': 'annotationText',
+  'code-preview': 'codePreview',
 };
 /** 实体类型名（跟随 UI 语言；未知回退原始 type） */
 function typeLabel(type: string): string {
   const key = TYPE_LABELS[type] ?? type;
   if (TYPE_LABELS[type] === undefined) return type;
   const v = t(`portrait.type.${key}`);
-  return v && !v.startsWith("portrait.type.") ? v : type;
+  return v && !v.startsWith('portrait.type.') ? v : type;
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: "#E24B4A",
-  warning: "#EF9F27",
-  info: "#378ADD",
+  critical: '#E24B4A',
+  warning: '#EF9F27',
+  info: '#378ADD',
 };
 
 function strVal(v: unknown): string {
-  if (typeof v === "string") return v;
-  if (typeof v === "number") return String(v);
-  return "";
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number') return String(v);
+  return '';
 }
 
 /** 复杂度/热度等级 → i18n 文本 */
 function levelText(lv: string): string {
   const map: Record<string, string> = {
-    low: "portrait.metric.levelLow",
-    medium: "portrait.metric.levelMedium",
-    high: "portrait.metric.levelHigh",
-    extreme: "portrait.metric.levelExtreme",
+    low: 'portrait.metric.levelLow',
+    medium: 'portrait.metric.levelMedium',
+    high: 'portrait.metric.levelHigh',
+    extreme: 'portrait.metric.levelExtreme',
   };
   const k = map[lv];
   return k ? t(k) : lv;
@@ -101,54 +113,59 @@ function levelText(lv: string): string {
 function buildMetricRows(cfg: Record<string, unknown>): [string, string][] {
   const rows: [string, string][] = [];
   const push = (labelKey: string, val: unknown, suffix?: string) => {
-    if (val === undefined || val === null || val === "") return;
-    if (typeof val === "number" && (Number.isNaN(val) || val === 0)) return;
-    rows.push([t(labelKey), strVal(val) + (suffix ?? "")]);
+    if (val === undefined || val === null || val === '') return;
+    if (typeof val === 'number' && (Number.isNaN(val) || val === 0)) return;
+    rows.push([t(labelKey), strVal(val) + (suffix ?? '')]);
   };
-  push("portrait.metric.symbolCount", cfg.symbolCount);
+  push('portrait.metric.symbolCount', cfg.symbolCount);
   if (cfg.patternNames) {
     const pn = cfg.patternNames;
-    const s = Array.isArray(pn) ? pn.join("、") : strVal(pn);
-    if (s) rows.push([t("portrait.metric.patternNames"), s]);
+    const s = Array.isArray(pn) ? pn.join('、') : strVal(pn);
+    if (s) rows.push([t('portrait.metric.patternNames'), s]);
   }
-  push("portrait.metric.refCount", cfg.refCount);
+  push('portrait.metric.refCount', cfg.refCount);
   if (cfg.complexity != null && cfg.complexity !== 0) {
     const lv = strVal(cfg.complexityLevel);
-    rows.push([t("portrait.metric.complexity"), strVal(cfg.complexity) + (lv ? `（${levelText(lv)}）` : "")]);
+    rows.push([t('portrait.metric.complexity'), strVal(cfg.complexity) + (lv ? `（${levelText(lv)}）` : '')]);
   }
   if (cfg.complexityEngine) {
     const e = strVal(cfg.complexityEngine);
-    rows.push([t("portrait.metric.engine"), e === "ast" ? t("portrait.metric.engineAst") : e === "heuristic" ? t("portrait.metric.engineHeuristic") : e]);
+    rows.push([
+      t('portrait.metric.engine'),
+      e === 'ast' ? t('portrait.metric.engineAst') : e === 'heuristic' ? t('portrait.metric.engineHeuristic') : e,
+    ]);
   }
-  push("portrait.metric.syntaxError", cfg.syntaxErrorCount);
-  push("portrait.metric.techDebt", cfg.techDebtCount);
+  push('portrait.metric.syntaxError', cfg.syntaxErrorCount);
+  push('portrait.metric.techDebt', cfg.techDebtCount);
   if (cfg.churnScore != null && cfg.churnScore !== 0) {
     const lv = strVal(cfg.churnLevel);
-    rows.push([t("portrait.metric.churn"), strVal(cfg.churnScore) + (lv ? `（${levelText(lv)}）` : "")]);
+    rows.push([t('portrait.metric.churn'), strVal(cfg.churnScore) + (lv ? `（${levelText(lv)}）` : '')]);
   }
-  push("portrait.metric.commit", cfg.commitCount);
-  push("portrait.metric.author", cfg.authorCount);
-  push("portrait.metric.callIn", cfg.callIn);
-  push("portrait.metric.callOut", cfg.callOut);
-  push("portrait.metric.dead", cfg.deadCount);
+  push('portrait.metric.commit', cfg.commitCount);
+  push('portrait.metric.author', cfg.authorCount);
+  push('portrait.metric.callIn', cfg.callIn);
+  push('portrait.metric.callOut', cfg.callOut);
+  push('portrait.metric.dead', cfg.deadCount);
   return rows;
 }
 
-/** 依赖边类型 → 配色（与图例一致） */
+/** 依赖边类型 → 配色（与图例一致）
+ *  T5 归属裁决：这是**固定图谱调色板**（自绘 SVG 图谱，卡片自带浅底 + 深字，与画布
+ *  渲染器 / 图表同族），表达「这条边是什么类型」，不随主题皮肤联动，故保留字面量。 */
 const DEP_COLORS: Record<string, { stroke: string; fill: string; border: string }> = {
-  import: { stroke: "#60A5FA", fill: "#B5D4F4", border: "#185FA5" },
-  extends: { stroke: "#A78BFA", fill: "#DDD6FE", border: "#6D28D9" },
-  implements: { stroke: "#34D399", fill: "#A7F3D0", border: "#047857" },
-  calls: { stroke: "#F59E0B", fill: "#FDE68A", border: "#B45309" },
+  import: { stroke: '#60A5FA', fill: '#B5D4F4', border: '#185FA5' },
+  extends: { stroke: '#A78BFA', fill: '#DDD6FE', border: '#6D28D9' },
+  implements: { stroke: '#34D399', fill: '#A7F3D0', border: '#047857' },
+  calls: { stroke: '#F59E0B', fill: '#FDE68A', border: '#B45309' },
 };
-const DEFAULT_DEP = { stroke: "#888780", fill: "#D1D5DB", border: "#6B7280" };
+const DEFAULT_DEP = { stroke: '#888780', fill: '#D1D5DB', border: '#6B7280' };
 function depColor(kind?: string): { stroke: string; fill: string; border: string } {
-  return DEP_COLORS[kind ?? ""] ?? DEFAULT_DEP;
+  return DEP_COLORS[kind ?? ''] ?? DEFAULT_DEP;
 }
 function depTypeLabel(kind?: string): string {
-  const k = (kind ?? "") as "import" | "extends" | "implements" | "calls" | "other";
-  if (k === "import" || k === "extends" || k === "implements" || k === "calls") return t(`portrait.depType.${k}`);
-  return t("portrait.depType.other");
+  const k = (kind ?? '') as 'import' | 'extends' | 'implements' | 'calls' | 'other';
+  if (k === 'import' || k === 'extends' || k === 'implements' || k === 'calls') return t(`portrait.depType.${k}`);
+  return t('portrait.depType.other');
 }
 
 /**
@@ -163,12 +180,13 @@ function splitExternalDeps(items: DepEntry[]): { internal: DepEntry[]; external:
   const internal: DepEntry[] = [];
   const extCount = new Map<string, number>();
   for (const d of items) {
-    if (d.name.startsWith("external:")) {
-      const rest = d.name.slice("external:".length);
+    if (d.name.startsWith('external:')) {
+      const rest = d.name.slice('external:'.length);
       let pkg: string;
-      if (rest.startsWith("@")) pkg = rest.split("/").slice(0, 2).join("/"); // scoped 包前两段
-      else if (rest.startsWith(".")) pkg = "…";
-      else pkg = rest.split("/")[0];
+      if (rest.startsWith('@'))
+        pkg = rest.split('/').slice(0, 2).join('/'); // scoped 包前两段
+      else if (rest.startsWith('.')) pkg = '…';
+      else pkg = rest.split('/')[0];
       extCount.set(pkg, (extCount.get(pkg) ?? 0) + 1);
     } else {
       internal.push(d);
@@ -200,10 +218,10 @@ function DependencyGraph({
   // tooltip 全名），方向语义保留（左=被依赖 ← · 右=依赖 →）。
   if (inDeps.length === 0 && outDeps.length === 0) {
     return (
-      <Box sx={{ textAlign: "center", py: 2.5, color: "text.secondary" }}>
-        <LinkIcon sx={{ fontSize: 32, opacity: 0.2, mb: 0.5 }} />
-        <Typography variant="caption" sx={{ display: "block" }}>
-          {t("portrait.noDeps")}
+      <Box sx={{ textAlign: 'center', py: 2.5, color: 'text.secondary' }}>
+        <LinkIcon sx={{ fontSize: uiFontSize(32), opacity: 0.2, mb: 0.5 }} />
+        <Typography variant="caption" sx={{ display: 'block' }}>
+          {t('portrait.noDeps')}
         </Typography>
       </Box>
     );
@@ -218,15 +236,18 @@ function DependencyGraph({
     const more = internal.length - shown.length;
     const totalShown = shown.length + external.length;
     return (
-      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 700, color, display: "block", mb: 0.25 }}>
-          {title}{" "}
-          <span style={{ color: "text.disabled", fontWeight: 400 }}>
-            {t("portrait.depCountSplit", { internal: internal.length, external: external.length })}
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Typography
+          variant="caption"
+          sx={{ fontSize: uiFontSize(10), fontWeight: 700, color, display: 'block', mb: 0.25 }}
+        >
+          {title}{' '}
+          <span style={{ color: 'text.disabled', fontWeight: 400 }}>
+            {t('portrait.depCountSplit', { internal: internal.length, external: external.length })}
           </span>
         </Typography>
         {totalShown === 0 ? (
-          <Typography variant="caption" sx={{ fontSize: 10, color: "text.disabled" }}>
+          <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>
             {emptyText}
           </Typography>
         ) : (
@@ -236,74 +257,93 @@ function DependencyGraph({
               return (
                 <Box
                   key={`${d.id}-${i}`}
-                  title={`${d.name}${d.path ? ` · ${d.path}` : ""} · ${depTypeLabel(d.depKind)}${clickable ? ` · ${t("portrait.depClickHint")}` : ""}`}
+                  title={`${d.name}${d.path ? ` · ${d.path}` : ''} · ${depTypeLabel(d.depKind)}${clickable ? ` · ${t('portrait.depClickHint')}` : ''}`}
                   onClick={clickable ? () => onNodeClick!(d.id, d.name) : undefined}
                   sx={{
-                    display: "flex",
-                    alignItems: "center",
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: 0.75,
                     px: 0.75,
                     py: 0.45,
                     borderRadius: 0.75,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    bgcolor: "background.default",
-                    cursor: clickable ? "pointer" : "default",
-                    "&:hover": { bgcolor: "action.hover" },
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.default',
+                    cursor: clickable ? 'pointer' : 'default',
+                    '&:hover': { bgcolor: 'action.hover' },
                     minWidth: 0,
                   }}
                 >
-                  <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: c.border, flexShrink: 0 }} />
+                  <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: c.border, flexShrink: 0 }} />
                   <Typography
                     variant="caption"
                     noWrap
-                    sx={{ fontSize: 10, fontFamily: "monospace", fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+                    sx={{
+                      fontSize: uiFontSize(10),
+                      fontFamily: 'monospace',
+                      fontWeight: 600,
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
                     title={d.name}
                   >
                     {d.name}
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: 8.5, color: "text.disabled", flexShrink: 0 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: uiFontSize(8.5), color: 'text.disabled', flexShrink: 0 }}
+                  >
                     {depTypeLabel(d.depKind)}
                   </Typography>
                 </Box>
               );
             })}
             {more > 0 && (
-              <Typography variant="caption" sx={{ fontSize: 9, color: "text.disabled", px: 0.5 }}>
-                {t("portrait.depMore", { n: more })}
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: 'text.disabled', px: 0.5 }}>
+                {t('portrait.depMore', { n: more })}
               </Typography>
             )}
             {/* 外部依赖归组条目（v2.11）：第三方包一行，不再刷屏 */}
             {external.map((e) => (
               <Box
                 key={`ext-${e.pkg}`}
-                title={t("portrait.externalTip")}
-                onClick={() => useToastStore.getState().showToast(t("portrait.externalTip"), "info")}
+                title={t('portrait.externalTip')}
+                onClick={() => useToastStore.getState().showToast(t('portrait.externalTip'), 'info')}
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
+                  display: 'flex',
+                  alignItems: 'center',
                   gap: 0.75,
                   px: 0.75,
                   py: 0.4,
                   borderRadius: 0.75,
-                  border: "1px dashed",
-                  borderColor: "divider",
-                  cursor: "help",
-                  "&:hover": { bgcolor: "action.hover" },
+                  border: '1px dashed',
+                  borderColor: 'divider',
+                  cursor: 'help',
+                  '&:hover': { bgcolor: 'action.hover' },
                   minWidth: 0,
                 }}
               >
-                <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: "#94A3B8", flexShrink: 0 }} />
+                <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#94A3B8', flexShrink: 0 }} />
                 <Typography
                   variant="caption"
                   noWrap
-                  sx={{ fontSize: 9.5, fontFamily: "monospace", color: "text.secondary", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+                  sx={{
+                    fontSize: uiFontSize(9.5),
+                    fontFamily: 'monospace',
+                    color: 'text.secondary',
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
                   title={e.pkg}
                 >
                   {e.pkg}
                 </Typography>
-                <Typography variant="caption" sx={{ fontSize: 8.5, color: "text.disabled", flexShrink: 0 }}>
-                  {t("portrait.externalCount", { n: e.count })}
+                <Typography variant="caption" sx={{ fontSize: uiFontSize(8.5), color: 'text.disabled', flexShrink: 0 }}>
+                  {t('portrait.externalCount', { n: e.count })}
                 </Typography>
               </Box>
             ))}
@@ -314,35 +354,52 @@ function DependencyGraph({
   };
 
   return (
-    <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
-      {renderSide(t("portrait.depInList"), "#185FA5", inDeps, t("portrait.depNone"))}
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+      {renderSide(t('portrait.depInList'), '#185FA5', inDeps, t('portrait.depNone'))}
       {/* 中心实体 + 方向指示（v2.10：名称完整，不再截断成 7 字符） */}
-      <Box sx={{ width: 96, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 0.25, alignSelf: "center" }}>
+      <Box
+        sx={{
+          width: 96,
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 0.25,
+          alignSelf: 'center',
+        }}
+      >
         <Box
           sx={{
-            width: "100%",
+            width: '100%',
             px: 0.75,
             py: 1,
             borderRadius: 1,
-            bgcolor: "#EEEDFE",
-            border: "1px solid #534AB7",
-            textAlign: "center",
+            bgcolor: '#EEEDFE',
+            border: '1px solid #534AB7',
+            textAlign: 'center',
           }}
         >
           <Typography
             variant="caption"
             noWrap
-            sx={{ fontSize: 10, fontWeight: 600, color: "#26215C", display: "block", overflow: "hidden", textOverflow: "ellipsis" }}
+            sx={{
+              fontSize: uiFontSize(10),
+              fontWeight: 600,
+              color: '#26215C',
+              display: 'block',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
             title={centerName}
           >
             {centerName}
           </Typography>
         </Box>
-        <Typography variant="caption" sx={{ fontSize: 8.5, color: "text.disabled", textAlign: "center" }}>
-          ← {t("portrait.depInList")} · {t("portrait.depOutList")} →
+        <Typography variant="caption" sx={{ fontSize: uiFontSize(8.5), color: 'text.disabled', textAlign: 'center' }}>
+          ← {t('portrait.depInList')} · {t('portrait.depOutList')} →
         </Typography>
       </Box>
-      {renderSide(t("portrait.depOutList"), "#3B6D11", outDeps, t("portrait.depNone"))}
+      {renderSide(t('portrait.depOutList'), '#3B6D11', outDeps, t('portrait.depNone'))}
     </Box>
   );
 }
@@ -358,45 +415,53 @@ export interface DepEntry {
 }
 
 /** 架构分层定位条（layers 动态生成） */
-function LayerBar({ layers, activeLayerId, onLayerClick }: { layers: any[]; activeLayerId?: string | null; onLayerClick?: (layerId: string) => void }) {
+function LayerBar({
+  layers,
+  activeLayerId,
+  onLayerClick,
+}: {
+  layers: any[];
+  activeLayerId?: string | null;
+  onLayerClick?: (layerId: string) => void;
+}) {
   if (layers.length === 0) {
     return (
-      <Typography variant="caption" color="text.disabled" sx={{ fontSize: 10 }}>
-        {t("portrait.noLayers")}
+      <Typography variant="caption" color="text.disabled" sx={{ fontSize: uiFontSize(10) }}>
+        {t('portrait.noLayers')}
       </Typography>
     );
   }
   return (
-    <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+    <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
       {layers.map((l) => {
         const active = l.id === activeLayerId;
-        const color = l.color || "#94A3B8";
+        const color = l.color || '#94A3B8';
         return (
           <Box
             key={l.id}
             onClick={onLayerClick ? () => onLayerClick(l.id) : undefined}
-            title={onLayerClick ? t("portrait.layer.clickHint") : undefined}
+            title={onLayerClick ? t('portrait.layer.clickHint') : undefined}
             sx={{
               px: 1,
               py: 0.5,
               borderRadius: 1,
-              border: "1.5px solid",
-              borderColor: active ? color : "divider",
-              bgcolor: active ? `${color}18` : "transparent",
-              display: "flex",
-              alignItems: "center",
+              border: '1.5px solid',
+              borderColor: active ? color : 'divider',
+              bgcolor: active ? `${color}18` : 'transparent',
+              display: 'flex',
+              alignItems: 'center',
               gap: 0.5,
-              cursor: onLayerClick ? "pointer" : "default",
-              "&:hover": onLayerClick ? { bgcolor: `${color}22` } : undefined,
+              cursor: onLayerClick ? 'pointer' : 'default',
+              '&:hover': onLayerClick ? { bgcolor: `${color}22` } : undefined,
             }}
           >
-            <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: color, flexShrink: 0 }} />
-            <Typography variant="caption" sx={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+            <Typography variant="caption" sx={{ fontSize: uiFontSize(10), fontWeight: active ? 600 : 400 }}>
               {resolveFragments(l.name)}
             </Typography>
             {active && (
-              <Typography variant="caption" sx={{ fontSize: 9, color: "text.secondary" }}>
-                {t("portrait.thisEntity")}
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: 'text.secondary' }}>
+                {t('portrait.thisEntity')}
               </Typography>
             )}
           </Box>
@@ -430,7 +495,7 @@ function CodeInsights({
   if (!entity) return null;
 
   // ── file / class：符号 + 文件度量 + 死代码 ──
-  if (entity.type === "file" || entity.type === "class") {
+  if (entity.type === 'file' || entity.type === 'class') {
     const fileId = matchedFile?.id;
     if (!fileId) return null;
     const fileSymbols = symbols.filter((s) => s.fileId === fileId);
@@ -444,51 +509,92 @@ function CodeInsights({
     const top = [...fileSymbols].sort((a, b) => a.lineStart - b.lineStart).slice(0, 8);
 
     return (
-      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-        <SectionTitle icon={<CodeIcon sx={{ fontSize: 13, color: "primary.main" }} />}>{t("portrait.code.title")}</SectionTitle>
+      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+        <SectionTitle icon={<CodeIcon sx={{ fontSize: uiFontSize(13), color: 'primary.main' }} />}>
+          {t('portrait.code.title')}
+        </SectionTitle>
         {kindChips.length > 0 && (
-          <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mb: top.length > 0 ? 0.75 : 0 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: top.length > 0 ? 0.75 : 0 }}>
             {kindChips.map(([k, n]) => (
-              <Chip key={k} label={t("portrait.code.kindChip", { kind: k, n })} size="small" sx={{ height: 16, fontSize: 9, "& .MuiChip-label": { px: 0.75 } }} />
+              <Chip
+                key={k}
+                label={t('portrait.code.kindChip', { kind: k, n })}
+                size="small"
+                sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.75 } }}
+              />
             ))}
           </Box>
         )}
         {metric && (
-          <Typography variant="caption" sx={{ display: "block", fontSize: 10, color: "text.secondary", lineHeight: 1.6 }}>
-            {t("portrait.code.metric", {
+          <Typography
+            variant="caption"
+            sx={{ display: 'block', fontSize: uiFontSize(10), color: 'text.secondary', lineHeight: 1.6 }}
+          >
+            {t('portrait.code.metric', {
               cc: metric.cyclomaticComplexity,
               level: levelText(metric.complexityLevel),
-              engine: metric.engine === "ast" ? t("portrait.metric.engineAst") : t("portrait.metric.engineHeuristic"),
+              engine: metric.engine === 'ast' ? t('portrait.metric.engineAst') : t('portrait.metric.engineHeuristic'),
               fn: metric.functionCount,
             })}
-            {metric.hotFunction ? ` · ${t("portrait.code.hot", { name: metric.hotFunction, cc: metric.maxFunctionCc })}` : ""}
+            {metric.hotFunction
+              ? ` · ${t('portrait.code.hot', { name: metric.hotFunction, cc: metric.maxFunctionCc })}`
+              : ''}
           </Typography>
         )}
         {dead.length > 0 && (
           <>
-            <Typography variant="caption" sx={{ display: "block", fontSize: 10, color: "warning.main", lineHeight: 1.6 }}>
-              {t("portrait.code.dead", { n: dead.length })}
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', fontSize: uiFontSize(10), color: 'warning.main', lineHeight: 1.6 }}
+            >
+              {t('portrait.code.dead', { n: dead.length })}
             </Typography>
             {/* v2.7 死数据打通：死代码符号可点列表 → 定位源码；v2.10 加路径副行（同名可区分） */}
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4, mt: 0.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, mt: 0.5 }}>
               {dead.slice(0, 8).map((d) => (
                 <Box
                   key={d.symbolId}
                   title={`${d.name} · ${d.filePath}`}
-                  sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", borderRadius: 0.75, px: 0.75, py: 0.5, "&:hover": { bgcolor: "action.hover" } }}
-                  onClick={() => navigateToSource(d.fileId, d.lineStart, t("portrait.code.openAt", { name: d.name, line: d.lineStart }))}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    cursor: 'pointer',
+                    borderRadius: 0.75,
+                    px: 0.75,
+                    py: 0.5,
+                    '&:hover': { bgcolor: 'action.hover' },
+                  }}
+                  onClick={() =>
+                    navigateToSource(
+                      d.fileId,
+                      d.lineStart,
+                      t('portrait.code.openAt', { name: d.name, line: d.lineStart }),
+                    )
+                  }
                 >
                   <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography variant="caption" noWrap sx={{ fontSize: 10, fontFamily: "monospace", fontWeight: 600, display: "block" }}>
+                    <Typography
+                      variant="caption"
+                      noWrap
+                      sx={{ fontSize: uiFontSize(10), fontFamily: 'monospace', fontWeight: 600, display: 'block' }}
+                    >
                       {d.name}
                     </Typography>
                     {d.filePath && (
-                      <Typography variant="caption" noWrap sx={{ fontSize: 8.5, color: "text.disabled", display: "block" }}>
+                      <Typography
+                        variant="caption"
+                        noWrap
+                        sx={{ fontSize: uiFontSize(8.5), color: 'text.disabled', display: 'block' }}
+                      >
                         {d.filePath}
                       </Typography>
                     )}
                   </Box>
-                  <Typography variant="caption" sx={{ fontSize: 9, color: "text.secondary", flexShrink: 0 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: uiFontSize(9), color: 'text.secondary', flexShrink: 0 }}
+                  >
                     {`L${d.lineStart}`}
                   </Typography>
                 </Box>
@@ -497,17 +603,41 @@ function CodeInsights({
           </>
         )}
         {top.length > 0 && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, mt: 0.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
             {top.map((s) => (
               <Box
                 key={s.id}
-                sx={{ display: "flex", justifyContent: "space-between", gap: 1, cursor: "pointer", borderRadius: 0.5, px: 0.5, "&:hover": { bgcolor: "action.hover" } }}
-                onClick={() => navigateToSource(s.fileId, s.lineStart, t("portrait.code.openAt", { name: s.name, line: s.lineStart }))}
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 1,
+                  cursor: 'pointer',
+                  borderRadius: 0.5,
+                  px: 0.5,
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+                onClick={() =>
+                  navigateToSource(
+                    s.fileId,
+                    s.lineStart,
+                    t('portrait.code.openAt', { name: s.name, line: s.lineStart }),
+                  )
+                }
               >
-                <Typography variant="caption" noWrap sx={{ fontSize: 10, fontFamily: "monospace", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                <Typography
+                  variant="caption"
+                  noWrap
+                  sx={{
+                    fontSize: uiFontSize(10),
+                    fontFamily: 'monospace',
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
                   {s.name}
                 </Typography>
-                <Typography variant="caption" sx={{ fontSize: 9, color: "text.secondary", flexShrink: 0 }}>
+                <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: 'text.secondary', flexShrink: 0 }}>
                   {`L${s.lineStart}`}
                 </Typography>
               </Box>
@@ -519,7 +649,7 @@ function CodeInsights({
   }
 
   // ── function：调用方 / 被调用方 ──
-  if (entity.type === "function") {
+  if (entity.type === 'function') {
     const fp = strVal(cfg.filePath);
     const name = entity.name;
     if (!fp) return null;
@@ -527,29 +657,57 @@ function CodeInsights({
     const callees = callEdges.filter((e) => e.callerFilePath === fp && e.callerName === name);
     if (callers.length === 0 && callees.length === 0) return null;
 
-    const renderEdge = (e: { callerFileId: string; callerName: string; callerFilePath: string; calleeFileId: string; calleeName: string; calleeFilePath: string; lineNo: number }, dir: "caller" | "callee") => {
-      const fid = dir === "caller" ? e.callerFileId : e.calleeFileId;
-      const nm = dir === "caller" ? e.callerName : e.calleeName;
-      const fpath = dir === "caller" ? e.callerFilePath : e.calleeFilePath;
+    const renderEdge = (
+      e: {
+        callerFileId: string;
+        callerName: string;
+        callerFilePath: string;
+        calleeFileId: string;
+        calleeName: string;
+        calleeFilePath: string;
+        lineNo: number;
+      },
+      dir: 'caller' | 'callee',
+    ) => {
+      const fid = dir === 'caller' ? e.callerFileId : e.calleeFileId;
+      const nm = dir === 'caller' ? e.callerName : e.calleeName;
+      const fpath = dir === 'caller' ? e.callerFilePath : e.calleeFilePath;
       // v2.10 同名函数可区分：主行完整名称 + 副行完整路径（此前只显示文件名最后一段）
       return (
         <Box
           key={`${dir}-${fid}-${nm}-${e.lineNo}`}
           title={`${nm} · ${fpath}`}
-          sx={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer", borderRadius: 0.75, px: 0.75, py: 0.5, "&:hover": { bgcolor: "action.hover" } }}
-          onClick={() => navigateToSource(fid, e.lineNo, t("portrait.code.openAt", { name: nm, line: e.lineNo }))}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            cursor: 'pointer',
+            borderRadius: 0.75,
+            px: 0.75,
+            py: 0.5,
+            '&:hover': { bgcolor: 'action.hover' },
+          }}
+          onClick={() => navigateToSource(fid, e.lineNo, t('portrait.code.openAt', { name: nm, line: e.lineNo }))}
         >
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="caption" noWrap sx={{ fontSize: 10, fontFamily: "monospace", fontWeight: 600, display: "block" }}>
+            <Typography
+              variant="caption"
+              noWrap
+              sx={{ fontSize: uiFontSize(10), fontFamily: 'monospace', fontWeight: 600, display: 'block' }}
+            >
               {nm}
             </Typography>
             {fpath && (
-              <Typography variant="caption" noWrap sx={{ fontSize: 8.5, color: "text.disabled", display: "block" }}>
+              <Typography
+                variant="caption"
+                noWrap
+                sx={{ fontSize: uiFontSize(8.5), color: 'text.disabled', display: 'block' }}
+              >
                 {fpath}
               </Typography>
             )}
           </Box>
-          <Typography variant="caption" sx={{ fontSize: 9, color: "text.secondary", flexShrink: 0 }}>
+          <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: 'text.secondary', flexShrink: 0 }}>
             {`L${e.lineNo}`}
           </Typography>
         </Box>
@@ -557,23 +715,42 @@ function CodeInsights({
     };
 
     return (
-      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-        <SectionTitle icon={<CodeIcon sx={{ fontSize: 13, color: "primary.main" }} />}>{t("portrait.code.title")}</SectionTitle>
-        <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, color: "text.secondary", display: "block", mb: 0.25 }}>
-          {t("portrait.code.callers", { n: callers.length })}
+      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+        <SectionTitle icon={<CodeIcon sx={{ fontSize: uiFontSize(13), color: 'primary.main' }} />}>
+          {t('portrait.code.title')}
+        </SectionTitle>
+        <Typography
+          variant="caption"
+          sx={{ fontSize: uiFontSize(10), fontWeight: 600, color: 'text.secondary', display: 'block', mb: 0.25 }}
+        >
+          {t('portrait.code.callers', { n: callers.length })}
         </Typography>
         {callers.length === 0 ? (
-          <Typography variant="caption" sx={{ fontSize: 9, color: "text.disabled", display: "block", mb: 0.5 }}>{t("portrait.code.noCallers")}</Typography>
+          <Typography
+            variant="caption"
+            sx={{ fontSize: uiFontSize(9), color: 'text.disabled', display: 'block', mb: 0.5 }}
+          >
+            {t('portrait.code.noCallers')}
+          </Typography>
         ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, mb: 0.75 }}>{callers.map((e) => renderEdge(e, "caller"))}</Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mb: 0.75 }}>
+            {callers.map((e) => renderEdge(e, 'caller'))}
+          </Box>
         )}
-        <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, color: "text.secondary", display: "block", mb: 0.25 }}>
-          {t("portrait.code.callees", { n: callees.length })}
+        <Typography
+          variant="caption"
+          sx={{ fontSize: uiFontSize(10), fontWeight: 600, color: 'text.secondary', display: 'block', mb: 0.25 }}
+        >
+          {t('portrait.code.callees', { n: callees.length })}
         </Typography>
         {callees.length === 0 ? (
-          <Typography variant="caption" sx={{ fontSize: 9, color: "text.disabled", display: "block" }}>{t("portrait.code.noCallees")}</Typography>
+          <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: 'text.disabled', display: 'block' }}>
+            {t('portrait.code.noCallees')}
+          </Typography>
         ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>{callees.map((e) => renderEdge(e, "callee"))}</Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+            {callees.map((e) => renderEdge(e, 'callee'))}
+          </Box>
         )}
       </Paper>
     );
@@ -605,21 +782,33 @@ export interface SymbolInfo {
 function SymbolOverviewSection({ sym, parents }: { sym: SymbolInfo; parents: { name: string; kind: string }[] }) {
   const showToast = useToastStore((s) => s.showToast);
   return (
-    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-      <SectionTitle icon={<SubdirectoryArrowRightIcon sx={{ fontSize: 13, color: "primary.main" }} />}>
-        {t("portrait.symbol.title")}
+    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+      <SectionTitle icon={<SubdirectoryArrowRightIcon sx={{ fontSize: uiFontSize(13), color: 'primary.main' }} />}>
+        {t('portrait.symbol.title')}
       </SectionTitle>
       {/* 信号徽标 */}
       {(sym.hub || sym.godClass || sym.inCycle) && (
-        <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mb: 0.75 }}>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.75 }}>
           {sym.hub && (
-            <Chip size="small" label={t("portrait.symbol.hub")} sx={{ height: 18, fontSize: 9, bgcolor: "#f59e0b18", color: "#b45309", fontWeight: 700 }} />
+            <Chip
+              size="small"
+              label={t('portrait.symbol.hub')}
+              sx={{ height: 18, fontSize: uiFontSize(9), bgcolor: '#f59e0b18', color: '#b45309', fontWeight: 700 }}
+            />
           )}
           {sym.godClass && (
-            <Chip size="small" label={t("portrait.symbol.godClass")} sx={{ height: 18, fontSize: 9, bgcolor: "#ef444418", color: "#dc2626", fontWeight: 700 }} />
+            <Chip
+              size="small"
+              label={t('portrait.symbol.godClass')}
+              sx={{ height: 18, fontSize: uiFontSize(9), bgcolor: '#ef444418', color: '#dc2626', fontWeight: 700 }}
+            />
           )}
           {sym.inCycle && (
-            <Chip size="small" label={t("portrait.symbol.cycle")} sx={{ height: 18, fontSize: 9, bgcolor: "#ef444418", color: "#dc2626", fontWeight: 700 }} />
+            <Chip
+              size="small"
+              label={t('portrait.symbol.cycle')}
+              sx={{ height: 18, fontSize: uiFontSize(9), bgcolor: '#ef444418', color: '#dc2626', fontWeight: 700 }}
+            />
           )}
         </Box>
       )}
@@ -627,65 +816,80 @@ function SymbolOverviewSection({ sym, parents }: { sym: SymbolInfo; parents: { n
       {sym.signature && (
         <Typography
           variant="caption"
-          sx={{ fontSize: 10, fontFamily: "monospace", color: "text.secondary", display: "block", mb: 0.75, wordBreak: "break-all", lineHeight: 1.5 }}
+          sx={{
+            fontSize: uiFontSize(10),
+            fontFamily: 'monospace',
+            color: 'text.secondary',
+            display: 'block',
+            mb: 0.75,
+            wordBreak: 'break-all',
+            lineHeight: 1.5,
+          }}
         >
           {sym.signature}
         </Typography>
       )}
       {/* 统计 */}
-      <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center", mb: 0.75 }}>
-        <StatItem label={t("portrait.symbol.kind")} value={sym.kind} />
-        <StatItem label={t("portrait.symbol.refs")} value={String(sym.refCount)} />
-        <StatItem label={t("portrait.symbol.span")} value={sym.span > 0 ? `${sym.span} ${t("portrait.symbol.linesUnit")}` : "—"} />
-        {sym.lineStart !== null && (
-          <StatItem label={t("portrait.symbol.definedAt")} value={`${sym.lineStart}`} />
-        )}
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', mb: 0.75 }}>
+        <StatItem label={t('portrait.symbol.kind')} value={sym.kind} />
+        <StatItem label={t('portrait.symbol.refs')} value={String(sym.refCount)} />
+        <StatItem
+          label={t('portrait.symbol.span')}
+          value={sym.span > 0 ? `${sym.span} ${t('portrait.symbol.linesUnit')}` : '—'}
+        />
+        {sym.lineStart !== null && <StatItem label={t('portrait.symbol.definedAt')} value={`${sym.lineStart}`} />}
       </Box>
       {/* 继承关系 */}
       {parents.length > 0 && (
-        <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mb: 0.75 }}>
-          <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>
-            {t("portrait.symbol.inherits")}
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.75 }}>
+          <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
+            {t('portrait.symbol.inherits')}
           </Typography>
           {parents.map((p, i) => (
             <Chip
               key={i}
               size="small"
-              label={`${p.kind === "implements" ? "implements" : "extends"} ${p.name}`}
-              sx={{ height: 18, fontSize: 9, bgcolor: "#8b5cf618", color: "#7c3aed", fontWeight: 600 }}
+              label={`${p.kind === 'implements' ? 'implements' : 'extends'} ${p.name}`}
+              sx={{ height: 18, fontSize: uiFontSize(9), bgcolor: '#8b5cf618', color: '#7c3aed', fontWeight: 600 }}
             />
           ))}
         </Box>
       )}
       {/* 操作 */}
-      <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         {sym.fileId && (
           <Button
             size="small"
             variant="contained"
-            startIcon={<CodeIcon sx={{ fontSize: 13 }} />}
-            onClick={() => navigateToSource(sym.fileId as string, sym.lineStart, t("portrait.symbol.openTitle", { name: t("portrait.symbol.self", {}) }))}
-            sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25 }}
+            startIcon={<CodeIcon sx={{ fontSize: uiFontSize(13) }} />}
+            onClick={() =>
+              navigateToSource(
+                sym.fileId as string,
+                sym.lineStart,
+                t('portrait.symbol.openTitle', { name: t('portrait.symbol.self', {}) }),
+              )
+            }
+            sx={{ textTransform: 'none', fontSize: uiFontSize(10), lineHeight: 1, minWidth: 0, px: 1.25 }}
           >
-            {t("portrait.openSource")}
+            {t('portrait.openSource')}
           </Button>
         )}
         {sym.symbolId && (
           <Button
             size="small"
             variant="outlined"
-            startIcon={<CallSplitIcon sx={{ fontSize: 13 }} />}
+            startIcon={<CallSplitIcon sx={{ fontSize: uiFontSize(13) }} />}
             onClick={() => {
               const analysisId = useSceneStore.getState().activeSceneId;
               if (analysisId) {
                 void runImpactPortraitFor(analysisId, { rootSymbolId: sym.symbolId as string, maxDepth: 3 }).then(
-                  (res) => showToast(res.message, res.severity)
+                  (res) => showToast(res.message, res.severity),
                 );
               }
             }}
-            sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25 }}
+            sx={{ textTransform: 'none', fontSize: uiFontSize(10), lineHeight: 1, minWidth: 0, px: 1.25 }}
           >
-            {t("portrait.symbol.impact")}
+            {t('portrait.symbol.impact')}
           </Button>
         )}
       </Box>
@@ -712,81 +916,99 @@ interface PatternInfo {
 
 function PatternPortraitSection({ info }: { info: PatternInfo }) {
   const showToast = useToastStore((s) => s.showToast);
-  const catColor = PATTERN_CATEGORY_COLORS[info.category] ?? "#8b5cf6";
-  const catLabel = t(PATTERN_CATEGORY_LABEL_KEY[info.category] ?? "entityProj.cat.behavioral");
+  const catColor = PATTERN_CATEGORY_COLORS[info.category] ?? '#8b5cf6';
+  const catLabel = t(PATTERN_CATEGORY_LABEL_KEY[info.category] ?? 'entityProj.cat.behavioral');
   const pct = Math.round(info.confidence * 100);
   const tier =
     info.confidence >= 0.85
-      ? { label: t("entityProj.conf.high"), color: "#22c55e" }
+      ? { label: t('entityProj.conf.high'), color: '#22c55e' }
       : info.confidence >= 0.7
-        ? { label: t("entityProj.conf.medium"), color: "#eab308" }
-        : { label: t("entityProj.conf.low"), color: "#f97316" };
-  const location = info.filePath ? `${info.filePath}${info.line && info.line > 0 ? ":" + info.line : ""}` : null;
+        ? { label: t('entityProj.conf.medium'), color: '#eab308' }
+        : { label: t('entityProj.conf.low'), color: '#f97316' };
+  const location = info.filePath ? `${info.filePath}${info.line && info.line > 0 ? ':' + info.line : ''}` : null;
 
   const handleOpen = () => {
-    const reason = t("portrait.pattern.openTitle", { name: info.symbolName || info.patternName });
+    const reason = t('portrait.pattern.openTitle', { name: info.symbolName || info.patternName });
     if (info.fileId) {
       const r = navigateToSource(info.fileId, info.line, reason);
-      showToast(r.message, r.opened ? "success" : "warning");
+      showToast(r.message, r.opened ? 'success' : 'warning');
     } else if (info.filePath) {
       const r = navigateToSourceByPath(info.filePath, info.line, reason);
-      showToast(r.message, r.opened ? "success" : "warning");
+      showToast(r.message, r.opened ? 'success' : 'warning');
     } else {
-      showToast(t("editor.patternNoFile"), "warning");
+      showToast(t('editor.patternNoFile'), 'warning');
     }
   };
 
   const handleDiagnose = () => {
     if (!info.filePath) {
-      showToast(t("editor.patternNoFile"), "warning");
+      showToast(t('editor.patternNoFile'), 'warning');
       return;
     }
     triggerDiagnosis({
       filePath: info.filePath,
-      kind: "generic",
-      title: t("portrait.pattern.aiDiagnoseTitle", { pattern: info.patternName, symbol: info.symbolName }),
-      detail: t("portrait.pattern.aiDiagnoseDetail", {
+      kind: 'generic',
+      title: t('portrait.pattern.aiDiagnoseTitle', { pattern: info.patternName, symbol: info.symbolName }),
+      detail: t('portrait.pattern.aiDiagnoseDetail', {
         pattern: info.patternName,
         category: catLabel,
         confidence: pct,
         symbol: info.symbolName,
-        location: location ?? "?",
+        location: location ?? '?',
       }),
     });
   };
 
   return (
-    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-      <SectionTitle icon={<AutoAwesomeMosaicIcon sx={{ fontSize: 13, color: "#38bdf8" }} />}>
-        {t("portrait.pattern.title")}
+    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+      <SectionTitle icon={<AutoAwesomeMosaicIcon sx={{ fontSize: uiFontSize(13), color: '#38bdf8' }} />}>
+        {t('portrait.pattern.title')}
       </SectionTitle>
       {/* 模式名 + 分类 + 置信度 */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75, flexWrap: "wrap" }}>
-        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: 13 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, flexWrap: 'wrap' }}>
+        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: uiFontSize(13) }}>
           {info.patternName}
         </Typography>
-        <Chip size="small" label={catLabel} sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${catColor}22`, color: catColor }} />
-        <Chip size="small" label={`${pct}% · ${tier.label}`} sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${tier.color}22`, color: tier.color }} />
+        <Chip
+          size="small"
+          label={catLabel}
+          sx={{ height: 16, fontSize: uiFontSize(9), fontWeight: 700, bgcolor: `${catColor}22`, color: catColor }}
+        />
+        <Chip
+          size="small"
+          label={`${pct}% · ${tier.label}`}
+          sx={{ height: 16, fontSize: uiFontSize(9), fontWeight: 700, bgcolor: `${tier.color}22`, color: tier.color }}
+        />
       </Box>
       {/* 命中符号 + 位置 */}
-      <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", mb: 0.75 }}>
-        {info.symbolName && <StatItem label={t("portrait.pattern.symbol")} value={info.symbolName} />}
-        {location && <StatItem label={t("portrait.pattern.location")} value={location} />}
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 0.75 }}>
+        {info.symbolName && <StatItem label={t('portrait.pattern.symbol')} value={info.symbolName} />}
+        {location && <StatItem label={t('portrait.pattern.location')} value={location} />}
       </Box>
       {/* 证据 / 判定依据 */}
       {(info.signals.length > 0 || info.evidence) && (
         <Box sx={{ mb: 0.75 }}>
-          <Typography variant="caption" sx={{ fontSize: 9, color: "text.secondary", display: "block", mb: 0.25 }}>
-            {t("portrait.pattern.evidence")}
+          <Typography
+            variant="caption"
+            sx={{ fontSize: uiFontSize(9), color: 'text.secondary', display: 'block', mb: 0.25 }}
+          >
+            {t('portrait.pattern.evidence')}
           </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
             {info.evidence && (
-              <Typography variant="caption" sx={{ fontSize: 9.5, color: "text.secondary", lineHeight: 1.45, wordBreak: "break-all" }}>
+              <Typography
+                variant="caption"
+                sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary', lineHeight: 1.45, wordBreak: 'break-all' }}
+              >
                 {info.evidence}
               </Typography>
             )}
             {info.signals.map((s, i) => (
-              <Typography key={i} variant="caption" sx={{ fontSize: 9.5, color: "text.secondary", lineHeight: 1.45, wordBreak: "break-all" }}>
+              <Typography
+                key={i}
+                variant="caption"
+                sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary', lineHeight: 1.45, wordBreak: 'break-all' }}
+              >
                 • {s}
               </Typography>
             ))}
@@ -794,24 +1016,24 @@ function PatternPortraitSection({ info }: { info: PatternInfo }) {
         </Box>
       )}
       {/* 操作 */}
-      <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         <Button
           size="small"
           variant="contained"
-          startIcon={<CodeIcon sx={{ fontSize: 13 }} />}
+          startIcon={<CodeIcon sx={{ fontSize: uiFontSize(13) }} />}
           onClick={handleOpen}
-          sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25 }}
+          sx={{ textTransform: 'none', fontSize: uiFontSize(10), lineHeight: 1, minWidth: 0, px: 1.25 }}
         >
-          {t("portrait.pattern.openSource")}
+          {t('portrait.pattern.openSource')}
         </Button>
         <Button
           size="small"
           variant="outlined"
-          startIcon={<AutoFixHighIcon sx={{ fontSize: 13 }} />}
+          startIcon={<AutoFixHighIcon sx={{ fontSize: uiFontSize(13) }} />}
           onClick={handleDiagnose}
-          sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25 }}
+          sx={{ textTransform: 'none', fontSize: uiFontSize(10), lineHeight: 1, minWidth: 0, px: 1.25 }}
         >
-          {t("portrait.pattern.aiDiagnose")}
+          {t('portrait.pattern.aiDiagnose')}
         </Button>
       </Box>
     </Paper>
@@ -828,7 +1050,7 @@ interface QuadrantInfo {
   riskScore: number;
   duplicationRatio: number;
   lineCount: number;
-  quadrantXAxis: "churn" | "risk" | "duplication" | "size";
+  quadrantXAxis: 'churn' | 'risk' | 'duplication' | 'size';
   fileId: string | null;
   filePath: string | null;
   lineStart: number | null;
@@ -838,63 +1060,63 @@ function QuadrantPortraitSection({ info }: { info: QuadrantInfo }) {
   const showToast = useToastStore((s) => s.showToast);
   const meta = QUADRANT_META[info.quadrant];
   const zoneLabel = meta ? t(meta.label) : info.quadrant;
-  const zoneColor = meta?.color ?? "#94a3b8";
+  const zoneColor = meta?.color ?? '#94a3b8';
   // 横轴数据源：与 runQuadrantPortrait 同口径——优先 churn，其次 risk，再 duplication，最后 size。
   // 直接复用节点落库的 quadrantXAxis（画像端已按信号优先级定了全局轴），保证面板与画布完全一致。
-  const xAxis: "churn" | "risk" | "duplication" | "size" = info.quadrantXAxis;
+  const xAxis: 'churn' | 'risk' | 'duplication' | 'size' = info.quadrantXAxis;
   const hintKey =
-    xAxis === "risk"
+    xAxis === 'risk'
       ? QUADRANT_HINT_RISK[info.quadrant]
-      : xAxis === "duplication"
+      : xAxis === 'duplication'
         ? QUADRANT_HINT_DUP[info.quadrant]
-        : xAxis === "size"
+        : xAxis === 'size'
           ? QUADRANT_HINT_SIZE[info.quadrant]
           : QUADRANT_HINT[info.quadrant];
-  const hintText = hintKey ? t(hintKey) : "";
+  const hintText = hintKey ? t(hintKey) : '';
   const axisName =
-    xAxis === "churn"
-      ? t("portrait.quadrant.churnLabel")
-      : xAxis === "risk"
-        ? t("portrait.quadrant.riskLabel")
-        : xAxis === "duplication"
-          ? t("portrait.quadrant.dupLabel")
-          : t("portrait.quadrant.sizeLabel");
+    xAxis === 'churn'
+      ? t('portrait.quadrant.churnLabel')
+      : xAxis === 'risk'
+        ? t('portrait.quadrant.riskLabel')
+        : xAxis === 'duplication'
+          ? t('portrait.quadrant.dupLabel')
+          : t('portrait.quadrant.sizeLabel');
   const axisVal =
-    xAxis === "churn"
+    xAxis === 'churn'
       ? String(info.churnScore)
-      : xAxis === "risk"
+      : xAxis === 'risk'
         ? String(info.riskScore)
-        : xAxis === "duplication"
+        : xAxis === 'duplication'
           ? `${Math.round(info.duplicationRatio * 100)}%`
           : `${info.lineCount}`;
 
   const handleOpen = () => {
-    const reason = t("portrait.quadrant.openTitle", { name: info.name });
+    const reason = t('portrait.quadrant.openTitle', { name: info.name });
     if (info.fileId) {
       const r = navigateToSource(info.fileId, info.lineStart, reason);
-      showToast(r.message, r.opened ? "success" : "warning");
+      showToast(r.message, r.opened ? 'success' : 'warning');
     } else if (info.filePath) {
       const r = navigateToSourceByPath(info.filePath, info.lineStart, reason);
-      showToast(r.message, r.opened ? "success" : "warning");
+      showToast(r.message, r.opened ? 'success' : 'warning');
     } else {
-      showToast(t("editor.patternNoFile"), "warning");
+      showToast(t('editor.patternNoFile'), 'warning');
     }
   };
 
   const handleDiagnose = () => {
     if (!info.filePath) {
-      showToast(t("editor.patternNoFile"), "warning");
+      showToast(t('editor.patternNoFile'), 'warning');
       return;
     }
     triggerDiagnosis({
       filePath: info.filePath,
-      kind: "generic",
-      title: t("portrait.quadrant.aiDiagnoseTitle", { name: info.filePath }),
-      detail: t("portrait.quadrant.aiDiagnoseDetail", {
+      kind: 'generic',
+      title: t('portrait.quadrant.aiDiagnoseTitle', { name: info.filePath }),
+      detail: t('portrait.quadrant.aiDiagnoseDetail', {
         zone: zoneLabel,
         hint: hintText,
         complexity: info.complexity,
-        proxy: info.complexityProxy ? t("portrait.quadrant.proxyNote") : "",
+        proxy: info.complexityProxy ? t('portrait.quadrant.proxyNote') : '',
         axisName,
         axisVal,
         risk: info.riskScore,
@@ -903,45 +1125,52 @@ function QuadrantPortraitSection({ info }: { info: QuadrantInfo }) {
   };
 
   return (
-    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-      <SectionTitle icon={<GridViewIcon sx={{ fontSize: 13, color: "#d946ef" }} />}>
-        {t("portrait.quadrant.title")}
+    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+      <SectionTitle icon={<GridViewIcon sx={{ fontSize: uiFontSize(13), color: '#d946ef' }} />}>
+        {t('portrait.quadrant.title')}
       </SectionTitle>
       {/* 象限归属 + 行动建议 */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5, flexWrap: "wrap" }}>
-        <Chip size="small" label={zoneLabel} sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${zoneColor}22`, color: zoneColor }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+        <Chip
+          size="small"
+          label={zoneLabel}
+          sx={{ height: 16, fontSize: uiFontSize(9), fontWeight: 700, bgcolor: `${zoneColor}22`, color: zoneColor }}
+        />
       </Box>
-      <Typography variant="caption" sx={{ fontSize: 9.5, color: "text.secondary", lineHeight: 1.45, display: "block", mb: 0.75 }}>
+      <Typography
+        variant="caption"
+        sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary', lineHeight: 1.45, display: 'block', mb: 0.75 }}
+      >
         {hintText}
       </Typography>
       {/* 三维指标：复杂度（纵轴）/ 横轴数据源（随轴切换）/ 审查风险（有则附） */}
-      <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", mb: 0.75 }}>
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 0.75 }}>
         <StatItem
-          label={t("portrait.quadrant.complexityLabel")}
-          value={`${info.complexity}${info.complexityProxy ? t("portrait.quadrant.proxyNote") : ""}`}
+          label={t('portrait.quadrant.complexityLabel')}
+          value={`${info.complexity}${info.complexityProxy ? t('portrait.quadrant.proxyNote') : ''}`}
         />
         <StatItem label={axisName} value={axisVal} />
-        {info.riskScore > 0 && <StatItem label={t("portrait.quadrant.riskLabel")} value={String(info.riskScore)} />}
+        {info.riskScore > 0 && <StatItem label={t('portrait.quadrant.riskLabel')} value={String(info.riskScore)} />}
       </Box>
       {/* 操作：打开源码 + AI 诊断（与 PatternPortraitSection 同源，落实「画像可行动」） */}
-      <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         <Button
           size="small"
           variant="contained"
-          startIcon={<CodeIcon sx={{ fontSize: 13 }} />}
+          startIcon={<CodeIcon sx={{ fontSize: uiFontSize(13) }} />}
           onClick={handleOpen}
-          sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25 }}
+          sx={{ textTransform: 'none', fontSize: uiFontSize(10), lineHeight: 1, minWidth: 0, px: 1.25 }}
         >
-          {t("portrait.quadrant.openSource")}
+          {t('portrait.quadrant.openSource')}
         </Button>
         <Button
           size="small"
           variant="outlined"
-          startIcon={<AutoFixHighIcon sx={{ fontSize: 13 }} />}
+          startIcon={<AutoFixHighIcon sx={{ fontSize: uiFontSize(13) }} />}
           onClick={handleDiagnose}
-          sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25 }}
+          sx={{ textTransform: 'none', fontSize: uiFontSize(10), lineHeight: 1, minWidth: 0, px: 1.25 }}
         >
-          {t("portrait.quadrant.aiDiagnose")}
+          {t('portrait.quadrant.aiDiagnose')}
         </Button>
       </Box>
     </Paper>
@@ -966,134 +1195,142 @@ interface TaintInfo {
 }
 
 const TAINT_KIND_COLOR: Record<string, string> = {
-  rce: "#dc2626",
-  sql: "#ef4444",
-  deser: "#f97316",
-  xss: "#f59e0b",
-  path: "#eab308",
-  ssrf: "#a855f7",
-  sideEffect: "#64748b",
-  sanitized: "#10b981",
+  rce: '#dc2626',
+  sql: '#ef4444',
+  deser: '#f97316',
+  xss: '#f59e0b',
+  path: '#eab308',
+  ssrf: '#a855f7',
+  sideEffect: '#64748b',
+  sanitized: '#10b981',
 };
 
 function TaintPortraitSection({ info }: { info: TaintInfo }) {
   const showToast = useToastStore((s) => s.showToast);
-  const isSink = info.role === "sink";
-  const kindColor = info.endKind ? TAINT_KIND_COLOR[info.endKind] ?? "#ef4444" : "#3b82f6";
+  const isSink = info.role === 'sink';
+  const kindColor = info.endKind ? (TAINT_KIND_COLOR[info.endKind] ?? '#ef4444') : '#3b82f6';
   const roleLabel = t(`taint.role.${info.role}`);
   const kindLabel = info.endKind ? t(`taint.kind.${info.endKind}`) : null;
   const hint = t(`taint.hint.${info.role}`);
   const location = info.filePath
-    ? `${info.filePath}${info.lineStart && info.lineStart > 0 ? ":" + info.lineStart : ""}`
+    ? `${info.filePath}${info.lineStart && info.lineStart > 0 ? ':' + info.lineStart : ''}`
     : null;
 
   const handleOpen = () => {
-    const reason = t("portrait.taint.openTitle", { name: info.name });
+    const reason = t('portrait.taint.openTitle', { name: info.name });
     if (info.fileId) {
       const r = navigateToSource(info.fileId, info.lineStart, reason);
-      showToast(r.message, r.opened ? "success" : "warning");
+      showToast(r.message, r.opened ? 'success' : 'warning');
     } else if (info.filePath) {
       const r = navigateToSourceByPath(info.filePath, info.lineStart, reason);
-      showToast(r.message, r.opened ? "success" : "warning");
+      showToast(r.message, r.opened ? 'success' : 'warning');
     } else {
-      showToast(t("editor.patternNoFile"), "warning");
+      showToast(t('editor.patternNoFile'), 'warning');
     }
   };
 
   const handleDiagnose = () => {
     if (!info.filePath) {
-      showToast(t("editor.patternNoFile"), "warning");
+      showToast(t('editor.patternNoFile'), 'warning');
       return;
     }
     triggerDiagnosis({
       filePath: info.filePath,
-      kind: "generic",
-      title: t("portrait.taint.aiDiagnoseTitle", { name: info.name }),
-      detail: t("portrait.taint.aiDiagnoseDetail", {
+      kind: 'generic',
+      title: t('portrait.taint.aiDiagnoseTitle', { name: info.name }),
+      detail: t('portrait.taint.aiDiagnoseDetail', {
         role: roleLabel,
-        kind: kindLabel ?? t("taint.kind.sideEffect"),
-        rule: info.rule ?? "—",
-        params: info.tainted.length > 0 ? info.tainted.join("、") : "—",
-        location: location ?? "?",
+        kind: kindLabel ?? t('taint.kind.sideEffect'),
+        rule: info.rule ?? '—',
+        params: info.tainted.length > 0 ? info.tainted.join('、') : '—',
+        location: location ?? '?',
       }),
     });
   };
 
   return (
-    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-      <SectionTitle icon={<CoronavirusIcon sx={{ fontSize: 13, color: kindColor }} />}>
-        {t("portrait.taint.title")}
+    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+      <SectionTitle icon={<CoronavirusIcon sx={{ fontSize: uiFontSize(13), color: kindColor }} />}>
+        {t('portrait.taint.title')}
       </SectionTitle>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75, flexWrap: "wrap" }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, flexWrap: 'wrap' }}>
         <Chip
           size="small"
           label={roleLabel}
-          sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${kindColor}22`, color: kindColor }}
+          sx={{ height: 16, fontSize: uiFontSize(9), fontWeight: 700, bgcolor: `${kindColor}22`, color: kindColor }}
         />
         {kindLabel && (
           <Chip
             size="small"
             label={kindLabel}
-            sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: `${kindColor}22`, color: kindColor }}
+            sx={{ height: 16, fontSize: uiFontSize(9), fontWeight: 700, bgcolor: `${kindColor}22`, color: kindColor }}
           />
         )}
         {isSink && info.severity > 0 && (
           <Chip
             size="small"
-            label={t("portrait.taint.severity", { n: info.severity })}
-            sx={{ height: 16, fontSize: 9, fontWeight: 700, bgcolor: "#ef444422", color: "#ef4444" }}
+            label={t('portrait.taint.severity', { n: info.severity })}
+            sx={{ height: 16, fontSize: uiFontSize(9), fontWeight: 700, bgcolor: '#ef444422', color: '#ef4444' }}
           />
         )}
       </Box>
-      <Typography variant="caption" sx={{ fontSize: 9.5, color: "text.secondary", lineHeight: 1.45, display: "block", mb: 0.75 }}>
+      <Typography
+        variant="caption"
+        sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary', lineHeight: 1.45, display: 'block', mb: 0.75 }}
+      >
         {hint}
       </Typography>
-      <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", mb: 0.75 }}>
-        {info.rule && <StatItem label={t("canvasTip.taintRule")} value={info.rule} />}
-        {info.tainted.length > 0 && (
-          <StatItem label={t("canvasTip.taintParams")} value={info.tainted.join("、")} />
-        )}
-        {location && <StatItem label={t("portrait.taint.location")} value={location} />}
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 0.75 }}>
+        {info.rule && <StatItem label={t('canvasTip.taintRule')} value={info.rule} />}
+        {info.tainted.length > 0 && <StatItem label={t('canvasTip.taintParams')} value={info.tainted.join('、')} />}
+        {location && <StatItem label={t('portrait.taint.location')} value={location} />}
       </Box>
-      <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         <Button
           size="small"
           variant="contained"
-          startIcon={<CodeIcon sx={{ fontSize: 13 }} />}
+          startIcon={<CodeIcon sx={{ fontSize: uiFontSize(13) }} />}
           onClick={handleOpen}
-          sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25 }}
+          sx={{ textTransform: 'none', fontSize: uiFontSize(10), lineHeight: 1, minWidth: 0, px: 1.25 }}
         >
-          {t("portrait.taint.openSource")}
+          {t('portrait.taint.openSource')}
         </Button>
         <Button
           size="small"
           variant="outlined"
-          startIcon={<AutoFixHighIcon sx={{ fontSize: 13 }} />}
+          startIcon={<AutoFixHighIcon sx={{ fontSize: uiFontSize(13) }} />}
           onClick={handleDiagnose}
-          sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25 }}
+          sx={{ textTransform: 'none', fontSize: uiFontSize(10), lineHeight: 1, minWidth: 0, px: 1.25 }}
         >
-          {t("portrait.taint.aiDiagnose")}
+          {t('portrait.taint.aiDiagnose')}
         </Button>
       </Box>
     </Paper>
   );
 }
 
-
 /** 符号级调用关系卡：谁调用它（callers）↑ / 它调用谁（callees）↓，点击打开源码 */
 /** 区块标题 */
-function SectionTitle({ icon, children, action }: { icon: React.ReactNode; children: React.ReactNode; action?: React.ReactNode }) {
+function SectionTitle({
+  icon,
+  children,
+  action,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.75 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
       {icon}
       <Typography
         variant="caption"
         sx={{
-          fontSize: 10,
+          fontSize: uiFontSize(10),
           fontWeight: 600,
           letterSpacing: 0.5,
-          textTransform: "uppercase",
-          color: "text.secondary",
+          textTransform: 'uppercase',
+          color: 'text.secondary',
           flex: 1,
         }}
       >
@@ -1121,57 +1358,67 @@ function KeyFacts({
   outDeps: { id: string; name: string; type: string; depKind?: string }[];
 }) {
   const facts: { label: string; value: string }[] = [];
-  const lang = strVal(cfg.language) || matchedFile?.language || "";
+  const lang = strVal(cfg.language) || matchedFile?.language || '';
 
   const pushStr = (labelKey: string, val: unknown) => {
-    if (val === undefined || val === null || val === "") return;
+    if (val === undefined || val === null || val === '') return;
     facts.push({ label: t(labelKey), value: strVal(val) });
   };
   const pushNum = (labelKey: string, val: unknown) => {
-    if (val === undefined || val === null || val === "") return;
+    if (val === undefined || val === null || val === '') return;
     const n = Number(val);
     if (Number.isNaN(n) || n === 0) return;
     facts.push({ label: t(labelKey), value: strVal(val) });
   };
 
-  if (entity.type === "function") {
-    if (cfg.complexity != null && cfg.complexity !== "") {
+  if (entity.type === 'function') {
+    if (cfg.complexity != null && cfg.complexity !== '') {
       const lv = strVal(cfg.complexityLevel);
-      pushStr("portrait.facts.complexity", `${strVal(cfg.complexity)}${lv ? `（${levelText(lv)}）` : ""}`);
+      pushStr('portrait.facts.complexity', `${strVal(cfg.complexity)}${lv ? `（${levelText(lv)}）` : ''}`);
     }
-    pushNum("portrait.facts.maxNesting", cfg.maxNesting);
-    pushStr("portrait.facts.riskLevel", cfg.riskLevel ? levelText(strVal(cfg.riskLevel)) : null);
-    pushNum("portrait.facts.lines", cfg.lineCount);
-    pushStr("portrait.facts.language", lang);
-  } else if (entity.type === "module") {
+    pushNum('portrait.facts.maxNesting', cfg.maxNesting);
+    pushStr('portrait.facts.riskLevel', cfg.riskLevel ? levelText(strVal(cfg.riskLevel)) : null);
+    pushNum('portrait.facts.lines', cfg.lineCount);
+    pushStr('portrait.facts.language', lang);
+  } else if (entity.type === 'module') {
     if (matchedModule) {
-      pushNum("portrait.facts.fileCount", matchedModule.fileCount);
-      pushNum("portrait.facts.depCount", matchedModule.depCount);
-      pushNum("portrait.facts.beDepCount", matchedModule.beDepCount);
+      pushNum('portrait.facts.fileCount', matchedModule.fileCount);
+      pushNum('portrait.facts.depCount', matchedModule.depCount);
+      pushNum('portrait.facts.beDepCount', matchedModule.beDepCount);
     }
-    pushStr("portrait.facts.avgComplexity", cfg.avgComplexity != null && cfg.avgComplexity !== "" ? cfg.avgComplexity : null);
-    pushStr("portrait.facts.riskLevel", cfg.riskLevel ? levelText(strVal(cfg.riskLevel)) : null);
+    pushStr(
+      'portrait.facts.avgComplexity',
+      cfg.avgComplexity != null && cfg.avgComplexity !== '' ? cfg.avgComplexity : null,
+    );
+    pushStr('portrait.facts.riskLevel', cfg.riskLevel ? levelText(strVal(cfg.riskLevel)) : null);
   } else {
     // file / class / interface 等
-    pushStr("portrait.facts.language", lang);
-    pushNum("portrait.facts.lines", matchedFile?.lineCount ?? cfg.lineCount);
-    pushStr("portrait.facts.path", matchedFile?.relPath || cfg.filePath);
-    pushNum("portrait.facts.depOut", outDeps.length);
-    pushNum("portrait.facts.depIn", inDeps.length);
-    if (entity.type === "class") pushNum("portrait.facts.methods", cfg.methodCount);
+    pushStr('portrait.facts.language', lang);
+    pushNum('portrait.facts.lines', matchedFile?.lineCount ?? cfg.lineCount);
+    pushStr('portrait.facts.path', matchedFile?.relPath || cfg.filePath);
+    pushNum('portrait.facts.depOut', outDeps.length);
+    pushNum('portrait.facts.depIn', inDeps.length);
+    if (entity.type === 'class') pushNum('portrait.facts.methods', cfg.methodCount);
   }
 
   if (facts.length === 0) return null;
   return (
-    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-      <SectionTitle icon={<InfoOutlinedIcon sx={{ fontSize: 13, color: "info.main" }} />}>{t("portrait.facts.title")}</SectionTitle>
-      <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 1.5, rowGap: 0.5, alignItems: "baseline" }}>
+    <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+      <SectionTitle icon={<InfoOutlinedIcon sx={{ fontSize: uiFontSize(13), color: 'info.main' }} />}>
+        {t('portrait.facts.title')}
+      </SectionTitle>
+      <Box
+        sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 1.5, rowGap: 0.5, alignItems: 'baseline' }}
+      >
         {facts.map((f) => (
           <Fragment key={f.label}>
-            <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary", whiteSpace: "nowrap" }}>
+            <Typography
+              variant="caption"
+              sx={{ fontSize: uiFontSize(10), color: 'text.secondary', whiteSpace: 'nowrap' }}
+            >
               {f.label}
             </Typography>
-            <Typography variant="caption" sx={{ fontSize: 10, textAlign: "right", wordBreak: "break-all" }}>
+            <Typography variant="caption" sx={{ fontSize: uiFontSize(10), textAlign: 'right', wordBreak: 'break-all' }}>
               {f.value}
             </Typography>
           </Fragment>
@@ -1195,7 +1442,11 @@ export interface PortraitEntity {
  * 这里给一张可点击放大的预览 + 格式/尺寸/体积/路径信息卡，「查看大图」复用与画布双击
  * 同一个 ImagePreviewDialog（经 editorStore.openImagePreview 触发）。
  */
-function ImagePortraitSection({ data }: { data: { absPath: string; name?: string; relPath?: string; fileSize?: number } }) {
+function ImagePortraitSection({
+  data,
+}: {
+  data: { absPath: string; name?: string; relPath?: string; fileSize?: number };
+}) {
   const { url: src, errored: srcFailed } = useAssetImage(data.absPath || null);
   const formatLabel = imageFormatLabel(data.name || data.relPath);
   const sizeText = formatImageSize(data.fileSize);
@@ -1216,36 +1467,56 @@ function ImagePortraitSection({ data }: { data: { absPath: string; name?: string
   }, [data.absPath]);
 
   const rows: [string, string][] = [];
-  if (formatLabel) rows.push([t("imagePreview.format"), formatLabel]);
-  if (dims) rows.push([t("imagePreview.dimensions"), formatDimensions(dims) + (dims.vector ? ` · ${t("imagePreview.vectorShort")}` : "")]);
-  if (sizeText !== "—") rows.push([t("imagePreview.size"), sizeText]);
-  if (data.relPath) rows.push([t("portrait.imagePath"), data.relPath]);
+  if (formatLabel) rows.push([t('imagePreview.format'), formatLabel]);
+  if (dims)
+    rows.push([
+      t('imagePreview.dimensions'),
+      formatDimensions(dims) + (dims.vector ? ` · ${t('imagePreview.vectorShort')}` : ''),
+    ]);
+  if (sizeText !== '—') rows.push([t('imagePreview.size'), sizeText]);
+  if (data.relPath) rows.push([t('portrait.imagePath'), data.relPath]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
-      <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.5, bgcolor: "background.paper", display: "flex", justifyContent: "center" }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+      <Paper
+        variant="outlined"
+        sx={{ p: 1, borderRadius: 1.5, bgcolor: 'background.paper', display: 'flex', justifyContent: 'center' }}
+      >
         {src && !srcFailed ? (
           <img
             src={src}
             alt={data.name}
             onClick={() => useEditorStore.getState().openImagePreview(data)}
-            style={{ maxWidth: "100%", maxHeight: 240, objectFit: "contain", borderRadius: 1, cursor: "zoom-in", background: "#fff", display: "block" }}
+            style={{
+              maxWidth: '100%',
+              maxHeight: 240,
+              objectFit: 'contain',
+              borderRadius: 1,
+              cursor: 'zoom-in',
+              background: '#fff',
+              display: 'block',
+            }}
           />
         ) : (
           <Typography variant="caption" color="text.secondary">
-            {t("imagePreview.notFound")}
+            {t('imagePreview.notFound')}
           </Typography>
         )}
       </Paper>
-      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-        <SectionTitle icon={<ImageIcon sx={{ fontSize: 13, color: "info.main" }} />}>{t("portrait.imageInfo")}</SectionTitle>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+        <SectionTitle icon={<ImageIcon sx={{ fontSize: uiFontSize(13), color: 'info.main' }} />}>
+          {t('portrait.imageInfo')}
+        </SectionTitle>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           {rows.map(([label, value]) => (
-            <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-              <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary", flexShrink: 0 }}>
+            <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary', flexShrink: 0 }}>
                 {label}
               </Typography>
-              <Typography variant="caption" sx={{ fontSize: 10, textAlign: "right", wordBreak: "break-all" }}>
+              <Typography
+                variant="caption"
+                sx={{ fontSize: uiFontSize(10), textAlign: 'right', wordBreak: 'break-all' }}
+              >
                 {value}
               </Typography>
             </Box>
@@ -1256,11 +1527,11 @@ function ImagePortraitSection({ data }: { data: { absPath: string; name?: string
         fullWidth
         variant="contained"
         color="primary"
-        startIcon={<OpenInFullIcon sx={{ fontSize: 15 }} />}
+        startIcon={<OpenInFullIcon sx={{ fontSize: uiFontSize(15) }} />}
         onClick={() => useEditorStore.getState().openImagePreview(data)}
-        sx={{ textTransform: "none" }}
+        sx={{ textTransform: 'none' }}
       >
-        {t("portrait.viewImage")}
+        {t('portrait.viewImage')}
       </Button>
     </Box>
   );
@@ -1272,43 +1543,80 @@ function ImagePortraitSection({ data }: { data: { absPath: string; name?: string
  * 画像核心是「这是什么格式 + 多大 + 在哪」。无预览能力（webview 不渲染字体/压缩包），
  * 以大图标 + 信息卡呈现，格式徽标与画布 AssetRenderer 同源。
  */
-function AssetPortraitSection({ data }: { data: { name?: string; relPath?: string; fileSize?: number; format?: string } }) {
+function AssetPortraitSection({
+  data,
+}: {
+  data: { name?: string; relPath?: string; fileSize?: number; format?: string };
+}) {
   const formatLabel = data.format || assetFormatLabel(data.name || data.relPath);
   const sizeText = formatImageSize(data.fileSize);
   // 资源子类（字体/媒体/压缩/其它）与画布 AssetRenderer 同源判定，让画像卡大图标与
   // 「类型」一行跟随真实种类，而不是永远挂个字体图标误导（.mp4 被当成字体）。
   const kind: AssetKind = assetKindOf(data.name || data.relPath);
   const KindIcon =
-    kind === "font" ? FontDownloadIcon :
-    kind === "media" ? MovieIcon :
-    kind === "archive" ? ArchiveIcon :
-    DescriptionIcon;
+    kind === 'font'
+      ? FontDownloadIcon
+      : kind === 'media'
+        ? MovieIcon
+        : kind === 'archive'
+          ? ArchiveIcon
+          : DescriptionIcon;
 
   const rows: [string, string][] = [];
-  rows.push([t("portrait.assetKindTitle"), t(`portrait.assetKind.${kind}`)]);
-  if (formatLabel) rows.push([t("imagePreview.format"), formatLabel]);
-  if (sizeText !== "—") rows.push([t("imagePreview.size"), sizeText]);
-  if (data.relPath) rows.push([t("portrait.imagePath"), data.relPath]);
+  rows.push([t('portrait.assetKindTitle'), t(`portrait.assetKind.${kind}`)]);
+  if (formatLabel) rows.push([t('imagePreview.format'), formatLabel]);
+  if (sizeText !== '—') rows.push([t('imagePreview.size'), sizeText]);
+  if (data.relPath) rows.push([t('portrait.imagePath'), data.relPath]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
-      <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "background.paper", display: "flex", flexDirection: "column", alignItems: "center", gap: 0.75 }}>
-        <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: `${languageColor("asset")}1a`, display: "flex", alignItems: "center", justifyContent: "center", color: languageColor("asset") }}>
-          <KindIcon sx={{ fontSize: 26 }} />
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 1.5,
+          borderRadius: 1.5,
+          bgcolor: 'background.paper',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 0.75,
+        }}
+      >
+        <Box
+          sx={{
+            width: 44,
+            height: 44,
+            borderRadius: 2,
+            bgcolor: `${languageColor('asset')}1a`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: languageColor('asset'),
+          }}
+        >
+          <KindIcon sx={{ fontSize: uiFontSize(26) }} />
         </Box>
-        <Typography variant="caption" sx={{ fontSize: 11, color: "text.secondary", textAlign: "center", lineHeight: 1.6 }}>
-          {t("portrait.assetHint")}
+        <Typography
+          variant="caption"
+          sx={{ fontSize: uiFontSize(11), color: 'text.secondary', textAlign: 'center', lineHeight: 1.6 }}
+        >
+          {t('portrait.assetHint')}
         </Typography>
       </Paper>
-      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-        <SectionTitle icon={<FontDownloadIcon sx={{ fontSize: 13, color: "info.main" }} />}>{t("portrait.assetInfo")}</SectionTitle>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+        <SectionTitle icon={<FontDownloadIcon sx={{ fontSize: uiFontSize(13), color: 'info.main' }} />}>
+          {t('portrait.assetInfo')}
+        </SectionTitle>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           {rows.map(([label, value]) => (
-            <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-              <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary", flexShrink: 0 }}>
+            <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary', flexShrink: 0 }}>
                 {label}
               </Typography>
-              <Typography variant="caption" sx={{ fontSize: 10, textAlign: "right", wordBreak: "break-all" }}>
+              <Typography
+                variant="caption"
+                sx={{ fontSize: uiFontSize(10), textAlign: 'right', wordBreak: 'break-all' }}
+              >
                 {value}
               </Typography>
             </Box>
@@ -1347,7 +1655,7 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
 
   // ─── 模块实体关联：通过 config.moduleName/name 匹配 project_modules ───
   const matchedModule = useMemo(() => {
-    if (!entity || entity.type !== "module") return null;
+    if (!entity || entity.type !== 'module') return null;
     const cfg = entity.config || {};
     const name = strVal(cfg.moduleName) || strVal(cfg.name) || entity.name;
     return modules.find((m) => m.name === name) ?? null;
@@ -1359,7 +1667,7 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
     const ids = new Set<string>();
     for (const f of files) {
       if (f.isDirectory) continue;
-      const top = f.relPath.includes("/") ? f.relPath.split("/")[0] : "root";
+      const top = f.relPath.includes('/') ? f.relPath.split('/')[0] : 'root';
       if (top === matchedModule.name) ids.add(f.id);
     }
     return ids;
@@ -1374,7 +1682,7 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
         .filter((d) => moduleFileIds.has(d.toId))
         .map((d) => {
           const f = files.find((x) => x.id === d.fromId);
-          const top = f ? (f.relPath.includes("/") ? f.relPath.split("/")[0] : "root") : d.fromId;
+          const top = f ? (f.relPath.includes('/') ? f.relPath.split('/')[0] : 'root') : d.fromId;
           return { id: d.fromId, name: top, type: d.fromType, depKind: d.kind };
         })
         .filter((x, i, arr) => arr.findIndex((y) => y.name === x.name) === i);
@@ -1396,7 +1704,7 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
         .filter((d) => moduleFileIds.has(d.fromId))
         .map((d) => {
           const f = files.find((x) => x.id === d.toId);
-          const top = f ? (f.relPath.includes("/") ? f.relPath.split("/")[0] : d.toId) : d.toId;
+          const top = f ? (f.relPath.includes('/') ? f.relPath.split('/')[0] : d.toId) : d.toId;
           return { id: d.toId, name: top, type: d.toType, depKind: d.kind };
         })
         .filter((x, i, arr) => arr.findIndex((y) => y.name === x.name) === i);
@@ -1432,13 +1740,13 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
   // 否则 entity 在渲染间从非空翻转为 null（或反之）时 Hook 数量变化 → React 报
   // "Rendered more hooks than during the previous render"（曾真实踩坑）。
   const imageRoot = useProjectRoot();
-  const isImage = !!entity && entity.type === "image";
+  const isImage = !!entity && entity.type === 'image';
   // 资源文件（字体/媒体/压缩/二进制）与图片同级：无源码、无代码画像 → 走专属信息卡
-  const isAsset = !!entity && entity.type === "asset";
+  const isAsset = !!entity && entity.type === 'asset';
   const isResource = isImage || isAsset;
   const imagePreviewData = useMemo(
     () => (isImage ? buildImagePreviewData((entity?.config || {}) as Record<string, unknown>, imageRoot) : null),
-    [isImage, entity, imageRoot]
+    [isImage, entity, imageRoot],
   );
 
   // ─── 作用介绍已被 D4 的结构化 KeyFacts 取代（见下方 tab 概览区）───
@@ -1455,20 +1763,20 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
     // 符号实体判定（v2.8 收紧）：只认代码结构画像写入的 portraitMode="symbols" 实体。
     // 之前还收 type class/function/interface —— 会把热点画像的 function 实体也算进来，
     // 导致 SymbolCallsSection 与 CodeInsights 的 function 调用区重复显示（「乱七八糟」）。
-    const isSym = c.portraitMode === "symbols";
+    const isSym = c.portraitMode === 'symbols';
     if (!isSym) return null;
-    const symbolId = typeof c.symbolId === "string" ? c.symbolId : null;
-    const kind = typeof c.symbolKind === "string" ? (c.symbolKind as string) : entity.type;
-    const lineStart = typeof c.lineStart === "number" ? (c.lineStart as number) : null;
-    const lineEnd = typeof c.lineEnd === "number" ? (c.lineEnd as number) : null;
-    const refCount = typeof c.refCount === "number" ? (c.refCount as number) : 0;
+    const symbolId = typeof c.symbolId === 'string' ? c.symbolId : null;
+    const kind = typeof c.symbolKind === 'string' ? (c.symbolKind as string) : entity.type;
+    const lineStart = typeof c.lineStart === 'number' ? (c.lineStart as number) : null;
+    const lineEnd = typeof c.lineEnd === 'number' ? (c.lineEnd as number) : null;
+    const refCount = typeof c.refCount === 'number' ? (c.refCount as number) : 0;
     const span = lineStart !== null && lineEnd !== null ? Math.max(0, lineEnd - lineStart) : 0;
     return {
       symbolId,
       kind,
-      signature: typeof c.signature === "string" ? (c.signature as string) : null,
-      filePath: typeof c.filePath === "string" ? (c.filePath as string) : null,
-      fileId: typeof c.fileId === "string" ? (c.fileId as string) : null,
+      signature: typeof c.signature === 'string' ? (c.signature as string) : null,
+      filePath: typeof c.filePath === 'string' ? (c.filePath as string) : null,
+      fileId: typeof c.fileId === 'string' ? (c.fileId as string) : null,
       lineStart,
       lineEnd,
       span,
@@ -1476,7 +1784,7 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
       hub: c.hub === true,
       inCycle: c.inCycle === true,
       // 上帝类（与 ClassRenderer 同口径）：>100 行且被 ≥5 处引用
-      godClass: kind === "class" && span > 100 && refCount >= 5,
+      godClass: kind === 'class' && span > 100 && refCount >= 5,
     };
   }, [entity]);
 
@@ -1486,9 +1794,9 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
     return projectSymbolRefs
       .filter(
         (r) =>
-          (r.kind === "extends" || r.kind === "implements") &&
+          (r.kind === 'extends' || r.kind === 'implements') &&
           r.fromFilePath === symInfo.filePath &&
-          r.refLine === symInfo.lineStart
+          r.refLine === symInfo.lineStart,
       )
       .map((r) => ({ name: r.symbolName, kind: r.kind }));
   }, [symInfo, projectSymbolRefs]);
@@ -1498,21 +1806,21 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
   // 也得不到任何关于「这是什么模式 / 在哪 / 多可信 / 证据是什么」的解答。
   // 这里抽取完整画像，配合下方 PatternPortraitSection 给出模式说明 + 证据 + 跳源码 + AI 诊断。
   const patternInfo = useMemo(() => {
-    if (!entity || entity.type !== "pattern-node") return null;
+    if (!entity || entity.type !== 'pattern-node') return null;
     const c = (entity.config ?? {}) as Record<string, unknown>;
-    const patternId = typeof c.patternId === "string" ? (c.patternId as string) : "";
-    const category = typeof c.patternCategory === "string" ? (c.patternCategory as string) : "behavioral";
-    const confidence = typeof c.confidence === "number" ? (c.confidence as number) : 0.5;
-    const line = typeof c.line === "number" ? (c.line as number) : null;
-    const fileId = typeof c.fileId === "string" ? (c.fileId as string) : null;
-    const filePath = typeof c.filePath === "string" ? (c.filePath as string) : null;
-    const symbolId = typeof c.symbolId === "string" ? (c.symbolId as string) : null;
-    const symbolName = typeof c.symbolName === "string" ? (c.symbolName as string) : "";
-    const evidence = typeof c.evidence === "string" ? (c.evidence as string) : "";
-    const signals = Array.isArray(c.signals) ? (c.signals as string[]).filter((s) => typeof s === "string") : [];
+    const patternId = typeof c.patternId === 'string' ? (c.patternId as string) : '';
+    const category = typeof c.patternCategory === 'string' ? (c.patternCategory as string) : 'behavioral';
+    const confidence = typeof c.confidence === 'number' ? (c.confidence as number) : 0.5;
+    const line = typeof c.line === 'number' ? (c.line as number) : null;
+    const fileId = typeof c.fileId === 'string' ? (c.fileId as string) : null;
+    const filePath = typeof c.filePath === 'string' ? (c.filePath as string) : null;
+    const symbolId = typeof c.symbolId === 'string' ? (c.symbolId as string) : null;
+    const symbolName = typeof c.symbolName === 'string' ? (c.symbolName as string) : '';
+    const evidence = typeof c.evidence === 'string' ? (c.evidence as string) : '';
+    const signals = Array.isArray(c.signals) ? (c.signals as string[]).filter((s) => typeof s === 'string') : [];
     return {
       patternId,
-      patternName: patternLabel(patternId) || t("entityProj.unknownPattern"),
+      patternName: patternLabel(patternId) || t('entityProj.unknownPattern'),
       category,
       confidence,
       line,
@@ -1533,25 +1841,25 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
   const quadInfo = useMemo(() => {
     if (!entity) return null;
     const c = (entity.config ?? {}) as Record<string, unknown>;
-    if (c.portraitMode !== "quadrant") return null;
-    const quadrant = typeof c.quadrant === "string" ? (c.quadrant as RiskQuadrant) : null;
+    if (c.portraitMode !== 'quadrant') return null;
+    const quadrant = typeof c.quadrant === 'string' ? (c.quadrant as RiskQuadrant) : null;
     if (!quadrant) return null;
     return {
       name: entity.name,
       quadrant,
-      complexity: typeof c.complexity === "number" ? (c.complexity as number) : 0,
+      complexity: typeof c.complexity === 'number' ? (c.complexity as number) : 0,
       complexityProxy: c.complexityProxy === true,
-      churnScore: typeof c.churnScore === "number" ? (c.churnScore as number) : 0,
-      riskScore: typeof c.riskScore === "number" ? (c.riskScore as number) : 0,
-      duplicationRatio: typeof c.duplicationRatio === "number" ? (c.duplicationRatio as number) : 0,
-      lineCount: typeof c.lineCount === "number" ? (c.lineCount as number) : 0,
+      churnScore: typeof c.churnScore === 'number' ? (c.churnScore as number) : 0,
+      riskScore: typeof c.riskScore === 'number' ? (c.riskScore as number) : 0,
+      duplicationRatio: typeof c.duplicationRatio === 'number' ? (c.duplicationRatio as number) : 0,
+      lineCount: typeof c.lineCount === 'number' ? (c.lineCount as number) : 0,
       quadrantXAxis:
-        c.quadrantXAxis === "duplication" || c.quadrantXAxis === "size" || c.quadrantXAxis === "risk"
-          ? (c.quadrantXAxis as "churn" | "risk" | "duplication" | "size")
-          : "churn",
-      fileId: typeof c.fileId === "string" ? (c.fileId as string) : null,
-      filePath: typeof c.filePath === "string" ? (c.filePath as string) : null,
-      lineStart: typeof c.lineStart === "number" ? (c.lineStart as number) : null,
+        c.quadrantXAxis === 'duplication' || c.quadrantXAxis === 'size' || c.quadrantXAxis === 'risk'
+          ? (c.quadrantXAxis as 'churn' | 'risk' | 'duplication' | 'size')
+          : 'churn',
+      fileId: typeof c.fileId === 'string' ? (c.fileId as string) : null,
+      filePath: typeof c.filePath === 'string' ? (c.filePath as string) : null,
+      lineStart: typeof c.lineStart === 'number' ? (c.lineStart as number) : null,
     };
   }, [entity]);
 
@@ -1561,30 +1869,30 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
   const taintInfo = useMemo(() => {
     if (!entity) return null;
     const c = (entity.config ?? {}) as Record<string, unknown>;
-    if (c.portraitMode !== "taintFlow") return null;
-    const role = typeof c.taintRole === "string" ? (c.taintRole as string) : "";
+    if (c.portraitMode !== 'taintFlow') return null;
+    const role = typeof c.taintRole === 'string' ? (c.taintRole as string) : '';
     if (!role) return null;
     return {
       role,
-      endKind: typeof c.taintEndKind === "string" ? (c.taintEndKind as string) : null,
-      severity: typeof c.taintSeverity === "number" ? (c.taintSeverity as number) : 0,
-      rule: typeof c.taintRule === "string" ? (c.taintRule as string) : null,
+      endKind: typeof c.taintEndKind === 'string' ? (c.taintEndKind as string) : null,
+      severity: typeof c.taintSeverity === 'number' ? (c.taintSeverity as number) : 0,
+      rule: typeof c.taintRule === 'string' ? (c.taintRule as string) : null,
       tainted: Array.isArray(c.taintParams)
-        ? (c.taintParams as unknown[]).filter((p): p is string => typeof p === "string")
+        ? (c.taintParams as unknown[]).filter((p): p is string => typeof p === 'string')
         : [],
-      name: typeof c.name === "string" ? (c.name as string) : entity.name || "",
-      fileId: typeof c.fileId === "string" ? (c.fileId as string) : null,
-      filePath: typeof c.filePath === "string" ? (c.filePath as string) : null,
-      lineStart: typeof c.lineStart === "number" ? (c.lineStart as number) : null,
+      name: typeof c.name === 'string' ? (c.name as string) : entity.name || '',
+      fileId: typeof c.fileId === 'string' ? (c.fileId as string) : null,
+      filePath: typeof c.filePath === 'string' ? (c.filePath as string) : null,
+      lineStart: typeof c.lineStart === 'number' ? (c.lineStart as number) : null,
     };
   }, [entity]);
 
   if (!entity) {
     return (
-      <Box sx={{ p: 2, textAlign: "center", color: "text.secondary" }}>
-        <InfoOutlinedIcon sx={{ fontSize: 36, opacity: 0.2, mb: 1 }} />
-        <Typography variant="caption" sx={{ display: "block" }}>
-          {t("portrait.emptyHint")}
+      <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+        <InfoOutlinedIcon sx={{ fontSize: uiFontSize(36), opacity: 0.2, mb: 1 }} />
+        <Typography variant="caption" sx={{ display: 'block' }}>
+          {t('portrait.emptyHint')}
         </Typography>
       </Box>
     );
@@ -1592,19 +1900,16 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
 
   const cfg = entity.config || {};
   const typeLabelText = typeLabel(entity.type);
-  const lang = strVal(cfg.language) || matchedFile?.language || "";
+  const lang = strVal(cfg.language) || matchedFile?.language || '';
   const lineCount = matchedFile?.lineCount ?? (Number(strVal(cfg.lineCount)) || undefined);
   const size = matchedFile?.size ?? (Number(strVal(cfg.fileSize)) || undefined);
   const metricRows = buildMetricRows(cfg);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* ① 身份区（始终锚定，跨 tab 可见） */}
-      <Paper
-        variant="outlined"
-        sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper", flexShrink: 0 }}
-      >
-        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.25 }}>
+      <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper', flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
           <EntityRendererPreview
             type={entity.type}
             config={cfg}
@@ -1614,15 +1919,19 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
             borderRadius={10}
           />
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: uiFontSize(13), lineHeight: 1.3 }}>
               {entity.name}
             </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5, flexWrap: "wrap" }}>
-              <Chip label={typeLabelText} size="small" sx={{ height: 16, fontSize: 9, "& .MuiChip-label": { px: 0.75 } }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.5, flexWrap: 'wrap' }}>
+              <Chip
+                label={typeLabelText}
+                size="small"
+                sx={{ height: 16, fontSize: uiFontSize(9), '& .MuiChip-label': { px: 0.75 } }}
+              />
               {lang && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: languageColor(lang) }} />
-                  <Typography variant="caption" sx={{ fontSize: 9, color: "text.secondary" }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: languageColor(lang) }} />
+                  <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: 'text.secondary' }}>
                     {lang}
                   </Typography>
                 </Box>
@@ -1633,10 +1942,10 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
                   size="small"
                   sx={{
                     height: 16,
-                    fontSize: 9,
-                    "& .MuiChip-label": { px: 0.75 },
-                    bgcolor: `${entityLayer.color || "#94A3B8"}18`,
-                    color: "text.primary",
+                    fontSize: uiFontSize(9),
+                    '& .MuiChip-label': { px: 0.75 },
+                    bgcolor: `${entityLayer.color || '#94A3B8'}18`,
+                    color: 'text.primary',
                   }}
                 />
               )}
@@ -1644,32 +1953,50 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
           </Box>
         </Box>
         {(size !== undefined || lineCount !== undefined) && (
-          <Box sx={{ display: "flex", gap: 1.5, mt: 1, pt: 1, borderTop: 1, borderColor: "divider", alignItems: "center" }}>
+          <Box
+            sx={{ display: 'flex', gap: 1.5, mt: 1, pt: 1, borderTop: 1, borderColor: 'divider', alignItems: 'center' }}
+          >
             {size !== undefined && (
-              <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>
-                {t("portrait.size", { size: size < 1024 ? `${size} B` : size < 1048576 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1048576).toFixed(1)} MB` })}
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
+                {t('portrait.size', {
+                  size:
+                    size < 1024
+                      ? `${size} B`
+                      : size < 1048576
+                        ? `${(size / 1024).toFixed(1)} KB`
+                        : `${(size / 1048576).toFixed(1)} MB`,
+                })}
               </Typography>
             )}
             {lineCount !== undefined && (
-              <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>
-                {t("portrait.lines", { n: lineCount })}
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
+                {t('portrait.lines', { n: lineCount })}
               </Typography>
             )}
-            <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>
-              {t("portrait.refs", { n: inDeps.length, m: outDeps.length })}
+            <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
+              {t('portrait.refs', { n: inDeps.length, m: outDeps.length })}
             </Typography>
             <Box sx={{ flex: 1 }} />
             {/* 业务联动：文件实体可直接打开源码（定位到问题行） */}
-            {entity.type === "file" && matchedFile && (
+            {entity.type === 'file' && matchedFile && (
               <Button
                 size="small"
                 variant="contained"
                 color="primary"
-                startIcon={<CodeIcon sx={{ fontSize: 13 }} />}
-                onClick={() => navigateToSource(matchedFile.id, null, t("portrait.openSourceTitle", { path: matchedFile.relPath }))}
-                sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25, whiteSpace: "nowrap" }}
+                startIcon={<CodeIcon sx={{ fontSize: uiFontSize(13) }} />}
+                onClick={() =>
+                  navigateToSource(matchedFile.id, null, t('portrait.openSourceTitle', { path: matchedFile.relPath }))
+                }
+                sx={{
+                  textTransform: 'none',
+                  fontSize: uiFontSize(10),
+                  lineHeight: 1,
+                  minWidth: 0,
+                  px: 1.25,
+                  whiteSpace: 'nowrap',
+                }}
               >
-                {t("portrait.openSource")}
+                {t('portrait.openSource')}
               </Button>
             )}
             {/* 图片实体无源码，改为「查看大图」打开详情弹窗（与画布双击一致） */}
@@ -1678,11 +2005,18 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
                 size="small"
                 variant="contained"
                 color="primary"
-                startIcon={<OpenInFullIcon sx={{ fontSize: 13 }} />}
+                startIcon={<OpenInFullIcon sx={{ fontSize: uiFontSize(13) }} />}
                 onClick={() => useEditorStore.getState().openImagePreview(imagePreviewData)}
-                sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 1.25, whiteSpace: "nowrap" }}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: uiFontSize(10),
+                  lineHeight: 1,
+                  minWidth: 0,
+                  px: 1.25,
+                  whiteSpace: 'nowrap',
+                }}
               >
-                {t("portrait.viewImage")}
+                {t('portrait.viewImage')}
               </Button>
             )}
           </Box>
@@ -1691,23 +2025,26 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
 
       {/* tab 切换：概览 / 依赖 / 代码 / 审查（图片/资源实体无代码结构画像，改用专属信息卡，不渲染 tab） */}
       {!isResource && (
-        <Box sx={{ flexShrink: 0, px: 0.5, borderBottom: 1, borderColor: "divider" }}>
+        <Box sx={{ flexShrink: 0, px: 0.5, borderBottom: 1, borderColor: 'divider' }}>
           <Tabs
             value={tab}
             onChange={(_, v) => setTab(v)}
             variant="fullWidth"
-            sx={{ minHeight: 30, "& .MuiTab-root": { minHeight: 30, fontSize: 11, textTransform: "none", py: 0.25 } }}
+            sx={{
+              minHeight: 30,
+              '& .MuiTab-root': { minHeight: 30, fontSize: uiFontSize(11), textTransform: 'none', py: 0.25 },
+            }}
           >
-            <Tab label={t("portrait.tabs.overview")} />
-            <Tab label={t("portrait.tabs.deps")} />
-            <Tab label={t("portrait.tabs.code")} />
-            <Tab label={t("portrait.tabs.review")} />
+            <Tab label={t('portrait.tabs.overview')} />
+            <Tab label={t('portrait.tabs.deps')} />
+            <Tab label={t('portrait.tabs.code')} />
+            <Tab label={t('portrait.tabs.review')} />
           </Tabs>
         </Box>
       )}
 
       {/* tab 内容区（独立滚动） */}
-      <Box sx={{ flex: 1, overflow: "auto", p: 1.25, display: "flex", flexDirection: "column", gap: 1.25 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', p: 1.25, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
         {/* 图片实体：专属信息卡（预览 + 格式/尺寸/体积/路径），不渲染代码类 tab */}
         {isImage && imagePreviewData && <ImagePortraitSection data={imagePreviewData} />}
         {/* 资源文件实体：专属信息卡（格式/体积/路径），不渲染代码类 tab */}
@@ -1731,21 +2068,36 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
             {quadInfo && <QuadrantPortraitSection info={quadInfo} />}
             {/* v2.25 污点传播节点：角色/命中规则/受污染形参/落点 + 跳源码 + AI 诊断 */}
             {taintInfo && <TaintPortraitSection info={taintInfo} />}
-            <KeyFacts entity={entity} cfg={cfg} matchedFile={matchedFile} matchedModule={matchedModule} inDeps={inDeps} outDeps={outDeps} />
-            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-              <SectionTitle icon={<InfoOutlinedIcon sx={{ fontSize: 13, color: "text.secondary" }} />}>{t("portrait.metaTitle")}</SectionTitle>
+            <KeyFacts
+              entity={entity}
+              cfg={cfg}
+              matchedFile={matchedFile}
+              matchedModule={matchedModule}
+              inDeps={inDeps}
+              outDeps={outDeps}
+            />
+            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+              <SectionTitle icon={<InfoOutlinedIcon sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }} />}>
+                {t('portrait.metaTitle')}
+              </SectionTitle>
               {metricRows.length === 0 ? (
-                <Typography variant="caption" color="text.disabled" sx={{ fontSize: 10 }}>
-                  {t("portrait.metric.empty")}
+                <Typography variant="caption" color="text.disabled" sx={{ fontSize: uiFontSize(10) }}>
+                  {t('portrait.metric.empty')}
                 </Typography>
               ) : (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   {metricRows.map(([label, value]) => (
-                    <Box key={label} sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                      <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary", flexShrink: 0 }}>
+                    <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ fontSize: uiFontSize(10), color: 'text.secondary', flexShrink: 0 }}
+                      >
                         {label}
                       </Typography>
-                      <Typography variant="caption" sx={{ fontSize: 10, textAlign: "right", wordBreak: "break-all" }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ fontSize: uiFontSize(10), textAlign: 'right', wordBreak: 'break-all' }}
+                      >
                         {value}
                       </Typography>
                     </Box>
@@ -1759,22 +2111,29 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
         {!isResource && tab === 1 && (
           <>
             {/* 文件级依赖（图 + 全量列表）：符号实体默认折叠，文件/模块实体直接展示（v2.9 布局重构） */}
-            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
+            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
               <SectionTitle
-                icon={<AccountTreeIcon sx={{ fontSize: 13, color: "primary.main" }} />}
+                icon={<AccountTreeIcon sx={{ fontSize: uiFontSize(13), color: 'primary.main' }} />}
                 action={
                   symInfo ? (
                     <Button
                       size="small"
                       onClick={() => setShowFileDeps((v) => !v)}
-                      sx={{ textTransform: "none", fontSize: 10, lineHeight: 1, minWidth: 0, px: 0.75, py: 0.25 }}
+                      sx={{
+                        textTransform: 'none',
+                        fontSize: uiFontSize(10),
+                        lineHeight: 1,
+                        minWidth: 0,
+                        px: 0.75,
+                        py: 0.25,
+                      }}
                     >
-                      {showFileDeps ? t("portrait.depsHide") : t("portrait.depsShow")}
+                      {showFileDeps ? t('portrait.depsHide') : t('portrait.depsShow')}
                     </Button>
                   ) : undefined
                 }
               >
-                {symInfo ? t("portrait.depsFileTitle") : t("portrait.depsTitle")}
+                {symInfo ? t('portrait.depsFileTitle') : t('portrait.depsTitle')}
               </SectionTitle>
               <Collapse in={!symInfo || showFileDeps}>
                 <DependencyGraph
@@ -1788,18 +2147,20 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
                       const analysisId = useSceneStore.getState().activeSceneId;
                       if (analysisId) {
                         void openDirectorySubtree(name, analysisId).then((res) =>
-                          useToastStore.getState().showToast(res.message, res.severity)
+                          useToastStore.getState().showToast(res.message, res.severity),
                         );
                       }
                     } else {
-                      navigateToSource(id, null, t("portrait.depNavTitle", { name }));
+                      navigateToSource(id, null, t('portrait.depNavTitle', { name }));
                     }
                   }}
                 />
               </Collapse>
             </Paper>
-            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-              <SectionTitle icon={<LayersIcon sx={{ fontSize: 13, color: "primary.main" }} />}>{t("portrait.layerTitle")}</SectionTitle>
+            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+              <SectionTitle icon={<LayersIcon sx={{ fontSize: uiFontSize(13), color: 'primary.main' }} />}>
+                {t('portrait.layerTitle')}
+              </SectionTitle>
               <LayerBar
                 layers={layers}
                 activeLayerId={matchedFile?.layerId}
@@ -1813,7 +2174,7 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
                     est.selectComponents(ids);
                     est.requestFit(ids);
                   } else {
-                    useToastStore.getState().showToast(t("portrait.layer.noEntity"), "info");
+                    useToastStore.getState().showToast(t('portrait.layer.noEntity'), 'info');
                   }
                 }}
               />
@@ -1824,44 +2185,60 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
         {!isResource && tab === 2 && <CodeInsights entity={entity} matchedFile={matchedFile} cfg={cfg} />}
 
         {!isResource && tab === 3 && (
-          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: "background.paper" }}>
-            <SectionTitle icon={<RuleIcon sx={{ fontSize: 13, color: "warning.main" }} />}>
-              {entityFindings.length > 0 ? t("portrait.findingsTitle", { n: entityFindings.length }) : t("portrait.findingsTitlePlain")}
+          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'background.paper' }}>
+            <SectionTitle icon={<RuleIcon sx={{ fontSize: uiFontSize(13), color: 'warning.main' }} />}>
+              {entityFindings.length > 0
+                ? t('portrait.findingsTitle', { n: entityFindings.length })
+                : t('portrait.findingsTitlePlain')}
             </SectionTitle>
             {entityFindings.length === 0 ? (
-              <Typography variant="caption" color="text.disabled" sx={{ fontSize: 10 }}>
-                {t("portrait.noFindings")}
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: uiFontSize(10) }}>
+                {t('portrait.noFindings')}
               </Typography>
             ) : (
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
                 {entityFindings.map((f) => (
                   <Box
                     key={f.id}
-                    title={t("portrait.findings.clickHint")}
+                    title={t('portrait.findings.clickHint')}
                     onClick={() => {
                       // v2.7 死数据打通：审查发现点击 → 定位源码行（metadata 解析行号）
                       const line = readLineFromMetadata(f.metadata);
-                      navigateToSource(f.targetId, line, t("portrait.findings.openAt", { line: line ?? "?" }));
+                      navigateToSource(f.targetId, line, t('portrait.findings.openAt', { line: line ?? '?' }));
                     }}
-                    sx={{ display: "flex", gap: 0.75, alignItems: "flex-start", cursor: "pointer", borderRadius: 0.75, p: 0.5, "&:hover": { bgcolor: "action.hover" } }}
+                    sx={{
+                      display: 'flex',
+                      gap: 0.75,
+                      alignItems: 'flex-start',
+                      cursor: 'pointer',
+                      borderRadius: 0.75,
+                      p: 0.5,
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
                   >
                     <Box
                       sx={{
                         mt: 0.35,
                         width: 7,
                         height: 7,
-                        borderRadius: "50%",
+                        borderRadius: '50%',
                         flexShrink: 0,
-                        bgcolor: SEVERITY_COLORS[f.severity] ?? "#94A3B8",
+                        bgcolor: SEVERITY_COLORS[f.severity] ?? '#94A3B8',
                       }}
                     />
                     <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="caption" sx={{ fontSize: 10, lineHeight: 1.5, display: "block" }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ fontSize: uiFontSize(10), lineHeight: 1.5, display: 'block' }}
+                      >
                         {f.message}
                       </Typography>
                       {f.suggestion && (
-                        <Typography variant="caption" sx={{ fontSize: 9, color: "text.secondary", display: "block" }}>
-                          {t("portrait.suggestion", { s: f.suggestion })}
+                        <Typography
+                          variant="caption"
+                          sx={{ fontSize: uiFontSize(9), color: 'text.secondary', display: 'block' }}
+                        >
+                          {t('portrait.suggestion', { s: f.suggestion })}
                         </Typography>
                       )}
                     </Box>
@@ -1878,11 +2255,11 @@ export function EntityPortraitPanel({ entity }: { entity: PortraitEntity | null 
 
 function StatItem({ label, value }: { label: string; value: string }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-      <Typography variant="caption" sx={{ fontSize: 9, color: "text.disabled" }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: 'text.disabled' }}>
         {label}
       </Typography>
-      <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, fontFamily: "monospace" }}>
+      <Typography variant="caption" sx={{ fontSize: uiFontSize(10), fontWeight: 600, fontFamily: 'monospace' }}>
         {value}
       </Typography>
     </Box>

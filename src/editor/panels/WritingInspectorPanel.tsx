@@ -53,6 +53,7 @@ import {
 } from '../../utils/writingOutline';
 import type { WritingChapter, WritingOutline, WritingRelation, WritingSetting } from '../../services/tauri';
 import { parseSettingExtra, WORLDBUILDING_TYPE_KEYS } from '../../services/tauri';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 interface InspectorEntity {
   id: string;
@@ -62,7 +63,7 @@ interface InspectorEntity {
 }
 
 const labelSx = {
-  fontSize: 10.5,
+  fontSize: uiFontSize(10.5),
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: 0.5,
@@ -76,9 +77,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, fontSize: 12, py: 0.25 }}>
-      <Typography sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0 }}>{label}</Typography>
-      <Typography sx={{ fontSize: 12, fontWeight: 600, textAlign: 'right', wordBreak: 'break-word' }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, fontSize: uiFontSize(12), py: 0.25 }}>
+      <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', flexShrink: 0 }}>{label}</Typography>
+      <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 600, textAlign: 'right', wordBreak: 'break-word' }}>
         {value}
       </Typography>
     </Box>
@@ -90,7 +91,7 @@ function ReadBlock({ text, empty }: { text: string; empty: string }) {
   return (
     <Typography
       sx={{
-        fontSize: 12,
+        fontSize: uiFontSize(12),
         lineHeight: 1.75,
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
@@ -107,7 +108,7 @@ function ReadBlock({ text, empty }: { text: string; empty: string }) {
 
 /** 挂载为空时的说明（明说，别让人以为是 bug） */
 function EmptyNote({ text }: { text: string }) {
-  return <Typography sx={{ fontSize: 10.5, color: 'text.disabled', lineHeight: 1.7 }}>{text}</Typography>;
+  return <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', lineHeight: 1.7 }}>{text}</Typography>;
 }
 
 /** 可点选的要素 chip：active = 已挂到本章；点击 toggle 进/出本章关联要素 extra.cast / extra.scenes */
@@ -119,7 +120,7 @@ function ToggleChip({ active, label, onClick }: { active: boolean; label: string
       onClick={onClick}
       sx={{
         textTransform: 'none',
-        fontSize: 11,
+        fontSize: uiFontSize(11),
         px: 0.75,
         py: 0.25,
         minWidth: 0,
@@ -176,7 +177,7 @@ function WorldviewRelationGroups({
               onClick={() => setCollapsed((c) => ({ ...c, [type]: open }))}
               sx={{
                 textTransform: 'none',
-                fontSize: 10.5,
+                fontSize: uiFontSize(10.5),
                 fontWeight: 700,
                 color: 'text.secondary',
                 px: 0.25,
@@ -198,7 +199,7 @@ function WorldviewRelationGroups({
                       onClick={() => useEditorStore.getState().selectSetting(r.targetId as string)}
                       sx={{
                         textTransform: 'none',
-                        fontSize: 11.5,
+                        fontSize: uiFontSize(11.5),
                         px: 0.5,
                         py: 0,
                         minWidth: 0,
@@ -209,7 +210,10 @@ function WorldviewRelationGroups({
                       {relationTargetName(settings, r)}
                     </Button>
                   ) : (
-                    <Typography key={i} sx={{ fontSize: 11.5, fontWeight: 600, pl: 0.5, color: 'text.primary' }}>
+                    <Typography
+                      key={i}
+                      sx={{ fontSize: uiFontSize(11.5), fontWeight: 600, pl: 0.5, color: 'text.primary' }}
+                    >
                       {relationTargetName(settings, r)}
                     </Typography>
                   ),
@@ -249,7 +253,7 @@ function WorldviewStat({ label, tone }: { label: string; tone?: 'ok' | 'warn' })
         px: 0.75,
         py: 0.25,
         borderRadius: 1,
-        fontSize: 10.5,
+        fontSize: uiFontSize(10.5),
         fontWeight: 700,
         color: color.fg,
         bgcolor: color.bg,
@@ -284,18 +288,18 @@ function WorldviewHome({ bookId }: { bookId: string }) {
   }, [list]);
   return (
     <Box>
-      <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.7, mb: 0.75 }}>
+      <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', lineHeight: 1.7, mb: 0.75 }}>
         {t('writing.wbHomeHint')}
       </Typography>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', mb: 0.5 }}>
-        <Box sx={{ fontSize: 11, fontWeight: 700, color: 'text.primary' }}>
+        <Box sx={{ fontSize: uiFontSize(11), fontWeight: 700, color: 'text.primary' }}>
           {t('writing.wbOverviewTotal', { n: overview.total })}
         </Box>
         {(Object.keys(overview.subtypeCounts) as string[]).map((k) => (
           <Box
             key={k}
             sx={{
-              fontSize: 10.5,
+              fontSize: uiFontSize(10.5),
               color: 'text.secondary',
               bgcolor: 'action.hover',
               px: 0.5,
@@ -309,7 +313,7 @@ function WorldviewHome({ bookId }: { bookId: string }) {
         {overview.incomplete > 0 && (
           <Box
             sx={{
-              fontSize: 10.5,
+              fontSize: uiFontSize(10.5),
               fontWeight: 700,
               color: '#b25e12',
               bgcolor: 'rgba(178,94,18,0.12)',
@@ -361,14 +365,16 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.75 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{setting.name || t('writingWorkbench.untitled')}</Typography>
+        <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
+          {setting.name || t('writingWorkbench.untitled')}
+        </Typography>
         <Box
           sx={{
             display: 'inline-block',
             px: 0.75,
             py: 0.25,
             borderRadius: 1,
-            fontSize: 10.5,
+            fontSize: uiFontSize(10.5),
             fontWeight: 700,
             color: wbColor?.fg ?? 'text.secondary',
             bgcolor: wbColor?.bg ?? 'action.hover',
@@ -383,7 +389,7 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
               px: 0.75,
               py: 0.25,
               borderRadius: 1,
-              fontSize: 10.5,
+              fontSize: uiFontSize(10.5),
               fontWeight: 700,
               color: '#1b7a3d',
               bgcolor: 'rgba(27,122,61,0.12)',
@@ -399,7 +405,7 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
               px: 0.75,
               py: 0.25,
               borderRadius: 1,
-              fontSize: 10.5,
+              fontSize: uiFontSize(10.5),
               fontWeight: 700,
               color: '#b25e12',
               bgcolor: 'rgba(178,94,18,0.12)',
@@ -413,7 +419,13 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
       </Box>
       {setting.subtitle ? (
         <Typography
-          sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.7, mb: 0.75, wordBreak: 'break-word' }}
+          sx={{
+            fontSize: uiFontSize(11.5),
+            color: 'text.secondary',
+            lineHeight: 1.7,
+            mb: 0.75,
+            wordBreak: 'break-word',
+          }}
         >
           {setting.subtitle}
         </Typography>
@@ -448,7 +460,7 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
           {inbound.map(({ setting: ref, relationType }) => (
             <Box
               key={`${ref.id}-${relationType}`}
-              sx={{ display: 'flex', gap: 0.5, fontSize: 11.5, alignItems: 'baseline' }}
+              sx={{ display: 'flex', gap: 0.5, fontSize: uiFontSize(11.5), alignItems: 'baseline' }}
             >
               <Button
                 size="small"
@@ -456,7 +468,7 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
                 onClick={() => useEditorStore.getState().selectSetting(ref.id)}
                 sx={{
                   textTransform: 'none',
-                  fontSize: 11.5,
+                  fontSize: uiFontSize(11.5),
                   px: 0.5,
                   py: 0,
                   minWidth: 0,
@@ -467,7 +479,7 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
                 {ref.name || t('writingWorkbench.untitled')}
               </Button>
               {relationType ? (
-                <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{relationType}</Typography>
+                <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled' }}>{relationType}</Typography>
               ) : null}
             </Box>
           ))}
@@ -491,7 +503,7 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
               onClick={() => openChapter(c)}
               sx={{
                 textTransform: 'none',
-                fontSize: 11.5,
+                fontSize: uiFontSize(11.5),
                 px: 0.5,
                 py: 0,
                 minWidth: 0,
@@ -512,9 +524,9 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
       <Button
         size="small"
         variant="outlined"
-        endIcon={<OpenInNewIcon sx={{ fontSize: 13 }} />}
+        endIcon={<OpenInNewIcon sx={{ fontSize: uiFontSize(13) }} />}
         onClick={() => editProfile(setting)}
-        sx={{ mt: 1.25, textTransform: 'none', fontSize: 11 }}
+        sx={{ mt: 1.25, textTransform: 'none', fontSize: uiFontSize(11) }}
       >
         {t('editor.writing.inspector.editProfileExit')}
       </Button>
@@ -570,8 +582,8 @@ export function WorldviewOverview({ bookId }: { bookId: string }) {
 
   return (
     <Box>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.25 }}>{t('writing.wbOverview')}</Typography>
-      <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.7, mb: 1 }}>
+      <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, mb: 0.25 }}>{t('writing.wbOverview')}</Typography>
+      <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', lineHeight: 1.7, mb: 1 }}>
         {t('writing.wbOverviewHint')}
       </Typography>
 
@@ -605,7 +617,7 @@ export function WorldviewOverview({ bookId }: { bookId: string }) {
                   px: 0.75,
                   py: 0.25,
                   borderRadius: 1,
-                  fontSize: 10.5,
+                  fontSize: uiFontSize(10.5),
                   fontWeight: 700,
                   color: color?.fg ?? 'text.secondary',
                   bgcolor: color?.bg ?? 'action.hover',
@@ -703,12 +715,18 @@ function WritingSettingInspector({
 
   return (
     <Box>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
+      <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, mb: 0.5 }}>
         {setting.name || t('writingWorkbench.untitled')}
       </Typography>
       {setting.subtitle ? (
         <Typography
-          sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.7, mb: 0.75, wordBreak: 'break-word' }}
+          sx={{
+            fontSize: uiFontSize(11.5),
+            color: 'text.secondary',
+            lineHeight: 1.7,
+            mb: 0.75,
+            wordBreak: 'break-word',
+          }}
         >
           {setting.subtitle}
         </Typography>
@@ -719,7 +737,7 @@ function WritingSettingInspector({
           px: 0.75,
           py: 0.25,
           borderRadius: 1,
-          fontSize: 10.5,
+          fontSize: uiFontSize(10.5),
           fontWeight: 700,
           mb: 1,
           color: isChar ? 'primary.contrastText' : 'text.secondary',
@@ -749,9 +767,13 @@ function WritingSettingInspector({
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
           {relations.map((r: WritingRelation, i) => (
-            <Box key={i} sx={{ display: 'flex', gap: 0.5, fontSize: 11.5, alignItems: 'baseline' }}>
-              <Typography sx={{ fontSize: 10.5, color: 'text.secondary', flexShrink: 0 }}>{r.type || '·'}</Typography>
-              <Typography sx={{ fontSize: 11.5, fontWeight: 600 }}>{relationTargetName(settings, r)}</Typography>
+            <Box key={i} sx={{ display: 'flex', gap: 0.5, fontSize: uiFontSize(11.5), alignItems: 'baseline' }}>
+              <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.secondary', flexShrink: 0 }}>
+                {r.type || '·'}
+              </Typography>
+              <Typography sx={{ fontSize: uiFontSize(11.5), fontWeight: 600 }}>
+                {relationTargetName(settings, r)}
+              </Typography>
             </Box>
           ))}
         </Box>
@@ -767,7 +789,7 @@ function WritingSettingInspector({
           {inbound.map(({ setting: ref, relationType }) => (
             <Box
               key={`${ref.id}-${relationType}`}
-              sx={{ display: 'flex', gap: 0.5, fontSize: 11.5, alignItems: 'baseline' }}
+              sx={{ display: 'flex', gap: 0.5, fontSize: uiFontSize(11.5), alignItems: 'baseline' }}
             >
               <Button
                 size="small"
@@ -775,7 +797,7 @@ function WritingSettingInspector({
                 onClick={() => useEditorStore.getState().selectSetting(ref.id)}
                 sx={{
                   textTransform: 'none',
-                  fontSize: 11.5,
+                  fontSize: uiFontSize(11.5),
                   px: 0.5,
                   py: 0,
                   minWidth: 0,
@@ -785,7 +807,7 @@ function WritingSettingInspector({
                 {ref.name || t('writingWorkbench.untitled')}
               </Button>
               {relationType ? (
-                <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{relationType}</Typography>
+                <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled' }}>{relationType}</Typography>
               ) : null}
             </Box>
           ))}
@@ -809,7 +831,14 @@ function WritingSettingInspector({
               size="small"
               variant="text"
               onClick={() => onOpenChapter(c)}
-              sx={{ textTransform: 'none', fontSize: 11.5, px: 0.5, py: 0, minWidth: 0, justifyContent: 'flex-start' }}
+              sx={{
+                textTransform: 'none',
+                fontSize: uiFontSize(11.5),
+                px: 0.5,
+                py: 0,
+                minWidth: 0,
+                justifyContent: 'flex-start',
+              }}
             >
               {c.title}
             </Button>
@@ -838,7 +867,7 @@ function WritingSettingInspector({
                 }}
                 sx={{
                   textTransform: 'none',
-                  fontSize: 11,
+                  fontSize: uiFontSize(11),
                   justifyContent: 'flex-start',
                   px: 1,
                   py: 0.5,
@@ -870,9 +899,9 @@ function WritingSettingInspector({
       <Button
         size="small"
         variant="outlined"
-        endIcon={<OpenInNewIcon sx={{ fontSize: 13 }} />}
+        endIcon={<OpenInNewIcon sx={{ fontSize: uiFontSize(13) }} />}
         onClick={() => onEditProfile(setting)}
-        sx={{ mt: 1.25, textTransform: 'none', fontSize: 11 }}
+        sx={{ mt: 1.25, textTransform: 'none', fontSize: uiFontSize(11) }}
       >
         {t('editor.writing.inspector.editProfileExit')}
       </Button>
@@ -928,7 +957,7 @@ function SettingAnnotationRefs({
             onClick={() => void openWritingDesk({ bookId, chapterId: a.chapterId })}
             sx={{
               textTransform: 'none',
-              fontSize: 11,
+              fontSize: uiFontSize(11),
               justifyContent: 'flex-start',
               px: 1,
               py: 0.5,
@@ -941,7 +970,7 @@ function SettingAnnotationRefs({
             }}
           >
             <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 0.75 }}>
-              <StickyNote2RoundedIcon sx={{ fontSize: 13, color: 'text.secondary', flexShrink: 0 }} />
+              <StickyNote2RoundedIcon sx={{ fontSize: uiFontSize(13), color: 'text.secondary', flexShrink: 0 }} />
               <Box
                 component="span"
                 sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontWeight: 600 }}
@@ -952,7 +981,7 @@ function SettingAnnotationRefs({
             {a.excerpt ? (
               <Typography
                 sx={{
-                  fontSize: 10.5,
+                  fontSize: uiFontSize(10.5),
                   color: 'text.secondary',
                   lineHeight: 1.6,
                   mt: 0.25,
@@ -1066,7 +1095,7 @@ function SettingTimelineSection({ settingId, bookId }: { settingId: string; book
                 title={t('writing.chapterTimelineOpen')}
                 sx={{
                   textTransform: 'none',
-                  fontSize: 11.5,
+                  fontSize: uiFontSize(11.5),
                   px: 0.5,
                   py: 0,
                   minWidth: 0,
@@ -1087,7 +1116,7 @@ function SettingTimelineSection({ settingId, bookId }: { settingId: string; book
                 title={t('writingDesign.deleteIdea')}
                 sx={{
                   textTransform: 'none',
-                  fontSize: 13,
+                  fontSize: uiFontSize(13),
                   fontWeight: 700,
                   px: 0.5,
                   py: 0,
@@ -1119,7 +1148,7 @@ function SettingTimelineSection({ settingId, bookId }: { settingId: string; book
               title={t('writing.storylineSelect')}
               sx={{
                 textTransform: 'none',
-                fontSize: 11.5,
+                fontSize: uiFontSize(11.5),
                 px: 0.5,
                 py: 0,
                 minWidth: 0,
@@ -1166,7 +1195,7 @@ function SettingTimelineSection({ settingId, bookId }: { settingId: string; book
               title={t('writing.inspirationSelect')}
               sx={{
                 textTransform: 'none',
-                fontSize: 11.5,
+                fontSize: uiFontSize(11.5),
                 px: 0.5,
                 py: 0,
                 minWidth: 0,
@@ -1174,7 +1203,7 @@ function SettingTimelineSection({ settingId, bookId }: { settingId: string; book
                 overflow: 'hidden',
               }}
             >
-              <Box component="span" sx={{ color: 'primary.main', mr: 0.75, flexShrink: 0, fontSize: 10 }}>
+              <Box component="span" sx={{ color: 'primary.main', mr: 0.75, flexShrink: 0, fontSize: uiFontSize(10) }}>
                 ◆
               </Box>
               <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1200,7 +1229,7 @@ function SettingTimelineSection({ settingId, bookId }: { settingId: string; book
               title={t('writing.foreshadowDetailTitle')}
               sx={{
                 textTransform: 'none',
-                fontSize: 11.5,
+                fontSize: uiFontSize(11.5),
                 px: 0.5,
                 py: 0,
                 minWidth: 0,
@@ -1269,12 +1298,18 @@ export function WritingSettingDetail({ setting, bookId }: { setting: WritingSett
 
   return (
     <Box>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>
+      <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, mb: 0.5 }}>
         {setting.name || t('writingWorkbench.untitled')}
       </Typography>
       {setting.subtitle ? (
         <Typography
-          sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.7, mb: 0.75, wordBreak: 'break-word' }}
+          sx={{
+            fontSize: uiFontSize(11.5),
+            color: 'text.secondary',
+            lineHeight: 1.7,
+            mb: 0.75,
+            wordBreak: 'break-word',
+          }}
         >
           {setting.subtitle}
         </Typography>
@@ -1285,7 +1320,7 @@ export function WritingSettingDetail({ setting, bookId }: { setting: WritingSett
           px: 0.75,
           py: 0.25,
           borderRadius: 1,
-          fontSize: 10.5,
+          fontSize: uiFontSize(10.5),
           fontWeight: 700,
           mb: 1,
           color: isChar ? 'primary.contrastText' : 'text.secondary',
@@ -1309,9 +1344,9 @@ export function WritingSettingDetail({ setting, bookId }: { setting: WritingSett
       <Button
         size="small"
         variant="outlined"
-        endIcon={<OpenInNewIcon sx={{ fontSize: 13 }} />}
+        endIcon={<OpenInNewIcon sx={{ fontSize: uiFontSize(13) }} />}
         onClick={() => editProfile(setting)}
-        sx={{ mt: 1.25, textTransform: 'none', fontSize: 11 }}
+        sx={{ mt: 1.25, textTransform: 'none', fontSize: uiFontSize(11) }}
       >
         {t('editor.writing.inspector.editProfileExit')}
       </Button>
@@ -1339,11 +1374,11 @@ export function WritingSettingContextPanel({ kind, bookId }: { kind: 'character'
 
   return (
     <Box>
-      <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.7, mb: 1 }}>
+      <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', lineHeight: 1.7, mb: 1 }}>
         {t('editor.writing.inspector.pickSetting', { name: kindLabel })}
       </Typography>
       {incompleteCount > 0 && (
-        <Typography sx={{ fontSize: 10.5, color: '#b25e12', lineHeight: 1.6, mb: 0.5 }}>
+        <Typography sx={{ fontSize: uiFontSize(10.5), color: '#b25e12', lineHeight: 1.6, mb: 0.5 }}>
           {t('writing.incompleteSummary', { n: incompleteCount })}
         </Typography>
       )}
@@ -1359,7 +1394,7 @@ export function WritingSettingContextPanel({ kind, bookId }: { kind: 'character'
               onClick={() => useEditorStore.getState().selectSetting(s.id)}
               sx={{
                 textTransform: 'none',
-                fontSize: 12,
+                fontSize: uiFontSize(12),
                 justifyContent: 'flex-start',
                 px: 1,
                 py: 0.5,
@@ -1371,7 +1406,7 @@ export function WritingSettingContextPanel({ kind, bookId }: { kind: 'character'
             >
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: 12, fontWeight: 600, lineHeight: 1.4 }}>
+                  <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 600, lineHeight: 1.4 }}>
                     {s.name || t('writingWorkbench.untitled')}
                   </Typography>
                   {isIncomplete(s) && (
@@ -1384,7 +1419,7 @@ export function WritingSettingContextPanel({ kind, bookId }: { kind: 'character'
                         void openWritingDesk({ bookId, settingId: s.id });
                       }}
                       sx={{
-                        fontSize: 9.5,
+                        fontSize: uiFontSize(9.5),
                         px: 0.5,
                         py: 0.25,
                         borderRadius: 0.5,
@@ -1404,7 +1439,12 @@ export function WritingSettingContextPanel({ kind, bookId }: { kind: 'character'
                 </Box>
                 {s.subtitle ? (
                   <Typography
-                    sx={{ fontSize: 10.5, color: 'text.secondary', lineHeight: 1.4, wordBreak: 'break-word' }}
+                    sx={{
+                      fontSize: uiFontSize(10.5),
+                      color: 'text.secondary',
+                      lineHeight: 1.4,
+                      wordBreak: 'break-word',
+                    }}
                   >
                     {s.subtitle}
                   </Typography>
@@ -1581,7 +1621,7 @@ export function WritingInspectorPanel({
       title={t('writing.foreshadowSelect')}
       sx={{
         textTransform: 'none',
-        fontSize: 11.5,
+        fontSize: uiFontSize(11.5),
         px: 0.5,
         py: 0,
         minWidth: 0,
@@ -1620,7 +1660,14 @@ export function WritingInspectorPanel({
       size="small"
       variant="text"
       onClick={() => openChapter(c)}
-      sx={{ textTransform: 'none', fontSize: 11.5, px: 0.5, py: 0, minWidth: 0, justifyContent: 'flex-start' }}
+      sx={{
+        textTransform: 'none',
+        fontSize: uiFontSize(11.5),
+        px: 0.5,
+        py: 0,
+        minWidth: 0,
+        justifyContent: 'flex-start',
+      }}
     >
       {c.title}
     </Button>
@@ -1647,9 +1694,9 @@ export function WritingInspectorPanel({
     <Button
       size="small"
       variant="outlined"
-      endIcon={<OpenInNewIcon sx={{ fontSize: 13 }} />}
+      endIcon={<OpenInNewIcon sx={{ fontSize: uiFontSize(13) }} />}
       onClick={() => openPane(target)}
-      sx={{ mt: 1.25, textTransform: 'none', fontSize: 11 }}
+      sx={{ mt: 1.25, textTransform: 'none', fontSize: uiFontSize(11) }}
     >
       {t('editor.writing.inspector.openTpl', { name: t(`writing.viewKind.${target}`) })}
     </Button>
@@ -1669,9 +1716,9 @@ export function WritingInspectorPanel({
         <Button
           size="small"
           variant="outlined"
-          startIcon={<MenuBookIcon sx={{ fontSize: 13 }} />}
+          startIcon={<MenuBookIcon sx={{ fontSize: uiFontSize(13) }} />}
           onClick={onManageVolumes}
-          sx={{ textTransform: 'none', fontSize: 11 }}
+          sx={{ textTransform: 'none', fontSize: uiFontSize(11) }}
         >
           {t('panel.layers.bookTitle')}
         </Button>
@@ -1683,7 +1730,7 @@ export function WritingInspectorPanel({
     <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, p: 1.5 }}>
       <Typography
         sx={{
-          fontSize: 11,
+          fontSize: uiFontSize(11),
           fontWeight: 700,
           textTransform: 'uppercase',
           letterSpacing: 0.5,
@@ -1722,11 +1769,11 @@ export function WritingInspectorPanel({
             return (
               <>
                 {crumbs.length > 0 && (
-                  <Typography sx={{ fontSize: 10, color: 'text.disabled', mb: 0.25 }} noWrap>
+                  <Typography sx={{ fontSize: uiFontSize(10), color: 'text.disabled', mb: 0.25 }} noWrap>
                     {crumbs.join(' › ')}
                   </Typography>
                 )}
-                <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.75 }}>{chapter.title}</Typography>
+                <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, mb: 0.75 }}>{chapter.title}</Typography>
                 <Row
                   label={t('analyzer.writing.entity.chapter.prop.volume')}
                   value={chapter.volume || t('editor.writing.book.noVolume')}
@@ -1757,7 +1804,7 @@ export function WritingInspectorPanel({
                           title={t('writing.chapterTimelineOpen')}
                           sx={{
                             textTransform: 'none',
-                            fontSize: 11.5,
+                            fontSize: uiFontSize(11.5),
                             px: 0.5,
                             py: 0,
                             minWidth: 0,
@@ -1781,7 +1828,7 @@ export function WritingInspectorPanel({
                           title={t('writingDesign.deleteIdea')}
                           sx={{
                             textTransform: 'none',
-                            fontSize: 13,
+                            fontSize: uiFontSize(13),
                             fontWeight: 700,
                             px: 0.5,
                             py: 0,
@@ -1813,7 +1860,7 @@ export function WritingInspectorPanel({
                         title={t('writing.storylineSelect')}
                         sx={{
                           textTransform: 'none',
-                          fontSize: 11.5,
+                          fontSize: uiFontSize(11.5),
                           px: 0.5,
                           py: 0,
                           minWidth: 0,
@@ -1905,9 +1952,9 @@ export function WritingInspectorPanel({
                 <Button
                   size="small"
                   variant="outlined"
-                  endIcon={<OpenInNewIcon sx={{ fontSize: 13 }} />}
+                  endIcon={<OpenInNewIcon sx={{ fontSize: uiFontSize(13) }} />}
                   onClick={() => openChapter(chapter)}
-                  sx={{ mt: 1.25, textTransform: 'none', fontSize: 11 }}
+                  sx={{ mt: 1.25, textTransform: 'none', fontSize: uiFontSize(11) }}
                 >
                   {t('editor.writing.inspector.openTpl', { name: chapter.title })}
                 </Button>
@@ -1932,7 +1979,7 @@ export function WritingInspectorPanel({
             const finished = rows.filter((c) => c.status === 'finished').length;
             return (
               <Box>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.75 }}>
+                <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, mb: 0.75 }}>
                   {vol || t('editor.writing.book.noVolume')}
                 </Typography>
                 <Row label={t('writing.chapterCount')} value={String(rows.length)} />
@@ -1941,16 +1988,20 @@ export function WritingInspectorPanel({
                 <Divider sx={{ my: 1.25 }} />
                 <SectionTitle>{t('editor.writing.inspector.chapterList')}</SectionTitle>
                 {rows.length === 0 && (
-                  <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
+                  <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled' }}>
                     {t('editor.writing.book.empty')}
                   </Typography>
                 )}
                 {rows.map((ch) => (
-                  <Typography key={ch.id} sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.7 }} noWrap>
+                  <Typography
+                    key={ch.id}
+                    sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', lineHeight: 1.7 }}
+                    noWrap
+                  >
                     {ch.title}
                   </Typography>
                 ))}
-                <Typography sx={{ fontSize: 10.5, color: 'text.disabled', lineHeight: 1.7, mt: 1 }}>
+                <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', lineHeight: 1.7, mt: 1 }}>
                   {t('editor.writing.inspector.volumeGap')}
                 </Typography>
               </Box>
@@ -1969,10 +2020,16 @@ export function WritingInspectorPanel({
               : [];
             return (
               <>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.75 }}>{name}</Typography>
+                <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, mb: 0.75 }}>{name}</Typography>
                 {setting?.subtitle ? (
                   <Typography
-                    sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.7, mb: 0.75, wordBreak: 'break-word' }}
+                    sx={{
+                      fontSize: uiFontSize(11.5),
+                      color: 'text.secondary',
+                      lineHeight: 1.7,
+                      mb: 0.75,
+                      wordBreak: 'break-word',
+                    }}
                   >
                     {setting.subtitle}
                   </Typography>
@@ -1994,7 +2051,7 @@ export function WritingInspectorPanel({
                 )}
                 {/* 布局器产出的设定卡没有 settingId（不是真建档行）：明说，别让人以为改不动是 bug */}
                 {!setting && (
-                  <Typography sx={{ fontSize: 10.5, color: 'text.disabled', lineHeight: 1.7, mt: 0.75 }}>
+                  <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', lineHeight: 1.7, mt: 0.75 }}>
                     {t('editor.writing.inspector.cardOnly')}
                   </Typography>
                 )}

@@ -366,6 +366,8 @@ export default function WritingStatsDialog({
                     minWidth: 2,
                     height: `${Math.max(d.delta > 0 ? 4 : 0, (d.delta / maxDelta) * 100)}%`,
                     bgcolor: d.delta > 0 ? 'primary.main' : 'transparent',
+                    // 圆角例外（第 32 轮）：柱状图柱体只圆顶两角（2px 2px 0 0），是随柱宽走的
+                    // 几何值，且四角分别取值 —— 单值档位乘数表达不了这种形状。
                     borderRadius: '2px 2px 0 0',
                     minHeight: d.delta > 0 ? 4 : 0,
                   }}

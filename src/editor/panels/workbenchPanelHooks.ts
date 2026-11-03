@@ -51,6 +51,7 @@ import {
   buildProofreadCorpus,
   buildStatsCorpus,
   buildManuscriptCorpus,
+  hasChapterManuscript,
   buildWorldConsistencyPrompt,
 } from '../../utils/writingCorpus';
 import { useWritingDocsStore } from '../../store/writingDocsStore';
@@ -275,8 +276,13 @@ export function buildFollowups(args: {
   isBookScene?: boolean;
   /** 书场景当前题材（含 overview 全书总览）：不同题材给不同的「下一步」追问 */
   bookTopic?: string;
+  /** 书场景此刻视图是否有可用正文（判据见 utils/writingCorpus.hasChapterManuscript）：
+   *  false = 正文视图空章/无激活章，兜底不许再推「润色上面这段正文」这类假设有正文的追问；
+   *  undefined = 调用方未提供，保持原行为（第三十八轮批次1刀③补的判据）。 */
+  hasManuscriptText?: boolean;
 }): FollowupItem[] {
-  const { hasActiveFile, relPath, producedCode, hasDiagnostics, hasScope, isBookScene, bookTopic } = args;
+  const { hasActiveFile, relPath, producedCode, hasDiagnostics, hasScope, isBookScene, bookTopic, hasManuscriptText } =
+    args;
   const file = relPath || 'this file';
   const out: FollowupItem[] = [];
   if (isBookScene && bookTopic === 'overview') {
@@ -498,6 +504,28 @@ export function buildFollowups(args: {
     return out.slice(0, 2);
   }
   if (isBookScene) {
+    // 兜底追问是正文向（「请润色上面这段正文」系），但正文视图可能是空新章/未开章——
+    // 让 AI 处理不存在的正文，与十五轮 stats、结构视图的病灶同型，这次补的是判据本身。
+    // 无正文时改推「动笔构思」：已注入的章节骨架/大纲/全书总览语料答得起（批次1刀③）。
+    if (hasManuscriptText === false) {
+      out.push({
+        key: 'draftOpen',
+        labelKey: 'workbench.aiFollowup.book.draftOpen',
+        prompt: L(
+          `本章还没有正文。请基于已注入的章节骨架、大纲与全书总览，给出这一章的开场方案与 2-3 种推进走向（各自的情绪基调与张力点），供我动笔前选择；不要凭空杜撰既有情节。`,
+          `This chapter has no prose yet. From the injected chapter skeleton, outline and book overview, propose an opening plus 2-3 directions it could take (each one's mood and tension points) for me to pick before writing; do not invent existing plot.`,
+        ),
+      });
+      out.push({
+        key: 'chapterBeats',
+        labelKey: 'workbench.aiFollowup.book.chapterBeats',
+        prompt: L(
+          `帮我把本章要完成的事件拆成 3-5 个节拍（目标 / 冲突 / 转折 / 收束），并标注每个节拍需要呼应的人设、伏笔或时间线条目；没有资料支撑的请明确标注「待补」，不要凭空推断。`,
+          `Break what this chapter needs to accomplish into 3-5 beats (goal / conflict / turn / resolution), tagging the character cards, foreshadowing or timeline entries each beat should echo; mark anything unsourced as 'to fill in' instead of guessing.`,
+        ),
+      });
+      return out.slice(0, 2);
+    }
     out.push({
       key: 'improve',
       labelKey: 'workbench.aiFollowup.book.improve',
@@ -636,9 +664,7 @@ export function resolveConvTitle(args: {
 }): string {
   const { isBookScene, bookTitle, activeFileName } = args;
   if (isBookScene) {
-    return bookTitle
-      ? t('workbench.aiConvTitleBook', { book: bookTitle })
-      : t('workbench.aiConvTitleBookNoName');
+    return bookTitle ? t('workbench.aiConvTitleBook', { book: bookTitle }) : t('workbench.aiConvTitleBookNoName');
   }
   return t('workbench.aiConvTitle', { file: activeFileName ?? '?' });
 }
@@ -1880,6 +1906,17 @@ export function useWorkbenchChat(deps: {
   const followups = useMemo<FollowupItem[]>(() => {
     if (!lastAssistant || isStreaming) return [];
     const producedCode = parseBlocks(lastAssistant.content).some((n) => n.type === 'code');
+    // 判据（批次1刀③）：本书视图此刻有无正文——与正文语料注入路径同一口径
+    // （同 store、同 activeChapterByBook 键、同 stripChapterHtml 判定）。取值时机在
+    // followups 重算时（助手消息落定/切题材），正是追问药丸生效的那一刻。
+    const hasManuscriptText = (() => {
+      if (!ctx.isBookScene) return undefined;
+      const ws = useWritingStore.getState();
+      const bookId = ws.activeBookId;
+      const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
+      const activeChapterId = useWritingDocsStore.getState().activeChapterByBook[bookId ?? ''] ?? null;
+      return hasChapterManuscript(chapters, activeChapterId);
+    })();
     return buildFollowups({
       hasActiveFile: !!activeFile,
       relPath: activeFile?.relPath,
@@ -1888,9 +1925,10 @@ export function useWorkbenchChat(deps: {
       hasScope: !!ctx.canvasScope,
       isBookScene: ctx.isBookScene,
       bookTopic: ctx.bookTopic ?? undefined,
+      hasManuscriptText,
     });
-  // ctx.bookTopic 必须在依赖里：切左栏题材 tab 会改 bookTopic（overview 有专属追问、其余通用），
-  // 漏挂会让 followups 停在上一题材的追问（联动 bug，2026-10-31 第十五轮批次4）。
+    // ctx.bookTopic 必须在依赖里：切左栏题材 tab 会改 bookTopic（overview 有专属追问、其余通用），
+    // 漏挂会让 followups 停在上一题材的追问（联动 bug，2026-10-31 第十五轮批次4）。
   }, [lastAssistant, isStreaming, activeFile, ctx.fileDiagnostics, ctx.canvasScope, ctx.isBookScene, ctx.bookTopic]);
 
   // B 深化（对标 VS Code Copilot Edits）：改动就地长在对话流——每条含代码块的助手消息

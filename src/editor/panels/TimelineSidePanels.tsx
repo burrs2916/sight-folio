@@ -40,7 +40,7 @@ function unionConflictIds(events: WritingTimelineEvent[], chapters: WritingChapt
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  border: '1px solid rgba(128,128,128,0.35)',
+  border: '1px solid var(--template-palette-divider, rgba(128,128,128,0.35))',
   borderRadius: 6,
   background: 'transparent',
   color: 'inherit',
@@ -106,7 +106,7 @@ function StorylineUnlinedList({
           style={{
             fontSize: 10,
             padding: '2px 6px',
-            border: '1px solid rgba(128,128,128,0.35)',
+            border: '1px solid var(--template-palette-divider, rgba(128,128,128,0.35))',
             borderRadius: 5,
             background: 'transparent',
             color: 'inherit',
@@ -518,7 +518,6 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
           <ChapterPicker
             uniqueKey={event.id}
             chapters={bookChapters}
-            accent="#1976d2"
             onSelect={(chId: string) => void updateTimelineEvent(event.id, { chapterId: chId })}
             width="100%"
             value={event.chapterId}

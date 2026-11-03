@@ -60,6 +60,7 @@ import { useAgentStore } from '../store/agentStore';
 import { useWritingStore } from '../store/writingStore';
 import { useToastStore } from '../store/toastStore';
 import { L } from '../ai/aiLang';
+import { AI_COLOR } from '../ai/aiBrand';
 import { logger } from '../utils/logger';
 import { t } from '../i18n';
 import type { QuickActionKind } from '../ai/WelcomeView';
@@ -72,6 +73,8 @@ import { WritingBookInsights } from '../ai/WritingBookInsights';
 import { WelcomeView } from '../ai/WelcomeView';
 import { MessageBubble } from '../ai/chat/MessageBubble';
 import { ToolCallCard } from '../ai/chat/ToolCallCard';
+import { currentScrollBehavior } from '../utils/reducedMotion';
+import { uiFontSize } from '../theme/appearanceScales';
 // import { AcpHostPanel } from '../ai/acp/AcpHostPanel'; // 已隐藏：ACP Host 后台静默运行，不暴露 UI
 
 /**
@@ -132,7 +135,7 @@ function AgentTopBar({ onOpenSettings, settingsOpen }: { onOpenSettings: () => v
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
           <Chip
             size="small"
-            icon={<MenuBookIcon sx={{ fontSize: 14 }} />}
+            icon={<MenuBookIcon sx={{ fontSize: uiFontSize(14) }} />}
             label={currentBook.title}
             color="primary"
             variant="outlined"
@@ -140,7 +143,7 @@ function AgentTopBar({ onOpenSettings, settingsOpen }: { onOpenSettings: () => v
           {currentChapter && (
             <Chip
               size="small"
-              icon={<AutoStoriesIcon sx={{ fontSize: 14 }} />}
+              icon={<AutoStoriesIcon sx={{ fontSize: uiFontSize(14) }} />}
               label={currentChapter.title}
               variant="outlined"
             />
@@ -155,11 +158,11 @@ function AgentTopBar({ onOpenSettings, settingsOpen }: { onOpenSettings: () => v
           <Select
             value={selectedAgentId || ''}
             onChange={(e) => selectAgent(e.target.value || null)}
-            sx={{ fontSize: 13 }}
+            sx={{ fontSize: uiFontSize(13) }}
           >
             {agents.map((a) => (
-              <MenuItem key={a.id} value={a.id} sx={{ fontSize: 13 }}>
-                <SmartToyIcon sx={{ fontSize: 16, mr: 1, color: 'primary.main' }} />
+              <MenuItem key={a.id} value={a.id} sx={{ fontSize: uiFontSize(13) }}>
+                <SmartToyIcon sx={{ fontSize: uiFontSize(16), mr: 1, color: 'primary.main' }} />
                 {a.name}
               </MenuItem>
             ))}
@@ -185,7 +188,7 @@ function AgentTopBar({ onOpenSettings, settingsOpen }: { onOpenSettings: () => v
       >
         <AutoAwesomeIcon
           sx={{
-            fontSize: 20,
+            fontSize: uiFontSize(20),
             color: settingsOpen ? 'primary.contrastText' : 'primary.main',
           }}
         />
@@ -385,11 +388,11 @@ function ConversationSidebar() {
             }}
             sx={{
               textTransform: 'none',
-              fontSize: 13,
+              fontSize: uiFontSize(13),
               fontWeight: 500,
               py: 1,
               borderRadius: 2,
-              boxShadow: '0 2px 8px rgba(99,102,241,0.2)',
+              boxShadow: '0 2px 8px rgb(var(--template-palette-primary-mainChannel) / 0.2)',
             }}
           >
             {t('agent.sidebar.newChat')}
@@ -413,7 +416,7 @@ function ConversationSidebar() {
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                    <SearchIcon sx={{ fontSize: uiFontSize(16), color: 'text.secondary' }} />
                   </InputAdornment>
                 ),
                 endAdornment: search ? (
@@ -427,14 +430,14 @@ function ConversationSidebar() {
                       aria-label={t('agent.sidebar.clearSearch')}
                       sx={{ p: 0.25 }}
                     >
-                      <CloseIcon sx={{ fontSize: 14 }} />
+                      <CloseIcon sx={{ fontSize: uiFontSize(14) }} />
                     </IconButton>
                   </InputAdornment>
                 ) : null,
               },
             }}
             sx={{
-              '& .MuiInputBase-root': { fontSize: 12.5, borderRadius: 1.5 },
+              '& .MuiInputBase-root': { fontSize: uiFontSize(12.5), borderRadius: 1.5 },
             }}
           />
         </Box>
@@ -444,12 +447,12 @@ function ConversationSidebar() {
       <Box sx={{ flex: 1, overflow: 'auto', px: 1.5, pb: 1.5 }}>
         {filtered.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
-            <ChatBubbleOutlinedIcon sx={{ fontSize: 40, opacity: 0.15, mb: 1 }} />
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: 13 }}>
+            <ChatBubbleOutlinedIcon sx={{ fontSize: uiFontSize(40), opacity: 0.15, mb: 1 }} />
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: uiFontSize(13) }}>
               {search ? t('agent.sidebar.noMatch') : t('agent.sidebar.noConversations')}
             </Typography>
             {!search && (
-              <Typography variant="caption" color="text.disabled" sx={{ fontSize: 11 }}>
+              <Typography variant="caption" color="text.disabled" sx={{ fontSize: uiFontSize(11) }}>
                 {t('agent.sidebar.clickToStart')}
               </Typography>
             )}
@@ -477,7 +480,7 @@ function ConversationSidebar() {
                     alignItems: 'center',
                     gap: 1,
                     borderColor: selected ? 'primary.main' : 'divider',
-                    bgcolor: selected ? 'rgba(99,102,241,0.06)' : 'transparent',
+                    bgcolor: selected ? 'rgb(var(--template-palette-primary-mainChannel) / 0.06)' : 'transparent',
                     transition: 'all 0.15s',
                     '&:hover': {
                       borderColor: 'primary.main',
@@ -486,19 +489,23 @@ function ConversationSidebar() {
                   }}
                 >
                   <ChatBubbleOutlinedIcon
-                    sx={{ fontSize: 16, color: selected ? 'primary.main' : 'text.secondary', flexShrink: 0 }}
+                    sx={{
+                      fontSize: uiFontSize(16),
+                      color: selected ? 'primary.main' : 'text.secondary',
+                      flexShrink: 0,
+                    }}
                   />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography
                       noWrap
                       sx={{
-                        fontSize: 13,
+                        fontSize: uiFontSize(13),
                         fontWeight: selected ? 600 : 400,
                       }}
                     >
                       {c.title}
                     </Typography>
-                    <Typography sx={{ fontSize: 10.5, color: 'text.disabled', mt: 0.25 }}>
+                    <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', mt: 0.25 }}>
                       {relTime(c.updatedAt)}
                     </Typography>
                   </Box>
@@ -510,7 +517,7 @@ function ConversationSidebar() {
                     }}
                     sx={{ p: 0.5, opacity: 0.5, '&:hover': { opacity: 1 } }}
                   >
-                    <DeleteIcon sx={{ fontSize: 14 }} />
+                    <DeleteIcon sx={{ fontSize: uiFontSize(14) }} />
                   </IconButton>
                 </Paper>
               );
@@ -533,7 +540,7 @@ function ConversationSidebar() {
                       <Typography
                         variant="caption"
                         sx={{
-                          fontSize: 11,
+                          fontSize: uiFontSize(11),
                           fontWeight: 700,
                           color: 'primary.main',
                         }}
@@ -560,7 +567,7 @@ function ConversationSidebar() {
                               '&:hover': { color: confirmClear ? '#fff' : 'error.main' },
                             }}
                           >
-                            <DeleteIcon sx={{ fontSize: 13 }} />
+                            <DeleteIcon sx={{ fontSize: uiFontSize(13) }} />
                           </IconButton>
                         </Tooltip>
                       )}
@@ -573,7 +580,7 @@ function ConversationSidebar() {
                     <Typography
                       variant="caption"
                       sx={{
-                        fontSize: 11,
+                        fontSize: uiFontSize(11),
                         fontWeight: 700,
                         color: 'text.disabled',
                         px: 0.5,
@@ -889,7 +896,9 @@ function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void 
             flexShrink: 0,
           }}
         >
-          <Typography sx={{ flex: 1, fontSize: 16, fontWeight: 600 }}>{t('agent.settings.title')}</Typography>
+          <Typography sx={{ flex: 1, fontSize: uiFontSize(16), fontWeight: 600 }}>
+            {t('agent.settings.title')}
+          </Typography>
           <IconButton onClick={onClose} aria-label={t('agent.settings.close')} size="small">
             <CloseIcon fontSize="small" />
           </IconButton>
@@ -999,7 +1008,7 @@ function MessageView({
   /** 最近一次本页发起的请求（实际发送全文），供错误态「重试」原样重发 */
   const lastSentRef = useRef<string | null>(null);
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = (behavior: ScrollBehavior = currentScrollBehavior()) => {
     if (!scrollContainerRef.current) return;
     const el = scrollContainerRef.current;
     if (isNearBottomRef.current) {
@@ -1012,7 +1021,7 @@ function MessageView({
     // 流式中用瞬时滚动（对齐 openclaw scrollToEnd({behavior:'auto'})）：
     // smooth 动画在 48ms 级高频 flush 下会不断被打断重启动画，造成滚轮追尾抖动；
     // 结束/新消息时才恢复平滑滚动。
-    scrollTimer.current = window.setTimeout(() => scrollToBottom(isStreaming ? 'auto' : 'smooth'), 60);
+    scrollTimer.current = window.setTimeout(() => scrollToBottom(isStreaming ? 'auto' : currentScrollBehavior()), 60);
     return () => {
       if (scrollTimer.current) clearTimeout(scrollTimer.current);
     };
@@ -1223,14 +1232,16 @@ function MessageView({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: 'rgba(99,102,241,0.1)',
+            bgcolor: 'rgb(var(--template-palette-primary-mainChannel) / 0.1)',
           }}
         >
-          <SmartToyIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+          <SmartToyIcon sx={{ fontSize: uiFontSize(18), color: 'primary.main' }} />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{currentAgent?.name || t('agent.panel.chat')}</Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+          <Typography sx={{ fontSize: uiFontSize(14), fontWeight: 600 }}>
+            {currentAgent?.name || t('agent.panel.chat')}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: uiFontSize(11) }}>
             {isOwnStreaming ? t('agent.chat.thinking') : t('agent.chat.ready')}
           </Typography>
         </Box>
@@ -1246,7 +1257,7 @@ function MessageView({
               size="small"
               sx={{ p: 0.75 }}
             >
-              <AddIcon sx={{ fontSize: 20 }} />
+              <AddIcon sx={{ fontSize: uiFontSize(20) }} />
             </IconButton>
           </Tooltip>
         )}
@@ -1276,7 +1287,7 @@ function MessageView({
             }}
           >
             <CircularProgress size={24} thickness={3} />
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: 13 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: uiFontSize(13) }}>
               {t('agent.chat.loadingMessages')}
             </Typography>
           </Box>
@@ -1304,14 +1315,20 @@ function MessageView({
                 bgcolor: (th) => `${th.palette.primary.main}10`,
               }}
             >
-              <ChatBubbleOutlinedIcon sx={{ fontSize: 28, color: 'primary.main', opacity: 0.6 }} />
+              <ChatBubbleOutlinedIcon sx={{ fontSize: uiFontSize(28), color: 'primary.main', opacity: 0.6 }} />
             </Box>
-            <Typography variant="body1" sx={{ fontSize: 15, fontWeight: 500, color: 'text.primary' }}>
+            <Typography variant="body1" sx={{ fontSize: uiFontSize(15), fontWeight: 500, color: 'text.primary' }}>
               {currentBook ? t('agent.chat.emptyWithBook') : t('agent.chat.emptyNoBook')}
             </Typography>
             <Typography
               variant="body2"
-              sx={{ fontSize: 13, color: 'text.secondary', maxWidth: 360, textAlign: 'center', lineHeight: 1.6 }}
+              sx={{
+                fontSize: uiFontSize(13),
+                color: 'text.secondary',
+                maxWidth: 360,
+                textAlign: 'center',
+                lineHeight: 1.6,
+              }}
             >
               {currentBook
                 ? t('agent.chat.emptyWithBookDesc', { book: currentBook.title })
@@ -1321,7 +1338,7 @@ function MessageView({
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center', mt: 1 }}>
                 <Chip
                   size="small"
-                  icon={<MenuBookIcon sx={{ fontSize: 14 }} />}
+                  icon={<MenuBookIcon sx={{ fontSize: uiFontSize(14) }} />}
                   label={currentBook.title}
                   color="primary"
                   variant="outlined"
@@ -1329,7 +1346,7 @@ function MessageView({
                 {currentChapter && (
                   <Chip
                     size="small"
-                    icon={<AutoStoriesIcon sx={{ fontSize: 14 }} />}
+                    icon={<AutoStoriesIcon sx={{ fontSize: uiFontSize(14) }} />}
                     label={`${currentChapter.title} · ${currentChapter.wordCount} 字`}
                     variant="outlined"
                   />
@@ -1348,7 +1365,7 @@ function MessageView({
                   size="small"
                   variant="outlined"
                   color="primary"
-                  startIcon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+                  startIcon={<AutoAwesomeIcon sx={{ fontSize: uiFontSize(14) }} />}
                   onClick={() => {
                     setPolishApplyTarget({
                       chapterId: polishTarget.chapterId,
@@ -1372,7 +1389,7 @@ function MessageView({
         {isOwnStreaming && !streamingContent && toolCalls.length === 0 && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1 }}>
             <CircularProgress size={14} />
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: 13 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: uiFontSize(13) }}>
               {t('agent.chat.thinkingShort')}
             </Typography>
           </Box>
@@ -1383,9 +1400,14 @@ function MessageView({
           <Alert
             severity="error"
             variant="outlined"
-            sx={{ fontSize: 12, mt: 1, '& .MuiAlert-message': { py: 0.25 } }}
+            sx={{ fontSize: uiFontSize(12), mt: 1, '& .MuiAlert-message': { py: 0.25 } }}
             action={
-              <Button size="small" color="error" startIcon={<ReplayIcon sx={{ fontSize: 14 }} />} onClick={handleRetry}>
+              <Button
+                size="small"
+                color="error"
+                startIcon={<ReplayIcon sx={{ fontSize: uiFontSize(14) }} />}
+                onClick={handleRetry}
+              >
                 {t('ui.retry')}
               </Button>
             }
@@ -1397,11 +1419,11 @@ function MessageView({
         {!isStreaming && !lastStreamError && stoppedConversationId === selectedConversationId && (
           <Chip
             size="small"
-            icon={<StopIcon sx={{ fontSize: 12 }} />}
+            icon={<StopIcon sx={{ fontSize: uiFontSize(12) }} />}
             label={t('agent.chat.stopped')}
             color="error"
             variant="outlined"
-            sx={{ fontSize: 10.5, height: 20, mt: 1 }}
+            sx={{ fontSize: uiFontSize(10.5), height: 20, mt: 1 }}
           />
         )}
 
@@ -1417,12 +1439,12 @@ function MessageView({
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle sx={{ fontSize: 15 }}>{t('agent.chat.polishApplyConfirmTitle')}</DialogTitle>
+        <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{t('agent.chat.polishApplyConfirmTitle')}</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ fontSize: 13 }}>
+          <DialogContentText sx={{ fontSize: uiFontSize(13) }}>
             {t('agent.chat.polishApplyHint', { title: polishApplyTarget?.chapterTitle ?? '' })}
           </DialogContentText>
-          <DialogContentText sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>
+          <DialogContentText sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mt: 1 }}>
             {t('agent.chat.polishApplyCrossWindow')}
           </DialogContentText>
         </DialogContent>
@@ -1464,7 +1486,7 @@ function MessageView({
               title={t('agent.chat.insertMenuTip')}
               sx={{ p: 0.5, mr: 0.25 }}
             >
-              <AddIcon sx={{ fontSize: 18 }} />
+              <AddIcon sx={{ fontSize: uiFontSize(18) }} />
             </IconButton>
 
             {/* 作品上下文选择器（books 非空时显示） */}
@@ -1480,28 +1502,35 @@ function MessageView({
                   renderValue={(v) => {
                     if (!v)
                       return (
-                        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{t('agent.chat.noBook')}</Typography>
+                        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
+                          {t('agent.chat.noBook')}
+                        </Typography>
                       );
                     const book = writingBooks.find((b) => b.id === v);
                     return (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                        <MenuBookIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />
+                        <MenuBookIcon sx={{ fontSize: uiFontSize(14), color: 'primary.main', flexShrink: 0 }} />
                         <Typography
-                          sx={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          sx={{
+                            fontSize: uiFontSize(12),
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
                         >
                           {book?.title ?? ''}
                         </Typography>
                       </Box>
                     );
                   }}
-                  sx={{ fontSize: 12, '& .MuiSelect-select': { py: 0.75 } }}
+                  sx={{ fontSize: uiFontSize(12), '& .MuiSelect-select': { py: 0.75 } }}
                 >
-                  <MenuItem value="" sx={{ fontSize: 13 }}>
+                  <MenuItem value="" sx={{ fontSize: uiFontSize(13) }}>
                     {t('agent.chat.noBook')}
                   </MenuItem>
                   {writingBooks.map((b) => (
-                    <MenuItem key={b.id} value={b.id} sx={{ fontSize: 13 }}>
-                      <MenuBookIcon sx={{ fontSize: 15, mr: 0.75, color: 'primary.main' }} />
+                    <MenuItem key={b.id} value={b.id} sx={{ fontSize: uiFontSize(13) }}>
+                      <MenuBookIcon sx={{ fontSize: uiFontSize(15), mr: 0.75, color: 'primary.main' }} />
                       {b.title}
                     </MenuItem>
                   ))}
@@ -1527,38 +1556,46 @@ function MessageView({
               slotProps={{ paper: { sx: { minWidth: 220 } } }}
             >
               <MenuItem onClick={insertLocalFile}>
-                <AttachFileIcon sx={{ fontSize: 17, mr: 1, color: 'info.main' }} />
+                <AttachFileIcon sx={{ fontSize: uiFontSize(17), mr: 1, color: 'info.main' }} />
                 <Box>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{t('agent.chat.insertFile')}</Typography>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 600 }}>
+                    {t('agent.chat.insertFile')}
+                  </Typography>
+                  <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary' }}>
                     {t('agent.chat.insertFileTip')}
                   </Typography>
                 </Box>
               </MenuItem>
               <Divider sx={{ my: 0.5 }} />
               <MenuItem onClick={insertTail} disabled={!chapterTailText}>
-                <AutoStoriesIcon sx={{ fontSize: 17, mr: 1, color: 'primary.main' }} />
+                <AutoStoriesIcon sx={{ fontSize: uiFontSize(17), mr: 1, color: 'primary.main' }} />
                 <Box>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{t('agent.chat.insertTail')}</Typography>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 600 }}>
+                    {t('agent.chat.insertTail')}
+                  </Typography>
+                  <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary' }}>
                     {t('agent.chat.insertTailTip')}
                   </Typography>
                 </Box>
               </MenuItem>
               <MenuItem onClick={insertCharacters}>
-                <PersonIcon sx={{ fontSize: 17, mr: 1, color: 'secondary.main' }} />
+                <PersonIcon sx={{ fontSize: uiFontSize(17), mr: 1, color: 'secondary.main' }} />
                 <Box>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{t('agent.chat.insertChars')}</Typography>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 600 }}>
+                    {t('agent.chat.insertChars')}
+                  </Typography>
+                  <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary' }}>
                     {t('agent.chat.insertCharsTip')}
                   </Typography>
                 </Box>
               </MenuItem>
               <MenuItem onClick={insertOutline}>
-                <ListAltIcon sx={{ fontSize: 17, mr: 1, color: 'warning.main' }} />
+                <ListAltIcon sx={{ fontSize: uiFontSize(17), mr: 1, color: 'warning.main' }} />
                 <Box>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{t('agent.chat.insertOutline')}</Typography>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 600 }}>
+                    {t('agent.chat.insertOutline')}
+                  </Typography>
+                  <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary' }}>
                     {t('agent.chat.insertOutlineTip')}
                   </Typography>
                 </Box>
@@ -1579,7 +1616,7 @@ function MessageView({
               disabled={isStreaming}
               sx={{
                 '& .MuiInputBase-root': {
-                  fontSize: 14,
+                  fontSize: uiFontSize(14),
                   py: 1.25,
                   px: 2,
                   borderRadius: 2,
@@ -1677,16 +1714,18 @@ function SettingsView() {
                 mx: 0.5,
                 borderRadius: 1.5,
                 cursor: 'pointer',
-                bgcolor: active ? 'rgba(99,102,241,0.08)' : 'transparent',
+                bgcolor: active ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
                 borderLeft: 3,
                 borderColor: active ? 'primary.main' : 'transparent',
                 transition: 'all 0.15s',
-                '&:hover': { bgcolor: active ? 'rgba(99,102,241,0.12)' : 'action.hover' },
+                '&:hover': {
+                  bgcolor: active ? 'rgb(var(--template-palette-primary-mainChannel) / 0.12)' : 'action.hover',
+                },
               }}
             >
               <Typography
                 sx={{
-                  fontSize: 13,
+                  fontSize: uiFontSize(13),
                   fontWeight: active ? 600 : 400,
                   color: active ? 'primary.main' : 'text.primary',
                 }}
@@ -1700,7 +1739,9 @@ function SettingsView() {
 
       {/* 右侧内容区 */}
       <Box sx={{ flex: 1, px: 3, py: 2, overflowY: 'auto', overflowX: 'hidden' }}>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>{sectionMeta[section].desc}</Typography>
+        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 2 }}>
+          {sectionMeta[section].desc}
+        </Typography>
         {section === 'provider' && <ProviderConfig />}
         {section === 'endpoint' && <EndpointConfig />}
         {section === 'model' && <ModelConfig />}
@@ -1732,10 +1773,13 @@ function FormCard({
         borderRadius: 2,
         border: 1,
         borderColor: 'primary.light',
-        bgcolor: (t) => (t.palette.mode === 'dark' ? 'rgba(99,102,241,0.04)' : 'rgba(99,102,241,0.02)'),
+        bgcolor: (t) =>
+          t.palette.mode === 'dark'
+            ? 'rgb(var(--template-palette-primary-mainChannel) / 0.04)'
+            : 'rgb(var(--template-palette-primary-mainChannel) / 0.02)',
       }}
     >
-      <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 2 }}>{title}</Typography>
+      <Typography sx={{ fontSize: uiFontSize(14), fontWeight: 600, mb: 2 }}>{title}</Typography>
       {children}
       <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
         <Button
@@ -1743,11 +1787,11 @@ function FormCard({
           size="small"
           type="submit"
           form={formId}
-          sx={{ textTransform: 'none', fontSize: 12 }}
+          sx={{ textTransform: 'none', fontSize: uiFontSize(12) }}
         >
           {t('agent.form.save')}
         </Button>
-        <Button size="small" onClick={onCancel} sx={{ textTransform: 'none', fontSize: 12 }}>
+        <Button size="small" onClick={onCancel} sx={{ textTransform: 'none', fontSize: uiFontSize(12) }}>
           {t('agent.form.cancel')}
         </Button>
       </Box>
@@ -1801,9 +1845,9 @@ function ListCard({
           </Box>
         )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{title}</Typography>
+          <Typography sx={{ fontSize: uiFontSize(14), fontWeight: 600 }}>{title}</Typography>
           {subtitle && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: uiFontSize(12) }}>
               {subtitle}
             </Typography>
           )}
@@ -1853,7 +1897,7 @@ function ProviderConfig() {
             setEditing(null);
             setShowForm(true);
           }}
-          sx={{ mb: 2, textTransform: 'none', fontSize: 13, borderRadius: 2 }}
+          sx={{ mb: 2, textTransform: 'none', fontSize: uiFontSize(13), borderRadius: 2 }}
         >
           {t('agent.form.addProvider')}
         </Button>
@@ -1872,8 +1916,8 @@ function ProviderConfig() {
 
       {providers.length === 0 && !showForm && (
         <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-          <SettingsIcon sx={{ fontSize: 36, opacity: 0.15, mb: 1 }} />
-          <Typography sx={{ fontSize: 13 }}>{t('agent.form.noProvider')}</Typography>
+          <SettingsIcon sx={{ fontSize: uiFontSize(36), opacity: 0.15, mb: 1 }} />
+          <Typography sx={{ fontSize: uiFontSize(13) }}>{t('agent.form.noProvider')}</Typography>
         </Box>
       )}
 
@@ -1888,7 +1932,7 @@ function ProviderConfig() {
               label={p.enabled ? t('agent.form.enabled') : t('agent.form.disabled')}
               size="small"
               color={p.enabled ? 'success' : 'default'}
-              sx={{ fontSize: 11 }}
+              sx={{ fontSize: uiFontSize(11) }}
             />
           }
           actions={
@@ -1971,7 +2015,11 @@ function ProviderForm({ initial, onSave, onCancel }: any) {
 
         {/* 标识颜色：预设圆点 + 自定义取色器；不选则保存时随机生成 */}
         <Box sx={{ mb: 1.5 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12, display: 'block', mb: 0.75 }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontSize: uiFontSize(12), display: 'block', mb: 0.75 }}
+          >
             {t('agent.form.colorLabel')}
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
@@ -1985,7 +2033,7 @@ function ProviderForm({ initial, onSave, onCancel }: any) {
                   borderRadius: '50%',
                   bgcolor: c,
                   cursor: 'pointer',
-                  border: '1px solid rgba(0,0,0,0.12)',
+                  border: '1px solid rgb(var(--template-palette-dividerChannel) / 0.5)',
                   boxShadow: color === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : 'none',
                   transition: 'transform 0.12s',
                   '&:hover': { transform: 'scale(1.12)' },
@@ -2000,7 +2048,7 @@ function ProviderForm({ initial, onSave, onCancel }: any) {
                   height: 22,
                   borderRadius: '50%',
                   cursor: 'pointer',
-                  border: '1px solid rgba(0,0,0,0.12)',
+                  border: '1px solid rgb(var(--template-palette-dividerChannel) / 0.5)',
                   background:
                     color && !PROVIDER_COLORS.includes(color)
                       ? `linear-gradient(135deg, ${color} 50%, #fff 50%)`
@@ -2009,7 +2057,7 @@ function ProviderForm({ initial, onSave, onCancel }: any) {
               />
               <input
                 type="color"
-                value={color || '#6366f1'}
+                value={color || AI_COLOR}
                 onChange={(e) => setColor(e.target.value)}
                 style={{
                   position: 'absolute',
@@ -2027,7 +2075,7 @@ function ProviderForm({ initial, onSave, onCancel }: any) {
           {color && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.75 }}>
               <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: color }} />
-              <Typography variant="caption" sx={{ fontSize: 11 }}>
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(11) }}>
                 {color}
               </Typography>
             </Box>
@@ -2036,7 +2084,7 @@ function ProviderForm({ initial, onSave, onCancel }: any) {
 
         <FormControlLabel
           control={<Switch checked={enabled} onChange={(e) => setEnabled(e.target.checked)} size="small" />}
-          label={<Typography sx={{ fontSize: 13 }}>{t('agent.form.enabled')}</Typography>}
+          label={<Typography sx={{ fontSize: uiFontSize(13) }}>{t('agent.form.enabled')}</Typography>}
         />
       </Box>
     </FormCard>
@@ -2100,7 +2148,7 @@ function EndpointConfig() {
             setEditing(null);
             setShowForm(true);
           }}
-          sx={{ mb: 2, textTransform: 'none', fontSize: 13, borderRadius: 2 }}
+          sx={{ mb: 2, textTransform: 'none', fontSize: uiFontSize(13), borderRadius: 2 }}
         >
           {t('agent.form.addEndpoint')}
         </Button>
@@ -2128,7 +2176,7 @@ function EndpointConfig() {
               testResult.toLowerCase().includes('success') || testResult.includes('成功')
                 ? 'success.light'
                 : 'error.light',
-            fontSize: 13,
+            fontSize: uiFontSize(13),
           }}
         >
           {testResult}
@@ -2137,8 +2185,8 @@ function EndpointConfig() {
 
       {endpoints.length === 0 && !showForm && (
         <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-          <LinkIcon sx={{ fontSize: 36, opacity: 0.15, mb: 1 }} />
-          <Typography sx={{ fontSize: 13 }}>{t('agent.form.noEndpoint')}</Typography>
+          <LinkIcon sx={{ fontSize: uiFontSize(36), opacity: 0.15, mb: 1 }} />
+          <Typography sx={{ fontSize: uiFontSize(13) }}>{t('agent.form.noEndpoint')}</Typography>
         </Box>
       )}
 
@@ -2147,7 +2195,7 @@ function EndpointConfig() {
         return (
           <ListCard
             key={ep.id}
-            icon={<LinkIcon sx={{ fontSize: 18, color: 'text.secondary' }} />}
+            icon={<LinkIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />}
             title={ep.name}
             subtitle={`${provider?.name || t('agent.form.unknown')} · ${ep.apiType}`}
             chips={
@@ -2155,7 +2203,7 @@ function EndpointConfig() {
                 label={ep.enabled ? t('agent.form.enabled') : t('agent.form.disabled')}
                 size="small"
                 color={ep.enabled ? 'success' : 'default'}
-                sx={{ fontSize: 11 }}
+                sx={{ fontSize: uiFontSize(11) }}
               />
             }
             actions={
@@ -2164,7 +2212,7 @@ function EndpointConfig() {
                   size="small"
                   onClick={() => handleTest(ep.id)}
                   disabled={testing === ep.id}
-                  sx={{ fontSize: 11, textTransform: 'none', minWidth: 0 }}
+                  sx={{ fontSize: uiFontSize(11), textTransform: 'none', minWidth: 0 }}
                 >
                   {testing === ep.id ? <CircularProgress size={14} /> : t('agent.form.test')}
                 </Button>
@@ -2272,7 +2320,7 @@ function EndpointForm({ initial, providers, onSave, onCancel }: any) {
         )}
         <FormControlLabel
           control={<Switch checked={enabled} onChange={(e) => setEnabled(e.target.checked)} size="small" />}
-          label={<Typography sx={{ fontSize: 13 }}>{t('agent.form.enabled')}</Typography>}
+          label={<Typography sx={{ fontSize: uiFontSize(13) }}>{t('agent.form.enabled')}</Typography>}
         />
       </Box>
     </FormCard>
@@ -2336,7 +2384,7 @@ function ModelConfig() {
             setEditing(null);
             setShowForm(true);
           }}
-          sx={{ mb: 2, textTransform: 'none', fontSize: 13, borderRadius: 2 }}
+          sx={{ mb: 2, textTransform: 'none', fontSize: uiFontSize(13), borderRadius: 2 }}
         >
           {t('agent.form.addModel')}
         </Button>
@@ -2364,7 +2412,7 @@ function ModelConfig() {
               testResult.toLowerCase().includes('success') || testResult.includes('成功')
                 ? 'success.light'
                 : 'error.light',
-            fontSize: 13,
+            fontSize: uiFontSize(13),
           }}
         >
           {testResult}
@@ -2373,8 +2421,8 @@ function ModelConfig() {
 
       {models.length === 0 && !showForm && (
         <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-          <PsychologyIcon sx={{ fontSize: 36, opacity: 0.15, mb: 1 }} />
-          <Typography sx={{ fontSize: 13 }}>{t('agent.form.noModel')}</Typography>
+          <PsychologyIcon sx={{ fontSize: uiFontSize(36), opacity: 0.15, mb: 1 }} />
+          <Typography sx={{ fontSize: uiFontSize(13) }}>{t('agent.form.noModel')}</Typography>
         </Box>
       )}
 
@@ -2383,19 +2431,24 @@ function ModelConfig() {
         return (
           <ListCard
             key={m.id}
-            icon={<PsychologyIcon sx={{ fontSize: 18, color: 'text.secondary' }} />}
+            icon={<PsychologyIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />}
             title={m.name}
             subtitle={`${ep?.name || t('agent.form.unknown')} · ${m.refKey}`}
             chips={
               <>
                 {m.reasoning && (
-                  <Chip label={t('agent.form.reasoningShort')} size="small" color="info" sx={{ fontSize: 11 }} />
+                  <Chip
+                    label={t('agent.form.reasoningShort')}
+                    size="small"
+                    color="info"
+                    sx={{ fontSize: uiFontSize(11) }}
+                  />
                 )}
                 <Chip
                   label={m.enabled ? t('agent.form.enabled') : t('agent.form.disabled')}
                   size="small"
                   color={m.enabled ? 'success' : 'default'}
-                  sx={{ fontSize: 11 }}
+                  sx={{ fontSize: uiFontSize(11) }}
                 />
               </>
             }
@@ -2405,7 +2458,7 @@ function ModelConfig() {
                   size="small"
                   onClick={() => handleTest(m.id)}
                   disabled={testing === m.id}
-                  sx={{ fontSize: 11, textTransform: 'none', minWidth: 0 }}
+                  sx={{ fontSize: uiFontSize(11), textTransform: 'none', minWidth: 0 }}
                 >
                   {testing === m.id ? <CircularProgress size={14} /> : t('agent.form.test')}
                 </Button>
@@ -2505,12 +2558,12 @@ function ModelForm({ initial, endpoints, onSave, onCancel }: any) {
         </Box>
         <FormControlLabel
           control={<Switch checked={reasoning} onChange={(e) => setReasoning(e.target.checked)} size="small" />}
-          label={<Typography sx={{ fontSize: 13 }}>{t('agent.form.reasoning')}</Typography>}
+          label={<Typography sx={{ fontSize: uiFontSize(13) }}>{t('agent.form.reasoning')}</Typography>}
           sx={{ mr: 2 }}
         />
         <FormControlLabel
           control={<Switch checked={enabled} onChange={(e) => setEnabled(e.target.checked)} size="small" />}
-          label={<Typography sx={{ fontSize: 13 }}>{t('agent.form.enabled')}</Typography>}
+          label={<Typography sx={{ fontSize: uiFontSize(13) }}>{t('agent.form.enabled')}</Typography>}
         />
       </Box>
     </FormCard>
@@ -2559,7 +2612,7 @@ function AgentConfig() {
             setEditing(null);
             setShowForm(true);
           }}
-          sx={{ mb: 2, textTransform: 'none', fontSize: 13, borderRadius: 2 }}
+          sx={{ mb: 2, textTransform: 'none', fontSize: uiFontSize(13), borderRadius: 2 }}
         >
           {t('agent.form.addAgent')}
         </Button>
@@ -2580,8 +2633,8 @@ function AgentConfig() {
 
       {agents.length === 0 && !showForm && (
         <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-          <SmartToyIcon sx={{ fontSize: 36, opacity: 0.15, mb: 1 }} />
-          <Typography sx={{ fontSize: 13 }}>{t('agent.form.noAgent')}</Typography>
+          <SmartToyIcon sx={{ fontSize: uiFontSize(36), opacity: 0.15, mb: 1 }} />
+          <Typography sx={{ fontSize: uiFontSize(13) }}>{t('agent.form.noAgent')}</Typography>
         </Box>
       )}
 
@@ -2590,7 +2643,7 @@ function AgentConfig() {
         return (
           <ListCard
             key={a.id}
-            icon={<SmartToyIcon sx={{ fontSize: 18, color: 'primary.main' }} />}
+            icon={<SmartToyIcon sx={{ fontSize: uiFontSize(18), color: 'primary.main' }} />}
             title={a.name}
             subtitle={`${model?.name || t('agent.form.noModel')} · ${t('agent.form.toolCount', { n: a.toolIds.length })}`}
             actions={
@@ -2611,7 +2664,7 @@ function AgentConfig() {
             }
           >
             {a.description && (
-              <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12, mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: uiFontSize(12), mt: 1 }}>
                 {a.description}
               </Typography>
             )}
@@ -2705,7 +2758,7 @@ function AgentForm({ initial, models, endpoints, onSave, onCancel }: any) {
                 >
                   <Box component="span">{m.name}</Box>
                   {ep && (
-                    <Box component="span" sx={{ fontSize: 10, color: 'text.disabled' }}>
+                    <Box component="span" sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>
                       {ep.name}
                     </Box>
                   )}
@@ -2722,10 +2775,10 @@ function AgentForm({ initial, models, endpoints, onSave, onCancel }: any) {
           size="small"
           multiline
           rows={3}
-          sx={{ mb: 1.5, '& .MuiInputBase-root': { fontSize: 12 } }}
+          sx={{ mb: 1.5, '& .MuiInputBase-root': { fontSize: uiFontSize(12) } }}
         />
         <Box sx={{ mb: 1.5 }}>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 0.5 }}>
             {t('agent.form.temperature', { value: temperature })}
           </Typography>
           <Slider
@@ -2747,7 +2800,9 @@ function AgentForm({ initial, models, endpoints, onSave, onCancel }: any) {
           sx={{ mb: 1.5 }}
         />
 
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>{t('agent.form.enableTools')}</Typography>
+        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 1 }}>
+          {t('agent.form.enableTools')}
+        </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
           {availableTools.map((tool) => (
             <Chip
@@ -2871,9 +2926,9 @@ function ChapterTreeSelector({
               }}
             >
               {expanded ? (
-                <ExpandMoreIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <ExpandMoreIcon sx={{ fontSize: uiFontSize(16), color: 'text.secondary' }} />
               ) : (
-                <ChevronRightIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                <ChevronRightIcon sx={{ fontSize: uiFontSize(16), color: 'text.secondary' }} />
               )}
             </IconButton>
           ) : (
@@ -2881,13 +2936,13 @@ function ChapterTreeSelector({
           )}
 
           <AutoStoriesIcon
-            sx={{ fontSize: 14, color: selected ? 'secondary.main' : 'text.secondary', flexShrink: 0 }}
+            sx={{ fontSize: uiFontSize(14), color: selected ? 'secondary.main' : 'text.secondary', flexShrink: 0 }}
           />
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography
               sx={{
-                fontSize: 13,
+                fontSize: uiFontSize(13),
                 fontWeight: selected ? 600 : 400,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -2898,7 +2953,7 @@ function ChapterTreeSelector({
               {ch.title}
             </Typography>
             {ch.wordCount > 0 && (
-              <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{ch.wordCount}字</Typography>
+              <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled' }}>{ch.wordCount}字</Typography>
             )}
           </Box>
 
@@ -2935,19 +2990,21 @@ function ChapterTreeSelector({
           maxWidth: 240,
           justifyContent: 'flex-start',
           textTransform: 'none',
-          fontSize: 12,
+          fontSize: uiFontSize(12),
           py: 0.5,
           px: 1,
           borderColor: 'divider',
           color: activeChapterId ? 'text.primary' : 'text.secondary',
         }}
         startIcon={
-          <AutoStoriesIcon sx={{ fontSize: 14, color: activeChapterId ? 'secondary.main' : 'text.disabled' }} />
+          <AutoStoriesIcon
+            sx={{ fontSize: uiFontSize(14), color: activeChapterId ? 'secondary.main' : 'text.disabled' }}
+          />
         }
       >
         <Typography
           sx={{
-            fontSize: 12,
+            fontSize: uiFontSize(12),
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -2983,8 +3040,8 @@ function ChapterTreeSelector({
       >
         {/* 当前作品头 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1, py: 0.75, mb: 0.5 }}>
-          <MenuBookIcon sx={{ fontSize: 14, color: 'primary.main' }} />
-          <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{currentBook.title}</Typography>
+          <MenuBookIcon sx={{ fontSize: uiFontSize(14), color: 'primary.main' }} />
+          <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 600 }}>{currentBook.title}</Typography>
         </Box>
         <Divider sx={{ mb: 0.75 }} />
 

@@ -134,3 +134,55 @@ export function shelfFor(genre: string): { templates: ShelfTemplate[]; fallback:
   if (def.id === 'essay') return { templates: ESSAY_SHELF, fallback: false };
   return { templates: NOVEL_SHELF, fallback: false };
 }
+
+/**
+ * 作品状态（2026-11-03 李先生报修「状态改不动、只有连载中」后定档）。
+ *
+ * 与体裁×载体同域，故词表就住在 writingSchema（口径唯一，不再另造模块）。
+ * 同一条铁律：**本模块只存 i18n key，不调用 t()**，label 一律由组件渲染时翻。
+ *
+ * 历史口径（改造前）：writing_books.status 是自由字符串，全项目只有画布工作台右栏
+ * 「书属性卡」一枚 ToggleButtonGroup 能写，判读处一律 `=== 'finished' ? 已完本 : 连载中`
+ * 三元式 —— 于是任何新状态都会被无条件误标成「连载中」。四态落地必须先把这些三元式
+ * 全部换成 bookStatusDef()，否则等于又造一个「只存不读」的字段。
+ *
+ * 旧值兼容（零迁移）：早期建书在后端写死 'draft'（application/writing 建书路径），
+ * 新建书与未设置则为空串 —— 两者语义都是「连载中」，由 bookStatusDef 回落承接；
+ * 用户动过一次状态后即落规范码，库里不需要跑迁移。
+ */
+export type BookStatus = 'ongoing' | 'finished' | 'hiatus' | 'abandoned';
+
+export interface BookStatusDef {
+  id: BookStatus;
+  labelKey: string;
+  /** MUI Chip/ToggleButton 的语义色名（走主题调色板，遵守「颜色必须用主题令牌」，不写死 hex） */
+  chipColor: 'default' | 'success' | 'warning' | 'error';
+  /**
+   * 终态标记：已完结 / 已弃坑 = 这本书不再往前走，视觉用实心强调；
+   * 连载中 / 暂停更新 = 进行态，用描边（沿用 2026-09-21 书架「finished=filled」那条视觉约定）。
+   */
+  terminal: boolean;
+}
+
+/** 顺序即 UI 展示顺序（书架菜单 / 写作台菜单 / 书属性卡都按此序渲染） */
+export const BOOK_STATUSES: BookStatusDef[] = [
+  { id: 'ongoing', labelKey: 'dashboard.statusOngoing', chipColor: 'default', terminal: false },
+  { id: 'finished', labelKey: 'dashboard.statusFinished', chipColor: 'success', terminal: true },
+  { id: 'hiatus', labelKey: 'dashboard.statusHiatus', chipColor: 'warning', terminal: false },
+  { id: 'abandoned', labelKey: 'dashboard.statusAbandoned', chipColor: 'error', terminal: true },
+];
+
+/**
+ * 状态归一：认得的规范码原样返回，其余（'' / 'draft' / 脏值 / null）一律回落「连载中」。
+ *
+ * 回落选「连载中」而不是「未知」有两个理由：① 与改造前三元式的判读结果逐字一致，
+ * 老书零视觉回归；② 书架/顶栏没有「未知状态」这个概念，造它反而逼 UI 多一个分支。
+ */
+export function bookStatusDef(status: string | null | undefined): BookStatusDef {
+  return BOOK_STATUSES.find((s) => s.id === status) ?? BOOK_STATUSES[0];
+}
+
+/** 判读「是否已完结」的唯一入口（替代散落的 `=== 'finished'`） */
+export function isBookFinished(status: string | null | undefined): boolean {
+  return bookStatusDef(status).id === 'finished';
+}

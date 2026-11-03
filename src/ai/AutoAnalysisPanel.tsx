@@ -13,6 +13,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
+import { INSIGHT_ACCENTS, type StatusTone } from "../theme/semanticColors";
+import { useSemanticColors } from "../theme/useSemanticColors";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -60,10 +62,10 @@ interface Props {
   compact?: boolean;
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  triggered: "#22c55e",
-  skipped: "#94a3b8",
-  failed: "#ef4444",
+const STATUS_TONE: Record<string, StatusTone> = {
+  triggered: "success",
+  skipped: "neutral",
+  failed: "danger",
 };
 
 /**
@@ -73,14 +75,14 @@ const STATUS_COLOR: Record<string, string> = {
  * Agent 也可能兜一圈一条结论都没留下。只显示 triggered 的绿点，
  * 用户会以为这一轮好好跑过了 —— 这正是自动化最容易骗人的地方。
  */
-const OUTCOME_LABEL: Record<string, { text: string; color: string }> = {
-  pending: { text: t("aiPanel.outcome.pending"), color: "#38bdf8" },
-  completed: { text: t("aiPanel.outcome.completed"), color: "#22c55e" },
-  "no-output": { text: t("aiPanel.outcome.noOutput"), color: "#f59e0b" },
-  error: { text: t("aiPanel.outcome.error"), color: "#ef4444" },
+const OUTCOME_LABEL: Record<string, { text: string; color: StatusTone }> = {
+  pending: { text: t("aiPanel.outcome.pending"), color: "info" },
+  completed: { text: t("aiPanel.outcome.completed"), color: "success" },
+  "no-output": { text: t("aiPanel.outcome.noOutput"), color: INSIGHT_ACCENTS.auto },
+  error: { text: t("aiPanel.outcome.error"), color: "danger" },
   // 与「对话失败」分开显示：效力相同（都不算覆盖、都要退回派单），但死法不同。
   // 合成一个值，用户会为一次「关了窗口」去排查模型和密钥。
-  interrupted: { text: t("aiPanel.outcome.interrupted"), color: "#f97316" },
+  interrupted: { text: t("aiPanel.outcome.interrupted"), color: "accent" },
 };
 
 /**
@@ -94,31 +96,31 @@ const OUTCOME_LABEL: Record<string, { text: string; color: string }> = {
  * 配色分三档：绿=正常按数据变化触发；紫=数据没变但主动补齐（本来最需要解释）；
  * 灰=跳过；红=没跑成。
  */
-const REASON_LABEL: Record<string, { text: string; color: string }> = {
-  ok: { text: t("aiPanel.reason.ok"), color: "#22c55e" },
-  auto: { text: t("aiPanel.reason.auto"), color: "#22c55e" },
-  manual: { text: t("aiPanel.reason.manual"), color: "#38bdf8" },
-  "rotate-gap": { text: t("aiPanel.reason.rotateGap"), color: "#a78bfa" },
-  "focus-gap": { text: t("aiPanel.reason.focusGap"), color: "#a78bfa" },
+const REASON_LABEL: Record<string, { text: string; color: StatusTone }> = {
+  ok: { text: t("aiPanel.reason.ok"), color: "success" },
+  auto: { text: t("aiPanel.reason.auto"), color: "success" },
+  manual: { text: t("aiPanel.reason.manual"), color: "info" },
+  "rotate-gap": { text: t("aiPanel.reason.rotateGap"), color: "violet" },
+  "focus-gap": { text: t("aiPanel.reason.focusGap"), color: "violet" },
   // 追责单独给一个偏暖的紫：它与其它补齐类的关键差别是**过期就没了**。
   // 用户在轨迹里看到它，含义是「这一轮花的钱买的是一次追不回来的机会」，
   // 而不是「反正下轮还能补」——两者对是否该保留这条规则的判断完全不同。
-  "regression-gap": { text: t("aiPanel.reason.regressionGap"), color: "#c084fc" },
-  "recheck-gap": { text: t("aiPanel.reason.recheckGap"), color: "#a78bfa" },
-  "gap-backlog": { text: t("aiPanel.reason.gapBacklog"), color: "#a78bfa" },
-  unchanged: { text: t("aiPanel.reason.unchanged"), color: "#94a3b8" },
-  cooling: { text: t("aiPanel.reason.cooling"), color: "#94a3b8" },
-  busy: { text: t("aiPanel.reason.busy"), color: "#94a3b8" },
-  disabled: { text: t("aiPanel.reason.disabled"), color: "#94a3b8" },
-  "trigger-mismatch": { text: t("aiPanel.reason.triggerMismatch"), color: "#94a3b8" },
-  "module-mismatch": { text: t("aiPanel.reason.moduleMismatch"), color: "#94a3b8" },
-  "scope-mismatch": { text: t("aiPanel.reason.scopeMismatch"), color: "#94a3b8" },
-  "agent-missing": { text: t("aiPanel.reason.agentMissing"), color: "#ef4444" },
-  "agent-no-tool": { text: t("aiPanel.reason.agentNoTool"), color: "#ef4444" },
-  "no-provider": { text: t("aiPanel.reason.noProvider"), color: "#ef4444" },
-  "no-data": { text: t("aiPanel.reason.noData"), color: "#ef4444" },
-  "no-preset": { text: t("aiPanel.reason.noPreset"), color: "#ef4444" },
-  "build-failed": { text: t("aiPanel.reason.buildFailed"), color: "#ef4444" },
+  "regression-gap": { text: t("aiPanel.reason.regressionGap"), color: "purple" },
+  "recheck-gap": { text: t("aiPanel.reason.recheckGap"), color: "violet" },
+  "gap-backlog": { text: t("aiPanel.reason.gapBacklog"), color: "violet" },
+  unchanged: { text: t("aiPanel.reason.unchanged"), color: "neutral" },
+  cooling: { text: t("aiPanel.reason.cooling"), color: "neutral" },
+  busy: { text: t("aiPanel.reason.busy"), color: "neutral" },
+  disabled: { text: t("aiPanel.reason.disabled"), color: "neutral" },
+  "trigger-mismatch": { text: t("aiPanel.reason.triggerMismatch"), color: "neutral" },
+  "module-mismatch": { text: t("aiPanel.reason.moduleMismatch"), color: "neutral" },
+  "scope-mismatch": { text: t("aiPanel.reason.scopeMismatch"), color: "neutral" },
+  "agent-missing": { text: t("aiPanel.reason.agentMissing"), color: "danger" },
+  "agent-no-tool": { text: t("aiPanel.reason.agentNoTool"), color: "danger" },
+  "no-provider": { text: t("aiPanel.reason.noProvider"), color: "danger" },
+  "no-data": { text: t("aiPanel.reason.noData"), color: "danger" },
+  "no-preset": { text: t("aiPanel.reason.noPreset"), color: "danger" },
+  "build-failed": { text: t("aiPanel.reason.buildFailed"), color: "danger" },
 };
 
 /**
@@ -127,11 +129,11 @@ const REASON_LABEL: Record<string, { text: string; color: string }> = {
  * 「从未分析」用最强的红：它不是「有点旧」，而是这个方面**压根没人看过**——
  * 数据再全，没被解读过的维度对用户毫无价值，这正是台账要暴露的第一件事。
  */
-const COVERAGE_STYLE: Record<AnalysisCoverageState, { color: string; label: string }> = {
-  never: { color: "#ef4444", label: t("aiPanel.coverage.never") },
-  "stale-data": { color: "#f59e0b", label: t("aiPanel.coverage.staleData") },
-  "stale-time": { color: "#3b82f6", label: t("aiPanel.coverage.staleTime") },
-  fresh: { color: "#22c55e", label: t("aiPanel.coverage.fresh") },
+const COVERAGE_STYLE: Record<AnalysisCoverageState, { color: StatusTone; label: string }> = {
+  never: { color: "danger", label: t("aiPanel.coverage.never") },
+  "stale-data": { color: INSIGHT_ACCENTS.auto, label: t("aiPanel.coverage.staleData") },
+  "stale-time": { color: "info", label: t("aiPanel.coverage.staleTime") },
+  fresh: { color: "success", label: t("aiPanel.coverage.fresh") },
 };
 
 function fmtTime(sec: number): string {
@@ -144,6 +146,10 @@ function fmtTime(sec: number): string {
 export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props) {
   const agents = useAgentStore((s) => s.agents);
   const isStreaming = useAgentStore((s) => s.isStreaming);
+
+  // 语义状态色的实际取值随「当前明暗 + 卡片底色」派生（见 theme/semanticColors.ts）：
+  // 同一个「需关注」在深色底上自动换成偏亮前景，保证文字不掉到 4.5:1 以下。
+  const T = useSemanticColors().tone;
 
   const provider = aiContextRegistry.get(moduleId);
   const presets = useMemo(() => provider?.presets ?? [], [provider]);
@@ -330,7 +336,7 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
           "&:hover": { bgcolor: "action.hover" },
         }}
       >
-        <BoltIcon sx={{ fontSize: 16, color: activeCount > 0 ? "#f59e0b" : "text.disabled" }} />
+        <BoltIcon sx={{ fontSize: 16, color: activeCount > 0 ? T[INSIGHT_ACCENTS.auto].color : "text.disabled" }} />
         <Typography sx={{ fontSize: fs(12), fontWeight: 600, flex: 1 }}>
           {t("aiPanel.auto.title")}
         </Typography>
@@ -338,7 +344,7 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
           <Chip
             size="small"
             label={t("aiPanel.auto.activeCount", { n: activeCount })}
-            sx={{ height: 18, fontSize: fs(10), bgcolor: "rgba(245,158,11,0.12)", color: "#b45309" }}
+            sx={{ height: 18, fontSize: fs(10), bgcolor: T[INSIGHT_ACCENTS.auto].bg, color: T[INSIGHT_ACCENTS.auto].color }}
           />
         )}
         {expanded ? (
@@ -377,8 +383,8 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
                   p: 0.75,
                   borderRadius: 1,
                   border: 1,
-                  borderColor: r.enabled ? "rgba(245,158,11,0.35)" : "divider",
-                  bgcolor: r.enabled ? "rgba(245,158,11,0.05)" : "transparent",
+                  borderColor: r.enabled ? T[INSIGHT_ACCENTS.auto].border : "divider",
+                  bgcolor: r.enabled ? T[INSIGHT_ACCENTS.auto].tint : "transparent",
                 }}
               >
                 <Switch
@@ -588,7 +594,8 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
               <Collapse in={showCoverage}>
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4 }}>
                   {coverage.map((row) => {
-                    const style = COVERAGE_STYLE[row.state];
+                    const coverageStyle = COVERAGE_STYLE[row.state];
+                    const style = T[coverageStyle.color];
                     return (
                       <Tooltip key={row.presetKey} title={row.description ?? ""} placement="left">
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -612,12 +619,12 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
                           </Typography>
                           <Chip
                             size="small"
-                            label={style.label}
+                            label={coverageStyle.label}
                             sx={{
                               height: 15,
                               fontSize: fs(9),
                               flexShrink: 0,
-                              bgcolor: `${style.color}1f`,
+                              bgcolor: style.bg,
                               color: style.color,
                             }}
                           />
@@ -694,7 +701,7 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
                         borderRadius: "50%",
                         mt: 0.6,
                         flexShrink: 0,
-                        bgcolor: STATUS_COLOR[run.status] ?? "#94a3b8",
+                        bgcolor: T[STATUS_TONE[run.status] ?? "neutral"].color,
                       }}
                     />
                     <Typography sx={{ fontSize: fs(9.5), color: "text.secondary", lineHeight: 1.5 }}>
@@ -708,8 +715,8 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
                             px: 0.5,
                             borderRadius: 0.5,
                             fontSize: fs(8.5),
-                            color: REASON_LABEL[run.reason].color,
-                            border: `1px solid ${REASON_LABEL[run.reason].color}55`,
+                            color: T[REASON_LABEL[run.reason].color].color,
+                            border: `1px solid ${T[REASON_LABEL[run.reason].color].border}`,
                           }}
                         >
                           {REASON_LABEL[run.reason].text}
@@ -723,8 +730,8 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
                             px: 0.5,
                             borderRadius: 0.5,
                             fontSize: fs(8.5),
-                            color: OUTCOME_LABEL[run.outcome].color,
-                            border: `1px solid ${OUTCOME_LABEL[run.outcome].color}55`,
+                            color: T[OUTCOME_LABEL[run.outcome].color].color,
+                            border: `1px solid ${T[OUTCOME_LABEL[run.outcome].color].border}`,
                           }}
                         >
                           {OUTCOME_LABEL[run.outcome].text}

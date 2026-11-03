@@ -376,6 +376,10 @@ pub struct AgentEngine {
 }
 
 impl AgentEngine {
+    /// `max_tokens` 透传自 `ai_models.max_tokens`（AI 页用户配置后落库的值），不再写死 4096。
+    /// 此前用户在模型表单把最大输出改成 32k，请求体里仍是 4096 —— 长回答被静默腰斩且无从排查。
+    /// 兜底口径在前端保存路径（`AiAgentPage.tsx`：0/空 → 4096）与建表默认值
+    /// （migration `max_tokens INTEGER NOT NULL DEFAULT 4096`），此处按库值原样生效。
     pub fn new(
         provider: Arc<dyn super::provider::LlmProvider>,
         tools: Arc<Mutex<ToolRegistry>>,
@@ -383,6 +387,7 @@ impl AgentEngine {
         system_prompt: String,
         temperature: f64,
         max_iterations: i32,
+        max_tokens: i64,
     ) -> Self {
         AgentEngine {
             provider,
@@ -391,7 +396,7 @@ impl AgentEngine {
             system_prompt,
             temperature,
             max_iterations,
-            max_tokens: 4096,
+            max_tokens,
         }
     }
 
@@ -1098,5 +1103,52 @@ mod tests {
             &json(r#"{"book_id":"长夜余生","title":"第四章","content":"正文若干"}"#),
         );
         assert!(create_with_body.contains("初始正文"));
+    }
+
+    // ── max_tokens 接线锁（第三十九轮 · 批次 2）──
+    //
+    // 病史：`AgentEngine::new` 曾没有 max_tokens 参数、构造写死 4096 —— 用户在模型表单
+    // 配的最大输出每一轮都被静默丢弃。本锁钉住「构造后的字段 = 传进来的值」，
+    // 谁把写死改回来，这里先红。
+
+    struct StubProvider;
+
+    #[async_trait::async_trait]
+    impl crate::plugins::ai_agent::provider::LlmProvider for StubProvider {
+        async fn chat(
+            &self,
+            _messages: &[crate::plugins::ai_agent::provider::ChatMessage],
+            _options: &crate::plugins::ai_agent::provider::ChatOptions,
+        ) -> Result<crate::plugins::ai_agent::provider::ChatResponse, String> {
+            Err("stub: never called".to_string())
+        }
+        async fn chat_stream(
+            &self,
+            _messages: &[crate::plugins::ai_agent::provider::ChatMessage],
+            _options: &crate::plugins::ai_agent::provider::ChatOptions,
+        ) -> Result<Vec<crate::plugins::ai_agent::provider::ChatChunk>, String> {
+            Err("stub: never called".to_string())
+        }
+        fn validate_config(
+            &self,
+            _config: &crate::plugins::ai_agent::provider::ProviderConfig,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn agent_engine_new_uses_passed_max_tokens_not_hardcoded() {
+        // 用与 4096 不同的值：写死回潮时断言必炸
+        let engine = AgentEngine::new(
+            Arc::new(StubProvider),
+            Arc::new(Mutex::new(ToolRegistry::new())),
+            "gpt-test".to_string(),
+            "system".to_string(),
+            0.7,
+            10,
+            32000,
+        );
+        assert_eq!(engine.max_tokens, 32000);
     }
 }

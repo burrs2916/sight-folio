@@ -29,6 +29,7 @@ import { t } from '../../i18n';
 import type { AiAgent } from '../../services/agent';
 import { useToastStore } from '../../store/toastStore';
 import { logger } from '../../utils/logger';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 /** 单个文件读取预算：超过即截断（控制 prompt 体积） */
 const MAX_FILE_CHARS = 2500;
@@ -283,9 +284,11 @@ export function MaterialAssistDialog({
 
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15 }}>{t('writing.materialTitle')}</DialogTitle>
+      <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{t('writing.materialTitle')}</DialogTitle>
       <DialogContent>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>{t('writing.materialHint')}</Typography>
+        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 1.5 }}>
+          {t('writing.materialHint')}
+        </Typography>
 
         {/* ① 资料目录 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -295,7 +298,7 @@ export function MaterialAssistDialog({
           </Button>
           <Typography
             sx={{
-              fontSize: 12,
+              fontSize: uiFontSize(12),
               color: dirPath ? 'text.primary' : 'text.disabled',
               flex: 1,
               overflow: 'hidden',
@@ -317,11 +320,11 @@ export function MaterialAssistDialog({
               mb: 1.5,
             }}
           >
-            <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mb: 0.5 }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', mb: 0.5 }}>
               {t('writing.materialFilesSummary', { n: files.length })}
             </Typography>
             {files.map((f) => (
-              <Typography key={f.path} sx={{ fontSize: 12, lineHeight: 1.7 }}>
+              <Typography key={f.path} sx={{ fontSize: uiFontSize(12), lineHeight: 1.7 }}>
                 · {f.name}（{f.charCount.toLocaleString()}
                 {t('writing.materialChars')}）
               </Typography>
@@ -329,17 +332,19 @@ export function MaterialAssistDialog({
           </Box>
         )}
         {dirPath && files.length === 0 && !scanning && (
-          <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 1.5 }}>
             {t('writing.materialNoTextFiles')}
           </Typography>
         )}
 
         {/* ② Agent 选择 */}
         <FormControl fullWidth sx={{ mb: 1.5 }}>
-          <FormLabel sx={{ fontSize: 13 }}>{t('writing.aiAgent')}</FormLabel>
+          <FormLabel sx={{ fontSize: uiFontSize(13) }}>{t('writing.aiAgent')}</FormLabel>
           {agents.length === 0 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-              <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t('writing.aiNoAgent')}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
+                {t('writing.aiNoAgent')}
+              </Typography>
               <Button size="small" variant="outlined" onClick={onGoSettings}>
                 {t('writing.aiGoConfigure')}
               </Button>
@@ -351,7 +356,7 @@ export function MaterialAssistDialog({
                   key={agent.id}
                   value={agent.id}
                   control={<Radio size="small" />}
-                  label={<Typography sx={{ fontSize: 13.5 }}>{agent.name}</Typography>}
+                  label={<Typography sx={{ fontSize: uiFontSize(13.5) }}>{agent.name}</Typography>}
                 />
               ))}
             </RadioGroup>
@@ -382,10 +387,10 @@ export function MaterialAssistDialog({
               whiteSpace: 'pre-wrap',
             }}
           >
-            <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mb: 0.5 }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', mb: 0.5 }}>
               {t('writing.materialAnalysisLabel')}
             </Typography>
-            <Typography sx={{ fontSize: 12.5, lineHeight: 1.8 }}>{analysisText}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.8 }}>{analysisText}</Typography>
           </Box>
         )}
 
@@ -401,10 +406,10 @@ export function MaterialAssistDialog({
               setTargetBookId(e.target.value);
               setTargetChapterId('');
             }}
-            sx={{ '& .MuiInputBase-input': { fontSize: 12.5 } }}
+            sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) } }}
           >
             {books.map((b) => (
-              <MenuItem key={b.id} value={b.id} sx={{ fontSize: 12.5 }}>
+              <MenuItem key={b.id} value={b.id} sx={{ fontSize: uiFontSize(12.5) }}>
                 {b.title}
               </MenuItem>
             ))}
@@ -417,10 +422,10 @@ export function MaterialAssistDialog({
             value={targetChapterId}
             disabled={!targetBookId || chaptersLoading}
             onChange={(e) => setTargetChapterId(e.target.value)}
-            sx={{ '& .MuiInputBase-input': { fontSize: 12.5 } }}
+            sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) } }}
           >
             {targetChapters.map((c) => (
-              <MenuItem key={c.id} value={c.id} sx={{ fontSize: 12.5 }}>
+              <MenuItem key={c.id} value={c.id} sx={{ fontSize: uiFontSize(12.5) }}>
                 {c.title}
               </MenuItem>
             ))}
@@ -450,10 +455,10 @@ export function MaterialAssistDialog({
               whiteSpace: 'pre-wrap',
             }}
           >
-            <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mb: 0.5 }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', mb: 0.5 }}>
               {t('writing.materialDraftLabel')}
             </Typography>
-            <Typography sx={{ fontSize: 12.5, lineHeight: 1.8 }}>{draftText}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.8 }}>{draftText}</Typography>
           </Box>
         )}
       </DialogContent>

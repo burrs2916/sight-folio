@@ -45,9 +45,15 @@ import {
 } from '../../services/writing';
 import type { WritingNote } from '../../services/writing';
 import type { AiAgent } from '../../services/agent';
-import { buildCaptureAnalysisMessage, normalizeCaptureAnalysis, runCaptureTask, tryParseCaptureJson } from '../../ai/writingCapture';
+import {
+  buildCaptureAnalysisMessage,
+  normalizeCaptureAnalysis,
+  runCaptureTask,
+  tryParseCaptureJson,
+} from '../../ai/writingCapture';
 import { useToastStore } from '../../store/toastStore';
 import { logger } from '../../utils/logger';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 /** 图片扩展名白名单（选择器过滤用，拖放时按 MIME 宽松过滤） */
 const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif', 'heic'];
@@ -76,13 +82,13 @@ const TARGET_USE_KEYS = ['', 'character', 'scene', 'world', 'archive', 'article'
 function kindIcon(kind: ExternalCaptureKind) {
   switch (kind) {
     case 'image':
-      return <ImageRoundedIcon sx={{ fontSize: 15 }} />;
+      return <ImageRoundedIcon sx={{ fontSize: uiFontSize(15) }} />;
     case 'note':
-      return <StickyNote2RoundedIcon sx={{ fontSize: 15 }} />;
+      return <StickyNote2RoundedIcon sx={{ fontSize: uiFontSize(15) }} />;
     case 'link':
-      return <LinkRoundedIcon sx={{ fontSize: 15 }} />;
+      return <LinkRoundedIcon sx={{ fontSize: uiFontSize(15) }} />;
     default:
-      return <TextFieldsRoundedIcon sx={{ fontSize: 15 }} />;
+      return <TextFieldsRoundedIcon sx={{ fontSize: uiFontSize(15) }} />;
   }
 }
 
@@ -377,9 +383,11 @@ export function ExternalCaptureDialog({
 
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15 }}>{t('writing.captureTitle')}</DialogTitle>
+      <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{t('writing.captureTitle')}</DialogTitle>
       <DialogContent>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>{t('writing.captureHint')}</Typography>
+        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 1.5 }}>
+          {t('writing.captureHint')}
+        </Typography>
 
         {/* ① 模式切换 */}
         <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5, flexWrap: 'wrap' }}>
@@ -392,7 +400,7 @@ export function ExternalCaptureDialog({
               color={kind === k ? 'primary' : 'default'}
               variant={kind === k ? 'filled' : 'outlined'}
               onClick={() => setKind(k)}
-              sx={{ fontSize: 12 }}
+              sx={{ fontSize: uiFontSize(12) }}
             />
           ))}
         </Box>
@@ -441,14 +449,16 @@ export function ExternalCaptureDialog({
                 />
               ) : (
                 <>
-                  <ImageRoundedIcon sx={{ fontSize: 28, color: 'text.disabled' }} />
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{t('writing.captureDropHint')}</Typography>
+                  <ImageRoundedIcon sx={{ fontSize: uiFontSize(28), color: 'text.disabled' }} />
+                  <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
+                    {t('writing.captureDropHint')}
+                  </Typography>
                 </>
               )}
               {imagePath && (
                 <Typography
                   sx={{
-                    fontSize: 11,
+                    fontSize: uiFontSize(11),
                     color: 'text.secondary',
                     maxWidth: '100%',
                     overflow: 'hidden',
@@ -464,7 +474,7 @@ export function ExternalCaptureDialog({
             {imagePath && (
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
                 <IconButton size="small" onClick={clearImage} title={t('nav.cancel')} sx={{ color: 'text.disabled' }}>
-                  <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+                  <DeleteOutlineRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                 </IconButton>
               </Box>
             )}
@@ -479,7 +489,7 @@ export function ExternalCaptureDialog({
               value={imageText}
               onChange={(e) => setImageText(e.target.value)}
               disabled={!imagePath}
-              sx={{ '& .MuiInputBase-input': { fontSize: 12.5 }, mb: 1.5 }}
+              sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) }, mb: 1.5 }}
             />
           </>
         )}
@@ -494,25 +504,25 @@ export function ExternalCaptureDialog({
             placeholder={t('writing.captureTextPlaceholder')}
             value={textDraft}
             onChange={(e) => setTextDraft(e.target.value)}
-            sx={{ '& .MuiInputBase-input': { fontSize: 12.5 }, mb: 1.5 }}
+            sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) }, mb: 1.5 }}
           />
         )}
 
         {kind === 'note' && (
           <Box sx={{ mb: 1.5 }}>
             <FormControl fullWidth size="small">
-              <FormLabel sx={{ fontSize: 13 }}>{t('writing.captureNoteSelect')}</FormLabel>
+              <FormLabel sx={{ fontSize: uiFontSize(13) }}>{t('writing.captureNoteSelect')}</FormLabel>
               <Select
                 value={noteId}
                 onChange={(e) => setNoteId(String(e.target.value))}
                 displayEmpty
-                sx={{ '& .MuiSelect-select': { fontSize: 12.5 } }}
+                sx={{ '& .MuiSelect-select': { fontSize: uiFontSize(12.5) } }}
               >
-                <MenuItem value="" sx={{ fontSize: 12.5 }} disabled>
+                <MenuItem value="" sx={{ fontSize: uiFontSize(12.5) }} disabled>
                   {t('writing.captureNoteSelectPlaceholder')}
                 </MenuItem>
                 {notes.map((n) => (
-                  <MenuItem key={n.id} value={n.id} sx={{ fontSize: 12.5 }}>
+                  <MenuItem key={n.id} value={n.id} sx={{ fontSize: uiFontSize(12.5) }}>
                     {n.content.replace(/\s+/g, ' ').slice(0, 24) || n.id.slice(0, 12)}
                   </MenuItem>
                 ))}
@@ -529,7 +539,7 @@ export function ExternalCaptureDialog({
                   overflowY: 'auto',
                 }}
               >
-                <Typography sx={{ fontSize: 12.5, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
                   {selectedNote.content}
                 </Typography>
               </Box>
@@ -546,7 +556,7 @@ export function ExternalCaptureDialog({
               placeholder="https://…"
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
-              sx={{ '& .MuiInputBase-input': { fontSize: 12.5 } }}
+              sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) } }}
             />
             <TextField
               size="small"
@@ -558,7 +568,7 @@ export function ExternalCaptureDialog({
               placeholder={t('writing.captureLinkBodyPlaceholder')}
               value={linkBody}
               onChange={(e) => setLinkBody(e.target.value)}
-              sx={{ '& .MuiInputBase-input': { fontSize: 12.5 } }}
+              sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) } }}
             />
           </Box>
         )}
@@ -573,7 +583,7 @@ export function ExternalCaptureDialog({
             titleTouchedRef.current = true;
             setTitle(e.target.value);
           }}
-          sx={{ '& .MuiInputBase-input': { fontSize: 12.5 }, mb: 1.5 }}
+          sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) }, mb: 1.5 }}
         />
         <Box sx={{ display: 'flex', gap: 1, mb: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
           <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -581,13 +591,13 @@ export function ExternalCaptureDialog({
               value={targetUse}
               onChange={(e) => setTargetUse(String(e.target.value))}
               displayEmpty
-              sx={{ '& .MuiSelect-select': { fontSize: 12.5 } }}
+              sx={{ '& .MuiSelect-select': { fontSize: uiFontSize(12.5) } }}
             >
-              <MenuItem value="" sx={{ fontSize: 12.5 }}>
+              <MenuItem value="" sx={{ fontSize: uiFontSize(12.5) }}>
                 {t('writing.captureTargetUseNone')}
               </MenuItem>
               {TARGET_USE_KEYS.filter((k) => k !== '').map((k) => (
-                <MenuItem key={k} value={k} sx={{ fontSize: 12.5 }}>
+                <MenuItem key={k} value={k} sx={{ fontSize: uiFontSize(12.5) }}>
                   {t(`writing.captureTargetUse${k.charAt(0).toUpperCase()}${k.slice(1)}`)}
                 </MenuItem>
               ))}
@@ -600,16 +610,18 @@ export function ExternalCaptureDialog({
             placeholder={t('writing.captureTagsPlaceholder')}
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            sx={{ '& .MuiInputBase-input': { fontSize: 12.5 }, flex: 1, minWidth: 160 }}
+            sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) }, flex: 1, minWidth: 160 }}
           />
         </Box>
 
         {/* ④ Agent 选择 */}
         <FormControl fullWidth sx={{ mb: 1.5 }}>
-          <FormLabel sx={{ fontSize: 13 }}>{t('writing.captureAgent')}</FormLabel>
+          <FormLabel sx={{ fontSize: uiFontSize(13) }}>{t('writing.captureAgent')}</FormLabel>
           {agents.length === 0 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-              <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t('writing.aiNoAgent')}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
+                {t('writing.aiNoAgent')}
+              </Typography>
               <Button size="small" variant="outlined" onClick={onGoSettings}>
                 {t('writing.aiGoConfigure')}
               </Button>
@@ -621,7 +633,7 @@ export function ExternalCaptureDialog({
                   key={agent.id}
                   value={agent.id}
                   control={<Radio size="small" />}
-                  label={<Typography sx={{ fontSize: 13 }}>{agent.name}</Typography>}
+                  label={<Typography sx={{ fontSize: uiFontSize(13) }}>{agent.name}</Typography>}
                 />
               ))}
             </RadioGroup>
@@ -650,16 +662,16 @@ export function ExternalCaptureDialog({
               overflowY: 'auto',
             }}
           >
-            <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mb: 0.75 }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', mb: 0.75 }}>
               {t('writing.captureAnalysisLabel')}
             </Typography>
             {analysis.timeline && analysis.timeline.length > 0 && (
               <Box sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, mb: 0.5 }}>
+                <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 600, mb: 0.5 }}>
                   {t('writing.captureTimelineLabel')}
                 </Typography>
                 {analysis.timeline.map((item, i) => (
-                  <Typography key={i} sx={{ fontSize: 12.5, lineHeight: 1.7 }}>
+                  <Typography key={i} sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.7 }}>
                     · <b>{item.at || '—'}</b>：{item.event}
                   </Typography>
                 ))}
@@ -668,35 +680,41 @@ export function ExternalCaptureDialog({
             {analysis.profile &&
               (analysis.profile.appearance || analysis.profile.personality || analysis.profile.motivation) && (
                 <Box sx={{ mb: 1 }}>
-                  <Typography sx={{ fontSize: 12, fontWeight: 600, mb: 0.5 }}>
+                  <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 600, mb: 0.5 }}>
                     {t('writing.captureProfileLabel')}
                   </Typography>
                   {analysis.profile.appearance && (
-                    <Typography sx={{ fontSize: 12.5, lineHeight: 1.7 }}>{analysis.profile.appearance}</Typography>
+                    <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.7 }}>
+                      {analysis.profile.appearance}
+                    </Typography>
                   )}
                   {analysis.profile.personality && (
-                    <Typography sx={{ fontSize: 12.5, lineHeight: 1.7 }}>{analysis.profile.personality}</Typography>
+                    <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.7 }}>
+                      {analysis.profile.personality}
+                    </Typography>
                   )}
                   {analysis.profile.motivation && (
-                    <Typography sx={{ fontSize: 12.5, lineHeight: 1.7 }}>{analysis.profile.motivation}</Typography>
+                    <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.7 }}>
+                      {analysis.profile.motivation}
+                    </Typography>
                   )}
                 </Box>
               )}
             {analysis.creativeValue && (
               <Box sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, mb: 0.5 }}>
+                <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 600, mb: 0.5 }}>
                   {t('writing.captureValueLabel')}
                 </Typography>
-                <Typography sx={{ fontSize: 12.5, lineHeight: 1.7 }}>{analysis.creativeValue}</Typography>
+                <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.7 }}>{analysis.creativeValue}</Typography>
               </Box>
             )}
             {analysis.suggestions && analysis.suggestions.length > 0 && (
               <Box>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, mb: 0.5 }}>
+                <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 600, mb: 0.5 }}>
                   {t('writing.captureSuggestionsLabel')}
                 </Typography>
                 {analysis.suggestions.map((s, i) => (
-                  <Typography key={i} sx={{ fontSize: 12.5, lineHeight: 1.7 }}>
+                  <Typography key={i} sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.7 }}>
                     {i + 1}. {s}
                   </Typography>
                 ))}
@@ -716,10 +734,10 @@ export function ExternalCaptureDialog({
               whiteSpace: 'pre-wrap',
             }}
           >
-            <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mb: 0.5 }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', mb: 0.5 }}>
               {t('writing.captureAnalysisLabel')}
             </Typography>
-            <Typography sx={{ fontSize: 12.5, lineHeight: 1.8 }}>{analysisRaw}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.8 }}>{analysisRaw}</Typography>
           </Box>
         )}
         <Divider sx={{ my: 0.5 }} />

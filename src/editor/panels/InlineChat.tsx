@@ -31,11 +31,13 @@ import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import { useTheme } from '@mui/material/styles';
 
 import { t } from '../../i18n';
+import { uiFontSize } from '../../theme/appearanceScales';
 import { useAgentStore } from '../../store/agentStore';
 import { useToastStore } from '../../store/toastStore';
 import { useSmartScrollToBottom } from '../../hooks/useSmartScrollToBottom';
 import { projectScanApi } from '../../services/tauri';
 import { monacoLanguageOf } from '../../utils/languageMeta';
+import { useCodeFont } from '../../hooks/useCodeFont';
 import type { EditorSelectionInfo, MonacoEditorHandle } from './MonacoCodeEditor';
 import {
   buildUserMessage,
@@ -91,6 +93,8 @@ interface DiffState {
 export function InlineChat({ open, onClose, activeFile, selection, editorRef, onOpenPanel }: InlineChatProps) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
+  // 行内 diff 字号跟随「设置 → 字体大小」（此前写死 12，抽屉切档位这边不跟着变）
+  const inlineDiffFont = useCodeFont('inlineDiff');
 
   const messages = useAgentStore((s) => s.messages);
   const streamingContent = useAgentStore((s) => s.streamingContent);
@@ -358,7 +362,9 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
           maxHeight: WIDGET_MAX_H,
           display: 'flex',
           flexDirection: 'column',
-          bgcolor: dark ? 'rgba(13,17,23,0.98)' : 'rgba(255,255,255,0.99)',
+          // 浮窗底吃当前皮肤的 paper 通道（第 40 轮批次 3：此前写死 GitHub 深灰/纯白 rgba，
+          // 换皮肤预设不跟色；0.98 半透保留「浮在编辑器上」的层次观感）
+          bgcolor: 'rgb(var(--template-palette-background-paperChannel) / 0.98)',
           border: 1,
           borderColor: 'divider',
           borderRadius: 2,
@@ -379,30 +385,30 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
             borderColor: 'divider',
           }}
         >
-          <SmartToyIcon sx={{ fontSize: 15, color: 'primary.main', flexShrink: 0 }} />
-          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 11, flex: 1 }}>
+          <SmartToyIcon sx={{ fontSize: uiFontSize(15), color: 'primary.main', flexShrink: 0 }} />
+          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: uiFontSize(11), flex: 1 }}>
             {t('workbench.aiInline.title')}
           </Typography>
           <Chip
             size="small"
             label={t('workbench.aiInline.binding')}
-            sx={{ height: 18, fontSize: 10, fontWeight: 700, '& .MuiChip-label': { px: 0.75 } }}
+            sx={{ height: 18, fontSize: uiFontSize(10), fontWeight: 700, '& .MuiChip-label': { px: 0.75 } }}
           />
           <Tooltip title={t('workbench.aiInline.openPanel')}>
             <IconButton size="small" onClick={onOpenPanel} aria-label={t('workbench.aiInline.openPanel')}>
-              <OpenInFullIcon sx={{ fontSize: 15 }} />
+              <OpenInFullIcon sx={{ fontSize: uiFontSize(15) }} />
             </IconButton>
           </Tooltip>
           <Tooltip title={t('workbench.aiInline.close')}>
             <IconButton size="small" onClick={handleClose} aria-label={t('workbench.aiInline.close')}>
-              <CloseIcon sx={{ fontSize: 15 }} />
+              <CloseIcon sx={{ fontSize: uiFontSize(15) }} />
             </IconButton>
           </Tooltip>
         </Box>
 
         {/* 模式/命令提示：默认问答，斜杠命令升级为改盘动作 */}
         <Box sx={{ px: 1, pb: 0.5 }}>
-          <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>
+          <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
             {t('workbench.aiInline.hint')}
           </Typography>
         </Box>
@@ -426,7 +432,7 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
               variant="caption"
               sx={{
                 flex: 1,
-                fontSize: 10.5,
+                fontSize: uiFontSize(10.5),
                 color: 'text.primary',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -439,7 +445,7 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
               size="small"
               color="inherit"
               onClick={rejectInline}
-              sx={{ fontSize: 10, minWidth: 0, px: 0.75, py: 0 }}
+              sx={{ fontSize: uiFontSize(10), minWidth: 0, px: 0.75, py: 0 }}
             >
               {t('workbench.aiApply.reject')}
             </Button>
@@ -448,7 +454,7 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
               variant="contained"
               color="success"
               onClick={acceptInline}
-              sx={{ fontSize: 10, minWidth: 0, px: 0.75, py: 0 }}
+              sx={{ fontSize: uiFontSize(10), minWidth: 0, px: 0.75, py: 0 }}
             >
               {t('workbench.aiApply.accept')}
             </Button>
@@ -459,8 +465,8 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
         <Box ref={msgListRef} onScroll={handleMsgScroll} sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: 1 }}>
           {visibleMessages.length === 0 && !isStreaming && (
             <Box sx={{ textAlign: 'center', color: 'text.secondary', mt: 2 }}>
-              <ChatBubbleOutlineIcon sx={{ fontSize: 30, opacity: 0.25 }} />
-              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, fontSize: 11 }}>
+              <ChatBubbleOutlineIcon sx={{ fontSize: uiFontSize(30), opacity: 0.25 }} />
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.5, fontSize: uiFontSize(11) }}>
                 {t('workbench.aiInline.empty')}
               </Typography>
             </Box>
@@ -484,13 +490,22 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
                   border: 1,
                   borderColor: msg.role === 'user' ? 'primary.dark' : 'divider',
                   bgcolor:
-                    msg.role === 'user' ? (dark ? 'rgba(25,118,210,0.15)' : 'rgba(25,118,210,0.08)') : 'transparent',
+                    msg.role === 'user'
+                      ? dark
+                        ? 'rgb(var(--template-palette-primary-mainChannel) / 0.15)'
+                        : 'rgb(var(--template-palette-primary-mainChannel) / 0.08)'
+                      : 'transparent',
                 }}
               >
                 {msg.role === 'user' ? (
                   <Typography
                     variant="caption"
-                    sx={{ fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'primary.main' }}
+                    sx={{
+                      fontSize: uiFontSize(11),
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      color: 'primary.main',
+                    }}
                   >
                     {extractUserMessageView(msg.content).text}
                   </Typography>
@@ -510,7 +525,7 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
               {!streamingContent && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5 }}>
                   <CircularProgress size={10} />
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: uiFontSize(10) }}>
                     {t('workbench.aiInline.thinking')}
                   </Typography>
                 </Box>
@@ -533,7 +548,7 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
             maxRows={4}
             disabled={isStreaming}
             sx={{
-              '& .MuiInputBase-root': { fontSize: 12, py: 0.5 },
+              '& .MuiInputBase-root': { fontSize: uiFontSize(12), py: 0.5 },
               '& .MuiOutlinedInput-notchedOutline': { borderRadius: 1.5 },
             }}
           />
@@ -545,7 +560,7 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
               onClick={() => useAgentStore.getState().requestInterrupt()}
               aria-label={t('workbench.aiInline.stop')}
             >
-              <StopIcon sx={{ fontSize: 16 }} />
+              <StopIcon sx={{ fontSize: uiFontSize(16) }} />
             </IconButton>
           ) : (
             <IconButton
@@ -555,14 +570,14 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
               disabled={!input.trim()}
               aria-label={t('workbench.aiInline.send')}
             >
-              <SendIcon sx={{ fontSize: 16 }} />
+              <SendIcon sx={{ fontSize: uiFontSize(16) }} />
             </IconButton>
           )}
         </Box>
 
         {/* 应用改动：diff 预览 */}
         <Dialog open={!!diff} onClose={() => setDiff(null)} maxWidth="md" fullWidth>
-          <DialogTitle sx={{ fontSize: 14 }}>
+          <DialogTitle sx={{ fontSize: uiFontSize(14) }}>
             {t('workbench.aiCode.diffTitle')}
             {diff?.rangeLabel ? ` · ${diff.rangeLabel}` : diff?.meta.path ? ` · ${diff.meta.path}` : ''}
           </DialogTitle>
@@ -582,7 +597,12 @@ export function InlineChat({ open, onClose, activeFile, selection, editorRef, on
                     original={diff.original}
                     modified={diff.modified}
                     theme={dark ? 'vs-dark' : 'light'}
-                    options={{ readOnly: true, renderSideBySide: true, minimap: { enabled: false }, fontSize: 12 }}
+                    options={{
+                      readOnly: true,
+                      renderSideBySide: true,
+                      minimap: { enabled: false },
+                      fontSize: inlineDiffFont.fontSize,
+                    }}
                   />
                 )}
               </Suspense>

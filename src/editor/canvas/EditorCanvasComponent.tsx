@@ -508,8 +508,8 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
             ? "none"
             : showBorder
               ? isSelected
-                ? "2px solid #1976d2"
-                : "1px dashed rgba(25,118,210,0.5)"
+                ? "2px solid var(--template-palette-primary-main)"
+                : "1px dashed rgb(var(--template-palette-primary-mainChannel) / 0.5)"
               : "none",
           outlineOffset: "0px",
           userSelect: "none",
@@ -522,7 +522,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
           "&:hover": previewMode
             ? (effectiveInteractive ? { filter: "brightness(1.08)", transition: "filter 0.15s" } : {})
             : {
-                outline: layerLocked || locked ? undefined : "1px dashed rgba(25,118,210,0.5)",
+                outline: layerLocked || locked ? undefined : "1px dashed rgb(var(--template-palette-primary-mainChannel) / 0.5)",
               },
         }}
         onClick={
@@ -574,10 +574,10 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
                 height: 24,
                 zIndex: 10000,
                 color: "#fff",
-                backgroundColor: isCadViewAdjusting ? "#1976d2" : "rgba(25,118,210,0.85)",
+                backgroundColor: isCadViewAdjusting ? "var(--template-palette-primary-main)" : "rgb(var(--template-palette-primary-mainChannel) / 0.85)",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
                 "&:hover": {
-                  backgroundColor: isCadViewAdjusting ? "#1565c0" : "#1976d2",
+                  backgroundColor: isCadViewAdjusting ? "var(--template-palette-primary-dark)" : "var(--template-palette-primary-main)",
                 },
               }}
              aria-label={isCadViewAdjusting ? t("editor.canvas.exitCadAdjust") : t("editor.canvas.adjustDrawingView")}>
@@ -594,7 +594,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
               left: 0,
               fontSize: 11,
               color: "#fff",
-              backgroundColor: "#1976d2",
+              backgroundColor: "var(--template-palette-primary-main)",
               px: 0.75,
               py: 0.25,
               borderRadius: 0.5,

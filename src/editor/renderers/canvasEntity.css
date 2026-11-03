@@ -54,26 +54,26 @@
 .ps-entity--selected {
   z-index: 4;
   box-shadow:
-    0 0 0 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.18),
-    0 0 10px 2px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.3);
+    0 0 0 3px rgb(var(--template-palette-primary-mainChannel) / 0.18),
+    0 0 10px 2px rgb(var(--template-palette-primary-mainChannel) / 0.3);
   animation: ps-selected-pulse 1.8s ease-in-out infinite;
 }
 
 .ps-entity--selected:hover {
-  outline: 2px solid var(--template-palette-primary, #1976d2);
+  outline: 2px solid var(--template-palette-primary-main, #4a338f);
 }
 
 @keyframes ps-selected-pulse {
   0%,
   100% {
     box-shadow:
-      0 0 0 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.14),
-      0 0 8px 1px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.22);
+      0 0 0 3px rgb(var(--template-palette-primary-mainChannel) / 0.14),
+      0 0 8px 1px rgb(var(--template-palette-primary-mainChannel) / 0.22);
   }
   50% {
     box-shadow:
-      0 0 0 5px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.1),
-      0 0 16px 3px rgba(var(--template-palette-primary-rgb, 25, 118, 210), 0.4);
+      0 0 0 5px rgb(var(--template-palette-primary-mainChannel) / 0.1),
+      0 0 16px 3px rgb(var(--template-palette-primary-mainChannel) / 0.4);
   }
 }
 
@@ -141,6 +141,10 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* 「正文默认排版 → 纸色」（米黄 / 护眼绿）：由 hooks/useBodyTypography 注入到本容器。
+     default 档刻意不注入该变量 → transparent，画布卡自己的纸面底色（随主题）照常透出，
+     与写作台 editorSx 里 `...(bg ? { backgroundColor: bg } : {})` 同一口径。 */
+  background-color: var(--ps-body-paper, transparent);
 }
 
 .ps-workbench .tiptap,
@@ -150,32 +154,52 @@
   overflow-y: auto;
   outline: none;
   padding: 14px 20px 20px;
-  font-size: 14px;
-  line-height: 1.95;
+  /* 字号通道（第二十六轮收口，三层兜底）：
+     ① 「设置 → 正文默认排版」（含书级覆盖）→ 组件在 .ps-workbench 上注入 --ps-body-font-size；
+     ② 没有排版通道的 .ps-workbench（如设计视图外的其它工作台卡）退回「设置 → 字体大小」档位基准
+        --app-font-size-base —— 这条变量由 AppTheme 写进 :root，改之前它全仓零 var() 读取，
+        是典型的「只存不读」；medium 档 = 14px = 本规则改前写死的值，老用户观感不变；
+     ③ 两者都拿不到（单测 / 无 ThemeProvider 的独立预览）才退回 calc。
+     此前这里只有 ③：抽屉改排版画布纹丝不动，切档位靠的是一个没人读的变量。 */
+  font-size: var(--ps-body-font-size, var(--app-font-size-base, calc(14px * var(--app-font-scale, 1))));
+  line-height: var(--ps-body-line-height, 1.95);
+  /* 字族：'跟随系统' 档刻意不注入（resolveBodyFont 返回空串）→ inherit，跟随「界面字体」档位 */
+  font-family: var(--ps-body-font-family, inherit);
+  /* 页宽：与写作台 `maxWidth: typo.pageWidth` 同口径；未注入即不限制（画布卡本来就有宽度上限） */
+  max-width: var(--ps-body-page-width, none);
+  margin-left: auto;
+  margin-right: auto;
   box-sizing: border-box;
 }
 
 .ps-workbench .ProseMirror p {
-  margin: 0.6em 0;
+  /* 段距换算只在 utils/typography.bodyTypographyCssVars 一处（paraSpacing × MUI spacing 8px），
+     与写作台 `my: typo.paraSpacing` 是同一个数；fallback 保留改前的观感 */
+  margin: var(--ps-body-para-spacing, 0.6em) 0;
+  /* 首行缩进两字（中文出版惯例）。档位关掉时必须注入 0px 而不是缺席，
+     否则浏览器会继续套用上一档留下的缩进 —— 读数与观感分家 */
+  text-indent: var(--ps-body-text-indent, 0px);
 }
 
+/* 标题字号与写作台 editorSx 同值（此前一边 1.5/1.25rem、一边 1.6/1.3rem，
+   同一份正文在两套渲染器下层级比例不一致） */
 .ps-workbench .ProseMirror h1 {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   font-weight: 700;
   margin: 1em 0 0.5em;
 }
 
 .ps-workbench .ProseMirror h2 {
-  font-size: 1.25rem;
+  font-size: 1.3rem;
   font-weight: 700;
   margin: 1em 0 0.5em;
 }
 
 .ps-workbench .ProseMirror blockquote {
-  border-left: 3px solid #8b5cf655;
+  border-left: 3px solid var(--template-palette-divider, rgba(0, 0, 0, 0.12));
   padding-left: 12px;
   margin: 0.8em 0;
-  color: #64748b;
+  color: var(--template-palette-text-secondary, rgba(0, 0, 0, 0.6));
 }
 
 .ps-workbench .ProseMirror ul,
@@ -184,7 +208,12 @@
   margin: 0.6em 0;
 }
 
-/* 批次② T4：与写作台 editorSx 同口径的格式/批注样式（画布渲染一致性） */
+/* 批次② T4：与写作台 editorSx 同口径的格式/批注样式（画布渲染一致性）
+   T5（2026-11-02）归属裁决：纸面卡底 = var(--template-palette-background-paper)（随主题），
+   故「引用块边框/文字、链接色、表格线与表头底、占位符」全部改走主题令牌，
+   与 editorSx.ts 的 blockquote / a / th,td / action.hover 保持同口径；
+   而 mark（黄色高亮）与 writing-annotation（橙色批注）表达「这是什么标记」的语义，
+   editorSx 侧同样固定，故此处一并保持不变 —— 换皮肤不该把批注变个颜色。 */
 .ps-workbench .ProseMirror mark {
   background: rgba(255, 235, 59, 0.5);
   color: inherit;
@@ -197,7 +226,7 @@
 }
 
 .ps-workbench .ProseMirror a {
-  color: #8b5cf6;
+  color: var(--template-palette-primary-main, #4a338f);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -211,14 +240,14 @@
 
 .ps-workbench .ProseMirror th,
 .ps-workbench .ProseMirror td {
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  border: 1px solid var(--template-palette-divider, rgba(0, 0, 0, 0.12));
   padding: 6px 10px;
   vertical-align: top;
   min-width: 48px;
 }
 
 .ps-workbench .ProseMirror th {
-  background: rgba(139, 92, 246, 0.08);
+  background: var(--template-palette-action-hover, rgba(0, 0, 0, 0.04));
   font-weight: 600;
   text-align: left;
 }
@@ -241,7 +270,7 @@
   content: attr(data-placeholder);
   float: left;
   height: 0;
-  color: #94a3b8;
+  color: var(--template-palette-text-disabled, rgba(0, 0, 0, 0.38));
   pointer-events: none;
 }
 
@@ -254,13 +283,13 @@
 
 .ps-design input:hover,
 .ps-design textarea:hover {
-  border-color: rgba(128, 128, 128, 0.35);
+  border-color: var(--template-palette-divider, rgba(128, 128, 128, 0.35));
 }
 
 .ps-design input:focus,
 .ps-design textarea:focus {
   outline: none;
-  border-color: var(--template-palette-primary-main, #1976d2);
+  border-color: var(--template-palette-primary-main, #4a338f);
   background: var(--template-palette-background-paper, #fff);
 }
 

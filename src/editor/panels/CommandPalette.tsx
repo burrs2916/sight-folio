@@ -11,18 +11,18 @@
  *
  * 组件保持数据驱动、零业务耦合，可被任意页面（代码工作台 / 分析页）复用。
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 // 2026-09-14：大包导入改子路径。@mui/material 大包与 @mui/material/* 子路径在 Vite
 // 预构建里是两个 entry、各含一份组件内部实例（含 Tabs/Dialog 的 context），
 // 混用会让同屏组件 split-brain（右栏 tabs 点击无效的根因之一）。
-import Box from "@mui/material/Box";
-import Dialog from "@mui/material/Dialog";
-import InputAdornment from "@mui/material/InputAdornment";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import SearchIcon from "@mui/icons-material/Search";
-import type { ReactNode } from "react";
-import { t } from "../../i18n";
+import Box from '@mui/material/Box';
+import Dialog from '@mui/material/Dialog';
+import InputAdornment from '@mui/material/InputAdornment';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import SearchIcon from '@mui/icons-material/Search';
+import type { ReactNode } from 'react';
+import { t } from '../../i18n';
 
 export interface WorkbenchCommand {
   id: string;
@@ -40,9 +40,10 @@ interface FuzzyMatch {
   positions: number[];
 }
 
-const ACCENT = "#3b82f6";
-const USAGE_KEY = "workbench.cmdpalette.usage";
-const HISTORY_KEY = "workbench.cmdpalette.history";
+// 命令面板强调色跟随主题主色（原硬编码 #3b82f6 蓝与品牌紫/预设主色不一致）
+const ACCENT = 'var(--template-palette-primary-main)';
+const USAGE_KEY = 'workbench.cmdpalette.usage';
+const HISTORY_KEY = 'workbench.cmdpalette.history';
 
 /**
  * 模糊匹配：子序列匹配并返回命中字符下标。
@@ -51,7 +52,7 @@ const HISTORY_KEY = "workbench.cmdpalette.history";
  */
 function fuzzyMatch(text: string, rawQuery: string): FuzzyMatch | null {
   const t = text.toLowerCase();
-  const q = rawQuery.toLowerCase().replace(/\s+/g, " ").trim();
+  const q = rawQuery.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!q) return { score: 0, positions: [] };
   let ti = 0;
   let score = 0;
@@ -60,8 +61,7 @@ function fuzzyMatch(text: string, rawQuery: string): FuzzyMatch | null {
   for (let i = 0; i < q.length; i++) {
     const idx = t.indexOf(q[i], ti);
     if (idx === -1) return null;
-    const boundary =
-      idx === 0 || t[idx - 1] === " " || t[idx - 1] === "/" || t[idx - 1] === ".";
+    const boundary = idx === 0 || t[idx - 1] === ' ' || t[idx - 1] === '/' || t[idx - 1] === '.';
     streak = idx === ti ? streak + 1 : 0;
     score += 1 + streak * 2 + (boundary ? 4 : 0);
     positions.push(idx);
@@ -73,7 +73,7 @@ function fuzzyMatch(text: string, rawQuery: string): FuzzyMatch | null {
 
 function loadUsage(): Record<string, number> {
   try {
-    return JSON.parse(localStorage.getItem(USAGE_KEY) || "{}");
+    return JSON.parse(localStorage.getItem(USAGE_KEY) || '{}');
   } catch {
     return {};
   }
@@ -87,7 +87,7 @@ function saveUsage(u: Record<string, number>) {
 }
 function loadHistory(): string[] {
   try {
-    const a = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    const a = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
     return Array.isArray(a) ? a : [];
   } catch {
     return [];
@@ -99,19 +99,16 @@ function renderTitle(title: string, positions: number[]): ReactNode {
   if (!positions.length) return title;
   const hit = new Set(positions);
   const parts: ReactNode[] = [];
-  let buf = "";
+  let buf = '';
   let bufMatched = false;
   const flush = (matched: boolean) => {
     if (!buf) return;
     parts.push(
-      <span
-        key={parts.length}
-        style={matched ? { fontWeight: 700, color: ACCENT } : undefined}
-      >
+      <span key={parts.length} style={matched ? { fontWeight: 700, color: ACCENT } : undefined}>
         {buf}
       </span>,
     );
-    buf = "";
+    buf = '';
     bufMatched = false;
   };
   for (let i = 0; i < title.length; i++) {
@@ -139,14 +136,14 @@ export function CommandPalette({
   emptyText?: string;
   title?: string;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [sel, setSel] = useState(0);
   const [histCursor, setHistCursor] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
-      setQuery("");
+      setQuery('');
       setSel(0);
       setHistCursor(null);
       const id = setTimeout(() => inputRef.current?.focus(), 0);
@@ -209,16 +206,16 @@ export function CommandPalette({
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       // 空查询框时浏览历史查询（带前缀过滤），与 Zed QueryHistory 语义一致。
-      if (query.trim() === "" && history.length > 0) {
+      if (query.trim() === '' && history.length > 0) {
         e.preventDefault();
-        const step = e.key === "ArrowDown" ? 1 : -1;
+        const step = e.key === 'ArrowDown' ? 1 : -1;
         const start = histCursor === null ? (step < 0 ? history.length : -1) : histCursor;
         const next = start + step;
         if (next < 0 || next >= history.length) {
           setHistCursor(null);
-          setQuery("");
+          setQuery('');
           setSel(0);
           return;
         }
@@ -228,38 +225,28 @@ export function CommandPalette({
         return;
       }
       e.preventDefault();
-      setSel((s) =>
-        e.key === "ArrowDown"
-          ? Math.min(results.length - 1, s + 1)
-          : Math.max(0, s - 1),
-      );
+      setSel((s) => (e.key === 'ArrowDown' ? Math.min(results.length - 1, s + 1) : Math.max(0, s - 1)));
       return;
     }
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       e.preventDefault();
       if (results[sel]) runCommand(results[sel].c);
       return;
     }
-    if (e.key === "Escape") {
+    if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
     }
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      slotProps={{ paper: { sx: { mt: 10, mb: "auto" } } }}
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { mt: 10, mb: 'auto' } } }}>
       <Box sx={{ p: 1 }}>
         <TextField
           inputRef={inputRef}
           fullWidth
           size="small"
-          placeholder={placeholder ?? t("editor.cmdPlaceholder")}
+          placeholder={placeholder ?? t('editor.cmdPlaceholder')}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -278,14 +265,10 @@ export function CommandPalette({
           }}
         />
       </Box>
-      <Box sx={{ maxHeight: 380, overflow: "auto", pb: 1 }}>
+      <Box sx={{ maxHeight: 380, overflow: 'auto', pb: 1 }}>
         {results.length === 0 ? (
-          <Typography
-            variant="caption"
-            color="text.disabled"
-            sx={{ display: "block", px: 2, py: 2 }}
-          >
-            {emptyText ?? t("editor.cmdEmpty")}
+          <Typography variant="caption" color="text.disabled" sx={{ display: 'block', px: 2, py: 2 }}>
+            {emptyText ?? t('editor.cmdEmpty')}
           </Typography>
         ) : (
           results.map((r, i) => (
@@ -294,29 +277,22 @@ export function CommandPalette({
               onClick={() => runCommand(r.c)}
               onMouseEnter={() => setSel(i)}
               sx={{
-                display: "flex",
-                alignItems: "center",
+                display: 'flex',
+                alignItems: 'center',
                 gap: 1,
                 px: 2,
                 py: 0.8,
-                cursor: "pointer",
-                bgcolor: i === sel ? "rgba(59,130,246,0.14)" : "transparent",
-                "&:hover": { bgcolor: "rgba(59,130,246,0.08)" },
+                cursor: 'pointer',
+                bgcolor: i === sel ? 'rgb(var(--template-palette-primary-mainChannel) / 0.14)' : 'transparent',
+                '&:hover': { bgcolor: 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' },
               }}
             >
               <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography
-                  variant="caption"
-                  noWrap
-                  sx={{ fontWeight: i === sel ? 600 : 400, display: "block" }}
-                >
+                <Typography variant="caption" noWrap sx={{ fontWeight: i === sel ? 600 : 400, display: 'block' }}>
                   {renderTitle(r.c.title, r.positions)}
                 </Typography>
               </Box>
-              <Typography
-                variant="caption"
-                sx={{ fontSize: 10, color: "text.secondary", whiteSpace: "nowrap" }}
-              >
+              <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary', whiteSpace: 'nowrap' }}>
                 {r.c.category}
               </Typography>
               {r.c.keybinding && (
@@ -324,9 +300,9 @@ export function CommandPalette({
                   variant="caption"
                   sx={{
                     fontSize: 10,
-                    color: "text.secondary",
-                    fontFamily: "monospace",
-                    whiteSpace: "nowrap",
+                    color: 'text.secondary',
+                    fontFamily: 'monospace',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {r.c.keybinding}
@@ -341,14 +317,14 @@ export function CommandPalette({
           px: 2,
           py: 0.75,
           borderTop: 1,
-          borderColor: "divider",
-          display: "flex",
-          justifyContent: "flex-end",
+          borderColor: 'divider',
+          display: 'flex',
+          justifyContent: 'flex-end',
           gap: 1.5,
         }}
       >
         <Typography variant="caption" color="text.secondary">
-          {title ?? t("editor.cmdTitle")}
+          {title ?? t('editor.cmdTitle')}
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography variant="caption" color="text.secondary">

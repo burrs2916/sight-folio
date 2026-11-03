@@ -165,7 +165,7 @@ export function WorkbenchMediaPreview({ fileId, name, kind, themeMode }: MediaPr
     ? { w: Math.round(nat.w * scale), h: Math.round(nat.h * scale) }
     : { w: 240, h: 160 };
 
-  const bg = themeMode === "dark" ? "#010409" : "#f3f4f6";
+  const bg = "var(--template-palette-background-default)";
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", bgcolor: bg }}>
@@ -373,7 +373,7 @@ export function WorkbenchMarkdownPreview({ fileId, tab, themeMode }: MarkdownPre
   };
 
   return (
-    <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", bgcolor: themeMode === "dark" ? "#0d1117" : "#ffffff" }}>
+    <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", bgcolor: "background.paper" }}>
       <Box
         sx={{
           display: "flex",

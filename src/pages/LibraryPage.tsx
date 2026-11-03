@@ -49,11 +49,14 @@ import {
 } from '../services/tauri';
 import { useToastStore } from '../store/toastStore';
 import { ThemeProvider, createTheme, useTheme, alpha } from '@mui/material/styles';
-import { getWorkbenchColorSchemes } from '../theme/AppTheme';
+import { buildColorSchemes } from '../theme/themePresets';
+import { useThemeStore, resolveModeWithSystem } from '../store/themeStore';
 import { t, getLang } from '../i18n';
 import { CORPUS_CATEGORIES, CORPUS_TAG_GROUPS, isCorpusCategory, isCorpusTag } from '../utils/librarySchema';
 import { avgSentenceLen, formatBigCount } from '../utils/formatCount';
 import { highlight } from '../utils/corpusHighlight';
+import { currentScrollBehavior } from '../utils/reducedMotion';
+import { uiFontSize } from '../theme/appearanceScales';
 
 /** 语料库支持的导入格式（单一数据源：文件选择器过滤、扩展名校验、界面提示共用）。 */
 const CORPUS_FORMATS: ReadonlyArray<{ label: string; exts: string[] }> = [
@@ -98,15 +101,15 @@ function CategoryChipPicker({ value, onChange }: { value: string; onChange: (v: 
             color="primary"
             variant="filled"
             onDelete={() => onChange('')}
-            sx={{ height: 26, fontSize: 12.5 }}
+            sx={{ height: 26, fontSize: uiFontSize(12.5) }}
           />
         ) : (
-          <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{t('library.categoryNone')}</Typography>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled' }}>{t('library.categoryNone')}</Typography>
         )}
         <Button
           size="small"
           onClick={() => setOpen((o) => !o)}
-          sx={{ ml: 'auto', fontSize: 11.5, textTransform: 'none', flexShrink: 0 }}
+          sx={{ ml: 'auto', fontSize: uiFontSize(11.5), textTransform: 'none', flexShrink: 0 }}
         >
           {open ? t('library.categoryCollapse') : t('library.categoryExpand')}
         </Button>
@@ -123,7 +126,7 @@ function CategoryChipPicker({ value, onChange }: { value: string; onChange: (v: 
                 color={selected ? 'primary' : 'default'}
                 variant={selected ? 'filled' : 'outlined'}
                 onClick={() => onChange(selected ? '' : c)}
-                sx={{ height: 26, fontSize: 12.5 }}
+                sx={{ height: 26, fontSize: uiFontSize(12.5) }}
               />
             );
           })}
@@ -152,17 +155,17 @@ function TagChipPicker({ value, onChange }: { value: string[]; onChange: (next: 
                 color="secondary"
                 variant="filled"
                 onDelete={() => toggle(tag, true)}
-                sx={{ height: 24, fontSize: 11.5 }}
+                sx={{ height: 24, fontSize: uiFontSize(11.5) }}
               />
             ))}
           </Box>
         ) : (
-          <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{t('library.tagsNone')}</Typography>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled' }}>{t('library.tagsNone')}</Typography>
         )}
         <Button
           size="small"
           onClick={() => setOpen((o) => !o)}
-          sx={{ ml: 'auto', fontSize: 11.5, textTransform: 'none', flexShrink: 0 }}
+          sx={{ ml: 'auto', fontSize: uiFontSize(11.5), textTransform: 'none', flexShrink: 0 }}
         >
           {open ? t('library.tagsCollapse') : t('library.tagsExpand')}
         </Button>
@@ -171,7 +174,7 @@ function TagChipPicker({ value, onChange }: { value: string[]; onChange: (next: 
         <Box sx={{ mt: 1 }}>
           {CORPUS_TAG_GROUPS.map((g) => (
             <Box key={g.key} sx={{ mb: 1.5 }}>
-              <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: 'text.secondary', mb: 0.75 }}>
+              <Typography sx={{ fontSize: uiFontSize(11.5), fontWeight: 700, color: 'text.secondary', mb: 0.75 }}>
                 {t(g.labelKey)}
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
@@ -185,7 +188,7 @@ function TagChipPicker({ value, onChange }: { value: string[]; onChange: (next: 
                       color={selected ? 'secondary' : 'default'}
                       variant={selected ? 'filled' : 'outlined'}
                       onClick={() => toggle(tag, selected)}
-                      sx={{ height: 26, fontSize: 12.5 }}
+                      sx={{ height: 26, fontSize: uiFontSize(12.5) }}
                     />
                   );
                 })}
@@ -312,7 +315,9 @@ export default function LibraryPage() {
     if (!key) return;
     revealTargetRef.current = null;
     requestAnimationFrame(() => {
-      document.getElementById(`corpus-group-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document
+        .getElementById(`corpus-group-${key}`)
+        ?.scrollIntoView({ behavior: currentScrollBehavior(), block: 'start' });
     });
   }, [expandedGroups]);
 
@@ -758,21 +763,21 @@ export default function LibraryPage() {
   const renderBookGroup = (g: DuplicateReport['exactGroups'][number], key: string) => (
     <Card key={key} variant="outlined" sx={{ mb: 1 }}>
       <CardContent sx={{ py: 1, px: 1.5, '&:last-child': { pb: 1 } }}>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
+        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 0.5 }}>
           {reasonLabel(g.reason)}
           {g.similarity < 100 ? ` · ${g.similarity}%` : ''}
         </Typography>
         {g.books.map((b) => (
           <Box key={b.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Typography
-              sx={{ fontSize: 13, flex: 1, minWidth: 0 }}
+              sx={{ fontSize: uiFontSize(13), flex: 1, minWidth: 0 }}
               noWrap
               title={`${b.title}${b.author ? ` · ${b.author}` : ''}`}
             >
               {b.title}
               {b.author ? ` · ${b.author}` : ''}
             </Typography>
-            <Typography sx={{ fontSize: 11.5, color: 'text.disabled', flexShrink: 0 }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', flexShrink: 0 }}>
               {t('library.sentences', { n: b.chunkCount })}
             </Typography>
             <IconButton
@@ -782,7 +787,7 @@ export default function LibraryPage() {
               sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
               aria-label={t('library.delete')}
             >
-              <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+              <DeleteOutlineRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
             </IconButton>
           </Box>
         ))}
@@ -794,15 +799,23 @@ export default function LibraryPage() {
   const renderSentenceGroup = (g: DuplicateReport['sentenceGroups'][number], key: string) => (
     <Card key={key} variant="outlined" sx={{ mb: 1 }}>
       <CardContent sx={{ py: 1, px: 1.5, '&:last-child': { pb: 1 } }}>
-        <Typography sx={{ fontSize: 13, lineHeight: 1.6 }}>{g.sample}</Typography>
+        <Typography sx={{ fontSize: uiFontSize(13), lineHeight: 1.6 }}>{g.sample}</Typography>
         <Box sx={{ display: 'flex', gap: 0.75, mt: 0.5, alignItems: 'center' }}>
-          <Chip size="small" label={t('library.dupBookCount', { n: g.bookCount })} sx={{ height: 18, fontSize: 10 }} />
+          <Chip
+            size="small"
+            label={t('library.dupBookCount', { n: g.bookCount })}
+            sx={{ height: 18, fontSize: uiFontSize(10) }}
+          />
           <Chip
             size="small"
             label={t('library.dupOccurCount', { n: g.chunkCount })}
-            sx={{ height: 18, fontSize: 10 }}
+            sx={{ height: 18, fontSize: uiFontSize(10) }}
           />
-          <Typography sx={{ fontSize: 11, color: 'text.disabled', minWidth: 0 }} noWrap title={g.books.join(' / ')}>
+          <Typography
+            sx={{ fontSize: uiFontSize(11), color: 'text.disabled', minWidth: 0 }}
+            noWrap
+            title={g.books.join(' / ')}
+          >
             {g.books.join(' / ')}
           </Typography>
         </Box>
@@ -850,27 +863,34 @@ export default function LibraryPage() {
   const allExpanded = allGroupKeys.size > 0 && Array.from(allGroupKeys).every((k) => expandedGroups.has(k));
   const toggleAll = () => setExpandedGroups(allExpanded ? new Set() : allGroupKeys);
 
-  /** 页面级局部主题：现代工作台风 = 靛蓝主色 + 浅色高对比底。
-   *  色板已收敛为全局主题层 preset（WORKBENCH_PRESETS.indigo），这里只声明 preset 名，
-   *  不再内联色值；圆角并入全局 borderRadius 档位（不再独立写死 10）。
-   *  仍必须「全新构造 + cssVariables:false」：全局主题启用了 cssVariables
+  /** 页面级局部主题：与全局主题同源（取同一 preset + 同一明暗解析），
+   *  保证设置里选的主题色彩在本页也真正生效，不再内联任何硬编码色值。
+   *
+   *  为什么仍要「全新构造 + cssVariables:false」：全局主题启用了 cssVariables
    *  （--template-* 变量挂 html 的 :root）+ colorSchemes，若写成
    *  createTheme(appTheme, {...})，MUI 因 appTheme.cssVariables 存在而强制走
    *  WithVars 分支：sx 里的 'primary.main' 会被编译为 var(--template-palette-primary-main)，
-   *  指向全局 CSS 变量（品牌紫），嵌套 palette 覆盖只改 JS 主题对象、不改 CSS 变量注入，
-   *  所以覆盖无效（已实测）。全新构造 + cssVariables:false + 继承 components/typography，
-   *  让 sx 直接解析为 JS 色值，靛蓝才能生效。 */
+   *  指向全局 CSS 变量，嵌套 palette 覆盖只改 JS 主题对象、不改 CSS 变量注入，
+   *  所以覆盖无效（已实测）。全新构造 + cssVariables:false + 继承 shape/typography/components，
+   *  让 sx 直接解析为 JS 色值。
+   *  注意：新主题必须显式传 palette.mode —— cssVariables:false 的主题不再响应
+   *  data-mui-color-scheme，只有显式传 mode 才会随暗色模式切换（否则恒为浅色）。 */
   const appTheme = useTheme();
+  const themeConfig = useThemeStore((state) => state.config);
+  // 系统明暗走 store 读数：跟随档位下操作系统换了明暗，本页局部主题要能重算
+  // （渲染期直接读 matchMedia 的话，useMemo 依赖里没有人感知到那次变化）
+  const systemMode = useThemeStore((state) => state.systemMode);
   const pageTheme = useMemo(() => {
-    const workbench = getWorkbenchColorSchemes('indigo');
+    const resolvedMode = resolveModeWithSystem(themeConfig.mode, systemMode);
+    const scheme = buildColorSchemes(themeConfig.preset, themeConfig.customPrimary)[resolvedMode];
     return createTheme({
       cssVariables: false,
       shape: { borderRadius: appTheme.shape.borderRadius },
       typography: appTheme.typography,
       components: appTheme.components,
-      colorSchemes: workbench ?? undefined,
+      palette: { ...(scheme.palette ?? {}), mode: resolvedMode },
     });
-  }, [appTheme]);
+  }, [appTheme, themeConfig.mode, themeConfig.preset, themeConfig.customPrimary, systemMode]);
 
   /** 左侧分类树分组小节（从 tagGroups 派生：每组标题 + 标签节点 + 数量；未分类组并入） */
   const sidebarSections = (() => {
@@ -947,7 +967,7 @@ export default function LibraryPage() {
       >
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 0 }} noWrap title={b.title}>
+            <Typography sx={{ fontSize: uiFontSize(14), fontWeight: 700, flex: 1, minWidth: 0 }} noWrap title={b.title}>
               {b.title}
             </Typography>
             {/* 选中态角标：范围书卡片左上角蓝色圆点，强化已选提示 */}
@@ -973,7 +993,7 @@ export default function LibraryPage() {
               sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main' } }}
               aria-label={t('library.viewDetail')}
             >
-              <InfoOutlinedIcon sx={{ fontSize: 16 }} />
+              <InfoOutlinedIcon sx={{ fontSize: uiFontSize(16) }} />
             </IconButton>
             <IconButton
               size="small"
@@ -985,7 +1005,7 @@ export default function LibraryPage() {
               sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main' } }}
               aria-label={t('library.edit')}
             >
-              <EditRoundedIcon sx={{ fontSize: 16 }} />
+              <EditRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
             </IconButton>
             <IconButton
               size="small"
@@ -998,7 +1018,7 @@ export default function LibraryPage() {
               sx={{ color: 'text.disabled', '&:hover': { color: 'success.main' } }}
               aria-label={t('library.rebuildBook')}
             >
-              <RefreshRoundedIcon sx={{ fontSize: 17 }} />
+              <RefreshRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
             </IconButton>
             <IconButton
               size="small"
@@ -1011,10 +1031,12 @@ export default function LibraryPage() {
               sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}
               aria-label={t('library.delete')}
             >
-              <DeleteOutlineRoundedIcon sx={{ fontSize: 17 }} />
+              <DeleteOutlineRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
             </IconButton>
           </Box>
-          {b.author && <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>{b.author}</Typography>}
+          {b.author && (
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 0.5 }}>{b.author}</Typography>
+          )}
           {(category || enumTags.length > 0 || legacyTags.length > 0) && (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
               {category ? (
@@ -1025,7 +1047,7 @@ export default function LibraryPage() {
                   variant="filled"
                   onClick={() => revealGroup(category)}
                   title={t('library.revealCategory')}
-                  sx={{ height: 18, fontSize: 10, cursor: 'pointer' }}
+                  sx={{ height: 18, fontSize: uiFontSize(10), cursor: 'pointer' }}
                 />
               ) : (
                 <Chip
@@ -1033,7 +1055,7 @@ export default function LibraryPage() {
                   size="small"
                   variant="outlined"
                   title={t('library.uncategorized')}
-                  sx={{ height: 18, fontSize: 10, color: 'text.disabled' }}
+                  sx={{ height: 18, fontSize: uiFontSize(10), color: 'text.disabled' }}
                 />
               )}
               {enumTags.map((tag) => (
@@ -1043,7 +1065,7 @@ export default function LibraryPage() {
                   size="small"
                   onClick={() => revealGroup(tag)}
                   title={t('library.revealTag')}
-                  sx={{ height: 18, fontSize: 10, cursor: 'pointer' }}
+                  sx={{ height: 18, fontSize: uiFontSize(10), cursor: 'pointer' }}
                 />
               ))}
               {legacyTags.map((tag) => (
@@ -1052,12 +1074,12 @@ export default function LibraryPage() {
                   label={tag}
                   size="small"
                   variant="outlined"
-                  sx={{ height: 18, fontSize: 10, color: 'text.disabled' }}
+                  sx={{ height: 18, fontSize: uiFontSize(10), color: 'text.disabled' }}
                 />
               ))}
             </Box>
           )}
-          <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>
+          <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled' }}>
             {t('library.words', { n: formatBigCount(b.wordCount, getLang()) })} ·{' '}
             {t('library.sentences', { n: formatBigCount(b.chunkCount, getLang()) })}
           </Typography>
@@ -1106,12 +1128,19 @@ export default function LibraryPage() {
                 flexShrink: 0,
               }}
             >
-              <LocalLibraryRoundedIcon sx={{ fontSize: 24 }} />
+              <LocalLibraryRoundedIcon sx={{ fontSize: uiFontSize(24) }} />
             </Box>
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: 16, fontWeight: 800, lineHeight: 1.25 }}>{t('library.title')}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(16), fontWeight: 800, lineHeight: 1.25 }}>
+                {t('library.title')}
+              </Typography>
               <Typography
-                sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.35, maxWidth: { xs: 170, md: 240 } }}
+                sx={{
+                  fontSize: uiFontSize(11.5),
+                  color: 'text.secondary',
+                  lineHeight: 1.35,
+                  maxWidth: { xs: 170, md: 240 },
+                }}
                 noWrap
                 title={t('library.subtitle')}
               >
@@ -1132,7 +1161,7 @@ export default function LibraryPage() {
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchRoundedIcon sx={{ fontSize: 19, color: 'text.disabled' }} />
+                    <SearchRoundedIcon sx={{ fontSize: uiFontSize(19), color: 'text.disabled' }} />
                   </InputAdornment>
                 ),
                 endAdornment: query && (
@@ -1144,7 +1173,7 @@ export default function LibraryPage() {
                       sx={{ color: 'text.disabled', '&:hover': { color: 'text.primary' } }}
                       aria-label={t('library.clearSearch')}
                     >
-                      <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                      <CloseRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                     </IconButton>
                   </InputAdornment>
                 ),
@@ -1166,19 +1195,29 @@ export default function LibraryPage() {
                 title={t('library.scopeClear')}
                 sx={{
                   maxWidth: { xs: 180, md: 280 },
-                  fontSize: 12,
+                  fontSize: uiFontSize(12),
                   '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' },
                 }}
               />
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography
-                  sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0, display: { xs: 'none', md: 'block' } }}
+                  sx={{
+                    fontSize: uiFontSize(12),
+                    color: 'text.secondary',
+                    flexShrink: 0,
+                    display: { xs: 'none', md: 'block' },
+                  }}
                 >
                   {t('library.scopeHint')}
                 </Typography>
                 <Typography
-                  sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0, display: { xs: 'none', md: 'block' } }}
+                  sx={{
+                    fontSize: uiFontSize(12),
+                    color: 'text.secondary',
+                    flexShrink: 0,
+                    display: { xs: 'none', md: 'block' },
+                  }}
                 >
                   {t('library.bookTotal', { n: books.length })}
                 </Typography>
@@ -1191,7 +1230,7 @@ export default function LibraryPage() {
             <Button
               variant="outlined"
               size="small"
-              startIcon={<TuneRoundedIcon sx={{ fontSize: 16 }} />}
+              startIcon={<TuneRoundedIcon sx={{ fontSize: uiFontSize(16) }} />}
               disabled={!!unavailable || maintenanceBusy}
               onClick={(e) => setMaintenanceAnchor(e.currentTarget)}
             >
@@ -1217,7 +1256,7 @@ export default function LibraryPage() {
               void openDupScan();
             }}
           >
-            <ContentCopyRoundedIcon sx={{ fontSize: 16, mr: 1 }} />
+            <ContentCopyRoundedIcon sx={{ fontSize: uiFontSize(16), mr: 1 }} />
             {t('library.dupScan')}
           </MenuItem>
           <MenuItem
@@ -1227,7 +1266,7 @@ export default function LibraryPage() {
               setRebuildOpen(true);
             }}
           >
-            <RefreshRoundedIcon sx={{ fontSize: 16, mr: 1 }} />
+            <RefreshRoundedIcon sx={{ fontSize: uiFontSize(16), mr: 1 }} />
             {t('library.rebuild')}
           </MenuItem>
           <MenuItem
@@ -1237,7 +1276,7 @@ export default function LibraryPage() {
               void openOptimize();
             }}
           >
-            <CleaningServicesRoundedIcon sx={{ fontSize: 16, mr: 1 }} />
+            <CleaningServicesRoundedIcon sx={{ fontSize: uiFontSize(16), mr: 1 }} />
             {t('library.optimize')}
           </MenuItem>
         </Menu>
@@ -1269,25 +1308,27 @@ export default function LibraryPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
               <Box onClick={() => handleTreeClick('__all__', true)} sx={treeNodeSx('__all__')}>
                 <Typography
-                  sx={{ fontSize: 12.5, fontWeight: 600, flex: 1, minWidth: 0 }}
+                  sx={{ fontSize: uiFontSize(12.5), fontWeight: 600, flex: 1, minWidth: 0 }}
                   noWrap
                   title={t('library.allBooks')}
                 >
                   {t('library.allBooks')}
                 </Typography>
-                <Typography sx={{ fontSize: 11, opacity: 0.75 }}>{books.length}</Typography>
+                <Typography sx={{ fontSize: uiFontSize(11), opacity: 0.75 }}>{books.length}</Typography>
               </Box>
               {sidebarSections.map((sec) => (
                 <Box key={sec.key}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.disabled', px: 1.25, pt: 1, pb: 0.5 }}>
+                  <Typography
+                    sx={{ fontSize: uiFontSize(11), fontWeight: 700, color: 'text.disabled', px: 1.25, pt: 1, pb: 0.5 }}
+                  >
                     {sec.label}
                   </Typography>
                   {sec.nodes.map((n) => (
                     <Box key={n.key} onClick={() => handleTreeClick(n.key, false)} sx={treeNodeSx(n.key)}>
-                      <Typography sx={{ fontSize: 12.5, flex: 1, minWidth: 0 }} noWrap title={n.label}>
+                      <Typography sx={{ fontSize: uiFontSize(12.5), flex: 1, minWidth: 0 }} noWrap title={n.label}>
                         {n.label}
                       </Typography>
-                      <Typography sx={{ fontSize: 11, opacity: 0.75 }}>{n.count}</Typography>
+                      <Typography sx={{ fontSize: uiFontSize(11), opacity: 0.75 }}>{n.count}</Typography>
                     </Box>
                   ))}
                 </Box>
@@ -1303,14 +1344,14 @@ export default function LibraryPage() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                   <Button
                     size="small"
-                    startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 17 }} />}
+                    startIcon={<ArrowBackRoundedIcon sx={{ fontSize: uiFontSize(17) }} />}
                     onClick={exitSearch}
                     sx={{ flexShrink: 0 }}
                   >
                     {t('library.backToLibrary')}
                   </Button>
                   <Typography
-                    sx={{ fontSize: 13, fontWeight: 700, minWidth: 0 }}
+                    sx={{ fontSize: uiFontSize(13), fontWeight: 700, minWidth: 0 }}
                     noWrap
                     title={t('library.searchResultsTitle', { q: query.trim() })}
                   >
@@ -1321,7 +1362,7 @@ export default function LibraryPage() {
                 {/* 书命中置顶：书名/作者/分类匹配（点击=按该书过滤正文结果） */}
                 {bookHits.length > 0 && (
                   <Box sx={{ mb: 2 }}>
-                    <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 1 }}>
+                    <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled', mb: 1 }}>
                       {t('library.bookHits', { n: bookHits.length })}
                     </Typography>
                     {bookHits.map((b) => (
@@ -1333,9 +1374,11 @@ export default function LibraryPage() {
                       >
                         <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
                           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                            <Typography sx={{ fontSize: 13, fontWeight: 700, flexShrink: 0 }}>《{b.title}》</Typography>
+                            <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, flexShrink: 0 }}>
+                              《{b.title}》
+                            </Typography>
                             <Typography
-                              sx={{ fontSize: 12, color: 'text.secondary', flex: 1, minWidth: 0 }}
+                              sx={{ fontSize: uiFontSize(12), color: 'text.secondary', flex: 1, minWidth: 0 }}
                               noWrap
                               title={[b.author, b.tags && b.tags.length ? b.tags.join('、') : '']
                                 .filter(Boolean)
@@ -1346,7 +1389,7 @@ export default function LibraryPage() {
                             <Chip
                               label={t('library.filterThis')}
                               size="small"
-                              sx={{ height: 18, fontSize: 10, flexShrink: 0 }}
+                              sx={{ height: 18, fontSize: uiFontSize(10), flexShrink: 0 }}
                             />
                           </Box>
                         </CardContent>
@@ -1355,7 +1398,7 @@ export default function LibraryPage() {
                   </Box>
                 )}
                 {hits.length > 0 && (
-                  <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 1 }}>
+                  <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled', mb: 1 }}>
                     {t('library.hits', { n: hits.length })}
                   </Typography>
                 )}
@@ -1363,7 +1406,9 @@ export default function LibraryPage() {
                   <Card key={h.chunkId} sx={{ mb: 1, '&:hover': { boxShadow: 2 } }}>
                     <CardContent sx={{ py: 1.25, px: 2, '&:last-child': { pb: 1.25 } }}>
                       <Box sx={{ display: 'flex', gap: 1, mb: 0.5, alignItems: 'center' }}>
-                        <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: 'text.secondary', flexShrink: 0 }}>
+                        <Typography
+                          sx={{ fontSize: uiFontSize(11.5), fontWeight: 700, color: 'text.secondary', flexShrink: 0 }}
+                        >
                           《{h.bookTitle}》
                         </Typography>
                         {h.chapterTitle && (
@@ -1371,10 +1416,10 @@ export default function LibraryPage() {
                             label={h.chapterTitle}
                             size="small"
                             title={h.chapterTitle}
-                            sx={{ height: 18, fontSize: 10, maxWidth: 200 }}
+                            sx={{ height: 18, fontSize: uiFontSize(10), maxWidth: 200 }}
                           />
                         )}
-                        <Typography sx={{ fontSize: 10.5, color: 'text.disabled', flexShrink: 0 }}>
+                        <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', flexShrink: 0 }}>
                           {t('library.sentenceSeq', { n: h.seq + 1 })}
                         </Typography>
                         <IconButton
@@ -1390,7 +1435,7 @@ export default function LibraryPage() {
                           }}
                           aria-label={t('library.filterThisBook')}
                         >
-                          <FilterAltRoundedIcon sx={{ fontSize: 15 }} />
+                          <FilterAltRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                         </IconButton>
                         {/* 重复句合并：同句只出一条，此处给出出现次数并可展开具体位置 */}
                         {h.occurrenceCount > 1 && (
@@ -1400,26 +1445,28 @@ export default function LibraryPage() {
                             color="primary"
                             variant={expandedHit === h.chunkId ? 'filled' : 'outlined'}
                             onClick={() => setExpandedHit(expandedHit === h.chunkId ? null : h.chunkId)}
-                            sx={{ height: 18, fontSize: 10, flexShrink: 0, cursor: 'pointer' }}
+                            sx={{ height: 18, fontSize: uiFontSize(10), flexShrink: 0, cursor: 'pointer' }}
                           />
                         )}
                       </Box>
-                      <Typography sx={{ fontSize: 13.5, lineHeight: 1.7 }}>{highlight(h.content, query)}</Typography>
+                      <Typography sx={{ fontSize: uiFontSize(13.5), lineHeight: 1.7 }}>
+                        {highlight(h.content, query)}
+                      </Typography>
                       {h.occurrenceCount > 1 && expandedHit === h.chunkId && (
                         <Box sx={{ mt: 0.75, pt: 0.75, borderTop: 1, borderColor: 'divider' }}>
-                          <Typography sx={{ fontSize: 10.5, color: 'text.disabled', mb: 0.25 }}>
+                          <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', mb: 0.25 }}>
                             {t('library.occurrencesTitle')}
                           </Typography>
                           {h.occurrences.map((o) => (
                             <Typography
                               key={o.chunkId}
-                              sx={{ fontSize: 11.5, color: 'text.secondary', lineHeight: 1.6 }}
+                              sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', lineHeight: 1.6 }}
                             >
                               《{o.bookTitle}》{o.chapterTitle ? ` · ${o.chapterTitle}` : ''} · #{o.seq + 1}
                             </Typography>
                           ))}
                           {h.occurrenceCount > h.occurrences.length && (
-                            <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>
+                            <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled' }}>
                               {t('library.occurrencesMore', { n: h.occurrences.length })}
                             </Typography>
                           )}
@@ -1436,7 +1483,7 @@ export default function LibraryPage() {
                   </Box>
                 )}
                 {hits.length === 0 && searched && (
-                  <Typography sx={{ fontSize: 13, color: 'text.disabled', textAlign: 'center', py: 4 }}>
+                  <Typography sx={{ fontSize: uiFontSize(13), color: 'text.disabled', textAlign: 'center', py: 4 }}>
                     {t('library.noHits')}
                   </Typography>
                 )}
@@ -1452,9 +1499,9 @@ export default function LibraryPage() {
                   borderRadius: 2.5,
                 }}
               >
-                <LocalLibraryRoundedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-                <Typography sx={{ fontSize: 14, fontWeight: 500 }}>{t('library.empty')}</Typography>
-                <Typography sx={{ fontSize: 12.5, color: 'text.disabled', mt: 0.5 }}>
+                <LocalLibraryRoundedIcon sx={{ fontSize: uiFontSize(48), color: 'text.disabled', mb: 1 }} />
+                <Typography sx={{ fontSize: uiFontSize(14), fontWeight: 500 }}>{t('library.empty')}</Typography>
+                <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.disabled', mt: 0.5 }}>
                   {t('library.emptyHint')}
                 </Typography>
               </Box>
@@ -1462,13 +1509,13 @@ export default function LibraryPage() {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {/* 书架总控：作品统计 + 全部展开/收起 */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography sx={{ fontSize: 12.5, color: 'text.secondary', flex: 1 }}>
+                  <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary', flex: 1 }}>
                     {t('library.groupStats', { books: books.length, groups: tagGroups.groups.length })}
                   </Typography>
                   <Button
                     size="small"
                     onClick={toggleAll}
-                    sx={{ fontSize: 11.5, textTransform: 'none', flexShrink: 0 }}
+                    sx={{ fontSize: uiFontSize(11.5), textTransform: 'none', flexShrink: 0 }}
                   >
                     {allExpanded ? t('library.collapseAll') : t('library.expandAll')}
                   </Button>
@@ -1478,8 +1525,8 @@ export default function LibraryPage() {
                   <Box key={g.key}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
                       <Box sx={{ width: 3, height: 14, borderRadius: 1, bgcolor: 'primary.main' }} />
-                      <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{t(g.labelKey)}</Typography>
-                      <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>
+                      <Typography sx={{ fontSize: uiFontSize(13.5), fontWeight: 700 }}>{t(g.labelKey)}</Typography>
+                      <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled' }}>
                         {g.key === 'categories'
                           ? t('library.categoryGroupCount', { n: g.tags.length })
                           : t('library.tagGroupCount', { n: g.tags.length })}
@@ -1509,15 +1556,15 @@ export default function LibraryPage() {
                                 size="small"
                                 color={open ? 'secondary' : 'default'}
                                 variant={open ? 'filled' : 'outlined'}
-                                sx={{ height: 22, fontSize: 12 }}
+                                sx={{ height: 22, fontSize: uiFontSize(12) }}
                               />
-                              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                              <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
                                 {t('library.bookCount', { n: books.length })}
                               </Typography>
                               <ExpandMoreRoundedIcon
                                 sx={{
                                   ml: 'auto',
-                                  fontSize: 18,
+                                  fontSize: uiFontSize(18),
                                   transform: open ? 'rotate(180deg)' : 'none',
                                   transition: 'transform 0.15s',
                                   color: 'text.secondary',
@@ -1548,8 +1595,10 @@ export default function LibraryPage() {
                   <Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
                       <Box sx={{ width: 3, height: 14, borderRadius: 1, bgcolor: 'text.disabled' }} />
-                      <Typography sx={{ fontSize: 13.5, fontWeight: 700 }}>{t('library.untaggedGroup')}</Typography>
-                      <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>
+                      <Typography sx={{ fontSize: uiFontSize(13.5), fontWeight: 700 }}>
+                        {t('library.untaggedGroup')}
+                      </Typography>
+                      <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled' }}>
                         {t('library.tagGroupCount', { n: 1 })}
                       </Typography>
                     </Box>
@@ -1572,15 +1621,15 @@ export default function LibraryPage() {
                         size="small"
                         color={expandedGroups.has('__uncategorized__') ? 'secondary' : 'default'}
                         variant={expandedGroups.has('__uncategorized__') ? 'filled' : 'outlined'}
-                        sx={{ height: 22, fontSize: 12 }}
+                        sx={{ height: 22, fontSize: uiFontSize(12) }}
                       />
-                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                      <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
                         {t('library.bookCount', { n: tagGroups.uncategorized.length })}
                       </Typography>
                       <ExpandMoreRoundedIcon
                         sx={{
                           ml: 'auto',
-                          fontSize: 18,
+                          fontSize: uiFontSize(18),
                           transform: expandedGroups.has('__uncategorized__') ? 'rotate(180deg)' : 'none',
                           transition: 'transform 0.15s',
                           color: 'text.secondary',
@@ -1609,7 +1658,7 @@ export default function LibraryPage() {
 
         {/* 导入对话框 */}
         <Dialog open={importOpen} onClose={() => !importing && setImportOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>{t('library.importTitle')}</DialogTitle>
+          <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>{t('library.importTitle')}</DialogTitle>
           <DialogContent>
             {/* 连续导入成功提示：导入完成不关闭对话框，提示可继续添加 */}
             {importSuccess && (
@@ -1622,7 +1671,7 @@ export default function LibraryPage() {
             </Button>
             {/* 支持格式提示：选文件前即可看到哪些格式可被识别切分 */}
             <Box sx={{ mb: 2, px: 1.25, py: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
-              <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: 'text.secondary', mb: 0.75 }}>
+              <Typography sx={{ fontSize: uiFontSize(11.5), fontWeight: 700, color: 'text.secondary', mb: 0.75 }}>
                 {t('library.formatHintTitle')}
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -1632,22 +1681,22 @@ export default function LibraryPage() {
                     label={f.label}
                     size="small"
                     variant="outlined"
-                    sx={{ height: 20, fontSize: 10.5 }}
+                    sx={{ height: 20, fontSize: uiFontSize(10.5) }}
                   />
                 ))}
               </Box>
-              <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.75 }}>
+              <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.75 }}>
                 {t('library.formatHintNote')}
               </Typography>
             </Box>
             {/* 导入前查重预警：只提示，不阻断（用户仍可导入） */}
             {dupHits.length > 0 && (
               <Alert severity="warning" sx={{ mb: 2, py: 0.25, '& .MuiAlert-message': { width: '100%' } }}>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 500, mb: 0.25 }}>
+                <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 500, mb: 0.25 }}>
                   {t('library.dupWarningTitle')}
                 </Typography>
                 {dupHits.map((h) => (
-                  <Typography key={`${h.kind}-${h.bookId}`} sx={{ fontSize: 12, lineHeight: 1.6 }}>
+                  <Typography key={`${h.kind}-${h.bookId}`} sx={{ fontSize: uiFontSize(12), lineHeight: 1.6 }}>
                     · 《{h.title}》{hitLabel(h)}
                   </Typography>
                 ))}
@@ -1681,12 +1730,14 @@ export default function LibraryPage() {
               <MenuItem value="en">English</MenuItem>
             </TextField>
             {/* 分类单选 chip：点选 1 项、再点取消留空（未分类）；不再提供自由文本与下拉 */}
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.secondary', mb: 0.75, mt: 1.5 }}>
+            <Typography
+              sx={{ fontSize: uiFontSize(12.5), fontWeight: 700, color: 'text.secondary', mb: 0.75, mt: 1.5 }}
+            >
               {t('library.categoryLabel')}
             </Typography>
             <CategoryChipPicker value={draftCategory} onChange={setDraftCategory} />
             {/* 标签多选 chip：统一清单四组，点选 0~N 项 */}
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.secondary', mb: 0.75, mt: 2 }}>
+            <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 700, color: 'text.secondary', mb: 0.75, mt: 2 }}>
               {t('library.tagsLabel')}
             </Typography>
             <TagChipPicker value={draftTags} onChange={setDraftTags} />
@@ -1698,7 +1749,7 @@ export default function LibraryPage() {
                   value={importProgress.percent}
                   sx={{ borderRadius: 1, height: 6 }}
                 />
-                <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mt: 0.75 }}>
+                <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary', mt: 0.75 }}>
                   {importProgress.phase === 'indexing'
                     ? t('library.importPhase_indexing', { done: importProgress.done, total: importProgress.total })
                     : t(`library.importPhase_${importProgress.phase}`)}
@@ -1730,7 +1781,7 @@ export default function LibraryPage() {
             <>
               <DialogTitle
                 sx={{
-                  fontSize: 15,
+                  fontSize: uiFontSize(15),
                   fontWeight: 700,
                   pr: 8,
                   display: 'flex',
@@ -1745,13 +1796,13 @@ export default function LibraryPage() {
               </DialogTitle>
               <DialogContent>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <Typography sx={{ fontSize: 15, fontWeight: 700 }}>{detailTarget.title}</Typography>
+                  <Typography sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>{detailTarget.title}</Typography>
                   {detailTarget.author && (
-                    <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>
+                    <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
                       {t('library.authorLabel')}：{detailTarget.author}
                     </Typography>
                   )}
-                  <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
                     {t('library.languageLabel')}：
                     {detailTarget.language === 'zh'
                       ? t('library.langZh')
@@ -1773,7 +1824,7 @@ export default function LibraryPage() {
                             size="small"
                             color="primary"
                             variant="filled"
-                            sx={{ height: 20, fontSize: 11 }}
+                            sx={{ height: 20, fontSize: uiFontSize(11) }}
                           />
                         ) : (
                           <Chip
@@ -1781,23 +1832,25 @@ export default function LibraryPage() {
                             label={t('library.uncategorized')}
                             size="small"
                             variant="outlined"
-                            sx={{ height: 20, fontSize: 11, color: 'text.disabled' }}
+                            sx={{ height: 20, fontSize: uiFontSize(11), color: 'text.disabled' }}
                           />
                         ),
-                        ...tags.map((x) => <Chip key={x} label={x} size="small" sx={{ height: 20, fontSize: 11 }} />),
+                        ...tags.map((x) => (
+                          <Chip key={x} label={x} size="small" sx={{ height: 20, fontSize: uiFontSize(11) }} />
+                        )),
                         ...legacy.map((x) => (
                           <Chip
                             key={`legacy-${x}`}
                             label={x}
                             size="small"
                             variant="outlined"
-                            sx={{ height: 20, fontSize: 11, color: 'text.disabled' }}
+                            sx={{ height: 20, fontSize: uiFontSize(11), color: 'text.disabled' }}
                           />
                         )),
                       ];
                     })()}
                   </Box>
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
                     {t('library.words', { n: formatBigCount(detailTarget.wordCount, getLang()) })} ·{' '}
                     {t('library.sentences', { n: formatBigCount(detailTarget.chunkCount, getLang()) })}
                     {(() => {
@@ -1811,14 +1864,14 @@ export default function LibraryPage() {
                     })()}
                   </Typography>
                   {detailTarget.source && (
-                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                    <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
                       {t('library.sourceLabel')}：{detailTarget.source}
                     </Typography>
                   )}
                   {detailTarget.sourcePath && (
                     <Typography
                       sx={{
-                        fontSize: 12,
+                        fontSize: uiFontSize(12),
                         color: 'text.secondary',
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
@@ -1831,7 +1884,7 @@ export default function LibraryPage() {
                     </Typography>
                   )}
                   {detailTarget.createdAt > 0 && (
-                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                    <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
                       {t('library.importedAtLabel')}：
                       {new Date(detailTarget.createdAt * 1000).toLocaleString(
                         getLang() === 'zh-CN' ? 'zh-CN' : 'en-US',
@@ -1876,9 +1929,9 @@ export default function LibraryPage() {
 
         {/* 删除确认 */}
         <Dialog open={deleteTarget !== null} onClose={() => !deleting && setDeleteTarget(null)} maxWidth="xs">
-          <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>{t('library.delete')}</DialogTitle>
+          <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>{t('library.delete')}</DialogTitle>
           <DialogContent>
-            <Typography sx={{ fontSize: 13 }}>
+            <Typography sx={{ fontSize: uiFontSize(13) }}>
               {deleteTarget ? t('library.deleteConfirm', { title: deleteTarget.title }) : ''}
             </Typography>
           </DialogContent>
@@ -1895,7 +1948,7 @@ export default function LibraryPage() {
 
         {/* 编辑元数据：书名/作者/语言/多标签（专用 UPDATE，只碰这几列；标签存 corpus_book_tags 表并回写 category 列） */}
         <Dialog open={editTarget !== null} onClose={() => !saving && setEditTarget(null)} maxWidth="xs" fullWidth>
-          <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>{t('library.editTitle')}</DialogTitle>
+          <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>{t('library.editTitle')}</DialogTitle>
           <DialogContent>
             <TextField
               fullWidth
@@ -1926,19 +1979,19 @@ export default function LibraryPage() {
               <MenuItem value="en">English</MenuItem>
             </TextField>
             {/* 分类单选 chip：点选 1 项、再点取消留空（未分类） */}
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.secondary', mb: 0.75 }}>
+            <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 700, color: 'text.secondary', mb: 0.75 }}>
               {t('library.categoryLabel')}
             </Typography>
             <CategoryChipPicker value={editCategory} onChange={setEditCategory} />
             {/* 标签多选 chip：统一清单四组，点选 0~N 项 */}
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'text.secondary', mb: 0.75, mt: 2 }}>
+            <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 700, color: 'text.secondary', mb: 0.75, mt: 2 }}>
               {t('library.tagsLabel')}
             </Typography>
             <TagChipPicker value={editTags} onChange={setEditTags} />
             {/* 存量非枚举标签：只读可移除；保存前必须清空（后端白名单校验拒绝超集值） */}
             {editLegacyTags.length > 0 && (
               <Box sx={{ mt: 1.5, p: 1.25, borderRadius: 1, bgcolor: 'warning.light' }}>
-                <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'warning.dark', mb: 0.75 }}>
+                <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 700, color: 'warning.dark', mb: 0.75 }}>
                   {t('library.legacyTagsLabel')}
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
@@ -1950,11 +2003,11 @@ export default function LibraryPage() {
                       color="warning"
                       variant="outlined"
                       onDelete={() => setEditLegacyTags((v) => v.filter((y) => y !== x))}
-                      sx={{ height: 26, fontSize: 12.5 }}
+                      sx={{ height: 26, fontSize: uiFontSize(12.5) }}
                     />
                   ))}
                 </Box>
-                <Typography sx={{ fontSize: 11, color: 'warning.dark', mt: 0.75, lineHeight: 1.5 }}>
+                <Typography sx={{ fontSize: uiFontSize(11), color: 'warning.dark', mt: 0.75, lineHeight: 1.5 }}>
                   {t('library.legacyTagsHint')}
                 </Typography>
               </Box>
@@ -1976,7 +2029,7 @@ export default function LibraryPage() {
 
         {/* 重建索引：确认 → 逐本进度条（事件实时刷新）→ per-book 明细矩阵（P1-3） */}
         <Dialog open={rebuildOpen} onClose={() => !rebuilding && setRebuildOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>{t('library.rebuild')}</DialogTitle>
+          <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>{t('library.rebuild')}</DialogTitle>
           <DialogContent dividers>
             {rebuilding && rebuildProgress ? (
               <Box sx={{ py: 1 }}>
@@ -1985,7 +2038,7 @@ export default function LibraryPage() {
                   value={rebuildProgress.total > 0 ? (rebuildProgress.current / rebuildProgress.total) * 100 : 0}
                   sx={{ mb: 1 }}
                 />
-                <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>
+                <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
                   {t('library.rebuildProgress', {
                     current: rebuildProgress.current,
                     total: rebuildProgress.total,
@@ -1995,7 +2048,7 @@ export default function LibraryPage() {
               </Box>
             ) : rebuildReport ? (
               <Box>
-                <Typography sx={{ fontSize: 13, mb: 0.75 }}>
+                <Typography sx={{ fontSize: uiFontSize(13), mb: 0.75 }}>
                   {t('library.rebuildDone', {
                     rebuilt: rebuildReport.rebuilt,
                     unchanged: rebuildReport.unchanged,
@@ -2004,20 +2057,24 @@ export default function LibraryPage() {
                   })}
                 </Typography>
                 <Divider sx={{ my: 1 }} />
-                <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.5 }}>{t('library.rebuildRows')}</Typography>
+                <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 700, mb: 0.5 }}>
+                  {t('library.rebuildRows')}
+                </Typography>
                 {rebuildReport.items.length === 0 ? (
-                  <Typography sx={{ fontSize: 12.5, color: 'text.disabled' }}>{t('library.rebuildNone')}</Typography>
+                  <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.disabled' }}>
+                    {t('library.rebuildNone')}
+                  </Typography>
                 ) : (
                   <Box sx={{ maxHeight: 280, overflowY: 'auto' }}>
                     {rebuildReport.items.map((it) => (
                       <Box key={it.bookId} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                        <Typography sx={{ fontSize: 12.5, flex: 1, minWidth: 0 }} noWrap title={it.title}>
+                        <Typography sx={{ fontSize: uiFontSize(12.5), flex: 1, minWidth: 0 }} noWrap title={it.title}>
                           {it.title}
                         </Typography>
                         {it.status === 'failed' && it.reason && (
                           <Typography
                             sx={{
-                              fontSize: 11,
+                              fontSize: uiFontSize(11),
                               color: 'text.disabled',
                               maxWidth: '40%',
                               overflow: 'hidden',
@@ -2050,7 +2107,7 @@ export default function LibraryPage() {
                                   : 'error'
                           }
                           variant="outlined"
-                          sx={{ height: 18, fontSize: 10 }}
+                          sx={{ height: 18, fontSize: uiFontSize(10) }}
                         />
                       </Box>
                     ))}
@@ -2058,7 +2115,7 @@ export default function LibraryPage() {
                 )}
               </Box>
             ) : (
-              <Typography sx={{ fontSize: 13 }}>{t('library.rebuildConfirm')}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(13) }}>{t('library.rebuildConfirm')}</Typography>
             )}
           </DialogContent>
           <DialogActions>
@@ -2081,10 +2138,10 @@ export default function LibraryPage() {
 
         {/* 查重报告：精确重复 / 高度相似 / 重复语句（只读扫描 + 可逐条删重复书） */}
         <Dialog open={dupOpen} onClose={() => setDupOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>{t('library.dupTitle')}</DialogTitle>
+          <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>{t('library.dupTitle')}</DialogTitle>
           <DialogContent dividers>
             {dupScanning ? (
-              <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 4, textAlign: 'center' }}>
+              <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary', py: 4, textAlign: 'center' }}>
                 {t('library.dupScanning')}
               </Typography>
             ) : !dupReport ? null : (
@@ -2092,14 +2149,16 @@ export default function LibraryPage() {
                 {dupReport.exactGroups.length === 0 &&
                   dupReport.similarGroups.length === 0 &&
                   dupReport.sentenceGroups.length === 0 && (
-                    <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 3, textAlign: 'center' }}>
+                    <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary', py: 3, textAlign: 'center' }}>
                       {t('library.dupNone')}
                     </Typography>
                   )}
 
                 {dupReport.exactGroups.length > 0 && (
                   <>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.75 }}>{t('library.dupExact')}</Typography>
+                    <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 700, mb: 0.75 }}>
+                      {t('library.dupExact')}
+                    </Typography>
                     {dupReport.exactGroups.map((g, i) => renderBookGroup(g, `e${i}`))}
                     <Divider sx={{ my: 1.5 }} />
                   </>
@@ -2107,7 +2166,7 @@ export default function LibraryPage() {
 
                 {dupReport.similarGroups.length > 0 && (
                   <>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.75 }}>
+                    <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 700, mb: 0.75 }}>
                       {t('library.dupSimilar')}
                     </Typography>
                     {dupReport.similarGroups.map((g, i) => renderBookGroup(g, `s${i}`))}
@@ -2117,10 +2176,10 @@ export default function LibraryPage() {
 
                 {dupReport.sentenceGroups.length > 0 && (
                   <>
-                    <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.25 }}>
+                    <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 700, mb: 0.25 }}>
                       {t('library.dupSentences', { n: dupReport.sentenceGroupTotal })}
                     </Typography>
-                    <Typography sx={{ fontSize: 10.5, color: 'text.disabled', mb: 0.75 }}>
+                    <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', mb: 0.75 }}>
                       {t('library.dupNoiseHint')}
                     </Typography>
                     {dupReport.sentenceGroups.map((g, i) => renderSentenceGroup(g, `t${i}`))}
@@ -2139,25 +2198,27 @@ export default function LibraryPage() {
 
         {/* 空间回收报告：FTS5 rebuild + VACUUM 回收旧库倒排残留（P0 迁移，幂等可重复） */}
         <Dialog open={optimizeOpen} onClose={() => !optimizing && setOptimizeOpen(false)} maxWidth="xs">
-          <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>{t('library.optimizeTitle')}</DialogTitle>
+          <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>{t('library.optimizeTitle')}</DialogTitle>
           <DialogContent dividers>
             {optimizing ? (
-              <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 4, textAlign: 'center' }}>
+              <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary', py: 4, textAlign: 'center' }}>
                 {t('library.optimizing')}
               </Typography>
             ) : !optimizeReport ? null : (
               <Box>
                 {optimizeReport.reclaimedBytes <= 0 ? (
-                  <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{t('library.optimizeNone')}</Typography>
+                  <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>
+                    {t('library.optimizeNone')}
+                  </Typography>
                 ) : (
                   <>
-                    <Typography sx={{ fontSize: 13, mb: 1 }}>
+                    <Typography sx={{ fontSize: uiFontSize(13), mb: 1 }}>
                       {t('library.optimizeDone', {
                         before: formatBytes(optimizeReport.sizeBefore),
                         after: formatBytes(optimizeReport.sizeAfter),
                       })}
                     </Typography>
-                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'success.main', mb: 0.5 }}>
+                    <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, color: 'success.main', mb: 0.5 }}>
                       {t('library.optimizeReclaimed', {
                         amount: formatBytes(optimizeReport.reclaimedBytes),
                       })}
@@ -2165,7 +2226,7 @@ export default function LibraryPage() {
                   </>
                 )}
                 <Divider sx={{ my: 1.5 }} />
-                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
                   {t('library.optimizeFts', {
                     before: optimizeReport.ftsRowsBefore,
                     after: optimizeReport.ftsRowsAfter,

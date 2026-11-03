@@ -27,6 +27,7 @@ import { useToastStore } from '../../store/toastStore';
 import { logger } from '../../utils/logger';
 import { filterReferenceHits, compareCraft, type CraftComparison } from '../../utils/craftCompare';
 import type { CorpusSearchHit } from '../../services/corpus';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 /** 交 AI 改写时携带的一个对照句（去重后将原文/出处给 LLM 参考，不暴露 chunkId 等内部结构） */
 export interface CraftReference {
@@ -124,11 +125,11 @@ export function CraftComparePanel({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <CompareArrowsRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+      <DialogTitle sx={{ fontSize: uiFontSize(15), display: 'flex', alignItems: 'center', gap: 1 }}>
+        <CompareArrowsRoundedIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>{labels.title}</Box>
         <IconButton size="small" onClick={onClose} aria-label={t('ui.close')}>
-          <CloseRoundedIcon sx={{ fontSize: 18 }} />
+          <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ p: 1.5, minHeight: 240, maxHeight: 480, overflowY: 'auto' }}>
@@ -144,14 +145,16 @@ export function CraftComparePanel({
             placeholder={labels.hint}
             value={source}
             onChange={(e) => onSourceChange(e.target.value)}
-            sx={{ '& .MuiInputBase-input': { fontSize: 12.5 } }}
+            sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) } }}
           />
           <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button
               size="small"
               variant="outlined"
               color="primary"
-              startIcon={searching ? <CircularProgress size={13} /> : <SearchRoundedIcon sx={{ fontSize: 15 }} />}
+              startIcon={
+                searching ? <CircularProgress size={13} /> : <SearchRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
+              }
               onClick={() => void handleRecall()}
               disabled={!canRecall}
               data-testid="craft-compare-recall"
@@ -163,8 +166,8 @@ export function CraftComparePanel({
           {/* 对照句列表：本地节奏徽标 + 出处 + 勾选 */}
           {searched && hits.length === 0 && (
             <Box sx={{ textAlign: 'center', py: 5 }}>
-              <AutoAwesomeRoundedIcon sx={{ fontSize: 30, color: 'text.disabled', mb: 1 }} />
-              <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{labels.empty}</Typography>
+              <AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(30), color: 'text.disabled', mb: 1 }} />
+              <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>{labels.empty}</Typography>
             </Box>
           )}
           {hits.map((h, idx) => {
@@ -198,7 +201,7 @@ export function CraftComparePanel({
                 <Checkbox size="small" checked={checked} sx={{ p: 0.25, mt: 0.25 }} />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, flexWrap: 'wrap' }}>
-                    <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: 'text.secondary' }}>
+                    <Typography sx={{ fontSize: uiFontSize(11.5), fontWeight: 700, color: 'text.secondary' }}>
                       《{h.bookTitle} · {h.chapterTitle}》
                     </Typography>
                     <Chip
@@ -206,10 +209,10 @@ export function CraftComparePanel({
                       label={`${tempoLabel} ${cmp.ratio >= 0 ? '+' : ''}${cmp.ratio}%`}
                       color={cmp.tempo === 'longer' ? 'info' : cmp.tempo === 'shorter' ? 'warning' : 'default'}
                       variant="outlined"
-                      sx={{ fontSize: 10, height: 18 }}
+                      sx={{ fontSize: uiFontSize(10), height: 18 }}
                     />
                   </Box>
-                  <Typography sx={{ fontSize: 12.5, color: 'text.primary', mt: 0.25, lineHeight: 1.65 }}>
+                  <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.primary', mt: 0.25, lineHeight: 1.65 }}>
                     {h.content}
                   </Typography>
                 </Box>
@@ -220,7 +223,7 @@ export function CraftComparePanel({
       </DialogContent>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, px: 2, py: 1.25 }}>
         <Tooltip title={selectedCount > 0 ? `${labels.reference} ${selectedCount}` : labels.reference}>
-          <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
+          <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary' }}>
             {labels.reference} {selectedCount}
           </Typography>
         </Tooltip>
@@ -228,7 +231,7 @@ export function CraftComparePanel({
           size="small"
           variant="contained"
           color="primary"
-          startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: 15 }} />}
+          startIcon={<AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(15) }} />}
           disabled={selectedCount === 0}
           onClick={handleRewrite}
           data-testid="craft-compare-rewrite"

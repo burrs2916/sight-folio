@@ -86,6 +86,10 @@ export function LanguageIcon({ lang, size = 14 }: { lang?: string | null; size?:
         width: size,
         height: size,
         minWidth: size,
+        // 圆角例外（第 32 轮逐处拍板）：这是 size×size（默认 14px）的语言缩写徽章，
+        // 4px ≈ 边长的 28%，是**随尺寸走的几何值**；跟「圆角风格」档会在 large(12)/round(20)
+        // 档把 14px 的小方块撑成圆形，两字母缩写直接糊掉。与 writingPanes 的「条高一半」
+        // 三处、胶囊 chip 的「高度一半」十二处同属一类，已登记进推进记录例外清单。
         borderRadius: "4px",
         bgcolor: bg,
         color: fg,

@@ -68,7 +68,7 @@ export function WritingEntitiesTab() {
                 cursor: g.ready ? 'grab' : 'not-allowed',
                 userSelect: 'none',
                 opacity: g.ready ? 1 : 0.45,
-                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-text-primaryChannel) / 0.03)' : 'rgb(var(--template-palette-text-primaryChannel) / 0.02)',
                 '&:hover': g.ready ? { borderColor: g.color, backgroundColor: `${g.color}14` } : {},
                 '&:active': g.ready ? { cursor: 'grabbing' } : {},
               })}

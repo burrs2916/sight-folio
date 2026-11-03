@@ -217,6 +217,8 @@ export function WorkbenchTerminalTabs({ onClose }: { onClose?: () => void }) {
                   }}
                   onClick={(e) => e.stopPropagation()}
                   style={{
+                    // T5 归属裁决：终端恒用固定深色板（同 TERMINAL_THEME），
+                    // 不随主题皮肤联动，此处 #4ade80 是终端绿（聚焦中）语义，保留。
                     background: "#0b0e14",
                     color: "#e5e7eb",
                     border: "1px solid #4ade80",

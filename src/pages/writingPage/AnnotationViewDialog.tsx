@@ -12,6 +12,7 @@ import {
 import StickyNote2RoundedIcon from '@mui/icons-material/StickyNote2Rounded';
 import { t } from '../../i18n';
 import type { WritingAnnotation, WritingSetting } from '../../services/writing';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface AnnotationViewDialogProps {
   annotation: WritingAnnotation | null;
@@ -36,8 +37,8 @@ export function AnnotationViewDialog({
   const linked = annotation?.settingId ? ((settings ?? []).find((s) => s.id === annotation.settingId) ?? null) : null;
   return (
     <Dialog open={annotation !== null} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 15 }}>
-        <StickyNote2RoundedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: uiFontSize(15) }}>
+        <StickyNote2RoundedIcon sx={{ fontSize: uiFontSize(18), color: 'primary.main' }} />
         {t('writing.annotationTitle')}
       </DialogTitle>
       <DialogContent>
@@ -53,12 +54,12 @@ export function AnnotationViewDialog({
             overflowY: 'auto',
           }}
         >
-          <Typography sx={{ fontSize: 11, color: 'text.disabled', mb: 0.5 }}>
+          <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mb: 0.5 }}>
             {t('writing.annotationExcerpt')}
           </Typography>
-          <Typography sx={{ fontSize: 13.5, lineHeight: 1.7 }}>{annotation?.excerpt ?? ''}</Typography>
+          <Typography sx={{ fontSize: uiFontSize(13.5), lineHeight: 1.7 }}>{annotation?.excerpt ?? ''}</Typography>
         </Box>
-        <Typography sx={{ fontSize: 13.5, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+        <Typography sx={{ fontSize: uiFontSize(13.5), lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
           {annotation?.text ?? ''}
         </Typography>
         {annotation && settings && onUpdateSetting && settings.length > 0 ? (
@@ -69,7 +70,7 @@ export function AnnotationViewDialog({
             label={t('writing.annotationSetting')}
             value={annotation.settingId ?? ''}
             onChange={(e) => onUpdateSetting(annotation, e.target.value)}
-            sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: 13 } }}
+            sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: uiFontSize(13) } }}
           >
             <MenuItem value="">{t('writing.annotationSettingNone')}</MenuItem>
             {settings.map((s) => (
@@ -88,7 +89,7 @@ export function AnnotationViewDialog({
               py: 0.5,
               borderRadius: 3,
               bgcolor: 'action.hover',
-              fontSize: 11.5,
+              fontSize: uiFontSize(11.5),
               color: 'text.secondary',
             }}
           >

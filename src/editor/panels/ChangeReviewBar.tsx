@@ -41,6 +41,7 @@ import { useAgentStore } from "../../store/agentStore";
 import { useToastStore } from "../../store/toastStore";
 import { codeChangeApi, type CodeChangeRow } from "../../services/tauri";
 import { monacoLanguageOf } from "../../utils/languageMeta";
+import { useCodeFont } from "../../hooks/useCodeFont";
 
 const DiffEditorLazy = lazy(async () => {
   await import("./monacoSetup");
@@ -63,6 +64,9 @@ export interface ChangeReviewBarProps {
 export function ChangeReviewBar({ activeRelPath, onOpenPath, emptySlot, onAppliedChange }: ChangeReviewBarProps) {
   const theme = useTheme();
   const dark = theme.palette.mode === "dark";
+  // 代码区字号跟随「设置 → 字体大小」：此前两处 diff 各写死 11 / 12，抽屉切档位这边纹丝不动
+  const compactDiffFont = useCodeFont("compact");
+  const inlineDiffFont = useCodeFont("inlineDiff");
   const analysisId = useProjectStore((s) => s.activeAnalysisId);
   const isStreaming = useAgentStore((s) => s.isStreaming);
   const selectedConversationId = useAgentStore((s) => s.selectedConversationId);
@@ -183,7 +187,7 @@ export function ChangeReviewBar({ activeRelPath, onOpenPath, emptySlot, onApplie
   if (rows.length === 0 && !loading) {
     if (emptySlot) {
       return (
-        <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider", bgcolor: dark ? "rgba(25,118,210,0.06)" : "rgba(25,118,210,0.04)" }}>
+        <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider", bgcolor: dark ? "rgb(var(--template-palette-primary-mainChannel) / 0.06)" : "rgb(var(--template-palette-primary-mainChannel) / 0.04)" }}>
           {emptySlot}
         </Box>
       );
@@ -377,7 +381,7 @@ export function ChangeReviewBar({ activeRelPath, onOpenPath, emptySlot, onApplie
                           original={row.oldText}
                           modified={row.newText}
                           theme={dark ? "vs-dark" : "light"}
-                          options={{ readOnly: true, renderSideBySide: false, minimap: { enabled: false }, fontSize: 11, scrollBeyondLastLine: false }}
+                          options={{ readOnly: true, renderSideBySide: false, minimap: { enabled: false }, fontSize: compactDiffFont.fontSize, scrollBeyondLastLine: false }}
                         />
                       </Suspense>
                     </Box>
@@ -410,7 +414,7 @@ export function ChangeReviewBar({ activeRelPath, onOpenPath, emptySlot, onApplie
                   original={diffRow.oldText}
                   modified={diffRow.newText}
                   theme={dark ? "vs-dark" : "light"}
-                  options={{ readOnly: true, renderSideBySide: true, minimap: { enabled: false }, fontSize: 12 }}
+                  options={{ readOnly: true, renderSideBySide: true, minimap: { enabled: false }, fontSize: inlineDiffFont.fontSize }}
                 />
               </Suspense>
             </Box>

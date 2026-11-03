@@ -15,6 +15,11 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 import { t } from "../../i18n";
 import { useToastStore } from "../../store/toastStore";
+import { useCodeFont } from "../../hooks/useCodeFont";
+// 代码字号（第三十六轮）：档位读数与微调步数都取自设置库 theme 域，
+// 换算与钳制的单一真源在 theme/appearanceScales.ts（本文件不再自己读写 localStorage）
+import { useThemeStore } from '../../store/themeStore';
+import { codeFontSize } from '../../theme/appearanceScales';
 import type { SourceMark } from "../../store/sourceViewerStore";
 
 /** 复杂度热力区间（函数体整块着色，按圈复杂度等级） */
@@ -460,74 +465,14 @@ function EditorFallback() {
 }
 
 // —— 编辑器字号缩放（对标 Zed IncreaseBufferFontSize / DecreaseBufferFontSize / ResetBufferFontSize）——
-// Zed 语义：步长 ±1px，钳制 [6,100]，Reset 恢复主题默认，persist 写入设置文件（跨会话保留）。
-// 我们复刻同口径：步长 ±1、钳制一致、Reset 恢复应用默认 13px；变更经 updateOptions 触发
-// onDidChangeConfiguration → emitFontSize 回传外壳，并写入 localStorage（对标 Zed persist 跨会话语义）。
-const FONT_SIZE_MIN = 6;
-const FONT_SIZE_MAX = 100;
-const FONT_SIZE_DEFAULT = 13; // 与 options.fontSize 初始值一致
-
-function clampFontSize(size: number): number {
-  if (!Number.isFinite(size)) return FONT_SIZE_DEFAULT;
-  return Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.round(size)));
-}
-
-function readPersistedFontSize(): number | null {
-  try {
-    const raw =
-      typeof localStorage !== "undefined" ? localStorage.getItem("ps.editor.fontSize") : null;
-    if (raw == null) return null;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return null;
-    return clampFontSize(n);
-  } catch {
-    return null;
-  }
-}
-
-function persistFontSize(size: number): void {
-  try {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem("ps.editor.fontSize", String(clampFontSize(size)));
-    }
-  } catch {
-    /* 持久化异常时静默忽略 */
-  }
-}
-
-// cbRef 用结构类型（{ current }）以规避 React 命名空间依赖；与 MutableRefObject 结构兼容。
-function applyFontSizeDelta(
-  ed: any,
-  monaco: any,
-  delta: number,
-  cbRef?: { current: ((size: number) => void) | undefined },
-): void {
-  if (!ed || !monaco) return;
-  const cur = (ed.getOption(monaco.editor.EditorOption.fontSize) as number) ?? FONT_SIZE_DEFAULT;
-  const next = clampFontSize(cur + delta);
-  ed.updateOptions({ fontSize: next });
-  try {
-    cbRef?.current?.(next);
-  } catch {
-    /* 忽略回传异常 */
-  }
-  persistFontSize(next);
-}
-
-function resetFontSize(
-  ed: any,
-  monaco: any,
-  cbRef?: { current: ((size: number) => void) | undefined },
-): void {
-  if (!ed || !monaco) return;
-  ed.updateOptions({ fontSize: FONT_SIZE_DEFAULT });
-  try {
-    cbRef?.current?.(FONT_SIZE_DEFAULT);
-  } catch {
-    /* 忽略回传异常 */
-  }
-  persistFontSize(FONT_SIZE_DEFAULT);
-}
+// Zed 语义：步长 ±1px，钳制 [6,100]，Reset 回到主题档位，持久化跨会话保留。
+//
+// 第二十四轮：基准不再写死 13，而是「设置 → 字体大小」档位换算出的代码区字号，± 只存**相对步数**。
+// 第三十六轮：这份步数从本组件的 localStorage 键迁进设置库 theme 域（`theme.codeFontZoom`），
+// 本文件不再持有任何持久化代码 —— 换算与钳制的唯一真源在 theme/appearanceScales.ts，
+// 读写入口在 store/themeStore.ts（落库 + 跨窗口广播 + 进设置备份 + 被「恢复默认」复位）。
+// 为什么值得搬：留在 localStorage 的那一份不在设置备份的 7 个键里、不参与恢复默认、
+// 不跨窗口跟随、写失败还是个空 catch —— 四条都是「设置没生效 / 换设备就丢」的同族成因。
 
 /** 跳转到下一个/上一个诊断（对标 Zed editor::GoToDiagnostic / GoToPrevDiagnostic）。
  *  - 取当前模型全部 Monaco 标记（Monaco TS/JS worker 自动产出 squiggle，JS/TS 文件天然有诊断），
@@ -1098,6 +1043,17 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
     onToggleBookmark,
   } = props;
 
+  // ─── 代码区字号（第二十四轮 · 第三十六轮改落点）────────────────────────────
+  // 基准来自「设置 → 字体大小」档位（档位 → px 的换算只在 theme/appearanceScales.ts 一处），
+  // 状态栏 ± 只在其上叠一个**步数**：这样切档位代码区跟着走，手动微调也仍然跨会话留住。
+  // 第三十六轮：步数不再是本组件的 useState + localStorage，而是设置库 theme 域的一个字段
+  // （theme.codeFontZoom）—— 于是它和颜色模式 / 字号档位一样：即时落库、广播到其它窗口、
+  // 进设置备份、被「恢复默认设置」一并复位，写失败也会走可信层报给健康条，而不是空 catch 吞掉。
+  const codeFontZoom = useThemeStore((s) => s.config.codeFontZoom);
+  const codeFont = useCodeFont('editor', codeFontZoom);
+  /** 真正喂给 Monaco 的那个数：档位基准 + 用户步数（换算与两端钳制都在单一真源里做完） */
+  const editorFontSize = codeFont.fontSize;
+
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const decoRef = useRef<any>(null);
@@ -1649,11 +1605,14 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
         editorRef.current?.trigger("ps-workbench", "editor.action.removeSecondaryCursors", undefined);
       },
       // ── 编辑器字号缩放（对标 Zed IncreaseBufferFontSize / DecreaseBufferFontSize / ResetBufferFontSize）──
-      // 复用模块级 applyFontSizeDelta / resetFontSize（步长 ±1、钳制 [6,100]、Reset 恢复默认 13px），
-      // 变更经 updateOptions 触发 onDidChangeConfiguration → emitFontSize 回传外壳状态栏 + localStorage 持久化。
-      increaseFont: () => applyFontSizeDelta(editorRef.current, monacoRef.current, +1, onFontSizeRef),
-      decreaseFont: () => applyFontSizeDelta(editorRef.current, monacoRef.current, -1, onFontSizeRef),
-      resetFont: () => resetFontSize(editorRef.current, monacoRef.current, onFontSizeRef),
+      // 第二十四轮改口径：± 动的不是绝对像素，而是**叠在字号档位上的步数**（Reset = 步数归零，
+      // 即回到档位那一档，不再是写死的 13px）。步数进设置库 → themeStore 变 → useCodeFont 重算
+      // → options 变 → Monaco updateOptions → onDidChangeConfiguration → emitFontSize 回传状态栏；
+      // 落库与跨窗口广播都在 store/themeStore.ts 的 persist 里一次交齐（本文件不再自己写盘）。
+      // 钳制也在 store 里：状态栏与设置抽屉两个入口共用同一条加减逻辑，不会一边能越界一边不能。
+      increaseFont: () => useThemeStore.getState().adjustCodeFontZoom(1),
+      decreaseFont: () => useThemeStore.getState().adjustCodeFontZoom(-1),
+      resetFont: () => useThemeStore.getState().setCodeFontZoom(0),
       // ── 代码折叠（对标 Zed Fold / UnfoldLines / FoldRecursive / FoldAll / FoldSelectedRanges / FoldAtLevel_1..9）──
       // 复用 Monaco 内建 action（trigger 触发，零静态 monaco import）；原生键位默认已绑定，
       // 命令面板入口保证可达（无需先聚焦编辑器也能折叠），与 Zed 命令面板同口径。
@@ -1976,8 +1935,10 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
         options={{
           readOnly,
           minimap: { enabled: false },
-          fontSize: 13,
-          lineHeight: 20,
+          fontSize: editorFontSize,
+          // 行高跟着字号走：只放大字号不放大行高，large 档会得到挤成一团的代码页。
+          // +7 这个间距取自 theme/appearanceScales 的同一处（第三十六轮），不再在本文件各写一份
+          lineHeight: codeFont.lineHeight,
           scrollBeyondLastLine: false,
           automaticLayout: true,
           wordWrap: "off",
@@ -1995,11 +1956,8 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
           editorRef.current = editor;
           monacoRef.current = monaco;
           ensureMarkStyles();
-          // 应用持久化的编辑器字号（对标 Zed persist：跨会话保留用户偏好）；无持久化时保持选项默认 13px
-          const persistedFont = readPersistedFontSize();
-          if (persistedFont != null) {
-            editor.updateOptions({ fontSize: persistedFont });
-          }
+          // 字号不再在这里补一刀：options.fontSize 已经是「档位基准 + 用户步数」的读数，
+          // 挂载后经 emitFontSize() 回传状态栏，界面与编辑器只会是同一个数。
           if (revealLine && revealLine > 0) {
             editor.revealLineInCenter(revealLine);
             editor.setPosition({
@@ -2429,10 +2387,14 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
             }
           };
 
-          // 编辑器字号（对标 Zed 字号设置在状态栏/设置可见）：option 改变 / 挂载时回传，供外壳状态栏显示 + 持久化
+          // 编辑器字号（对标 Zed 字号设置在状态栏/设置可见）：option 改变 / 挂载时回传，供外壳状态栏显示
+          // （第三十六轮：这里只管**显示**，持久化在 store/themeStore.ts 落库，本文件不再自己写盘）
           const emitFontSize = () => {
             try {
-              const size = (editor.getOption(monaco.editor.EditorOption.fontSize) as number) ?? FONT_SIZE_DEFAULT;
+              // 兜底值现场按档位换算（不在本文件留一份 13 的副本）：档位是「大」时兜底读数也不该是 medium 档的数
+              const size =
+                (editor.getOption(monaco.editor.EditorOption.fontSize) as number) ??
+                codeFontSize('editor', useThemeStore.getState().config.fontSize);
               onFontSizeRef.current?.(size);
             } catch {
               /* 读取选项异常时静默忽略 */

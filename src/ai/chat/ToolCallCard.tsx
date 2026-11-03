@@ -13,6 +13,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useTheme } from '@mui/material/styles';
+import { uiFontSize } from '../../theme/appearanceScales';
 import { formatToolArguments, toolStatusColor, toolStatusLabel, toolDisplayName } from '../../utils/toolCallDisplay';
 import { highlightCode } from '../../editor/panels/codeHighlight';
 import { t } from '../../i18n';
@@ -24,7 +25,7 @@ function StatusMeta({ status }: { status: ToolCallEvent['status'] }) {
       label={toolStatusLabel(status)}
       color={toolStatusColor(status)}
       size="small"
-      sx={{ height: 20, fontSize: 11 }}
+      sx={{ height: 20, fontSize: uiFontSize(11) }}
     />
   );
 }
@@ -38,7 +39,7 @@ function JsonView({ text, maxHeight = 220 }: { text: string; maxHeight?: number 
       component="pre"
       sx={{
         m: 0,
-        fontSize: 11.5,
+        fontSize: uiFontSize(11.5),
         lineHeight: 1.55,
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-all',
@@ -102,18 +103,25 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         {running ? (
           <CircularProgress size={16} thickness={5} color="primary" />
         ) : (
-          <BuildIcon sx={{ fontSize: 16, color: failed ? 'error.main' : 'warning.main' }} />
+          <BuildIcon sx={{ fontSize: uiFontSize(16), color: failed ? 'error.main' : 'warning.main' }} />
         )}
-        <Typography sx={{ flex: 1, fontSize: 12.5, fontWeight: 600 }}>
+        <Typography sx={{ flex: 1, fontSize: uiFontSize(12.5), fontWeight: 600 }}>
           {toolDisplayName(toolCall.toolName)}
           {toolCall.toolName !== toolDisplayName(toolCall.toolName) && (
-            <Box component="span" sx={{ ml: 0.75, fontWeight: 400, fontSize: 10.5, color: 'text.disabled' }}>
+            <Box
+              component="span"
+              sx={{ ml: 0.75, fontWeight: 400, fontSize: uiFontSize(10.5), color: 'text.disabled' }}
+            >
               {toolCall.toolName}
             </Box>
           )}
         </Typography>
         <StatusMeta status={toolCall.status} />
-        {showBody ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
+        {showBody ? (
+          <ExpandLessIcon sx={{ fontSize: uiFontSize(16) }} />
+        ) : (
+          <ExpandMoreIcon sx={{ fontSize: uiFontSize(16) }} />
+        )}
       </Box>
       {showBody && (
         <Box
@@ -122,16 +130,19 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             pb: 1.25,
             borderTop: 1,
             borderColor: 'divider',
-            bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)'),
+            bgcolor: (th) =>
+              th.palette.mode === 'dark'
+                ? 'rgb(var(--template-palette-text-primaryChannel) / 0.02)'
+                : 'rgb(var(--template-palette-text-primaryChannel) / 0.01)',
           }}
         >
           {argsText ? (
             <Box sx={{ mt: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>
+                <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', fontWeight: 600 }}>
                   {t('agent.form.args')}
                 </Typography>
-                <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>
+                <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled' }}>
                   {argsText.split('\n').length} 行
                 </Typography>
               </Box>
@@ -143,10 +154,10 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
           {toolCall.result ? (
             <Box sx={{ mt: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 600 }}>
+                <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', fontWeight: 600 }}>
                   {t('agent.form.result')}
                 </Typography>
-                <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>
+                <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled' }}>
                   {toolCall.result.split('\n').length} 行
                 </Typography>
               </Box>

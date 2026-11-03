@@ -1,5 +1,6 @@
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
 import { t } from '../../i18n';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface ShortcutsDialogProps {
   open: boolean;
@@ -10,7 +11,7 @@ export interface ShortcutsDialogProps {
 export function ShortcutsDialog({ open, onClose }: ShortcutsDialogProps) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>{t('writing.shortcutsTitle')}</DialogTitle>
+      <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>{t('writing.shortcutsTitle')}</DialogTitle>
       <DialogContent dividers>
         {(
           [
@@ -25,7 +26,7 @@ export function ShortcutsDialog({ open, onClose }: ShortcutsDialogProps) {
             <Typography
               component="span"
               sx={{
-                fontSize: 11.5,
+                fontSize: uiFontSize(11.5),
                 fontFamily: 'monospace',
                 px: 1,
                 py: 0.25,
@@ -40,7 +41,7 @@ export function ShortcutsDialog({ open, onClose }: ShortcutsDialogProps) {
             >
               {key}
             </Typography>
-            <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t(labelKey)}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>{t(labelKey)}</Typography>
           </Box>
         ))}
       </DialogContent>

@@ -29,6 +29,7 @@ import Chip from '@mui/material/Chip';
 import Alert from '@mui/material/Alert';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Divider from '@mui/material/Divider';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -58,14 +59,19 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import { useTheme } from '@mui/material/styles';
 import { emit } from '@tauri-apps/api/event';
 
 import { t } from '../../i18n';
 import { L } from '../../ai/aiLang';
 import { useAgentStore } from '../../store/agentStore';
+import { useToastStore } from '../../store/toastStore';
+import { clearAllContextPacks } from '../../ai/contextPersist';
 import { type WritingSetting } from '../../services/tauri';
 import { monacoLanguageOf } from '../../utils/languageMeta';
+import { useCodeFont } from '../../hooks/useCodeFont';
 import type { EditorSelectionInfo, MonacoEditorHandle } from './MonacoCodeEditor';
 import { type WorkbenchMode, WORKBENCH_MODES } from './workbenchContext';
 import { MarkdownView, type CodeBlockMeta } from './aiMarkdown';
@@ -75,6 +81,7 @@ import { ChangeReviewBar } from './ChangeReviewBar';
 // 纯展示组件与工具函数（已从本文件拆出，见 workbenchComponents.tsx）
 import { relTime, modeLabel, VerifySection, ImpactSurfaceBlock, WorkbenchInputBar } from './workbenchComponents';
 import { useWorkbenchContext, useWorkbenchEdits, useWorkbenchChat } from './workbenchPanelHooks';
+import { uiFontSize } from '../../theme/appearanceScales';
 export { computeApplyDiff, computeInlineEdit } from './workbenchPanelHooks';
 
 const DiffEditorLazy = lazy(async () => {
@@ -167,7 +174,9 @@ function MessageChangeCard({
         borderRadius: 1,
         border: 1,
         borderColor: 'divider',
-        bgcolor: cardDark ? 'rgba(25,118,210,0.06)' : 'rgba(25,118,210,0.04)',
+        bgcolor: cardDark
+          ? 'rgb(var(--template-palette-primary-mainChannel) / 0.06)'
+          : 'rgb(var(--template-palette-primary-mainChannel) / 0.04)',
         overflow: 'hidden',
       }}
     >
@@ -178,10 +187,17 @@ function MessageChangeCard({
           sx={{ p: 0.25 }}
           aria-label={open ? t('workbench.aiApply.collapse') : t('workbench.aiApply.expand')}
         >
-          {open ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
+          {open ? (
+            <ExpandLessIcon sx={{ fontSize: uiFontSize(16) }} />
+          ) : (
+            <ExpandMoreIcon sx={{ fontSize: uiFontSize(16) }} />
+          )}
         </IconButton>
-        <AssessmentIcon sx={{ fontSize: 15, color: 'primary.main' }} />
-        <Typography variant="caption" sx={{ flex: 1, fontSize: 10.5, fontWeight: 600, color: 'text.primary' }}>
+        <AssessmentIcon sx={{ fontSize: uiFontSize(15), color: 'primary.main' }} />
+        <Typography
+          variant="caption"
+          sx={{ flex: 1, fontSize: uiFontSize(10.5), fontWeight: 600, color: 'text.primary' }}
+        >
           {t('workbench.aiApply.composerTitle', { n: items.length })}
         </Typography>
         <Button
@@ -189,11 +205,16 @@ function MessageChangeCard({
           variant="contained"
           color="primary"
           onClick={onApplyAll}
-          sx={{ fontSize: 10, minWidth: 0, px: 0.75, py: 0 }}
+          sx={{ fontSize: uiFontSize(10), minWidth: 0, px: 0.75, py: 0 }}
         >
           {t('workbench.aiApply.composerApplyAll')}
         </Button>
-        <Button size="small" color="inherit" onClick={onSkipAll} sx={{ fontSize: 10, minWidth: 0, px: 0.5, py: 0 }}>
+        <Button
+          size="small"
+          color="inherit"
+          onClick={onSkipAll}
+          sx={{ fontSize: uiFontSize(10), minWidth: 0, px: 0.5, py: 0 }}
+        >
           {t('workbench.aiApply.composerSkipAll')}
         </Button>
       </Box>
@@ -218,14 +239,14 @@ function MessageChangeCard({
                       size="small"
                       label={t('workbench.aiApply.composerCrossTag')}
                       color="warning"
-                      sx={{ height: 15, fontSize: 8.5 }}
+                      sx={{ height: 15, fontSize: uiFontSize(8.5) }}
                     />
                   )}
                   <Typography
                     variant="caption"
                     sx={{
                       display: 'block',
-                      fontSize: 10,
+                      fontSize: uiFontSize(10),
                       color: it.cross ? 'warning.main' : 'primary.main',
                       fontWeight: 600,
                     }}
@@ -237,7 +258,7 @@ function MessageChangeCard({
                   variant="caption"
                   sx={{
                     display: 'block',
-                    fontSize: 10,
+                    fontSize: uiFontSize(10),
                     color: 'text.secondary',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
@@ -252,7 +273,7 @@ function MessageChangeCard({
                 variant="outlined"
                 color="primary"
                 onClick={() => onApplyOne(it)}
-                sx={{ fontSize: 9.5, minWidth: 0, px: 0.5, py: 0, lineHeight: 1.4 }}
+                sx={{ fontSize: uiFontSize(9.5), minWidth: 0, px: 0.5, py: 0, lineHeight: 1.4 }}
               >
                 {t('workbench.aiApply.composerApplyOne')}
               </Button>
@@ -262,12 +283,15 @@ function MessageChangeCard({
                 sx={{ p: 0.25 }}
                 aria-label={t('workbench.aiApply.composerSkip')}
               >
-                <CloseIcon sx={{ fontSize: 14 }} />
+                <CloseIcon sx={{ fontSize: uiFontSize(14) }} />
               </IconButton>
             </Box>
           ))}
           {items.some((it) => it.cross) && (
-            <Typography variant="caption" sx={{ display: 'block', mt: 0.5, fontSize: 9.5, color: 'text.secondary' }}>
+            <Typography
+              variant="caption"
+              sx={{ display: 'block', mt: 0.5, fontSize: uiFontSize(9.5), color: 'text.secondary' }}
+            >
               {t('workbench.aiApply.composerCrossNote')}
             </Typography>
           )}
@@ -287,7 +311,8 @@ function MessageChangeCard({
  *  - 重试只挂**最后一条助手消息**、编辑重发只挂**最后一条用户消息**——中间某条重试要连带
  *    删掉后面全部对话，那种静默丢历史不值得为对齐而做。
  *  - 复制对所有消息开放（纯读，无破坏面）。
- *  - 流式期间全部禁用（后端正在写库，截断会与落库竞争）。
+ *  - 删除对所有消息开放，但走面板二次确认框（批次 5②：转录清理语义，仅删该条）。
+ *  - 流式期间全部禁用（后端正在写库，截断/删除会与落库竞争）。
  *  - 默认半透明，hover 才亮起：不抢转录的视觉主位。
  */
 function MessageActions({
@@ -298,6 +323,7 @@ function MessageActions({
   onCopy,
   onRetry,
   onEdit,
+  onDelete,
 }: {
   role: 'user' | 'assistant';
   canRetry: boolean;
@@ -306,6 +332,7 @@ function MessageActions({
   onCopy: () => void;
   onRetry: () => void;
   onEdit: () => void;
+  onDelete: () => void;
 }) {
   return (
     <Box
@@ -321,7 +348,7 @@ function MessageActions({
     >
       <Tooltip title={t('workbench.aiMsgAction.copy')}>
         <IconButton size="small" onClick={onCopy} sx={{ p: 0.25 }} aria-label={t('workbench.aiMsgAction.copy')}>
-          <ContentCopyIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
+          <ContentCopyIcon sx={{ fontSize: uiFontSize(13), color: 'text.disabled' }} />
         </IconButton>
       </Tooltip>
       {canEdit && (
@@ -333,7 +360,7 @@ function MessageActions({
             sx={{ p: 0.25 }}
             aria-label={t('workbench.aiMsgAction.edit')}
           >
-            <EditIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
+            <EditIcon sx={{ fontSize: uiFontSize(13), color: 'text.disabled' }} />
           </IconButton>
         </Tooltip>
       )}
@@ -346,10 +373,21 @@ function MessageActions({
             sx={{ p: 0.25 }}
             aria-label={t('workbench.aiMsgAction.retry')}
           >
-            <RefreshIcon sx={{ fontSize: 13, color: 'text.disabled' }} />
+            <RefreshIcon sx={{ fontSize: uiFontSize(13), color: 'text.disabled' }} />
           </IconButton>
         </Tooltip>
       )}
+      <Tooltip title={t('workbench.aiMsgAction.delete')}>
+        <IconButton
+          size="small"
+          onClick={onDelete}
+          disabled={disabled}
+          sx={{ p: 0.25 }}
+          aria-label={t('workbench.aiMsgAction.delete')}
+        >
+          <DeleteIcon sx={{ fontSize: uiFontSize(13), color: 'text.disabled' }} />
+        </IconButton>
+      </Tooltip>
     </Box>
   );
 }
@@ -828,6 +866,8 @@ export function WorkbenchAiPanel({
 }: WorkbenchAiPanelProps) {
   const theme = useTheme();
   const dark = theme.palette.mode === 'dark';
+  // AI 建议对照的字号跟随「设置 → 字体大小」（此前写死 12，抽屉切档位这边不跟着变）
+  const inlineDiffFont = useCodeFont('inlineDiff');
   // 全书统筹（健康度/连续性）是 AI 的临时角色覆盖：点「全书总览」按钮时本地切到 overview，
   // 切换左栏题材 tab（bookTopic prop 变化）即还原为跟随题材。零回归：不改动父级分派链。
   const [localTopic, setLocalTopic] = useState<
@@ -848,6 +888,49 @@ export function WorkbenchAiPanel({
   useEffect(() => {
     setLocalTopic(null);
   }, [bookTopic]);
+
+  // ── 批次 5 · 会话功能：删除与清理都要二次确认（破坏性操作不许一点即删）──
+  // 待删除的会话 / 单条消息 / 上下文缓存清理确认框开关。真源全在 agentStore 与 contextPersist，
+  // 面板只收集意图、确认后转发，失败经全局 toast 回执（界面不静默吞错）。
+  const [pendingConvDelete, setPendingConvDelete] = useState<{ id: string; title: string } | null>(null);
+  const [pendingMsgDelete, setPendingMsgDelete] = useState<{ id: string; role: string; preview: string } | null>(null);
+  const [clearCtxOpen, setClearCtxOpen] = useState(false);
+  const [clearCtxBusy, setClearCtxBusy] = useState(false);
+
+  const confirmDeleteConversation = async () => {
+    const target = pendingConvDelete;
+    setPendingConvDelete(null);
+    if (!target) return;
+    try {
+      await useAgentStore.getState().deleteConversation(target.id);
+    } catch {
+      useToastStore.getState().showToast(t('workbench.aiThread.deleteFailed'), 'error');
+    }
+  };
+
+  const confirmDeleteMessage = async () => {
+    const target = pendingMsgDelete;
+    setPendingMsgDelete(null);
+    if (!target) return;
+    try {
+      await useAgentStore.getState().deleteMessage(target.id);
+    } catch {
+      useToastStore.getState().showToast(t('workbench.aiMsgAction.deleteFailed'), 'error');
+    }
+  };
+
+  const confirmClearContextPacks = async () => {
+    setClearCtxBusy(true);
+    try {
+      const n = await clearAllContextPacks();
+      useToastStore.getState().showToast(t('workbench.aiContextClear.cleared', { n }), 'info');
+      setClearCtxOpen(false);
+    } catch {
+      useToastStore.getState().showToast(t('workbench.aiContextClear.failed'), 'error');
+    } finally {
+      setClearCtxBusy(false);
+    }
+  };
   // 书场景下，AI 角色随左栏题材 tab 切换（人物/世界观/大纲/全书统筹），在头部明示当前角色。
   const bookRoleLabel =
     isBookScene && resolvedTopic
@@ -1022,7 +1105,7 @@ export function WorkbenchAiPanel({
           borderColor: 'divider',
         }}
       >
-        <SmartToyIcon sx={{ fontSize: 16, color: 'primary.main', flexShrink: 0 }} />
+        <SmartToyIcon sx={{ fontSize: uiFontSize(16), color: 'primary.main', flexShrink: 0 }} />
         <Typography variant="caption" sx={{ fontWeight: 700, flexShrink: 0 }}>
           {t('workbench.aiPanelTitle')}
         </Typography>
@@ -1032,7 +1115,7 @@ export function WorkbenchAiPanel({
             color="primary"
             variant="outlined"
             label={bookRoleLabel}
-            sx={{ fontSize: 9.5, height: 18, ml: 0.25, '& .MuiChip-label': { px: 0.5 } }}
+            sx={{ fontSize: uiFontSize(9.5), height: 18, ml: 0.25, '& .MuiChip-label': { px: 0.5 } }}
           />
         )}
         {isBookScene && (
@@ -1040,12 +1123,12 @@ export function WorkbenchAiPanel({
             <Button
               size="small"
               variant="outlined"
-              startIcon={<AssessmentIcon sx={{ fontSize: 14 }} />}
+              startIcon={<AssessmentIcon sx={{ fontSize: uiFontSize(14) }} />}
               onClick={() => {
                 setLocalTopic('overview');
                 void send(BOOK_OVERVIEW_PROMPT);
               }}
-              sx={{ textTransform: 'none', fontSize: 10, ml: 0.25, minHeight: 18 }}
+              sx={{ textTransform: 'none', fontSize: uiFontSize(10), ml: 0.25, minHeight: 18 }}
             >
               {t('studio.overviewAi.button')}
             </Button>
@@ -1058,11 +1141,11 @@ export function WorkbenchAiPanel({
             onClick={(e) => setMoreAnchorEl(e.currentTarget)}
             aria-label={t('workbench.aiMore.label')}
           >
-            <MoreVertIcon sx={{ fontSize: 15 }} />
+            <MoreVertIcon sx={{ fontSize: uiFontSize(15) }} />
           </IconButton>
         </Tooltip>
         <IconButton size="small" onClick={onClose} aria-label={t('workbench.aiMore.label')}>
-          <CloseIcon sx={{ fontSize: 15 }} />
+          <CloseIcon sx={{ fontSize: uiFontSize(15) }} />
         </IconButton>
       </Box>
 
@@ -1079,9 +1162,9 @@ export function WorkbenchAiPanel({
             useAgentStore.getState().selectConversation(null);
             setMoreAnchorEl(null);
           }}
-          sx={{ fontSize: 11, gap: 0.75 }}
+          sx={{ fontSize: uiFontSize(11), gap: 0.75 }}
         >
-          <AddIcon sx={{ fontSize: 15 }} />
+          <AddIcon sx={{ fontSize: uiFontSize(15) }} />
           {t('workbench.aiMore.newChat')}
         </MenuItem>
         <MenuItem
@@ -1093,10 +1176,23 @@ export function WorkbenchAiPanel({
             if (aid) void useAgentStore.getState().loadConversations(aid);
             setHistoryAnchor(el);
           }}
-          sx={{ fontSize: 11, gap: 0.75 }}
+          sx={{ fontSize: uiFontSize(11), gap: 0.75 }}
         >
-          <HistoryIcon sx={{ fontSize: 15 }} />
+          <HistoryIcon sx={{ fontSize: uiFontSize(15) }} />
           {t('workbench.aiMore.history')}
+        </MenuItem>
+        {/* 上下文缓存清理（批次 5③）：包是派生数据，孤儿包（删掉的书/项目）没有别的回收通道，
+            这里给一个确定性入口；容量闸兜总量，这里管「现在就想要回来」的场景 */}
+        <Divider sx={{ my: 0.25 }} />
+        <MenuItem
+          onClick={() => {
+            setMoreAnchorEl(null);
+            setClearCtxOpen(true);
+          }}
+          sx={{ fontSize: uiFontSize(11), gap: 0.75 }}
+        >
+          <DeleteSweepIcon sx={{ fontSize: uiFontSize(15) }} />
+          {t('workbench.aiMore.clearContext')}
         </MenuItem>
       </Menu>
 
@@ -1109,12 +1205,12 @@ export function WorkbenchAiPanel({
         sx={{ '& .MuiMenu-paper': { maxHeight: 320, minWidth: 224 } }}
       >
         {conversationsLoading ? (
-          <MenuItem disabled sx={{ fontSize: 11, gap: 0.5 }}>
+          <MenuItem disabled sx={{ fontSize: uiFontSize(11), gap: 0.5 }}>
             <CircularProgress size={12} />
             {t('workbench.aiThread.loading')}
           </MenuItem>
         ) : historyList.length === 0 ? (
-          <MenuItem disabled sx={{ fontSize: 11 }}>
+          <MenuItem disabled sx={{ fontSize: uiFontSize(11) }}>
             {t('workbench.aiThread.historyEmpty')}
           </MenuItem>
         ) : (
@@ -1126,10 +1222,10 @@ export function WorkbenchAiPanel({
                 useAgentStore.getState().selectConversation(c.id);
                 setHistoryAnchor(null);
               }}
-              sx={{ fontSize: 11, gap: 0.5, alignItems: 'flex-start', py: 0.75 }}
+              sx={{ fontSize: uiFontSize(11), gap: 0.5, alignItems: 'flex-start', py: 0.75 }}
             >
               {c.id === selectedConversationId ? (
-                <CheckIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0, mt: 0.25 }} />
+                <CheckIcon sx={{ fontSize: uiFontSize(14), color: 'primary.main', flexShrink: 0, mt: 0.25 }} />
               ) : (
                 <Box sx={{ width: 14, flexShrink: 0 }} />
               )}
@@ -1138,7 +1234,7 @@ export function WorkbenchAiPanel({
                   variant="caption"
                   sx={{
                     display: 'block',
-                    fontSize: 11,
+                    fontSize: uiFontSize(11),
                     fontWeight: c.id === selectedConversationId ? 700 : 400,
                     color: 'text.primary',
                     overflow: 'hidden',
@@ -1149,14 +1245,123 @@ export function WorkbenchAiPanel({
                   {c.title}
                   {c.id === selectedConversationId ? ` ${t('workbench.aiThread.current')}` : ''}
                 </Typography>
-                <Typography variant="caption" sx={{ display: 'block', fontSize: 9.5, color: 'text.secondary' }}>
+                <Typography
+                  variant="caption"
+                  sx={{ display: 'block', fontSize: uiFontSize(9.5), color: 'text.secondary' }}
+                >
                   {relTime(c.updatedAt)}
                 </Typography>
               </Box>
+              {/* 会话删除入口（批次 5①）：不点整行（整行是「切回该会话」），
+                  stopPropagation 后收进二次确认框，确认才走 store 真源删除 */}
+              <Tooltip title={t('workbench.aiThread.delete')}>
+                <IconButton
+                  size="small"
+                  aria-label={t('workbench.aiThread.delete')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setHistoryAnchor(null);
+                    setPendingConvDelete({ id: c.id, title: c.title });
+                  }}
+                  sx={{ p: 0.25, ml: 0.25, alignSelf: 'center', opacity: 0.45, '&:hover': { opacity: 1 } }}
+                >
+                  <DeleteIcon sx={{ fontSize: uiFontSize(13) }} />
+                </IconButton>
+              </Tooltip>
             </MenuItem>
           ))
         )}
       </Menu>
+
+      {/* 删除会话二次确认（批次 5① 红线：破坏性操作不许一点即删）。文案里带会话标题，
+          用户在菜单里点的是哪一条，确认框就说清删的是哪一条 */}
+      <Dialog open={!!pendingConvDelete} onClose={() => setPendingConvDelete(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: uiFontSize(14) }}>{t('workbench.aiThread.deleteConfirmTitle')}</DialogTitle>
+        <DialogContent>
+          <Typography
+            variant="caption"
+            sx={{ fontSize: uiFontSize(11), color: 'text.secondary', lineHeight: 1.6, display: 'block' }}
+          >
+            {t('workbench.aiThread.deleteConfirmBody', { title: pendingConvDelete?.title ?? '' })}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={() => setPendingConvDelete(null)}>
+            {t('nav.cancel')}
+          </Button>
+          <Button size="small" color="error" variant="contained" onClick={() => void confirmDeleteConversation()}>
+            {t('nav.delete')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 删除单条消息二次确认（批次 5②）：仅删该条、其后对话保留——确认文案必须把这条语义讲透，
+          不然用户会以为点了「删除」等于把这一轮连同后面的都撤掉（那是「重试」的口径） */}
+      <Dialog open={!!pendingMsgDelete} onClose={() => setPendingMsgDelete(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: uiFontSize(14) }}>{t('workbench.aiMsgAction.deleteConfirmTitle')}</DialogTitle>
+        <DialogContent>
+          <Typography
+            variant="caption"
+            sx={{ fontSize: uiFontSize(11), color: 'text.secondary', lineHeight: 1.6, display: 'block' }}
+          >
+            {t('workbench.aiMsgAction.deleteConfirmBody')}
+          </Typography>
+          {pendingMsgDelete?.preview && (
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                mt: 1,
+                p: 0.75,
+                fontSize: uiFontSize(10.5),
+                bgcolor: 'action.hover',
+                borderRadius: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {pendingMsgDelete.preview}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" onClick={() => setPendingMsgDelete(null)}>
+            {t('nav.cancel')}
+          </Button>
+          <Button size="small" color="error" variant="contained" onClick={() => void confirmDeleteMessage()}>
+            {t('nav.delete')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 清理 AI 上下文缓存确认框（批次 5③）：讲清楚「删的是派生缓存、文档代码零风险、
+          下次扫描/分析自动重建」，别让用户误以为会动自己的书 */}
+      <Dialog open={clearCtxOpen} onClose={() => !clearCtxBusy && setClearCtxOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: uiFontSize(14) }}>{t('workbench.aiContextClear.title')}</DialogTitle>
+        <DialogContent>
+          <Typography
+            variant="caption"
+            sx={{ fontSize: uiFontSize(11), color: 'text.secondary', lineHeight: 1.6, display: 'block' }}
+          >
+            {t('workbench.aiContextClear.body')}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button size="small" disabled={clearCtxBusy} onClick={() => setClearCtxOpen(false)}>
+            {t('nav.cancel')}
+          </Button>
+          <Button
+            size="small"
+            color="error"
+            variant="contained"
+            disabled={clearCtxBusy}
+            onClick={() => void confirmClearContextPacks()}
+          >
+            {clearCtxBusy ? t('workbench.aiContextClear.clearing') : t('workbench.aiContextClear.ok')}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 顶部工具栏（单行）：单一模式下拉（对标 VS Code Copilot 的 Chat/Edits/Agent 模式选择），
           合并原「视图 Chat/Edits 切换」+「模式 Ask/Edit/Agent chips」两套正交控件为 1 个控件——
@@ -1183,18 +1388,18 @@ export function WorkbenchAiPanel({
               // 统一为对话流渲染：无论选哪个模式，对话都是主轴（改动内联其中），不再切到隐藏对话的独立 Tab
               setView('chat');
             }}
-            sx={{ fontSize: 11, height: 26 }}
+            sx={{ fontSize: uiFontSize(11), height: 26 }}
             displayEmpty
             renderValue={(v) => (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AutoAwesomeIcon sx={{ fontSize: 13, color: 'primary.main' }} />
+                <AutoAwesomeIcon sx={{ fontSize: uiFontSize(13), color: 'primary.main' }} />
                 <span>{modeLabel(v as WorkbenchMode)}</span>
               </Box>
             )}
           >
             {WORKBENCH_MODES.map((m) => (
               <Tooltip key={m} title={t(`workbench.aiMode.${m}`)}>
-                <MenuItem value={m} sx={{ fontSize: 11 }}>
+                <MenuItem value={m} sx={{ fontSize: uiFontSize(11) }}>
                   {modeLabel(m)}
                 </MenuItem>
               </Tooltip>
@@ -1222,20 +1427,20 @@ export function WorkbenchAiPanel({
               '&:hover': { bgcolor: 'action.hover' },
             }}
           >
-            <LayersIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />
-            <Typography variant="caption" sx={{ fontWeight: 600, fontSize: 11, color: 'text.primary' }}>
+            <LayersIcon sx={{ fontSize: uiFontSize(14), color: 'primary.main', flexShrink: 0 }} />
+            <Typography variant="caption" sx={{ fontWeight: 600, fontSize: uiFontSize(11), color: 'text.primary' }}>
               {t('workbench.aiContextBar.title')}
             </Typography>
             <Chip
               size="small"
               label={t('workbench.aiContextBar.count', { n: contextSig })}
-              sx={{ fontSize: 8.5, height: 16, '& .MuiChip-label': { px: 0.5 } }}
+              sx={{ fontSize: uiFontSize(8.5), height: 16, '& .MuiChip-label': { px: 0.5 } }}
             />
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography
                 variant="caption"
                 sx={{
-                  fontSize: 9.5,
+                  fontSize: uiFontSize(9.5),
                   color: 'text.secondary',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -1251,7 +1456,11 @@ export function WorkbenchAiPanel({
                   : ''}
               </Typography>
             </Box>
-            {contextOpen ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
+            {contextOpen ? (
+              <ExpandLessIcon sx={{ fontSize: uiFontSize(16) }} />
+            ) : (
+              <ExpandMoreIcon sx={{ fontSize: uiFontSize(16) }} />
+            )}
           </Box>
           {contextOpen && (
             <Box sx={{ pb: 0.5 }}>
@@ -1272,9 +1481,9 @@ export function WorkbenchAiPanel({
                 {activeFile && (
                   <Chip
                     size="small"
-                    icon={<CodeIcon sx={{ fontSize: 13 }} />}
+                    icon={<CodeIcon sx={{ fontSize: uiFontSize(13) }} />}
                     label={activeFile.relPath}
-                    sx={{ fontSize: 10, height: 22, maxWidth: 220 }}
+                    sx={{ fontSize: uiFontSize(10), height: 22, maxWidth: 220 }}
                   />
                 )}
                 {/* 画布作用域芯片（VS Code 没有的维度）：点击把画布重新居中到该实体。
@@ -1284,10 +1493,10 @@ export function WorkbenchAiPanel({
                     <Chip
                       size="small"
                       color="secondary"
-                      icon={<LinkIcon sx={{ fontSize: 13 }} />}
+                      icon={<LinkIcon sx={{ fontSize: uiFontSize(13) }} />}
                       label={t('workbench.aiScope.label', { label: canvasScope.label })}
                       onClick={() => void emit('workbench-focus-canvas', { fileId: canvasScope.fileId })}
-                      sx={{ fontSize: 10, height: 22, maxWidth: 200 }}
+                      sx={{ fontSize: uiFontSize(10), height: 22, maxWidth: 200 }}
                     />
                   </Tooltip>
                 )}
@@ -1296,17 +1505,17 @@ export function WorkbenchAiPanel({
                     size="small"
                     color="info"
                     label={t('workbench.aiContext.selection', { start: selection.startLine, end: selection.endLine })}
-                    sx={{ fontSize: 10, height: 22 }}
+                    sx={{ fontSize: uiFontSize(10), height: 22 }}
                   />
                 )}
                 {facts && factsLabel && (
                   <Tooltip title={t('workbench.aiFacts.title')}>
                     <Chip
                       size="small"
-                      icon={<AssessmentIcon sx={{ fontSize: 13 }} />}
+                      icon={<AssessmentIcon sx={{ fontSize: uiFontSize(13) }} />}
                       color="warning"
                       label={factsLabel}
-                      sx={{ fontSize: 10, height: 22, maxWidth: 220 }}
+                      sx={{ fontSize: uiFontSize(10), height: 22, maxWidth: 220 }}
                     />
                   </Tooltip>
                 )}
@@ -1314,19 +1523,25 @@ export function WorkbenchAiPanel({
                   <Chip
                     key={`${a.refPath}-${a.symbolName ?? i}`}
                     size="small"
-                    icon={a.kind === 'symbol' ? <LinkIcon sx={{ fontSize: 13 }} /> : <CodeIcon sx={{ fontSize: 13 }} />}
+                    icon={
+                      a.kind === 'symbol' ? (
+                        <LinkIcon sx={{ fontSize: uiFontSize(13) }} />
+                      ) : (
+                        <CodeIcon sx={{ fontSize: uiFontSize(13) }} />
+                      )
+                    }
                     label={a.kind === 'symbol' ? `${a.symbolName}` : a.label}
                     onDelete={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
-                    sx={{ fontSize: 10, height: 22, maxWidth: 180 }}
+                    sx={{ fontSize: uiFontSize(10), height: 22, maxWidth: 180 }}
                   />
                 ))}
                 <Chip
                   size="small"
                   clickable
-                  icon={<AddIcon sx={{ fontSize: 13 }} />}
+                  icon={<AddIcon sx={{ fontSize: uiFontSize(13) }} />}
                   label={t('workbench.aiContext.attach')}
                   onClick={() => setAttachOpen((v) => !v)}
-                  sx={{ fontSize: 10, height: 22, borderStyle: 'dashed' }}
+                  sx={{ fontSize: uiFontSize(10), height: 22, borderStyle: 'dashed' }}
                 />
               </Box>
 
@@ -1357,7 +1572,7 @@ export function WorkbenchAiPanel({
                       placeholder={t('workbench.aiAttach.placeholder')}
                       value={attachQuery}
                       onChange={(e) => setAttachQuery(e.target.value)}
-                      sx={{ '& .MuiInputBase-root': { fontSize: 11, height: 28 } }}
+                      sx={{ '& .MuiInputBase-root': { fontSize: uiFontSize(11), height: 28 } }}
                     />
                   </Box>
                   {attachCandidates.length === 0 ? (
@@ -1379,12 +1594,12 @@ export function WorkbenchAiPanel({
                           '&:hover': { bgcolor: 'action.hover' },
                         }}
                       >
-                        <CodeIcon sx={{ fontSize: 13, color: 'text.secondary', flexShrink: 0 }} />
+                        <CodeIcon sx={{ fontSize: uiFontSize(13), color: 'text.secondary', flexShrink: 0 }} />
                         <Typography
                           variant="caption"
                           sx={{
                             flex: 1,
-                            fontSize: 11,
+                            fontSize: uiFontSize(11),
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -1419,8 +1634,8 @@ export function WorkbenchAiPanel({
                       '&:hover': { bgcolor: 'action.hover' },
                     }}
                   >
-                    <LightbulbIcon sx={{ fontSize: 14, color: 'warning.main', flexShrink: 0 }} />
-                    <Typography variant="caption" sx={{ fontWeight: 600, fontSize: 11, flex: 1 }}>
+                    <LightbulbIcon sx={{ fontSize: uiFontSize(14), color: 'warning.main', flexShrink: 0 }} />
+                    <Typography variant="caption" sx={{ fontWeight: 600, fontSize: uiFontSize(11), flex: 1 }}>
                       {insightsLoading
                         ? t('workbench.aiInsights.loading')
                         : t('workbench.aiInsights.title', { n: fileInsights.length })}
@@ -1428,9 +1643,9 @@ export function WorkbenchAiPanel({
                     {insightsLoading ? (
                       <CircularProgress size={11} />
                     ) : insightsOpen ? (
-                      <ExpandLessIcon sx={{ fontSize: 16 }} />
+                      <ExpandLessIcon sx={{ fontSize: uiFontSize(16) }} />
                     ) : (
-                      <ExpandMoreIcon sx={{ fontSize: 16 }} />
+                      <ExpandMoreIcon sx={{ fontSize: uiFontSize(16) }} />
                     )}
                   </Box>
                   {insightsOpen && (
@@ -1468,7 +1683,7 @@ export function WorkbenchAiPanel({
                               variant="caption"
                               sx={{
                                 display: 'block',
-                                fontSize: 11,
+                                fontSize: uiFontSize(11),
                                 fontWeight: 600,
                                 color: 'text.primary',
                                 lineHeight: 1.4,
@@ -1482,7 +1697,7 @@ export function WorkbenchAiPanel({
                                   size="small"
                                   label={t('workbench.aiInsights.stale')}
                                   color="warning"
-                                  sx={{ height: 16, fontSize: 8.5 }}
+                                  sx={{ height: 16, fontSize: uiFontSize(8.5) }}
                                 />
                               )}
                               {it.status === 'resolved' && (
@@ -1490,7 +1705,7 @@ export function WorkbenchAiPanel({
                                   size="small"
                                   label={t('workbench.aiInsights.resolved')}
                                   color="default"
-                                  sx={{ height: 16, fontSize: 8.5 }}
+                                  sx={{ height: 16, fontSize: uiFontSize(8.5) }}
                                 />
                               )}
                               {it.seenCount && it.seenCount > 1 && (
@@ -1498,7 +1713,7 @@ export function WorkbenchAiPanel({
                                   size="small"
                                   label={t('workbench.aiInsights.confirmed', { n: it.seenCount })}
                                   color="success"
-                                  sx={{ height: 16, fontSize: 8.5 }}
+                                  sx={{ height: 16, fontSize: uiFontSize(8.5) }}
                                 />
                               )}
                               <Box sx={{ flex: 1 }} />
@@ -1506,7 +1721,7 @@ export function WorkbenchAiPanel({
                           在改动视图点引用会把文本塞进不可见的对话输入框，用户看不到任何反应。 */}
                               <Button
                                 size="small"
-                                sx={{ fontSize: 9.5, minWidth: 0, px: 0.5, py: 0, lineHeight: 1.6 }}
+                                sx={{ fontSize: uiFontSize(9.5), minWidth: 0, px: 0.5, py: 0, lineHeight: 1.6 }}
                                 onClick={() => citeIntoInput(`[已有洞察] ${it.title}\n${it.body}`)}
                               >
                                 {t('workbench.aiInsights.cite')}
@@ -1555,15 +1770,23 @@ export function WorkbenchAiPanel({
                 borderRadius: 1,
                 border: 1,
                 borderColor: 'divider',
-                bgcolor: dark ? 'rgba(25,118,210,0.10)' : 'rgba(25,118,210,0.06)',
+                bgcolor: dark
+                  ? 'rgb(var(--template-palette-primary-mainChannel) / 0.10)'
+                  : 'rgb(var(--template-palette-primary-mainChannel) / 0.06)',
               }}
             >
-              <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600, color: 'text.primary' }}>
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(11), fontWeight: 600, color: 'text.primary' }}>
                 {t('workbench.aiEdits.title')}
               </Typography>
               <Typography
                 variant="caption"
-                sx={{ display: 'block', mt: 0.25, fontSize: 10.5, color: 'text.secondary', lineHeight: 1.5 }}
+                sx={{
+                  display: 'block',
+                  mt: 0.25,
+                  fontSize: uiFontSize(10.5),
+                  color: 'text.secondary',
+                  lineHeight: 1.5,
+                }}
               >
                 {isBookScene ? t('workbench.aiEdits.bookIntro') : t('workbench.aiEdits.intro')}
               </Typography>
@@ -1585,14 +1808,14 @@ export function WorkbenchAiPanel({
               }}
             >
               <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main', flexShrink: 0 }} />
-              <Typography variant="caption" sx={{ flex: 1, fontSize: 10.5, color: 'text.primary' }}>
+              <Typography variant="caption" sx={{ flex: 1, fontSize: uiFontSize(10.5), color: 'text.primary' }}>
                 {t('workbench.aiApply.preview')}
               </Typography>
               <Button
                 size="small"
                 color="inherit"
                 onClick={rejectInline}
-                sx={{ fontSize: 10, minWidth: 0, px: 0.75, py: 0 }}
+                sx={{ fontSize: uiFontSize(10), minWidth: 0, px: 0.75, py: 0 }}
               >
                 {t('workbench.aiApply.reject')}
               </Button>
@@ -1601,7 +1824,7 @@ export function WorkbenchAiPanel({
                 variant="contained"
                 color="success"
                 onClick={acceptInline}
-                sx={{ fontSize: 10, minWidth: 0, px: 0.75, py: 0 }}
+                sx={{ fontSize: uiFontSize(10), minWidth: 0, px: 0.75, py: 0 }}
               >
                 {t('workbench.aiApply.accept')}
               </Button>
@@ -1617,9 +1840,9 @@ export function WorkbenchAiPanel({
                   size="small"
                   variant="outlined"
                   fullWidth
-                  startIcon={<AutoFixHighIcon sx={{ fontSize: 14 }} />}
+                  startIcon={<AutoFixHighIcon sx={{ fontSize: uiFontSize(14) }} />}
                   onClick={onOpenCanvasAi}
-                  sx={{ textTransform: 'none', fontSize: 11 }}
+                  sx={{ textTransform: 'none', fontSize: uiFontSize(11) }}
                 >
                   {t('studio.canvasAi.button')}
                 </Button>
@@ -1631,19 +1854,25 @@ export function WorkbenchAiPanel({
           <Box ref={msgListRef} onScroll={handleMsgScroll} sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: 1 }}>
             {!selectedConversationId && messages.length === 0 && !isStreaming && (
               <Box sx={{ textAlign: 'center', color: 'text.secondary', mt: 2, px: 1 }}>
-                <SmartToyIcon sx={{ fontSize: 30, opacity: 0.3, color: 'primary.main' }} />
+                <SmartToyIcon sx={{ fontSize: uiFontSize(30), opacity: 0.3, color: 'primary.main' }} />
                 {currentAgent ? (
                   <>
                     <Typography
                       variant="caption"
-                      sx={{ display: 'block', mt: 0.5, fontSize: 12, fontWeight: 700, color: 'text.primary' }}
+                      sx={{
+                        display: 'block',
+                        mt: 0.5,
+                        fontSize: uiFontSize(12),
+                        fontWeight: 700,
+                        color: 'text.primary',
+                      }}
                     >
                       {currentAgent.name}
                     </Typography>
                     {currentAgent.description && (
                       <Typography
                         variant="caption"
-                        sx={{ display: 'block', mt: 0.25, fontSize: 10.5, lineHeight: 1.5 }}
+                        sx={{ display: 'block', mt: 0.25, fontSize: uiFontSize(10.5), lineHeight: 1.5 }}
                       >
                         {currentAgent.description}
                       </Typography>
@@ -1664,7 +1893,7 @@ export function WorkbenchAiPanel({
                           variant="outlined"
                           label={t(s.labelKey)}
                           onClick={() => citeIntoInput(s.prompt)}
-                          sx={{ fontSize: 10, height: 22 }}
+                          sx={{ fontSize: uiFontSize(10), height: 22 }}
                         />
                       ))}
                     </Box>
@@ -1674,13 +1903,20 @@ export function WorkbenchAiPanel({
                   <Box sx={{ mt: 0.5 }}>
                     <Typography
                       variant="caption"
-                      sx={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'text.primary' }}
+                      sx={{ display: 'block', fontSize: uiFontSize(12), fontWeight: 700, color: 'text.primary' }}
                     >
                       {t('workbench.aiOnboard.title')}
                     </Typography>
                     <Typography
                       variant="caption"
-                      sx={{ display: 'block', mt: 0.25, fontSize: 10.5, lineHeight: 1.5, maxWidth: 260, mx: 'auto' }}
+                      sx={{
+                        display: 'block',
+                        mt: 0.25,
+                        fontSize: uiFontSize(10.5),
+                        lineHeight: 1.5,
+                        maxWidth: 260,
+                        mx: 'auto',
+                      }}
                     >
                       {t('workbench.aiOnboard.desc')}
                     </Typography>
@@ -1689,13 +1925,13 @@ export function WorkbenchAiPanel({
                       variant="contained"
                       startIcon={<SettingsIcon />}
                       onClick={() => void emit('open-ai-settings')}
-                      sx={{ mt: 1, fontSize: 11 }}
+                      sx={{ mt: 1, fontSize: uiFontSize(11) }}
                     >
                       {t('workbench.aiOnboard.cta')}
                     </Button>
                   </Box>
                 ) : (
-                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5, fontSize: 11 }}>
+                  <Typography variant="caption" sx={{ display: 'block', mt: 0.5, fontSize: uiFontSize(11) }}>
                     {t('workbench.aiOnboard.pick')}
                   </Typography>
                 )}
@@ -1729,7 +1965,11 @@ export function WorkbenchAiPanel({
                     border: 1,
                     borderColor: msg.role === 'user' ? 'primary.dark' : 'divider',
                     bgcolor:
-                      msg.role === 'user' ? (dark ? 'rgba(25,118,210,0.15)' : 'rgba(25,118,210,0.08)') : 'transparent',
+                      msg.role === 'user'
+                        ? dark
+                          ? 'rgb(var(--template-palette-primary-mainChannel) / 0.15)'
+                          : 'rgb(var(--template-palette-primary-mainChannel) / 0.08)'
+                        : 'transparent',
                   }}
                 >
                   {msg.role === 'user' ? (
@@ -1754,6 +1994,18 @@ export function WorkbenchAiPanel({
                   onCopy={() => void copyMessage(msg.id)}
                   onRetry={() => void retryLastTurn()}
                   onEdit={() => void editLastRequest()}
+                  onDelete={() =>
+                    setPendingMsgDelete({
+                      id: msg.id,
+                      role: msg.role,
+                      // 预览只用来「认出删的是哪条」：去标签、压空白、截 80 字，不承担正文还原职责
+                      preview: (msg.content ?? '')
+                        .replace(/<[^>]*>/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                        .slice(0, 80),
+                    })
+                  }
                 />
                 {/* B 深化：改动就地长在对话流——每条含代码块的助手消息下方挂一张「改动卡」，
                 逐条 Accept/Discard（对标 VS Code Copilot Edits 的 diff 长在气泡下）。
@@ -1793,7 +2045,7 @@ export function WorkbenchAiPanel({
                 {!streamingContent && toolCalls.length === 0 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5 }}>
                     <CircularProgress size={10} />
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: uiFontSize(10) }}>
                       {t('workbench.aiThinking')}
                     </Typography>
                   </Box>
@@ -1805,12 +2057,12 @@ export function WorkbenchAiPanel({
               <Alert
                 severity="error"
                 variant="outlined"
-                sx={{ fontSize: 12, mb: 1, '& .MuiAlert-message': { py: 0.25 } }}
+                sx={{ fontSize: uiFontSize(12), mb: 1, '& .MuiAlert-message': { py: 0.25 } }}
                 action={
                   <Button
                     size="small"
                     color="error"
-                    startIcon={<ReplayIcon sx={{ fontSize: 14 }} />}
+                    startIcon={<ReplayIcon sx={{ fontSize: uiFontSize(14) }} />}
                     onClick={() => void retryLastTurn()}
                   >
                     {t('ui.retry')}
@@ -1827,11 +2079,11 @@ export function WorkbenchAiPanel({
               stoppedConversationId === selectedConversationId && (
                 <Chip
                   size="small"
-                  icon={<StopIcon sx={{ fontSize: 12 }} />}
+                  icon={<StopIcon sx={{ fontSize: uiFontSize(12) }} />}
                   label={t('workbench.aiStopped')}
                   color="error"
                   variant="outlined"
-                  sx={{ fontSize: 9.5, height: 20 }}
+                  sx={{ fontSize: uiFontSize(9.5), height: 20 }}
                 />
               )}
             <div ref={listEndRef} />
@@ -1842,8 +2094,8 @@ export function WorkbenchAiPanel({
             用户审阅后回车才发——避免误触消耗 token，更避免 edit/agent 模式误触改盘。 */}
           {followups.length > 0 && !isStreaming && (
             <Box sx={{ mb: 1, ml: '6%', display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-              <AutoAwesomeIcon sx={{ fontSize: 13, color: 'primary.main', flexShrink: 0 }} />
-              <Typography variant="caption" sx={{ fontSize: 9.5, color: 'text.secondary', mr: 0.25 }}>
+              <AutoAwesomeIcon sx={{ fontSize: uiFontSize(13), color: 'primary.main', flexShrink: 0 }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary', mr: 0.25 }}>
                 {t('workbench.aiFollowup.title')}
               </Typography>
               {followups.map((f) => (
@@ -1853,7 +2105,7 @@ export function WorkbenchAiPanel({
                   clickable
                   label={t(f.labelKey)}
                   onClick={() => citeIntoInput(f.prompt)}
-                  sx={{ fontSize: 10, height: 22 }}
+                  sx={{ fontSize: uiFontSize(10), height: 22 }}
                 />
               ))}
             </Box>
@@ -1863,8 +2115,8 @@ export function WorkbenchAiPanel({
           原只在独立「改动」Tab 渲染，现并入对话流（仅「直接改」模式），避免与对话割裂。 */}
           {mode === 'edit' && scopeSuggestions.length > 0 && (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5, px: 1, alignItems: 'center' }}>
-              <LightbulbIcon sx={{ fontSize: 13, color: 'info.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>
+              <LightbulbIcon sx={{ fontSize: uiFontSize(13), color: 'info.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
                 {t('workbench.aiSuggest.title')}
               </Typography>
               {scopeSuggestions.map((s) => (
@@ -1876,7 +2128,7 @@ export function WorkbenchAiPanel({
                   variant="outlined"
                   label={s.label}
                   onClick={() => setPendingSuggestion(s)}
-                  sx={{ fontSize: 10, height: 22 }}
+                  sx={{ fontSize: uiFontSize(10), height: 22 }}
                 />
               ))}
             </Box>
@@ -1892,7 +2144,7 @@ export function WorkbenchAiPanel({
 
           {/* 应用改动：diff 预览 */}
           <Dialog open={!!diff} onClose={() => setDiff(null)} maxWidth="md" fullWidth>
-            <DialogTitle sx={{ fontSize: 14 }}>
+            <DialogTitle sx={{ fontSize: uiFontSize(14) }}>
               {t('workbench.aiCode.diffTitle')}
               {diff?.rangeLabel ? ` · ${diff.rangeLabel}` : diff?.meta.path ? ` · ${diff.meta.path}` : ''}
             </DialogTitle>
@@ -1912,7 +2164,12 @@ export function WorkbenchAiPanel({
                       original={diff.original}
                       modified={diff.modified}
                       theme={dark ? 'vs-dark' : 'light'}
-                      options={{ readOnly: true, renderSideBySide: true, minimap: { enabled: false }, fontSize: 12 }}
+                      options={{
+                        readOnly: true,
+                        renderSideBySide: true,
+                        minimap: { enabled: false },
+                        fontSize: inlineDiffFont.fontSize,
+                      }}
                     />
                   )}
                 </Suspense>
@@ -1931,11 +2188,11 @@ export function WorkbenchAiPanel({
           {/* 主动建议「一键直接发起」确认框（R16/R19 待续②）：替换原「只预填」交互，避免误触消耗额度；
           确认后带画布作用域直接 send（对话流内直接看流式回答）。原仅在独立「改动」Tab 渲染，现并入对话流。 */}
           <Dialog open={!!pendingSuggestion} onClose={() => setPendingSuggestion(null)} maxWidth="xs" fullWidth>
-            <DialogTitle sx={{ fontSize: 14 }}>{t('workbench.aiSuggest.launchTitle')}</DialogTitle>
+            <DialogTitle sx={{ fontSize: uiFontSize(14) }}>{t('workbench.aiSuggest.launchTitle')}</DialogTitle>
             <DialogContent>
               <Typography
                 variant="caption"
-                sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.6, display: 'block' }}
+                sx={{ fontSize: uiFontSize(11), color: 'text.secondary', lineHeight: 1.6, display: 'block' }}
               >
                 {t('workbench.aiSuggest.launchBody', { label: pendingSuggestion?.label ?? '' })}
               </Typography>

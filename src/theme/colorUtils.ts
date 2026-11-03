@@ -9,7 +9,7 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } {
   let r = 0;
   let g = 0;
   let b = 0;
-  const clean = hex.replace("#", "");
+  const clean = hex.replace('#', '');
   if (clean.length === 3) {
     r = parseInt(clean[0] + clean[0], 16) / 255;
     g = parseInt(clean[1] + clean[1], 16) / 255;
@@ -54,7 +54,7 @@ function hslToHex(h: number, s: number, l: number): string {
     const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
     return Math.round(255 * color)
       .toString(16)
-      .padStart(2, "0");
+      .padStart(2, '0');
   };
   return `#${f(0)}${f(8)}${f(4)}`;
 }
@@ -70,7 +70,7 @@ export function generatePalette(baseColor: string): PaletteColor {
     light,
     main,
     dark,
-    contrastText: "#ffffff",
+    contrastText: '#ffffff',
   };
 }
 
@@ -78,25 +78,53 @@ export function isValidHex(color: string): boolean {
   return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(color);
 }
 
+/** 把 #rgb / #rrggbb 解析成 [r, g, b]；非法输入按黑处理（调用侧应先用 isValidHex 校验）。 */
+function parseHex(hex: string): [number, number, number] {
+  const clean = hex.trim().replace('#', '');
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
+  const n = Number.parseInt(full, 16);
+  if (!Number.isFinite(n)) return [0, 0, 0];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** 按 sRGB 权重混合两色：`bWeight` 是 `b` 的占比（0~1，0 得 a、1 得 b）。
+ *  用途：从主色派生带同色相的浅色页面底 / 深色页面底，让「切主题色彩」在底色上也能看出来。 */
+export function mixHex(a: string, b: string, bWeight: number): string {
+  const w = Math.min(Math.max(bWeight, 0), 1);
+  const [r1, g1, b1] = parseHex(a);
+  const [r2, g2, b2] = parseHex(b);
+  const ch = (x: number, y: number) =>
+    Math.round(x * (1 - w) + y * w)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${ch(r1, r2)}${ch(g1, g2)}${ch(b1, b2)}`;
+}
+
 export const QUICK_COLORS: string[] = [
-  "#e53935",
-  "#d81b60",
-  "#8e24aa",
-  "#5e35b1",
-  "#3949ab",
-  "#1e88e5",
-  "#039be5",
-  "#00acc1",
-  "#00897b",
-  "#43a047",
-  "#7cb342",
-  "#c0ca33",
-  "#fdd835",
-  "#ffb300",
-  "#fb8c00",
-  "#f4511e",
-  "#6d4c41",
-  "#757575",
-  "#546e7a",
-  "#000000",
+  '#e53935',
+  '#d81b60',
+  '#8e24aa',
+  '#5e35b1',
+  '#3949ab',
+  '#1e88e5',
+  '#039be5',
+  '#00acc1',
+  '#00897b',
+  '#43a047',
+  '#7cb342',
+  '#c0ca33',
+  '#fdd835',
+  '#ffb300',
+  '#fb8c00',
+  '#f4511e',
+  '#6d4c41',
+  '#757575',
+  '#546e7a',
+  '#000000',
 ];

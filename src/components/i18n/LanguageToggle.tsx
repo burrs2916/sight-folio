@@ -1,14 +1,19 @@
-import { useI18n, t } from "../../i18n";
+import { t } from "../../i18n";
+import { useLanguageStore } from "../../store/languageStore";
 import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
 import Box from "@mui/material/Box";
 
 /**
  * 语言切换按钮（右上角中英文切换）。
  * 风格遵循本项目 MUI 主题（bordered pill + 主色），位置参考 snap-craft 的右上角按钮。
- * 文字显示「将要切换到的语言」，点击即在 中/英 间切换并持久化到 localStorage。
+ * 文字显示「将要切换到的语言」，点击即在 中/英 间切换。
+ *
+ * 第十九轮改口径：读数与写入都走 languageStore（应用设置库 + 跨窗口广播），不再自己调
+ * i18n.toggleLang —— 否则顶栏切完，设置抽屉里的高亮仍是旧语言，写作台独立窗口也不跟随。
  */
 export default function LanguageToggle() {
-  const { lang, toggleLang } = useI18n();
+  const lang = useLanguageStore((s) => s.lang);
+  const toggleLanguage = useLanguageStore((s) => s.toggleLanguage);
   const isZh = lang === "zh-CN";
   const nextLabel = isZh ? t("lang.en") : t("lang.zh");
   const title = isZh ? t("lang.toggleToEn") : t("lang.toggleToZh");
@@ -16,7 +21,7 @@ export default function LanguageToggle() {
   return (
     <Box
       component="button"
-      onClick={toggleLang}
+      onClick={toggleLanguage}
       title={title}
       aria-label={title}
       sx={{

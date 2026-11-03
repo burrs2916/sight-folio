@@ -20,13 +20,10 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
-import {
-  writingSettingRevisionsApi,
-  type WritingSetting,
-  type WritingSettingRevision,
-} from '../../services/tauri';
+import { writingSettingRevisionsApi, type WritingSetting, type WritingSettingRevision } from '../../services/tauri';
 import { useToastStore } from '../../store/toastStore';
 import useI18n from '../../i18n';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 function fmtTime(sec: number): string {
   const d = new Date(sec * 1000);
@@ -58,11 +55,7 @@ interface SettingHistoryPanelProps {
   onRestored: (next: WritingSetting) => void;
 }
 
-export function SettingHistoryPanel({
-  setting,
-  onBeforeRestore,
-  onRestored,
-}: SettingHistoryPanelProps) {
+export function SettingHistoryPanel({ setting, onBeforeRestore, onRestored }: SettingHistoryPanelProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   // null = 未拉取；[] = 确认没有记录。两者必须能区分，否则空态会说谎。
@@ -129,20 +122,18 @@ export function SettingHistoryPanel({
         }}
       >
         <Box sx={{ color: 'text.secondary', display: 'flex' }}>
-          <HistoryRoundedIcon sx={{ fontSize: 17 }} />
+          <HistoryRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
         </Box>
-        <Typography sx={{ fontSize: 13, fontWeight: 700, flex: 1 }}>
+        <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, flex: 1 }}>
           {t('writing.settingHistoryTitle')}
         </Typography>
-        {items !== null && items.length > 0 && (
-          <Chip size="small" variant="outlined" label={items.length} />
-        )}
+        {items !== null && items.length > 0 && <Chip size="small" variant="outlined" label={items.length} />}
         {/* 纯指示图标，不做成交互元素：整行已经是 role="button"，再嵌一个按钮会破坏无障碍树 */}
         <Box sx={{ color: 'text.secondary', display: 'flex' }}>
           {open ? (
-            <ExpandMoreRoundedIcon sx={{ fontSize: 18 }} />
+            <ExpandMoreRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
           ) : (
-            <ChevronRightRoundedIcon sx={{ fontSize: 18 }} />
+            <ChevronRightRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
           )}
         </Box>
       </Box>
@@ -151,7 +142,7 @@ export function SettingHistoryPanel({
         <Box sx={{ mt: 1.25, display: 'grid', gap: 1 }}>
           {loadFailed && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography sx={{ fontSize: 12, color: 'error.main' }}>
+              <Typography sx={{ fontSize: uiFontSize(12), color: 'error.main' }}>
                 {t('writing.settingHistoryLoadFailed')}
               </Typography>
               <Button size="small" onClick={() => void load()}>
@@ -160,12 +151,12 @@ export function SettingHistoryPanel({
             </Box>
           )}
           {!loadFailed && items === null && (
-            <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled' }}>
               {t('writing.settingHistoryLoading')}
             </Typography>
           )}
           {!loadFailed && items !== null && items.length === 0 && (
-            <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled' }}>
               {t('writing.settingHistoryEmpty')}
             </Typography>
           )}
@@ -192,7 +183,7 @@ export function SettingHistoryPanel({
                       : t('writing.settingHistoryOriginAi')
                   }
                 />
-                <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>
+                <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled' }}>
                   {fmtTime(rev.createdAt)}
                 </Typography>
                 <Box sx={{ flex: 1 }} />
@@ -204,7 +195,7 @@ export function SettingHistoryPanel({
                       startIcon={<RestartAltRoundedIcon />}
                       disabled={busyId !== null}
                       onClick={() => setConfirmTarget(rev)}
-                      sx={{ textTransform: 'none', fontSize: 11.5 }}
+                      sx={{ textTransform: 'none', fontSize: uiFontSize(11.5) }}
                     >
                       {t('writing.settingHistoryRestore')}
                     </Button>
@@ -212,11 +203,11 @@ export function SettingHistoryPanel({
                 </Tooltip>
               </Box>
               {/* 被替换掉的旧值：作者靠这三行判断"是不是这一版" */}
-              <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{clip(rev.name, 40)}</Typography>
-              <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
+              <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 600 }}>{clip(rev.name, 40)}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary' }}>
                 {clip(rev.subtitle, 40)}
               </Typography>
-              <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>
+              <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled' }}>
                 {clip(rev.description)}
               </Typography>
             </Box>
@@ -227,11 +218,11 @@ export function SettingHistoryPanel({
       <Dialog open={confirmTarget !== null} onClose={() => setConfirmTarget(null)}>
         <DialogTitle>{t('writing.settingHistoryConfirmTitle')}</DialogTitle>
         <DialogContent>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+          <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>
             {t('writing.settingHistoryConfirmBody')}
           </Typography>
           {confirmTarget && (
-            <Box sx={{ mt: 1, fontSize: 12.5, fontWeight: 600 }}>{clip(confirmTarget.name, 40)}</Box>
+            <Box sx={{ mt: 1, fontSize: uiFontSize(12.5), fontWeight: 600 }}>{clip(confirmTarget.name, 40)}</Box>
           )}
         </DialogContent>
         <DialogActions>

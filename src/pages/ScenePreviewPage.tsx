@@ -319,8 +319,8 @@ export default function ScenePreviewPage() {
             zIndex: 1000,
             backgroundColor: (theme) =>
               theme.palette.mode === "dark"
-                ? "rgba(30,30,42,0.85)"
-                : "rgba(255,255,255,0.85)",
+                ? "rgb(var(--template-palette-background-paperChannel) / 0.85)"
+                : "rgb(var(--template-palette-background-paperChannel) / 0.85)",
             borderRadius: 1.5,
             px: 1,
             py: 0.25,
@@ -328,8 +328,8 @@ export default function ScenePreviewPage() {
             border: 1,
             borderColor: (theme) =>
               theme.palette.mode === "dark"
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.06)",
+                ? "rgb(var(--template-palette-text-primaryChannel) / 0.08)"
+                : "rgb(var(--template-palette-text-primaryChannel) / 0.06)",
             opacity: 0.5,
             transition: "opacity 0.2s",
             "&:hover": { opacity: 1 },

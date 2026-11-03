@@ -7,6 +7,7 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { uiFontSize } from '../../theme/appearanceScales';
 import { ChatMarkdown } from './ChatMarkdown';
 import { ToolCallCard } from './ToolCallCard';
 import type { ToolCallEvent } from '../../services/tauri';
@@ -101,12 +102,14 @@ export function MessageBubble({ role, content, createdAt, isStreaming, toolCalls
             borderColor: 'divider',
             maxWidth: '88%',
             minWidth: 80,
-            boxShadow: isUser ? '0 2px 8px rgba(99,102,241,0.2)' : 'none',
+            boxShadow: isUser ? '0 2px 8px rgb(var(--template-palette-primary-mainChannel) / 0.2)' : 'none',
             overflowWrap: 'break-word',
           }}
         >
           {isUser ? (
-            <Typography sx={{ fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <Typography
+              sx={{ fontSize: uiFontSize(14), lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+            >
               {content}
             </Typography>
           ) : (
@@ -118,7 +121,7 @@ export function MessageBubble({ role, content, createdAt, isStreaming, toolCalls
         </Box>
       )}
       {createdAt ? (
-        <Typography variant="caption" sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5, px: 1 }}>
+        <Typography variant="caption" sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.5, px: 1 }}>
           {new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </Typography>
       ) : null}

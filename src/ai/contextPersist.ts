@@ -24,12 +24,12 @@
  * 模块无关：本文件只认 AiContextProvider 协议，没有任何扫描知识。
  * 未来画布、报告等模块接入时，实现 provider 即可直接继承整套增量与一致性保证。
  */
-import type { AiContextPack, AiContextProvider, AiSectionStamp } from "./contextTypes";
-import { AI_CONTEXT_SCHEMA_VERSION } from "./contextTypes";
-import { decidePersistMode, sectionDigest, toStampMap, type PersistMode } from "./sectionDiff";
-import { buildInsightLedgerSection, loadInsightFeedback } from "./insightFeedback";
-import { aiContextApi } from "../services/tauri";
-import { logger } from "../utils/logger";
+import type { AiContextPack, AiContextProvider, AiSectionStamp } from './contextTypes';
+import { AI_CONTEXT_SCHEMA_VERSION } from './contextTypes';
+import { decidePersistMode, sectionDigest, toStampMap, type PersistMode } from './sectionDiff';
+import { buildInsightLedgerSection, loadInsightFeedback } from './insightFeedback';
+import { aiContextApi } from '../services/tauri';
+import { logger } from '../utils/logger';
 
 /** 库内包 id 的唯一算法，必须与后端 `format!("{}:{}", scope_id, module_id)` 保持一致 */
 export function contextPackId(moduleId: string, scopeId: string): string {
@@ -67,6 +67,74 @@ export function lastPersistedDigest(moduleId: string, scopeId: string): string |
 }
 
 /**
+ * 容量硬闸：库内允许并存的上下文包数量上限。
+ *
+ * 为什么要闸：包按 scopeId × moduleId 一行存库、只在显式删除时才走 delete ——
+ * 书/项目删了建、建了删，孤儿包（scope 已不存在）没有别的回收通道，只会无限累积。
+ * 包是**派生数据**（正文都来自现存的文档/代码，可随时重建），无限增长等于无界占库，
+ * 所以在这里设死上限：超限按 generatedAt 最旧先淘汰（越不活跃的 scope 越先让位），
+ * 刚写入的包永远豁免。48 个 ≈ 数十本书/项目 × 少数模块同时保持新鲜，个人创作场景富余足够。
+ */
+export const CONTEXT_PACK_MAX_COUNT = 48;
+
+/**
+ * 超闸淘汰：列出全部包，删掉最旧的超额部分（保护本次刚写入的 packId）。
+ * 由 persistModuleContext 成功落库后**后台触发**（fire-and-forget，失败只记日志不打断主流程）；
+ * 单个包删除失败不中断其余淘汰。返回实际删除数。
+ */
+export async function enforceContextPackQuota(protectPackId?: string): Promise<number> {
+  const packs = await aiContextApi.listAiContextPacks();
+  if (!Array.isArray(packs) || packs.length <= CONTEXT_PACK_MAX_COUNT) return 0;
+  const victims = [...packs]
+    .sort((a, b) => (a.generatedAt ?? 0) - (b.generatedAt ?? 0))
+    .filter((p) => p.id !== protectPackId)
+    .slice(0, packs.length - CONTEXT_PACK_MAX_COUNT);
+  let removed = 0;
+  for (const v of victims) {
+    try {
+      await aiContextApi.deleteAiContextPack(v.id);
+      // 库行已没了，内存分节戳必须同步作废：否则下次落库以为「历史还在」走部分写，
+      // 往一个不存在的包里补节
+      resetContextPersistCache(v.id);
+      removed += 1;
+    } catch (err) {
+      logger.warn('contextPersist', '容量闸淘汰单个包失败（其余继续）', { packId: v.id, error: err });
+    }
+  }
+  if (removed > 0) {
+    logger.info('contextPersist', '上下文包容量闸淘汰', { removed, cap: CONTEXT_PACK_MAX_COUNT });
+  }
+  return removed;
+}
+
+/**
+ * 清空库内全部上下文包（面板「清理 AI 上下文缓存」入口的真源）。
+ * 包是派生数据：清理不会丢任何文档/代码，下次扫描或分析会整包重建；
+ * 代价仅是重建前 Agent 读不到缓存分节。全部删完后清空整份内存缓存，
+ * 防止「库里没有、内存戳说历史还在」的增量误判。返回实际删除数（单包失败不中断，只记日志）。
+ */
+export async function clearAllContextPacks(): Promise<number> {
+  const packs = await aiContextApi.listAiContextPacks();
+  if (!Array.isArray(packs) || packs.length === 0) {
+    resetContextPersistCache();
+    return 0;
+  }
+  let removed = 0;
+  for (const p of packs) {
+    try {
+      await aiContextApi.deleteAiContextPack(p.id);
+      removed += 1;
+    } catch (err) {
+      logger.warn('contextPersist', '清理单个包失败（其余继续）', { packId: p.id, error: err });
+    }
+  }
+  // 无论单个删除是否有失败，都整表作废内存缓存：宁可下次多重写一遍，
+  // 不能让残留的戳把部分写打到已被删掉的包上
+  resetContextPersistCache();
+  return removed;
+}
+
+/**
  * 水合历史分节戳：优先内存，缺失时查库（只取戳，不取正文，很轻）。
  * 查库失败**不抛**——退化为「无历史」，最坏结果是整包重写一次，功能仍然正确。
  */
@@ -89,7 +157,7 @@ async function hydrateStamps(packId: string): Promise<Record<string, AiSectionSt
     }
     return hydrated;
   } catch (err) {
-    logger.warn("contextPersist", "分节戳水合失败，本次退化为整包重写", { packId, error: err });
+    logger.warn('contextPersist', '分节戳水合失败，本次退化为整包重写', { packId, error: err });
     stampCache.set(packId, null);
     return null;
   }
@@ -185,13 +253,13 @@ export async function persistModuleContext(
   try {
     await attachInsightLedger(pack, scopeId, previous, options.now ?? Date.now());
   } catch (err) {
-    logger.warn("contextPersist", "结论账本挂载失败（不影响本次落库）", { packId, error: err });
+    logger.warn('contextPersist', '结论账本挂载失败（不影响本次落库）', { packId, error: err });
   }
 
   const allKeys = pack.sections.map((s) => s.key);
   const meta = metaCache.get(packId);
   const mode: PersistMode = options.forceFull
-    ? "full"
+    ? 'full'
     : decidePersistMode({
         changed: pack.changedSections,
         allKeys,
@@ -200,17 +268,17 @@ export async function persistModuleContext(
         schemaVersion: pack.schemaVersion,
       });
 
-  if (mode === "partial") {
+  if (mode === 'partial') {
     const written = await aiContextApi.saveAiContextSections(pack, pack.changedSections);
-    logger.info("contextPersist", "上下文包增量更新", {
+    logger.info('contextPersist', '上下文包增量更新', {
       packId,
       written,
       total: allKeys.length,
       changed: pack.changedSections,
     });
-  } else if (mode === "full") {
+  } else if (mode === 'full') {
     await aiContextApi.saveAiContextPack(pack);
-    logger.info("contextPersist", "上下文包整包落库", {
+    logger.info('contextPersist', '上下文包整包落库', {
       packId,
       sections: pack.sections.length,
       tokenEstimate: pack.tokenEstimate,
@@ -218,11 +286,16 @@ export async function persistModuleContext(
     });
   }
 
-  if (mode !== "skip") {
+  if (mode !== 'skip') {
     digestCache.set(packId, pack.digest);
     stampCache.set(packId, toStampMap(pack.sections));
     metaCache.set(packId, { keys: allKeys, schemaVersion: pack.schemaVersion });
+    // 落库成功后才可能把总数推过容量闸 —— 就地后台触发一次淘汰。
+    // fire-and-forget：配额回收是维护动作，失败绝不打断调用方的持久化主流程。
+    void enforceContextPackQuota(packId).catch((err) => {
+      logger.warn('contextPersist', '容量闸后台淘汰失败（不影响本次落库）', { packId, error: err });
+    });
   }
 
-  return { packId, pack, mode, changed: mode !== "skip" };
+  return { packId, pack, mode, changed: mode !== 'skip' };
 }

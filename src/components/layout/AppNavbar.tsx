@@ -28,6 +28,7 @@ import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
 import CodeIcon from '@mui/icons-material/Code';
 import ClearIcon from '@mui/icons-material/Clear';
 import { useLayoutStore } from '../../store/layoutStore';
+import { NAVBAR_HEIGHT_PX } from '../../theme/appearanceScales';
 import { useSceneStore } from '../../store/sceneStore';
 import { useProjectStore } from '../../store/projectStore';
 import { useToastStore } from '../../store/toastStore';
@@ -36,9 +37,12 @@ import { useWritingStore } from '../../store/writingStore';
 import { t } from '../../i18n';
 import { aiButtonSx } from '../../ai/aiBrand';
 import LanguageToggle from '../i18n/LanguageToggle';
+import { neutralTint, primaryTint, themeTint } from '../../theme/themeTokens';
+import { SEARCH_KIND_COLORS } from '../../theme/semanticColors';
 import { projectScanApi, type ProjectSymbol, type CodeIndexEntry } from '../../services/tauri';
 import { navigateToSourceByPath } from '../../editor/utils/sourceNavigate';
 import { openWritingDesk } from '../../utils/writingDeskWindow';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 interface AppNavbarProps {
   onSettingsClick?: () => void;
@@ -82,6 +86,11 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
   const config = useLayoutStore((s) => s.config);
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const collapsed = config.sidebarCollapsed;
+  // 顶栏样式档位（第十八轮补）：slim 把高度压到 44px、收掉重复的产品名与版本号，
+  // 主行动按钮转图标态 —— 病灶是 navbarStyle 此前只是个存储字段，全项目无人读取，
+  // 设置抽屉里切「标准/细顶栏」界面纹丝不动。
+  const slim = config.navbarStyle === 'slim';
+  const navbarHeight = NAVBAR_HEIGHT_PX[config.navbarStyle] ?? NAVBAR_HEIGHT_PX.standard;
 
   // ─── 全局搜索 ───
   const navigate = useNavigate();
@@ -265,9 +274,10 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
         boxShadow: 'none',
         borderBottom: '1px solid',
         borderColor: 'divider',
+        minHeight: navbarHeight,
       }}
     >
-      <Toolbar variant="dense" sx={{ gap: 0.5 }}>
+      <Toolbar variant="dense" sx={{ gap: 0.5, minHeight: `${navbarHeight}px !important`, px: slim ? 1 : undefined }}>
         {/* 侧边栏展开/折叠按钮 */}
         <IconButton
           size="small"
@@ -275,13 +285,15 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
           sx={{ color: 'text.secondary' }}
           aria-label={t('nav.toggleSidebar')}
         >
-          {collapsed ? <MenuIcon sx={{ fontSize: 20 }} /> : <MenuOpenIcon sx={{ fontSize: 20 }} />}
+          {collapsed ? <MenuIcon sx={{ fontSize: uiFontSize(20) }} /> : <MenuOpenIcon sx={{ fontSize: uiFontSize(20) }} />}
         </IconButton>
 
-        {/* 项目名 */}
-        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary', mr: 1 }}>
-          Sight Folio
-        </Typography>
+        {/* 项目名（slim 顶栏收掉：侧栏已有产品名，这里属重复信息） */}
+        {!slim && (
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.secondary', mr: 1 }}>
+            Sight Folio
+          </Typography>
+        )}
 
         {/* 全局搜索栏 */}
         <Box
@@ -290,7 +302,7 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
           sx={{
             display: { xs: 'none', sm: 'flex' },
             alignItems: 'center',
-            backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+            backgroundColor: (t) => neutralTint(t, 0.05),
             borderRadius: 1,
             px: 1,
             ml: 1,
@@ -299,12 +311,12 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
             flex: 1,
             transition: 'background-color 0.15s',
             '&:hover': {
-              backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'),
+              backgroundColor: (t) => neutralTint(t, 0.1),
             },
             position: 'relative',
           }}
         >
-          <SearchIcon sx={{ fontSize: 16, color: 'text.disabled', mr: 0.5 }} />
+          <SearchIcon sx={{ fontSize: uiFontSize(16), color: 'text.disabled', mr: 0.5 }} />
           <InputBase
             inputRef={inputRef}
             placeholder={t('search.placeholder')}
@@ -323,7 +335,7 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
               }
             }}
             sx={{
-              fontSize: 12,
+              fontSize: uiFontSize(12),
               width: '100%',
               '& .MuiInputBase-input': { py: 0.5 },
             }}
@@ -338,7 +350,7 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
               sx={{ p: 0.25 }}
               aria-label={t('nav.clearSearch')}
             >
-              <ClearIcon sx={{ fontSize: 14 }} />
+              <ClearIcon sx={{ fontSize: uiFontSize(14) }} />
             </IconButton>
           )}
 
@@ -367,23 +379,23 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
                   >
                     <ListItemIcon sx={{ minWidth: 0 }}>
                       {r.type === 'analysis' ? (
-                        <DescriptionRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                        <DescriptionRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'primary.main' }} />
                       ) : r.type === 'symbol' ? (
-                        <DataObjectIcon sx={{ fontSize: 16, color: '#06B6D4' }} />
+                        <DataObjectIcon sx={{ fontSize: uiFontSize(16), color: SEARCH_KIND_COLORS.symbol }} />
                       ) : r.type === 'code' ? (
-                        <CodeIcon sx={{ fontSize: 16, color: '#8B5CF6' }} />
+                        <CodeIcon sx={{ fontSize: uiFontSize(16), color: SEARCH_KIND_COLORS.code }} />
                       ) : (
-                        <InsertDriveFileIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                        <InsertDriveFileIcon sx={{ fontSize: uiFontSize(16), color: 'text.secondary' }} />
                       )}
                     </ListItemIcon>
                     <ListItemText
                       primary={
-                        <Typography variant="body2" sx={{ fontSize: 12, fontWeight: 500 }}>
+                        <Typography variant="body2" sx={{ fontSize: uiFontSize(12), fontWeight: 500 }}>
                           {r.label}
                         </Typography>
                       }
                       secondary={
-                        <Typography variant="caption" sx={{ fontSize: 10, color: 'text.disabled' }}>
+                        <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>
                           {r.type === 'symbol'
                             ? `${r.sublabel}:${r.lineNo} · ${r.kind}`
                             : r.type === 'code'
@@ -393,17 +405,17 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
                       }
                     />
                     {r.type === 'analysis' && (
-                      <Typography variant="caption" sx={{ fontSize: 9, color: 'primary.main', flexShrink: 0 }}>
+                      <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: 'primary.main', flexShrink: 0 }}>
                         {t('search.open')}
                       </Typography>
                     )}
                     {r.type === 'symbol' && (
-                      <Typography variant="caption" sx={{ fontSize: 9, color: '#06B6D4', flexShrink: 0 }}>
+                      <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: SEARCH_KIND_COLORS.symbol, flexShrink: 0 }}>
                         {t('search.locate')}
                       </Typography>
                     )}
                     {r.type === 'code' && (
-                      <Typography variant="caption" sx={{ fontSize: 9, color: '#8B5CF6', flexShrink: 0 }}>
+                      <Typography variant="caption" sx={{ fontSize: uiFontSize(9), color: SEARCH_KIND_COLORS.code, flexShrink: 0 }}>
                         {t('search.jump')}
                       </Typography>
                     )}
@@ -416,16 +428,18 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
 
         <Box sx={{ flexGrow: 1 }} />
 
-        {/* 版本号 */}
-        <Typography variant="caption" color="text.disabled" sx={{ mr: 0.5 }}>
-          v0.1.0
-        </Typography>
+        {/* 版本号（slim 顶栏收掉：属于状态信息，细顶栏优先保功能位） */}
+        {!slim && (
+          <Typography variant="caption" color="text.disabled" sx={{ mr: 0.5 }}>
+            v0.1.0
+          </Typography>
+        )}
 
         {/* 通知铃铛 */}
         <Tooltip title={t('ui.notifications')}>
           <IconButton size="small" sx={{ color: 'text.secondary' }} aria-label={t('ui.notifications')}>
             <Badge badgeContent={0} color="error" variant="dot">
-              <NotificationsNoneOutlinedIcon sx={{ fontSize: 18 }} />
+              <NotificationsNoneOutlinedIcon sx={{ fontSize: uiFontSize(18) }} />
             </Badge>
           </IconButton>
         </Tooltip>
@@ -440,24 +454,25 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
               size="small"
               disabled={!activeBookId}
               onClick={handleOpenDesk}
-              startIcon={<AutoStoriesRoundedIcon sx={{ fontSize: 16 }} />}
+              startIcon={<AutoStoriesRoundedIcon sx={{ fontSize: uiFontSize(16) }} />}
               sx={{
-                px: 1.2,
+                // slim 顶栏：主行动转图标态（文案已在 Tooltip 里），把横向空间还给搜索框
+                px: slim ? 0.75 : 1.2,
                 py: 0.4,
                 borderRadius: 5,
-                fontSize: 12,
+                fontSize: uiFontSize(12),
                 ml: 0.5,
                 color: 'primary.contrastText',
                 backgroundColor: 'primary.main',
                 whiteSpace: 'nowrap',
                 '&:hover': { backgroundColor: 'primary.dark' },
                 '&.Mui-disabled': {
-                  color: 'rgba(255,255,255,0.72)',
-                  backgroundColor: 'rgba(74,51,143,0.45)',
+                  color: (t) => themeTint(t, 'primary.contrastText', 0.72),
+                  backgroundColor: (t) => primaryTint(t, 0.45),
                 },
               }}
             >
-              {t('writing.launchDesk')}
+              {!slim && t('writing.launchDesk')}
             </Button>
           </span>
         </Tooltip>
@@ -467,10 +482,10 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
           <Button
             size="small"
             onClick={handleAiClick}
-            startIcon={<SmartToyIcon sx={{ fontSize: 16 }} />}
-            sx={{ ...aiButtonSx, px: 1.2, py: 0.4, borderRadius: 5, fontSize: 12, ml: 0.5 }}
+            startIcon={<SmartToyIcon sx={{ fontSize: uiFontSize(16) }} />}
+            sx={{ ...aiButtonSx, px: slim ? 0.75 : 1.2, py: 0.4, borderRadius: 5, fontSize: uiFontSize(12), ml: 0.5 }}
           >
-            {t('aiPanel.assistantBtn')}
+            {!slim && t('aiPanel.assistantBtn')}
           </Button>
         </Tooltip>
 
@@ -482,7 +497,7 @@ export default function AppNavbar({ onSettingsClick }: AppNavbarProps) {
             sx={{ color: 'text.secondary' }}
             aria-label={t('ui.settings')}
           >
-            <SettingsRoundedIcon sx={{ fontSize: 18 }} />
+            <SettingsRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
           </IconButton>
         </Tooltip>
       </Toolbar>

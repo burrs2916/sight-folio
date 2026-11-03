@@ -20,7 +20,11 @@ import { useWritingStore } from '../../store/writingStore';
 import { useToastStore } from '../../store/toastStore';
 import { logger } from '../../utils/logger';
 import { saveTextFile } from '../../services/writing';
-import { buildHealthReportHtml, buildHealthReportMarkdown, type HealthReportInput } from '../../utils/writingHealthReport';
+import {
+  buildHealthReportHtml,
+  buildHealthReportMarkdown,
+  type HealthReportInput,
+} from '../../utils/writingHealthReport';
 import {
   buildProofreadReport,
   filterProofreadIssues,
@@ -39,6 +43,7 @@ import { buildTree, chapterPathLabelMap } from '../../utils/writingTree';
 import ChapterPicker from '../../editor/renderers/ChapterPicker';
 import { TimelineDraftDialog } from './TimelineDraftDialog';
 import { t } from '../../i18n';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface WritingHealthDialogProps {
   open: boolean;
@@ -98,7 +103,10 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
     [chapters, outlines, timelineEvents, foreshadowings, storylines, settings],
   );
 
-  const chapterOrder = useMemo(() => [...chapters].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => c.id), [chapters]);
+  const chapterOrder = useMemo(
+    () => [...chapters].sort((a, b) => a.sortOrder - b.sortOrder).map((c) => c.id),
+    [chapters],
+  );
   const chapterTitle = useMemo(() => new Map(chapters.map((c) => [c.id, c.title])), [chapters]);
   // 结构位置（「卷 3 · 章 12」）：口径一律走 writingTree，仓里明写卷章号只从这里出，
   // 不在界面另推一遍。用 Map 版而不是逐行 chapterPathLabels——后者每次重建全树，
@@ -159,9 +167,7 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
   const [draftWorkbench, setDraftWorkbench] = useState(false);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const rescheduleItem = rescheduleId ? foreshadowings.find((f) => f.id === rescheduleId) : undefined;
-  const payoffCandidates = rescheduleItem
-    ? payoffCandidateChapters(chapters, rescheduleItem.plantChapterId)
-    : [];
+  const payoffCandidates = rescheduleItem ? payoffCandidateChapters(chapters, rescheduleItem.plantChapterId) : [];
 
   const applyReschedule = async (chapterId: string) => {
     const item = rescheduleItem;
@@ -209,9 +215,7 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
       const content = isMd ? buildHealthReportMarkdown(input) : buildHealthReportHtml(input);
       const path = await saveDialog({
         defaultPath: `${bookTitle}-${t('writing.healthDialog')}.${kind}`,
-        filters: isMd
-          ? [{ name: 'Markdown', extensions: ['md'] }]
-          : [{ name: 'HTML', extensions: ['html'] }],
+        filters: isMd ? [{ name: 'Markdown', extensions: ['md'] }] : [{ name: 'HTML', extensions: ['html'] }],
       });
       if (!path) return; // 取消不是失败，别报红
       await saveTextFile(path, content);
@@ -225,209 +229,218 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
 
   return (
     <>
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>
-        {t('writing.healthDialog')}
-        <Typography component="span" sx={{ ml: 1, fontSize: 12 }} color="text.secondary">
-          {t('writing.proofreadCount', { n: report.issues.length })}
-        </Typography>
-      </DialogTitle>
-      <DialogContent dividers>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-          {/* 左：七组维度 + 计数（与画布校对页签同一分组口径） */}
-          <Box sx={{ width: 150, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {(['all', ...PROOFREAD_GROUPS] as const).map((g) => {
-              const n = g === 'all' ? report.issues.length : (report.counts[g] ?? 0);
-              const active = group === g;
-              return (
-                <Box
-                  key={g}
-                  onClick={() => setGroup(g)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    px: 1,
-                    py: 0.5,
-                    borderRadius: 1,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    bgcolor: active ? 'action.selected' : 'transparent',
-                    color: n > 0 ? 'text.primary' : 'text.disabled',
-                    '&:hover': { bgcolor: 'action.hover' },
-                  }}
-                >
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    {g === 'all' ? t('writing.healthFilterAll') : t(proofreadGroupLabelKey(g))}
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+        <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 600 }}>
+          {t('writing.healthDialog')}
+          <Typography component="span" sx={{ ml: 1, fontSize: uiFontSize(12) }} color="text.secondary">
+            {t('writing.proofreadCount', { n: report.issues.length })}
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            {/* 左：七组维度 + 计数（与画布校对页签同一分组口径） */}
+            <Box sx={{ width: 150, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {(['all', ...PROOFREAD_GROUPS] as const).map((g) => {
+                const n = g === 'all' ? report.issues.length : (report.counts[g] ?? 0);
+                const active = group === g;
+                return (
+                  <Box
+                    key={g}
+                    onClick={() => setGroup(g)}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      cursor: 'pointer',
+                      fontSize: uiFontSize(12),
+                      bgcolor: active ? 'action.selected' : 'transparent',
+                      color: n > 0 ? 'text.primary' : 'text.disabled',
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
+                  >
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      {g === 'all' ? t('writing.healthFilterAll') : t(proofreadGroupLabelKey(g))}
+                    </Box>
+                    <Box sx={{ fontWeight: 700, color: n > 0 ? 'warning.main' : 'text.disabled' }}>{n}</Box>
                   </Box>
-                  <Box sx={{ fontWeight: 700, color: n > 0 ? 'warning.main' : 'text.disabled' }}>{n}</Box>
-                </Box>
-              );
-            })}
-          </Box>
-
-          {/* 右：发现清单 */}
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
-              {SEVERITY_FILTERS.map((f) => (
-                <Button key={f.value} size="small" variant={severity === f.value ? 'contained' : 'text'} onClick={() => setSeverity(f.value)}>
-                  {t(f.labelKey)}
-                </Button>
-              ))}
-              <Box sx={{ flex: 1 }} />
-              {SORT_MODES.map((m) => (
-                <Button key={m.value} size="small" color="inherit" variant={sort === m.value ? 'outlined' : 'text'} onClick={() => setSort(m.value)}>
-                  {t(m.labelKey)}
-                </Button>
-              ))}
+                );
+              })}
             </Box>
 
-            {rows.length === 0 ? (
-              <Typography sx={{ fontSize: 12.5, py: 3, textAlign: 'center' }} color="text.disabled">
-                {t('writing.healthEmpty')}
-              </Typography>
-            ) : (
-              <Box sx={{ maxHeight: 420, overflowY: 'auto' }}>
-                {rows.map((issue) => {
-                  const color = proofreadSeverityColor(issue.severity);
-                  const tg = issue.target;
-                  // 有目标就能跳：章节/设定卡在写作台就地打开，其余由跳转协议送到主窗口页签
-                  const local = !!tg && (tg.type === 'chapter' || tg.type === 'setting');
-                  const jumpable = !!tg;
-                  const chapterName = tg?.type === 'chapter' ? (chapterTitle.get(tg.id) ?? '') : '';
-                  // 分卷的书上「第12章」重名极常见，光给标题作者仍要翻目录；带上卷号才算定位
-                  const chapterLoc = tg?.type === 'chapter' ? (chapterLocation.get(tg.id) ?? '') : '';
-                  return (
-                    <Tooltip
-                      key={issue.key}
-                      title={
-                        !tg ? '' : local ? t('writing.proofreadJump') : t('writing.healthJumpInView')
-                      }
-                    >
-                      <Box
-                        data-testid={`health-row-${issue.key}`}
-                        data-jumpable={jumpable ? '1' : '0'}
-                        onClick={() => act(issue)}
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                          px: 1,
-                          py: 0.75,
-                          borderRadius: 1,
-                          // 用 jumpable 而不是 local：上一版把跨窗口的行改成可点后忘了同步
-                          // 手型与 hover，结果"能点却看不出能点"
-                          cursor: jumpable ? 'pointer' : 'default',
-                          '&:hover': jumpable ? { bgcolor: 'action.hover' } : {},
-                        }}
+            {/* 右：发现清单 */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 1 }}>
+                {SEVERITY_FILTERS.map((f) => (
+                  <Button
+                    key={f.value}
+                    size="small"
+                    variant={severity === f.value ? 'contained' : 'text'}
+                    onClick={() => setSeverity(f.value)}
+                  >
+                    {t(f.labelKey)}
+                  </Button>
+                ))}
+                <Box sx={{ flex: 1 }} />
+                {SORT_MODES.map((m) => (
+                  <Button
+                    key={m.value}
+                    size="small"
+                    color="inherit"
+                    variant={sort === m.value ? 'outlined' : 'text'}
+                    onClick={() => setSort(m.value)}
+                  >
+                    {t(m.labelKey)}
+                  </Button>
+                ))}
+              </Box>
+
+              {rows.length === 0 ? (
+                <Typography sx={{ fontSize: uiFontSize(12.5), py: 3, textAlign: 'center' }} color="text.disabled">
+                  {t('writing.healthEmpty')}
+                </Typography>
+              ) : (
+                <Box sx={{ maxHeight: 420, overflowY: 'auto' }}>
+                  {rows.map((issue) => {
+                    const color = proofreadSeverityColor(issue.severity);
+                    const tg = issue.target;
+                    // 有目标就能跳：章节/设定卡在写作台就地打开，其余由跳转协议送到主窗口页签
+                    const local = !!tg && (tg.type === 'chapter' || tg.type === 'setting');
+                    const jumpable = !!tg;
+                    const chapterName = tg?.type === 'chapter' ? (chapterTitle.get(tg.id) ?? '') : '';
+                    // 分卷的书上「第12章」重名极常见，光给标题作者仍要翻目录；带上卷号才算定位
+                    const chapterLoc = tg?.type === 'chapter' ? (chapterLocation.get(tg.id) ?? '') : '';
+                    return (
+                      <Tooltip
+                        key={issue.key}
+                        title={!tg ? '' : local ? t('writing.proofreadJump') : t('writing.healthJumpInView')}
                       >
                         <Box
+                          data-testid={`health-row-${issue.key}`}
+                          data-jumpable={jumpable ? '1' : '0'}
+                          onClick={() => act(issue)}
                           sx={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            flexShrink: 0,
-                            bgcolor: color,
-                            boxShadow: `0 0 0 2px ${color}33`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 1,
+                            py: 0.75,
+                            borderRadius: 1,
+                            // 用 jumpable 而不是 local：上一版把跨窗口的行改成可点后忘了同步
+                            // 手型与 hover，结果"能点却看不出能点"
+                            cursor: jumpable ? 'pointer' : 'default',
+                            '&:hover': jumpable ? { bgcolor: 'action.hover' } : {},
                           }}
-                        />
-                        <Box sx={{ flex: 1, minWidth: 0, fontSize: 12.5 }}>
-                          {t(`writing.proofreadIssue.${issue.messageKey}`, issue.args)}
-                        </Box>
-                        {issue.action === 'draftWorkbench' && (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            data-testid="health-draft-workbench"
-                            onClick={(e) => {
-                              // 打开工作台，同时也别触发整行的跳转（同伏笔那颗按钮的理由）
-                              e.stopPropagation();
-                              setDraftWorkbench(true);
-                            }}
-                            sx={{ fontSize: 11, py: 0, px: 1, flexShrink: 0 }}
-                          >
-                            {t('writing.healthFixDrafts')}
-                          </Button>
-                        )}
-                        {tg?.type === 'foreshadowing' && (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            data-testid={`health-reschedule-${issue.key}`}
-                            onClick={(e) => {
-                              // 不拦住就会连带触发整行的 act()（跳到伏笔页签），框还没开就关了
-                              e.stopPropagation();
-                              setRescheduleId(tg.id);
-                            }}
-                            sx={{ fontSize: 11, py: 0, px: 1, flexShrink: 0 }}
-                          >
-                            {t('writing.healthReschedulePayoff')}
-                          </Button>
-                        )}
-                        <Box sx={{ fontSize: 11, color: 'text.disabled', flexShrink: 0 }}>
-                          {t(proofreadGroupLabelKey(issue.group))}
-                        </Box>
-                        {chapterLoc && (
-                          // 结构位置用次要色压在小号位：它是定位线索，不该和标题抢注意力
-                          <Box
-                            component="span"
-                            sx={{
-                              fontSize: 11,
-                              color: 'text.disabled',
-                              flexShrink: 0,
-                              maxWidth: 130,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {chapterLoc}
-                          </Box>
-                        )}
-                        {chapterName && (
+                        >
                           <Box
                             sx={{
-                              fontSize: 11,
-                              fontWeight: 600,
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
                               flexShrink: 0,
-                              maxWidth: 160,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              color: 'primary.main',
-                              bgcolor: 'action.selected',
-                              borderRadius: 1,
-                              px: 0.6,
+                              bgcolor: color,
+                              boxShadow: `0 0 0 2px ${color}33`,
                             }}
-                          >
-                            {chapterName}
+                          />
+                          <Box sx={{ flex: 1, minWidth: 0, fontSize: uiFontSize(12.5) }}>
+                            {t(`writing.proofreadIssue.${issue.messageKey}`, issue.args)}
                           </Box>
-                        )}
-                      </Box>
-                    </Tooltip>
-                  );
-                })}
-              </Box>
-            )}
+                          {issue.action === 'draftWorkbench' && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              data-testid="health-draft-workbench"
+                              onClick={(e) => {
+                                // 打开工作台，同时也别触发整行的跳转（同伏笔那颗按钮的理由）
+                                e.stopPropagation();
+                                setDraftWorkbench(true);
+                              }}
+                              sx={{ fontSize: uiFontSize(11), py: 0, px: 1, flexShrink: 0 }}
+                            >
+                              {t('writing.healthFixDrafts')}
+                            </Button>
+                          )}
+                          {tg?.type === 'foreshadowing' && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              data-testid={`health-reschedule-${issue.key}`}
+                              onClick={(e) => {
+                                // 不拦住就会连带触发整行的 act()（跳到伏笔页签），框还没开就关了
+                                e.stopPropagation();
+                                setRescheduleId(tg.id);
+                              }}
+                              sx={{ fontSize: uiFontSize(11), py: 0, px: 1, flexShrink: 0 }}
+                            >
+                              {t('writing.healthReschedulePayoff')}
+                            </Button>
+                          )}
+                          <Box sx={{ fontSize: uiFontSize(11), color: 'text.disabled', flexShrink: 0 }}>
+                            {t(proofreadGroupLabelKey(issue.group))}
+                          </Box>
+                          {chapterLoc && (
+                            // 结构位置用次要色压在小号位：它是定位线索，不该和标题抢注意力
+                            <Box
+                              component="span"
+                              sx={{
+                                fontSize: uiFontSize(11),
+                                color: 'text.disabled',
+                                flexShrink: 0,
+                                maxWidth: 130,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {chapterLoc}
+                            </Box>
+                          )}
+                          {chapterName && (
+                            <Box
+                              sx={{
+                                fontSize: uiFontSize(11),
+                                fontWeight: 600,
+                                flexShrink: 0,
+                                maxWidth: 160,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                color: 'primary.main',
+                                bgcolor: 'action.selected',
+                                borderRadius: 1,
+                                px: 0.6,
+                              }}
+                            >
+                              {chapterName}
+                            </Box>
+                          )}
+                        </Box>
+                      </Tooltip>
+                    );
+                  })}
+                </Box>
+              )}
+            </Box>
           </Box>
-        </Box>
-      </DialogContent>
-      <DialogActions sx={{ gap: 0.5 }}>
-        {/* 这一页报告是整套一致性能力唯一"能拿给别人看"的产出，所以放主操作位而不是塞进菜单 */}
-        <Button size="small" onClick={() => void handleExport('md')}>
-          {t('writing.healthExportMd')}
-        </Button>
-        <Button size="small" onClick={() => void handleExport('html')}>
-          {t('writing.healthExportHtml')}
-        </Button>
-      </DialogActions>
-    </Dialog>
+        </DialogContent>
+        <DialogActions sx={{ gap: 0.5 }}>
+          {/* 这一页报告是整套一致性能力唯一"能拿给别人看"的产出，所以放主操作位而不是塞进菜单 */}
+          <Button size="small" onClick={() => void handleExport('md')}>
+            {t('writing.healthExportMd')}
+          </Button>
+          <Button size="small" onClick={() => void handleExport('html')}>
+            {t('writing.healthExportHtml')}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 就地排期回收章。承载在独立 Dialog 里而不是把选择器塞进行内：
           清单容器是 maxHeight 420 + overflowY auto，ChapterPicker 的下拉会被裁掉。
           候选章只给埋设章之后的（口径见 payoffCandidateChapters），选完立即落库。 */}
       <Dialog open={!!rescheduleItem} onClose={() => setRescheduleId(null)} fullWidth maxWidth="xs">
-        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>
+        <DialogTitle sx={{ fontSize: uiFontSize(15), fontWeight: 600 }}>
           {t('writing.healthRescheduleTitle', { title: rescheduleItem?.title?.trim() || '…' })}
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -441,7 +454,6 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
             <ChapterPicker
               uniqueKey={`health-payoff-${rescheduleItem?.id ?? ''}`}
               chapters={payoffCandidates}
-              accent="#1976d2"
               width="100%"
               value={null}
               onSelect={(id: string) => void applyReschedule(id)}

@@ -12,7 +12,8 @@ import { packDigestFromSections, stampSections } from '../sectionDiff';
 import { useWritingStore } from '../../store/writingStore';
 import { parseSettingExtra } from '../../services/tauri';
 import { L } from '../aiLang';
-import { getLang } from '../../i18n';
+import { getLang, t } from '../../i18n';
+import { bookStatusDef } from '../../utils/writingSchema';
 import { looseBeats } from '../../utils/writingOutline';
 import {
   buildTimelineCorpus,
@@ -103,7 +104,10 @@ const writingContextProvider: AiContextProvider = {
     }
     const chapterIndex = buildChapterIndexCorpus(chapters);
     overviewLines.push(
-      `- ${L('状态', 'Status')}：${book.status}`,
+      // 状态送**本地化标签**而不是库里的原始码：改造前这里直出 book.status，
+      // 于是模型收到的是 `状态：draft` 或 `状态：`（新书为空串）——四态落地后
+      // 必须走词表翻成人话，AI 才可能正确回答「这本书完结了吗」。
+      `- ${L('状态', 'Status')}：${t(bookStatusDef(book.status).labelKey)}`,
       `- ${L('章节数', 'Chapters')}：${chapters.length}`,
       `- ${L('总字数', 'Total words')}：${totalWords}`,
       '',
@@ -339,20 +343,27 @@ const writingContextProvider: AiContextProvider = {
       {},
     );
 
+    // 预算必须透传（第三十八轮批次1刀①，写法同 scanContextProvider）：packWithinBudget
+    // 不传第二参会原样返回（tokenBudget.ts 的 no-budget 分支），消费方按 token 上限取数时
+    // 裁剪整个失效。落库路径（contextPersist）刻意不传预算 ⇒ 这里收到 undefined 保全集，
+    // 「裁剪只发生在告诉 Agent 读哪几节，不发生在落库」的铁律不受影响。
     const {
       sections: packed,
       truncatedSections,
       tokenEstimate,
-    } = packWithinBudget([
-      overview,
-      activeChapterSection,
-      charactersSection,
-      worldbuildingSection,
-      timelineSection,
-      foreshadowingSection,
-      inspirationSection,
-      proofreadSection,
-    ]);
+    } = packWithinBudget(
+      [
+        overview,
+        activeChapterSection,
+        charactersSection,
+        worldbuildingSection,
+        timelineSection,
+        foreshadowingSection,
+        inspirationSection,
+        proofreadSection,
+      ],
+      options?.tokenBudget,
+    );
     const now = options?.now ?? Date.now();
     const { sections: stamped, changed, unchanged } = stampSections(packed, options?.previousSections, now);
     const digest = packDigestFromSections(scopeId, AI_CONTEXT_SCHEMA_VERSION, stamped);

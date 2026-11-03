@@ -102,12 +102,15 @@ import Slider from '@mui/material/Slider';
 import { useTheme } from '@mui/material/styles';
 import {
   loadTypography,
-  saveTypography,
+  bookOverrideFields,
   FONT_FAMILY_OPTIONS,
   FONT_SIZE_PRESETS,
   type BookTypography,
   type FontFamilyKey,
 } from '../utils/typography';
+import { useTypographyDefaultsStore } from '../store/typographyDefaultsStore';
+// 书级排版覆盖（第三十轮 P1）：写入口从 localStorage 换成设置库 store（即时生效 + 落库 + 广播）
+import { useBookTypographyStore } from '../store/bookTypographyStore';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extensions';
@@ -204,7 +207,9 @@ import { L } from '../ai/aiLang';
 import { AutoAnalysisPanel } from '../ai/AutoAnalysisPanel';
 
 import { pickLang, t } from '../i18n';
-import { genreLabelKey, mediumLabelKey } from '../utils/writingSchema';
+import { genreLabelKey, mediumLabelKey, bookStatusDef } from '../utils/writingSchema';
+import { BookStatusChip } from './BookStatusControl';
+import { BookInfoDialog } from './BookInfoDialog';
 import { GenreMediumFields } from './GenreMediumFields';
 import { logger } from '../utils/logger';
 import {
@@ -227,7 +232,11 @@ import { buildProofreadReport, chapterTextIssues } from '../utils/writingProofre
 import { LeftTab, RightTab } from './writingPage/types';
 import { ChapterDetailsPanel } from './ChapterDetailsPanel';
 import { ChapterOverviewPanel } from '../editor/panels/ChapterOverviewPanel';
-import { SAVE_DEBOUNCE_MS } from './writingPage/constants';
+// 写作偏好（第二十五轮接通消费点）：专注模式与自动保存节奏都从 store 读当前档位，
+// 不再引用写死常量 —— 常量的存在曾让「保存节奏」这项设置只存不读（见 constants.ts 注释）。
+import { useWritingPrefsStore, saveDebounceMs, shouldCenterCaret, nextDeskFocusMode } from '../store/writingPrefsStore';
+// 打字机滚动的居中算法（第二十七轮抽出）：与画布章节编辑器共用一份，避免两处各写一份跳动脉冲
+import { centerCaretInViewport } from '../utils/typewriterScroll';
 import {
   saveDraftSnap,
   loadDraftSnap,
@@ -282,6 +291,7 @@ import { analyzeEmotionArc, type EmotionArcSegment } from '../utils/emotionArc';
 import { detectShowTell, type ShowTellIssue } from '../utils/showTell';
 import { filterReferenceHits } from '../utils/craftCompare';
 import { corpusApi } from '../services/corpus';
+import { uiFontSize } from '../theme/appearanceScales';
 
 // 左栏（书架 + 章节双 tab）宽度拖拽调节：范围 180–420，默认 240，跨会话持久化
 const LEFT_PANEL_WIDTH_MIN = 180;
@@ -321,13 +331,16 @@ export default function WritingPage() {
   // 拖拽期间禁用选文的全局副作用统一交给守卫（与右抽屉/语料面板同一口径）
   const { begin: beginBodyDrag, release: releaseBodyDrag } = useDragBodyGuard();
 
-  const startLeftResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    leftDragStartRef.current = { x: e.clientX, width: leftPanelWidthRef.current };
-    setLeftDragActive(true);
-    // 拖拽期间禁止选中文本，避免拖动时高亮选中相邻卡片文字
-    beginBodyDrag();
-  }, [beginBodyDrag]);
+  const startLeftResize = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      leftDragStartRef.current = { x: e.clientX, width: leftPanelWidthRef.current };
+      setLeftDragActive(true);
+      // 拖拽期间禁止选中文本，避免拖动时高亮选中相邻卡片文字
+      beginBodyDrag();
+    },
+    [beginBodyDrag],
+  );
 
   const onLeftResizeMove = useCallback((e: PointerEvent) => {
     const s = leftDragStartRef.current;
@@ -432,10 +445,25 @@ export default function WritingPage() {
   // 右栏面板：正文（编辑器/设定卡）或 章详情（该章封面+人物+叙事索引）
   const [rightTab, setRightTab] = useState<RightTab>('body');
   // 专注模式（路线 A）：收起左栏，编辑区铺满；工具栏 ☰ 随时退出。
-  const [focusMode, setFocusMode] = useState<'normal' | 'focus' | 'zen'>('normal');
-  // 禅模式打字机滚动用：聚焦模式下光标所在段落自动滚动居中（编辑器回调闭包读到的最新值）
-  const focusModeRef = useRef<'normal' | 'focus' | 'zen'>('normal');
-  focusModeRef.current = focusMode;
+  // 第二十五轮接通消费点：读数从组件私有 useState 换成 writingPrefsStore。此前第 24 轮
+  // 建好的设置域在这里零消费 —— 今天开着禅模式写作，明天重启又回到普通态，正是用户口中的
+  // 「设置不记住」。现在档位即时落设置库、跨窗口广播，启动时也被 App 的读回门控等到，
+  // 不会先闪一帧普通态再跳成用户那套。
+  const focusMode = useWritingPrefsStore((s) => s.config.focusMode);
+  const setFocusMode = useWritingPrefsStore((s) => s.setFocusMode);
+  // 循环切档（工具栏按钮与命令面板共用同一条口径，见 nextDeskFocusMode）
+  const cycleFocusMode = useCallback(() => {
+    setFocusMode(nextDeskFocusMode(useWritingPrefsStore.getState().config.focusMode));
+  }, [setFocusMode]);
+  // 文案必须描述「点下去会到哪一档」：此前在专注态下挂着「退出专注模式」，按下去却跳进禅模式，
+  // 是同一类「界面说的与做的不一致」（第二十五轮顺手修掉）。
+  const nextFocusMode = nextDeskFocusMode(focusMode);
+  const focusModeActionLabel =
+    nextFocusMode === 'zen'
+      ? t('writing.enterZen')
+      : nextFocusMode === 'normal'
+        ? t('writing.exitZen')
+        : t('writing.focusMode');
   const navigate = useNavigate();
 
   // 打开 AI 设置：写作台独立窗口（standalone 分支）没有 /ai 路由，直接 navigate
@@ -451,20 +479,34 @@ export default function WritingPage() {
     }
   }, [navigate, activeBookId, activeChapterId]);
 
-  // ─── P3 正文排版：per-book 持久化（localStorage），切书即换排版 ───
+  // ─── P3 正文排版：书级覆盖落**设置库**（第三十轮 P1），切书即换排版 ───
+  // 未单独调过排版的书跟随「设置 → 正文默认排版」（loadTypography 内部按 书级 > 全局默认 取值），
+  // 所以全局默认变化时这里要重读一次，否则设置面板调完字号写作台仍是旧值。
+  // P1 之前这一份存在 localStorage：不进设置库 / 不进备份 / 不跨窗口广播，本轮整条换掉。
   const theme = useTheme();
+  const typoDefaultsConfig = useTypographyDefaultsStore((s) => s.config);
+  const bookTypoOverrides = useBookTypographyStore((s) => s.overrides);
+  const patchBookTypography = useBookTypographyStore((s) => s.patchBookTypography);
+  const clearBookTypography = useBookTypographyStore((s) => s.clearBookTypography);
+  const clearBookTypographyFields = useBookTypographyStore((s) => s.clearBookTypographyFields);
   const [typo, setTypoState] = useState<BookTypography>(() => loadTypography(null));
   const [typoAnchor, setTypoAnchor] = useState<HTMLElement | null>(null);
+  // 三个信号都得重读：切书 / 全局默认变了 / 书级覆盖表变了（含另一窗口广播过来 hydrate 的那次）。
+  // 少第三个信号就是「主窗口调完这本书的排版，开着的写作台仍停在旧值」的老病灶。
+  // bookTypoOverrides / typoDefaultsConfig 是**故意**进依赖的：值本身仍由 loadTypography 现取
+  // （同一口径不各算一份），这两个读数只是「档位变了」的信号。（这里不需要 eslint-disable：
+  // 规则不反对多余的依赖，写了 disable 反而被报「未使用的 disable」。）
   useEffect(() => {
     setTypoState(loadTypography(activeBookId));
-  }, [activeBookId]);
+  }, [activeBookId, typoDefaultsConfig, bookTypoOverrides]);
   const setTypo = (patch: Partial<BookTypography>) => {
-    setTypoState((prev) => {
-      const next = { ...prev, ...patch };
-      saveTypography(activeBookId, next);
-      return next;
-    });
+    // 只把**本次改动的那几项**记到这本书名下，其余字段继续跟随「正文默认排版」。
+    // 旧实现写的是「合并后的整套」，于是「只把字号调大 1px」会让这本书从此再也不跟默认排版走。
+    patchBookTypography(activeBookId, patch);
+    setTypoState((prev) => ({ ...prev, ...patch }));
   };
+  /** 本书单独调过哪几项（排版面板据此标「已单独设置」并给「跟随默认」出口） */
+  const typoOverrideFields = bookOverrideFields(activeBookId);
   const editorBodySx = buildEditorBodySx(typo, theme.palette.mode === 'dark');
 
   // ─── 自动审阅规则（P3）：复用模块通用的 AutoAnalysisPanel ───
@@ -477,6 +519,8 @@ export default function WritingPage() {
   const [importOpen, setImportOpen] = useState(false);
   // 创作台重设计：书架收窄为「当前作品 + 下拉切换」（章节树获得完整栏高）
   const [bookSwitcherAnchor, setBookSwitcherAnchor] = useState<HTMLElement | null>(null);
+  // 「作品信息」对话框（插单七）：状态 + 体裁×载体的明示入口，主窗口作品行与独立窗口绑定条共用。
+  const [bookInfoOpen, setBookInfoOpen] = useState(false);
   // 语料库集成：写作中输入即自动检索语料库句子供参考（query 由 onUpdate 提取光标前片段）
   const [corpusQuery, setCorpusQuery] = useState('');
   // T4：灵感/快速笔记收集器
@@ -578,8 +622,14 @@ export default function WritingPage() {
   const [chapterQuery, setChapterQuery] = useState('');
 
   // ─── 批量章节管理（P9）：多选 → 移卷 / 删除（状态机抽离到 hook） ───
-  const { selectionMode, setSelectionMode, selectedChapterIds, setSelectedChapterIds, toggleSelectionMode, resetBatch } =
-    useBatchOperations();
+  const {
+    selectionMode,
+    setSelectionMode,
+    selectedChapterIds,
+    setSelectedChapterIds,
+    toggleSelectionMode,
+    resetBatch,
+  } = useBatchOperations();
 
   // 切书复位左栏「章节」tab 的本地视图态（第十轮 · 左栏隐藏 bug）：
   // selectionMode / selectedChapterIds / chapterQuery 是页面本地 state，而 store.setActiveBook
@@ -1006,9 +1056,11 @@ export default function WritingPage() {
         }
       }
       if (timerRef.current) clearTimeout(timerRef.current);
+      // 防抖窗口取「设置 → 写作偏好 → 自动保存节奏」的当前档位（第二十五轮接通消费点）。
+      // 现取而不是订阅：scheduleSave 的闭包只依赖 flushSave，档位改了不该重建回调。
       timerRef.current = setTimeout(() => {
         void flushSave();
-      }, SAVE_DEBOUNCE_MS);
+      }, saveDebounceMs(useWritingPrefsStore.getState().config.saveCadence));
     },
     [flushSave],
   );
@@ -1086,28 +1138,17 @@ export default function WritingPage() {
       // 语料集成：光标前片段作为检索关键词，自动参考面板随输入实时刷新
       setCorpusQuery(extractCorpusQuery(editor));
     },
-    // 禅模式打字机滚动：光标所在块级元素自动滚动到视窗中部
+    // 打字机滚动（第二十五轮接通消费点）：生效范围是设置项「打字机滚动」= 关 / 仅禅模式 / 总是。
+    // 此前这里只认禅模式（不是 zen 就直接 return），档位只存不读；想要「任何时候光标都居中」的人
+    // 只能去开禅模式，而禅模式会连带收起左右栏。判定统一走 shouldCenterCaret（唯一口径）。
+    // 注意必须 getState 现取：tiptap 的回调在 useEditor 建立时就固定了闭包，
+    // 用订阅来的变量会让回调停在旧档位，改完设置要重开窗口才生效。
     onSelectionUpdate: ({ editor }) => {
-      if (focusModeRef.current !== 'zen') return;
-      const scrollEl = editorScrollRef.current;
-      if (!scrollEl) return;
-      const sel = editor.state.selection;
-      if (sel.empty === false) return;
-      const dom = editor.view.domAtPos(sel.from);
-      // 向上找块级元素（段落/标题/列表项），键盘导航时跳动最小
-      let node: HTMLElement | null = dom.node as HTMLElement | null;
-      while (node && node !== scrollEl && node.parentElement !== scrollEl) {
-        node = node.parentElement;
-      }
-      if (!node || node === scrollEl) return;
-      const rect = node.getBoundingClientRect();
-      const scrollRect = scrollEl.getBoundingClientRect();
-      const viewH = scrollEl.clientHeight;
-      const currentCenter = rect.top - scrollRect.top + rect.height / 2;
-      const offsetFromCenter = currentCenter - viewH / 2;
-      // 距视窗中部超过 1/4 视高才滚动，避免打字时光标微移导致频繁跳动
-      if (Math.abs(offsetFromCenter) < viewH / 4) return;
-      scrollEl.scrollTop += offsetFromCenter;
+      const prefs = useWritingPrefsStore.getState().config;
+      if (!shouldCenterCaret(prefs.typewriterScroll, prefs.focusMode)) return;
+      // 第二十七轮：居中算法抽到 utils/typewriterScroll（画布章节编辑器同用一份），
+      // 这里只保留「写作台的滚动容器是外层 div 而不是 ProseMirror 自己」这一处差异。
+      centerCaretInViewport(editor, editorScrollRef.current);
     },
   });
 
@@ -1725,9 +1766,10 @@ export default function WritingPage() {
       },
     };
     if (settingTimerRef.current) clearTimeout(settingTimerRef.current);
+    // 设定卡与正文共用同一档保存节奏（同一设置域只有一个口径，别一处跟档位一处写死）
     settingTimerRef.current = setTimeout(() => {
       void flushSettingSave();
-    }, SAVE_DEBOUNCE_MS);
+    }, saveDebounceMs(useWritingPrefsStore.getState().config.saveCadence));
   };
 
   const handleSettingFieldChange = (field: 'name' | 'subtitle' | 'description', value: string) => {
@@ -2118,19 +2160,9 @@ export default function WritingPage() {
       },
       {
         id: 'cmd-focus-toggle',
-        title:
-          focusMode === 'zen'
-            ? t('writing.exitZen')
-            : focusMode === 'focus'
-              ? t('writing.exitFocus')
-              : t('writing.focusMode'),
+        title: focusModeActionLabel,
         category: t('writing.cmdCatView'),
-        run: () =>
-          setFocusMode((v) => {
-            if (v === 'normal') return 'focus';
-            if (v === 'focus') return 'zen';
-            return 'normal';
-          }),
+        run: cycleFocusMode,
       },
       {
         id: 'cmd-quick-note',
@@ -2148,7 +2180,7 @@ export default function WritingPage() {
         run: () => setChatOpen(true),
       },
     ],
-    [t, openDialog, focusMode, handleOpenStats],
+    [t, openDialog, focusMode, focusModeActionLabel, cycleFocusMode, handleOpenStats],
   );
 
   const characters = settings.filter((x) => x.kind === 'character');
@@ -2169,7 +2201,7 @@ export default function WritingPage() {
           py: 0.6,
           borderRadius: 1.5,
           cursor: 'pointer',
-          bgcolor: selected ? 'rgba(74,51,143,0.08)' : 'transparent',
+          bgcolor: selected ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
           '&:hover': { bgcolor: 'action.hover' },
           '& .row-actions': { opacity: 0 },
           '&:hover .row-actions': { opacity: 1 },
@@ -2177,15 +2209,15 @@ export default function WritingPage() {
       >
         <Box sx={{ flexShrink: 0, display: 'flex', color: selected ? 'primary.main' : 'text.disabled' }}>
           {setting.kind === 'character' ? (
-            <PersonRoundedIcon sx={{ fontSize: 15 }} />
+            <PersonRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
           ) : (
-            <PublicRoundedIcon sx={{ fontSize: 15 }} />
+            <PublicRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
           )}
         </Box>
-        <Typography noWrap sx={{ fontSize: 12.5, fontWeight: selected ? 600 : 400, flex: 1, minWidth: 0 }}>
+        <Typography noWrap sx={{ fontSize: uiFontSize(12.5), fontWeight: selected ? 600 : 400, flex: 1, minWidth: 0 }}>
           {setting.name}
           {setting.subtitle && (
-            <Box component="span" sx={{ color: 'text.disabled', ml: 0.75, fontSize: 11 }}>
+            <Box component="span" sx={{ color: 'text.disabled', ml: 0.75, fontSize: uiFontSize(11) }}>
               {setting.subtitle}
             </Box>
           )}
@@ -2199,7 +2231,7 @@ export default function WritingPage() {
             }}
             aria-label={t('writing.renameSettingTitle')}
           >
-            <EditRoundedIcon sx={{ fontSize: 13 }} />
+            <EditRoundedIcon sx={{ fontSize: uiFontSize(13) }} />
           </IconButton>
           <IconButton
             size="small"
@@ -2209,7 +2241,7 @@ export default function WritingPage() {
             }}
             aria-label={t('writing.deleteSettingTitle')}
           >
-            <DeleteOutlineRoundedIcon sx={{ fontSize: 13 }} />
+            <DeleteOutlineRoundedIcon sx={{ fontSize: uiFontSize(13) }} />
           </IconButton>
         </Box>
       </Box>
@@ -2246,10 +2278,39 @@ export default function WritingPage() {
                 color: 'primary.contrastText',
               }}
             >
-              <LockRoundedIcon sx={{ fontSize: 12 }} />
-              <Typography noWrap sx={{ fontSize: 11.5, fontWeight: 600, flex: 1, minWidth: 0 }}>
+              <LockRoundedIcon sx={{ fontSize: uiFontSize(12) }} />
+              <Typography noWrap sx={{ fontSize: uiFontSize(11.5), fontWeight: 600, flex: 1, minWidth: 0 }}>
                 {activeBook.title}
               </Typography>
+              <Chip
+                size="small"
+                label={t(bookStatusDef(activeBook.status).labelKey)}
+                sx={{
+                  height: 16,
+                  fontSize: uiFontSize(9),
+                  flexShrink: 0,
+                  color: 'primary.contrastText',
+                  borderColor: 'primary.light',
+                  '& .MuiChip-label': { px: 0.5 },
+                }}
+                variant="outlined"
+              />
+              {/* 插单七：独立窗口（一书一窗）也是主要写作面，入口不能只在主窗口有 */}
+              <Button
+                size="small"
+                onClick={() => setBookInfoOpen(true)}
+                sx={{
+                  minHeight: 0,
+                  px: 0.5,
+                  textTransform: 'none',
+                  color: 'primary.contrastText',
+                  fontSize: uiFontSize(10.5),
+                  flexShrink: 0,
+                  '&:hover': { bgcolor: 'primary.dark' },
+                }}
+              >
+                {t('writing.bookInfo.title')}
+              </Button>
             </Box>
           )}
         </Box>
@@ -2259,48 +2320,84 @@ export default function WritingPage() {
           <Box sx={{ px: 1, pb: 0.75 }}>
             {books.length === 0 && !booksLoading && (
               <Box sx={{ textAlign: 'center', px: 2, py: 5 }}>
-                <MenuBookRoundedIcon sx={{ fontSize: 34, color: 'text.disabled', mb: 1 }} />
-                <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary' }}>
+                <MenuBookRoundedIcon sx={{ fontSize: uiFontSize(34), color: 'text.disabled', mb: 1 }} />
+                <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 600, color: 'text.secondary' }}>
                   {t('writing.emptyBooks')}
                 </Typography>
-                <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5 }}>
+                <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.5 }}>
                   {t('writing.emptyBooksHint')}
                 </Typography>
               </Box>
             )}
             {books.length > 0 && (
               <>
-                <Button
-                  fullWidth
-                  disabled={!activeBook}
-                  onClick={(e) => setBookSwitcherAnchor(e.currentTarget)}
-                  sx={{
-                    justifyContent: 'flex-start',
-                    gap: 1,
-                    px: 1,
-                    py: 0.75,
-                    borderRadius: 1.5,
-                    color: 'text.primary',
-                    textTransform: 'none',
-                    '&:hover': { bgcolor: 'action.hover' },
-                  }}
-                >
-                  <Box
-                    sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: activeBook?.coverColor, flexShrink: 0 }}
-                  />
-                  <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0 }}>
-                    {activeBook?.title ?? ''}
-                  </Typography>
-                  {/* P1 创作体系：体裁/载体一眼可见（未设置显示「未设置」引导补选） */}
-                  {activeBook && (
-                    <Chip
-                      size="small"
-                      label={t(genreLabelKey(activeBook.genre))}
-                      sx={{ height: 16, fontSize: 9, flexShrink: 0, '& .MuiChip-label': { px: 0.5 } }}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                  <Button
+                    fullWidth
+                    disabled={!activeBook}
+                    onClick={(e) => setBookSwitcherAnchor(e.currentTarget)}
+                    sx={{
+                      minWidth: 0,
+                      justifyContent: 'flex-start',
+                      gap: 1,
+                      px: 1,
+                      py: 0.75,
+                      borderRadius: 1.5,
+                      color: 'text.primary',
+                      textTransform: 'none',
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
+                  >
+                    <Box
+                      sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: activeBook?.coverColor, flexShrink: 0 }}
                     />
-                  )}
-                  <KeyboardArrowDownRoundedIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-                </Button>
+                    <Typography noWrap sx={{ fontSize: uiFontSize(13), fontWeight: 600, flex: 1, minWidth: 0 }}>
+                      {activeBook?.title ?? ''}
+                    </Typography>
+                    {/* P1 创作体系：体裁/载体一眼可见（未设置显示「未设置」引导补选） */}
+                    {activeBook && (
+                      <Chip
+                        size="small"
+                        label={t(genreLabelKey(activeBook.genre))}
+                        sx={{ height: 16, fontSize: uiFontSize(9), flexShrink: 0, '& .MuiChip-label': { px: 0.5 } }}
+                      />
+                    )}
+                    {/* 插单六：写作台此前只显示书名/体裁，状态改不了（唯一入口在工作台右栏）。
+                      这枚 chip 点开四态菜单，写路径仍是 setBookMeta。 */}
+                    {activeBook && (
+                      <BookStatusChip
+                        bookId={activeBook.id}
+                        status={activeBook.status}
+                        chipSx={{
+                          height: 16,
+                          fontSize: uiFontSize(9),
+                          flexShrink: 0,
+                          '& .MuiChip-label': { px: 0.5 },
+                        }}
+                      />
+                    )}
+                    <KeyboardArrowDownRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'text.disabled' }} />
+                  </Button>
+                  {/* 插单七主入口（写作台侧）：常驻带文字按钮，点开「作品信息」改状态/体裁/载体 */}
+                  <Button
+                    size="small"
+                    disabled={!activeBook}
+                    onClick={() => setBookInfoOpen(true)}
+                    sx={{
+                      minHeight: 0,
+                      py: 0.5,
+                      px: 0.6,
+                      flexShrink: 0,
+                      textTransform: 'none',
+                      fontSize: uiFontSize(10.5),
+                      color: 'text.secondary',
+                      borderRadius: 1.5,
+                      '&:hover': { color: 'primary.main', bgcolor: 'action.hover' },
+                    }}
+                  >
+                    {t('writing.bookInfo.title')}
+                  </Button>
+                </Box>
                 <Menu
                   anchorEl={bookSwitcherAnchor}
                   open={Boolean(bookSwitcherAnchor)}
@@ -2332,20 +2429,25 @@ export default function WritingPage() {
                         />
                         <Typography
                           noWrap
-                          sx={{ fontSize: 13, fontWeight: isBound ? 700 : selected ? 600 : 400, flex: 1, minWidth: 0 }}
+                          sx={{
+                            fontSize: uiFontSize(13),
+                            fontWeight: isBound ? 700 : selected ? 600 : 400,
+                            flex: 1,
+                            minWidth: 0,
+                          }}
                         >
                           {book.title}
                         </Typography>
                         <Chip
                           size="small"
                           label={t(genreLabelKey(book.genre))}
-                          sx={{ height: 16, fontSize: 9, flexShrink: 0, '& .MuiChip-label': { px: 0.5 } }}
+                          sx={{ height: 16, fontSize: uiFontSize(9), flexShrink: 0, '& .MuiChip-label': { px: 0.5 } }}
                         />
                         {book.medium && (
                           <Chip
                             size="small"
                             label={t(mediumLabelKey(book.medium))}
-                            sx={{ height: 16, fontSize: 9, flexShrink: 0, '& .MuiChip-label': { px: 0.5 } }}
+                            sx={{ height: 16, fontSize: uiFontSize(9), flexShrink: 0, '& .MuiChip-label': { px: 0.5 } }}
                           />
                         )}
                         <Box className="row-actions" sx={{ display: 'flex', transition: 'opacity 0.15s' }}>
@@ -2358,7 +2460,7 @@ export default function WritingPage() {
                             }}
                             aria-label={t('writing.editBookMeta')}
                           >
-                            <CategoryRoundedIcon sx={{ fontSize: 14 }} />
+                            <CategoryRoundedIcon sx={{ fontSize: uiFontSize(14) }} />
                           </IconButton>
                           <IconButton
                             size="small"
@@ -2369,7 +2471,7 @@ export default function WritingPage() {
                             }}
                             aria-label={t('writing.renameBookTitle')}
                           >
-                            <EditRoundedIcon sx={{ fontSize: 14 }} />
+                            <EditRoundedIcon sx={{ fontSize: uiFontSize(14) }} />
                           </IconButton>
                           <IconButton
                             size="small"
@@ -2380,7 +2482,7 @@ export default function WritingPage() {
                             }}
                             aria-label={t('writing.deleteBookTitle')}
                           >
-                            <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+                            <DeleteOutlineRoundedIcon sx={{ fontSize: uiFontSize(14) }} />
                           </IconButton>
                         </Box>
                       </MenuItem>
@@ -2395,11 +2497,11 @@ export default function WritingPage() {
         {/* 一书一窗：单例独立窗口（无绑定书）不渲染书架，显示空态引导 */}
         {isDeskWindow && !deskBookId && (
           <Box sx={{ px: 1.5, py: 3, textAlign: 'center' }}>
-            <LockRoundedIcon sx={{ fontSize: 30, color: 'primary.main', mb: 1 }} />
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.secondary' }}>
+            <LockRoundedIcon sx={{ fontSize: uiFontSize(30), color: 'primary.main', mb: 1 }} />
+            <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 600, color: 'text.secondary' }}>
               {t('writing.deskUnboundTitle')}
             </Typography>
-            <Typography sx={{ fontSize: 11.5, color: 'text.disabled', mt: 0.5 }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', mt: 0.5 }}>
               {t('writing.deskUnboundHint')}
             </Typography>
           </Box>
@@ -2412,7 +2514,10 @@ export default function WritingPage() {
               value={leftTab}
               onChange={(_, v: LeftTab) => setLeftTab(v)}
               variant="fullWidth"
-              sx={{ minHeight: 34, '& .MuiTab-root': { minHeight: 34, fontSize: 12.5, px: 0.5, minWidth: 0 } }}
+              sx={{
+                minHeight: 34,
+                '& .MuiTab-root': { minHeight: 34, fontSize: uiFontSize(12.5), px: 0.5, minWidth: 0 },
+              }}
             >
               <Tab value="chapters" label={t('writing.tabChapters')} />
               <Tab value="settings" label={t('writing.tabSettings')} />
@@ -2427,7 +2532,7 @@ export default function WritingPage() {
                     <Tooltip title={t('writing.dragSort')}>
                       <Typography
                         sx={{
-                          fontSize: 11,
+                          fontSize: uiFontSize(11),
                           fontWeight: 700,
                           letterSpacing: 0.5,
                           color: 'text.disabled',
@@ -2444,7 +2549,7 @@ export default function WritingPage() {
                           onClick={() => setBookSearchOpen(true)}
                           aria-label={t('writing.bookSearchTitle')}
                         >
-                          <SearchRoundedIcon sx={{ fontSize: 16 }} />
+                          <SearchRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title={t('writing.batchManage')}>
@@ -2454,7 +2559,7 @@ export default function WritingPage() {
                           onClick={toggleSelectionMode}
                           aria-label={t('writing.batchManage')}
                         >
-                          <ChecklistRoundedIcon sx={{ fontSize: 16 }} />
+                          <ChecklistRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title={t('writing.newChapter')}>
@@ -2464,7 +2569,7 @@ export default function WritingPage() {
                           onClick={() => openDialog({ kind: 'new-chapter' })}
                           aria-label={t('writing.newChapter')}
                         >
-                          <AddRoundedIcon sx={{ fontSize: 16 }} />
+                          <AddRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -2479,8 +2584,13 @@ export default function WritingPage() {
                       onChange={(e) => setChapterQuery(e.target.value)}
                       slotProps={{
                         input: {
-                          startAdornment: <SearchRoundedIcon sx={{ fontSize: 15, color: 'text.disabled', mr: 0.75 }} />,
-                          sx: { fontSize: 12.5, '& .MuiInputBase-input': { fontSize: 12.5, py: 0.5 } },
+                          startAdornment: (
+                            <SearchRoundedIcon sx={{ fontSize: uiFontSize(15), color: 'text.disabled', mr: 0.75 }} />
+                          ),
+                          sx: {
+                            fontSize: uiFontSize(12.5),
+                            '& .MuiInputBase-input': { fontSize: uiFontSize(12.5), py: 0.5 },
+                          },
                         },
                       }}
                     />
@@ -2531,7 +2641,7 @@ export default function WritingPage() {
                         borderColor: 'divider',
                       }}
                     >
-                      <Typography sx={{ fontSize: 11, color: 'text.secondary', flex: 1 }}>
+                      <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', flex: 1 }}>
                         {t('writing.batchSelected', { n: selectedChapterIds.length })}
                       </Typography>
                       <Tooltip title={t('writing.batchMove')}>
@@ -2540,7 +2650,7 @@ export default function WritingPage() {
                           onClick={() => openDialog({ kind: 'move-volume-batch' })}
                           aria-label={t('writing.batchMove')}
                         >
-                          <DriveFileMoveRoundedIcon sx={{ fontSize: 16 }} />
+                          <DriveFileMoveRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title={t('nav.delete')}>
@@ -2550,7 +2660,7 @@ export default function WritingPage() {
                           onClick={() => openDialog({ kind: 'delete-chapters-batch' })}
                           aria-label={t('nav.delete')}
                         >
-                          <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
+                          <DeleteOutlineRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -2573,7 +2683,7 @@ export default function WritingPage() {
                   >
                     <Typography
                       sx={{
-                        fontSize: 11,
+                        fontSize: uiFontSize(11),
                         fontWeight: 700,
                         letterSpacing: 0.5,
                         color: 'text.disabled',
@@ -2589,7 +2699,7 @@ export default function WritingPage() {
                         onClick={() => openDialog({ kind: 'new-setting', settingKind: 'character' })}
                         aria-label={t('writing.newCharacter')}
                       >
-                        <AddRoundedIcon sx={{ fontSize: 16 }} />
+                        <AddRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                       </IconButton>
                     </Tooltip>
                   </Box>
@@ -2607,7 +2717,7 @@ export default function WritingPage() {
                   >
                     <Typography
                       sx={{
-                        fontSize: 11,
+                        fontSize: uiFontSize(11),
                         fontWeight: 700,
                         letterSpacing: 0.5,
                         color: 'text.disabled',
@@ -2623,13 +2733,13 @@ export default function WritingPage() {
                         onClick={() => openDialog({ kind: 'new-setting', settingKind: 'worldbuilding' })}
                         aria-label={t('writing.newWorldbuilding')}
                       >
-                        <AddRoundedIcon sx={{ fontSize: 16 }} />
+                        <AddRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                       </IconButton>
                     </Tooltip>
                   </Box>
                   {worldbuilding.map(renderSettingRow)}
                   {settings.length === 0 && (
-                    <Typography sx={{ fontSize: 11.5, color: 'text.disabled', textAlign: 'center', py: 2 }}>
+                    <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', textAlign: 'center', py: 2 }}>
                       {t('writing.emptySettings')}
                     </Typography>
                   )}
@@ -2650,7 +2760,7 @@ export default function WritingPage() {
                   >
                     <Typography
                       sx={{
-                        fontSize: 11,
+                        fontSize: uiFontSize(11),
                         fontWeight: 700,
                         letterSpacing: 0.5,
                         color: 'text.disabled',
@@ -2669,14 +2779,14 @@ export default function WritingPage() {
                         }}
                         aria-label={t('writing.noteAdd')}
                       >
-                        <AddRoundedIcon sx={{ fontSize: 16 }} />
+                        <AddRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                       </IconButton>
                     </Tooltip>
                   </Box>
                   {sidebarNotes.length === 0 ? (
                     <Box sx={{ px: 1.5, py: 2.5, textAlign: 'center' }}>
-                      <StickyNote2RoundedIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 1 }} />
-                      <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5, lineHeight: 1.6 }}>
+                      <StickyNote2RoundedIcon sx={{ fontSize: uiFontSize(32), color: 'text.disabled', mb: 1 }} />
+                      <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 1.5, lineHeight: 1.6 }}>
                         {t('writing.notesListHint')}
                       </Typography>
                       <Button
@@ -2710,13 +2820,13 @@ export default function WritingPage() {
                           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
                             {note.pin !== 0 && (
                               <PushPinRoundedIcon
-                                sx={{ fontSize: 11, color: 'primary.main', mt: 0.35, flexShrink: 0 }}
+                                sx={{ fontSize: uiFontSize(11), color: 'primary.main', mt: 0.35, flexShrink: 0 }}
                               />
                             )}
                             <Typography
                               noWrap
                               sx={{
-                                fontSize: 12,
+                                fontSize: uiFontSize(12),
                                 flex: 1,
                                 minWidth: 0,
                                 color: note.pin !== 0 ? 'text.primary' : 'text.secondary',
@@ -2735,11 +2845,11 @@ export default function WritingPage() {
                             }}
                           >
                             {note.chapterId && (
-                              <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
+                              <Typography sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>
                                 {chapters.find((c) => c.id === note.chapterId)?.title || t('writingWorkbench.untitled')}
                               </Typography>
                             )}
-                            <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
+                            <Typography sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>
                               {new Date(note.updatedAt * 1000).toLocaleDateString()}
                             </Typography>
                           </Box>
@@ -2748,7 +2858,7 @@ export default function WritingPage() {
                       <Button
                         size="small"
                         fullWidth
-                        sx={{ mt: 0.5, fontSize: 11.5 }}
+                        sx={{ mt: 0.5, fontSize: uiFontSize(11.5) }}
                         onClick={() => openNotesPanel()}
                         data-testid="notes-view-all"
                       >
@@ -2841,17 +2951,20 @@ export default function WritingPage() {
               flex: 1,
               minHeight: 38,
               px: 0.5,
+              // 圆角例外（第 32 轮逐处拍板）：Tabs 指示条高 3px、只圆顶两角，是随条高走的几何值
+              // （同 writingPanes / WritingStatsDialog 三处口径）；跟圆角档会在 large/round 档
+              // 把一条细线撑成半圆。已登记例外清单，勿再当漏网改。
               '& .MuiTabs-indicator': { height: 3, borderRadius: '2px 2px 0 0' },
               '& .MuiTab-root': {
                 minHeight: 38,
-                fontSize: 12.5,
+                fontSize: uiFontSize(12.5),
                 py: 0,
                 px: 0.5,
                 minWidth: 0,
                 gap: 0.5,
                 fontWeight: 500,
                 transition: 'color 120ms ease',
-                '& .MuiSvgIcon-root': { fontSize: 16 },
+                '& .MuiSvgIcon-root': { fontSize: uiFontSize(16) },
                 '&.Mui-selected': { fontWeight: 700 },
                 '&:hover': { backgroundColor: 'action.hover' },
               },
@@ -2876,7 +2989,7 @@ export default function WritingPage() {
                   sx={toolbarBtnSx(false)}
                   aria-label={t('writing.importTxtTitle')}
                 >
-                  <NoteAddRoundedIcon sx={{ fontSize: 17 }} />
+                  <NoteAddRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -2889,7 +3002,7 @@ export default function WritingPage() {
                   sx={toolbarBtnSx(false)}
                   aria-label={t('writing.analyze')}
                 >
-                  <HubRoundedIcon sx={{ fontSize: 17 }} />
+                  <HubRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -2902,7 +3015,7 @@ export default function WritingPage() {
                   sx={toolbarBtnSx(false)}
                   aria-label={t('writing.stats')}
                 >
-                  <InsightsRoundedIcon sx={{ fontSize: 17 }} />
+                  <InsightsRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -2915,7 +3028,7 @@ export default function WritingPage() {
                   sx={toolbarBtnSx(false)}
                   aria-label={t('writing.appearanceMap.title')}
                 >
-                  <GroupsRoundedIcon sx={{ fontSize: 17 }} />
+                  <GroupsRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -2927,7 +3040,7 @@ export default function WritingPage() {
                   sx={toolbarBtnSx(false)}
                   aria-label={t('writing.recycleBin')}
                 >
-                  <DeleteSweepRoundedIcon sx={{ fontSize: 17 }} />
+                  <DeleteSweepRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -2940,7 +3053,7 @@ export default function WritingPage() {
                   sx={toolbarBtnSx(false)}
                   aria-label={t('writing.export')}
                 >
-                  <DownloadRoundedIcon sx={{ fontSize: 17 }} />
+                  <DownloadRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -3037,33 +3150,29 @@ export default function WritingPage() {
                 DETAILS_COLUMN_MAX（占满整栏、1080 封顶），正文列仍保持排版页宽不动：
                 正文是阅读列（右侧有抽屉共享空间），详情是整栏信息面板，两者刻意不同宽。 */}
             {activeChapterId && (
-            <Box
-              sx={{
-                px: { xs: 2, md: 6 },
-                pt: 1.5,
-                width: '100%',
-                pb: 1,
-              }}
-            >
               <Box
                 sx={{
-                  maxWidth: DETAILS_COLUMN_MAX,
-                  mx: 'auto',
-                  border: 1,
-                  borderColor: 'divider',
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                  bgcolor: 'background.paper',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  px: { xs: 2, md: 6 },
+                  pt: 1.5,
+                  width: '100%',
+                  pb: 1,
                 }}
               >
-                <ChapterOverviewPanel
-                  bookId={activeBook?.id ?? ''}
-                  chapterId={activeChapterId}
-                  fit="content"
-                />
+                <Box
+                  sx={{
+                    maxWidth: DETAILS_COLUMN_MAX,
+                    mx: 'auto',
+                    border: 1,
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    bgcolor: 'background.paper',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <ChapterOverviewPanel bookId={activeBook?.id ?? ''} chapterId={activeChapterId} fit="content" />
+                </Box>
               </Box>
-            </Box>
             )}
             <ChapterDetailsPanel
               chapter={activeChapter}
@@ -3088,77 +3197,81 @@ export default function WritingPage() {
                改法与章详情同源：外层只给 padding，内层限宽并用排版页宽（正文 ↔ 设定卡来回切
                不再跳宽）。 */}
             <Box sx={{ px: { xs: 2, md: 6 }, pt: 2.5, width: '100%' }}>
-            <Box
-              sx={{
-                maxWidth: typo.pageWidth,
-                width: '100%',
-                mx: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-              }}
-            >
               <Box
                 sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: '12px',
-                  flexShrink: 0,
+                  maxWidth: typo.pageWidth,
+                  width: '100%',
+                  mx: 'auto',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  bgcolor: activeSetting.kind === 'character' ? 'primary.main' : 'secondary.main',
+                  gap: 1.5,
                 }}
               >
-                {activeSetting.kind === 'character' ? (
-                  <PersonRoundedIcon sx={{ fontSize: 24 }} />
-                ) : (
-                  <PublicRoundedIcon sx={{ fontSize: 24 }} />
-                )}
-              </Box>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <TextField
-                  variant="standard"
-                  fullWidth
-                  hiddenLabel
-                  placeholder={t('writingWorkbench.untitled')}
-                  value={settingDraft.name}
-                  onChange={(e) => handleSettingFieldChange('name', e.target.value)}
-                  slotProps={{ input: { disableUnderline: true, 'aria-label': t('writing.settingName') } }}
-                  sx={{ '& .MuiInputBase-root': { fontSize: 17, fontWeight: 700, color: 'text.primary' } }}
-                />
-                <TextField
-                  variant="standard"
-                  fullWidth
-                  hiddenLabel
-                  placeholder={
-                    activeSetting.kind === 'character' ? t('writing.settingRole') : t('writing.settingCategory')
-                  }
-                  value={settingDraft.subtitle}
-                  onChange={(e) => handleSettingFieldChange('subtitle', e.target.value)}
-                  slotProps={{ input: { disableUnderline: true, 'aria-label': t('writing.settingRole') } }}
-                  sx={{ '& .MuiInputBase-root': { fontSize: 12.5, color: 'text.secondary', mt: 0.25 } }}
-                />
-              </Box>
-              {/* 设定卡是叠加在「正文」页签上的编辑态：右栏 Tabs 仍显示「正文」高亮，
+                <Box
+                  sx={{
+                    width: 42,
+                    height: 42,
+                    // 乘数写法（1× = theme.shape.borderRadius）：随「圆角风格」档位联动，
+                    // 中圆档正好 12px 与原写死值一致
+                    borderRadius: 2,
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    bgcolor: activeSetting.kind === 'character' ? 'primary.main' : 'secondary.main',
+                  }}
+                >
+                  {activeSetting.kind === 'character' ? (
+                    <PersonRoundedIcon sx={{ fontSize: uiFontSize(24) }} />
+                  ) : (
+                    <PublicRoundedIcon sx={{ fontSize: uiFontSize(24) }} />
+                  )}
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <TextField
+                    variant="standard"
+                    fullWidth
+                    hiddenLabel
+                    placeholder={t('writingWorkbench.untitled')}
+                    value={settingDraft.name}
+                    onChange={(e) => handleSettingFieldChange('name', e.target.value)}
+                    slotProps={{ input: { disableUnderline: true, 'aria-label': t('writing.settingName') } }}
+                    sx={{
+                      '& .MuiInputBase-root': { fontSize: uiFontSize(17), fontWeight: 700, color: 'text.primary' },
+                    }}
+                  />
+                  <TextField
+                    variant="standard"
+                    fullWidth
+                    hiddenLabel
+                    placeholder={
+                      activeSetting.kind === 'character' ? t('writing.settingRole') : t('writing.settingCategory')
+                    }
+                    value={settingDraft.subtitle}
+                    onChange={(e) => handleSettingFieldChange('subtitle', e.target.value)}
+                    slotProps={{ input: { disableUnderline: true, 'aria-label': t('writing.settingRole') } }}
+                    sx={{ '& .MuiInputBase-root': { fontSize: uiFontSize(12.5), color: 'text.secondary', mt: 0.25 } }}
+                  />
+                </Box>
+                {/* 设定卡是叠加在「正文」页签上的编辑态：右栏 Tabs 仍显示「正文」高亮，
                   但内容已不是正文——没有出口时用户再点一次「正文」tab（onChange 只在
                   值变化时触发）毫无反应，等于被卡在卡里。此按钮先落盘未保存编辑再退出
                   编辑态，回到原章正文（activeChapter 不动，编辑器内容未被重载）。 */}
-              <Tooltip title={t('writing.closeSettingCard')}>
-                <IconButton
-                  size="small"
-                  aria-label={t('writing.closeSettingCard')}
-                  onClick={() => {
-                    void flushSettingSave();
-                    setActiveSetting(null);
-                  }}
-                  sx={{ color: 'text.secondary', flexShrink: 0, '&:hover': { color: 'primary.main' } }}
-                >
-                  <CloseRoundedIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
+                <Tooltip title={t('writing.closeSettingCard')}>
+                  <IconButton
+                    size="small"
+                    aria-label={t('writing.closeSettingCard')}
+                    onClick={() => {
+                      void flushSettingSave();
+                      setActiveSetting(null);
+                    }}
+                    sx={{ color: 'text.secondary', flexShrink: 0, '&:hover': { color: 'primary.main' } }}
+                  >
+                    <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
             <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 6 }, py: 2 }}>
               <Box sx={{ maxWidth: typo.pageWidth, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -3166,9 +3279,9 @@ export default function WritingPage() {
                 <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
                     <Box sx={{ color: 'primary.main', display: 'flex' }}>
-                      <EditNoteRoundedIcon sx={{ fontSize: 17 }} />
+                      <EditNoteRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </Box>
-                    <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{t('writing.basicInfo')}</Typography>
+                    <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>{t('writing.basicInfo')}</Typography>
                   </Box>
                   <TextField
                     multiline
@@ -3190,18 +3303,20 @@ export default function WritingPage() {
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Box sx={{ color: 'primary.main', display: 'flex' }}>
-                            <AutoFixHighRoundedIcon sx={{ fontSize: 17 }} />
+                            <AutoFixHighRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                           </Box>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{t('writing.profile')}</Typography>
+                          <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
+                            {t('writing.profile')}
+                          </Typography>
                         </Box>
                         <Tooltip title={t('writing.settingAiTitle')}>
                           <Button
                             size="small"
                             variant="outlined"
-                            startIcon={<AutoFixHighRoundedIcon sx={{ fontSize: 14 }} />}
+                            startIcon={<AutoFixHighRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
                             onClick={() => openSettingCompletion('character')}
                             aria-label={t('writing.settingAiTitle')}
-                            sx={{ textTransform: 'none', fontSize: 11.5 }}
+                            sx={{ textTransform: 'none', fontSize: uiFontSize(11.5) }}
                           >
                             {t('writing.settingAiTitle')}
                           </Button>
@@ -3219,7 +3334,7 @@ export default function WritingPage() {
                             borderRadius: 1,
                             bgcolor: 'rgba(217,130,43,0.12)',
                             color: 'warning.main',
-                            fontSize: 11.5,
+                            fontSize: uiFontSize(11.5),
                             lineHeight: 1.4,
                           }}
                         >
@@ -3278,14 +3393,14 @@ export default function WritingPage() {
                         <Box sx={{ gridColumn: { xs: 'auto', sm: '1 / -1' }, mt: 1 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                             <Box sx={{ color: 'primary.main', display: 'flex' }}>
-                              <InsightsRoundedIcon sx={{ fontSize: 17 }} />
+                              <InsightsRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                             </Box>
-                            <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                            <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
                               {t('writing.cognitiveWeights')}
                             </Typography>
                           </Box>
                           {/* 不写这句，作者无从区分"我选了中立"和"我还没动过"——而这两者喂给 AI 的内容不同 */}
-                          <Typography sx={{ fontSize: 11.5, color: 'text.disabled', mb: 1 }}>
+                          <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', mb: 1 }}>
                             {t('writing.cognitiveWeightsHint')}
                           </Typography>
                           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
@@ -3306,10 +3421,12 @@ export default function WritingPage() {
                                       mb: 0.5,
                                     }}
                                   >
-                                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{neg}</Typography>
+                                    <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary' }}>
+                                      {neg}
+                                    </Typography>
                                     <Typography
                                       sx={{
-                                        fontSize: 11,
+                                        fontSize: uiFontSize(11),
                                         fontWeight: 600,
                                         // 未设置用 disabled 灰、已设置（含 0）用主色：一眼看出这条轴作者表过态没有
                                         color: isSet ? 'primary.main' : 'text.disabled',
@@ -3321,7 +3438,9 @@ export default function WritingPage() {
                                           : `${raw > 0 ? pos : neg}${Math.abs(raw)}`
                                         : t('writing.cwUnset')}
                                     </Typography>
-                                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{pos}</Typography>
+                                    <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary' }}>
+                                      {pos}
+                                    </Typography>
                                     {isSet && (
                                       <Tooltip title={t('writing.cwClear')}>
                                         <IconButton
@@ -3330,7 +3449,7 @@ export default function WritingPage() {
                                           onClick={() => setCognitiveWeightField(dim.key, null)}
                                           sx={{ p: 0.25, alignSelf: 'center' }}
                                         >
-                                          <CloseRoundedIcon sx={{ fontSize: 13 }} />
+                                          <CloseRoundedIcon sx={{ fontSize: uiFontSize(13) }} />
                                         </IconButton>
                                       </Tooltip>
                                     )}
@@ -3365,18 +3484,20 @@ export default function WritingPage() {
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Box sx={{ color: 'secondary.main', display: 'flex' }}>
-                            <AutoFixHighRoundedIcon sx={{ fontSize: 17 }} />
+                            <AutoFixHighRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                           </Box>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{t('writing.wbProfile')}</Typography>
+                          <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
+                            {t('writing.wbProfile')}
+                          </Typography>
                         </Box>
                         <Tooltip title={t('writing.settingAiTitle')}>
                           <Button
                             size="small"
                             variant="outlined"
-                            startIcon={<AutoFixHighRoundedIcon sx={{ fontSize: 14 }} />}
+                            startIcon={<AutoFixHighRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
                             onClick={() => openSettingCompletion('worldbuilding')}
                             aria-label={t('writing.settingAiTitle')}
-                            sx={{ textTransform: 'none', fontSize: 11.5 }}
+                            sx={{ textTransform: 'none', fontSize: uiFontSize(11.5) }}
                           >
                             {t('writing.settingAiTitle')}
                           </Button>
@@ -3394,7 +3515,7 @@ export default function WritingPage() {
                             borderRadius: 1,
                             bgcolor: 'rgba(217,130,43,0.12)',
                             color: 'warning.main',
-                            fontSize: 11.5,
+                            fontSize: uiFontSize(11.5),
                             lineHeight: 1.4,
                           }}
                         >
@@ -3478,9 +3599,9 @@ export default function WritingPage() {
                     <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                         <Box sx={{ color: 'primary.main', display: 'flex' }}>
-                          <MenuBookRoundedIcon sx={{ fontSize: 17 }} />
+                          <MenuBookRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                         </Box>
-                        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                        <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
                           {t(
                             isChar
                               ? 'editor.writing.inspector.appearChapters'
@@ -3489,7 +3610,7 @@ export default function WritingPage() {
                         </Typography>
                       </Box>
                       {related.length === 0 ? (
-                        <Typography sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>
+                        <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', lineHeight: 1.7 }}>
                           {t('editor.writing.inspector.bindHint')}
                         </Typography>
                       ) : (
@@ -3507,7 +3628,7 @@ export default function WritingPage() {
                                 setRightTab('body');
                               }}
                               sx={{
-                                fontSize: 11,
+                                fontSize: uiFontSize(11),
                                 maxWidth: 260,
                                 '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' },
                               }}
@@ -3554,16 +3675,22 @@ export default function WritingPage() {
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Box sx={{ color: 'primary.main', display: 'flex' }}>
-                            <GroupsRoundedIcon sx={{ fontSize: 17 }} />
+                            <GroupsRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                           </Box>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{t('writing.relations')}</Typography>
+                          <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
+                            {t('writing.relations')}
+                          </Typography>
                         </Box>
-                        <Button size="small" startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />} onClick={addRelation}>
+                        <Button
+                          size="small"
+                          startIcon={<AddRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
+                          onClick={addRelation}
+                        >
                           {t('writing.addRelation')}
                         </Button>
                       </Box>
                       {(settingDraft.extra.relations ?? []).length === 0 ? (
-                        <Typography sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>
+                        <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', lineHeight: 1.7 }}>
                           {t('editor.writing.inspector.noRelations')}
                         </Typography>
                       ) : (
@@ -3590,7 +3717,7 @@ export default function WritingPage() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: 11,
+                                fontSize: uiFontSize(11),
                                 fontWeight: 700,
                                 color: 'text.secondary',
                                 flexShrink: 0,
@@ -3640,7 +3767,7 @@ export default function WritingPage() {
                               onClick={() => removeRelation(idx)}
                               aria-label={t('writing.removeRelation')}
                             >
-                              <CloseRoundedIcon sx={{ fontSize: 15 }} />
+                              <CloseRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                             </IconButton>
                           </Box>
                         ))
@@ -3650,16 +3777,22 @@ export default function WritingPage() {
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Box sx={{ color: 'primary.main', display: 'flex' }}>
-                            <HistoryRoundedIcon sx={{ fontSize: 17 }} />
+                            <HistoryRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                           </Box>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{t('writing.timeline')}</Typography>
+                          <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
+                            {t('writing.timeline')}
+                          </Typography>
                         </Box>
-                        <Button size="small" startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />} onClick={addTimeline}>
+                        <Button
+                          size="small"
+                          startIcon={<AddRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
+                          onClick={addTimeline}
+                        >
                           {t('writing.addTimeline')}
                         </Button>
                       </Box>
                       {timelineEvents.filter((e) => e.settingId === activeSettingId).length === 0 ? (
-                        <Typography sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>
+                        <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', lineHeight: 1.7 }}>
                           {t('writing.emptyTimeline')}
                         </Typography>
                       ) : (
@@ -3677,7 +3810,7 @@ export default function WritingPage() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: 11,
+                                    fontSize: uiFontSize(11),
                                     fontWeight: 700,
                                     color: 'text.secondary',
                                     flexShrink: 0,
@@ -3699,7 +3832,7 @@ export default function WritingPage() {
                                   onClick={() => removeTimeline(ev.id)}
                                   aria-label={t('writing.removeTimelineEvent')}
                                 >
-                                  <CloseRoundedIcon sx={{ fontSize: 15 }} />
+                                  <CloseRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                                 </IconButton>
                               </Box>
                               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1.5, pl: 4 }}>
@@ -3773,9 +3906,9 @@ export default function WritingPage() {
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Box sx={{ color: 'secondary.main', display: 'flex' }}>
-                            <HistoryRoundedIcon sx={{ fontSize: 17 }} />
+                            <HistoryRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                           </Box>
-                          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                          <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
                             {t('writing.bookLevelTimeline')}
                           </Typography>
                         </Box>
@@ -3789,7 +3922,7 @@ export default function WritingPage() {
                           </Tooltip>
                           <Button
                             size="small"
-                            startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
+                            startIcon={<AddRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
                             onClick={addBookTimeline}
                           >
                             {t('writing.addTimeline')}
@@ -3797,7 +3930,7 @@ export default function WritingPage() {
                         </Box>
                       </Box>
                       {timelineEvents.filter((e) => e.settingId === null).length === 0 ? (
-                        <Typography sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>
+                        <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', lineHeight: 1.7 }}>
                           {t('writing.emptyTimeline')}
                         </Typography>
                       ) : (
@@ -3815,7 +3948,7 @@ export default function WritingPage() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: 11,
+                                    fontSize: uiFontSize(11),
                                     fontWeight: 700,
                                     color: 'text.secondary',
                                     flexShrink: 0,
@@ -3837,7 +3970,7 @@ export default function WritingPage() {
                                   onClick={() => removeTimeline(ev.id)}
                                   aria-label={t('writing.removeBookTimelineEvent')}
                                 >
-                                  <CloseRoundedIcon sx={{ fontSize: 15 }} />
+                                  <CloseRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                                 </IconButton>
                               </Box>
                               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1.5, pl: 4 }}>
@@ -3990,7 +4123,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(Boolean(formatMenuAnchor)), compactBtnSx]}
                       aria-label={t('writing.formatMenu')}
                     >
-                      <FormatColorTextRoundedIcon sx={{ fontSize: 17 }} />
+                      <FormatColorTextRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Menu
@@ -4108,7 +4241,7 @@ export default function WritingPage() {
                       sx={{
                         height: 32,
                         minWidth: 92,
-                        fontSize: 12.5,
+                        fontSize: uiFontSize(12.5),
                         ml: 0.5,
                         flexShrink: 0,
                         '& .MuiSelect-select': { py: 0.5 },
@@ -4116,7 +4249,11 @@ export default function WritingPage() {
                       inputProps={{ 'aria-label': t('writing.typography.fontFamily') }}
                     >
                       {FONT_FAMILY_OPTIONS.map((o) => (
-                        <MenuItem key={o.key} value={o.key} sx={{ fontFamily: o.stack || undefined, fontSize: 13 }}>
+                        <MenuItem
+                          key={o.key}
+                          value={o.key}
+                          sx={{ fontFamily: o.stack || undefined, fontSize: uiFontSize(13) }}
+                        >
                           {t(`writing.typography.font_${o.key}`)}
                         </MenuItem>
                       ))}
@@ -4130,14 +4267,14 @@ export default function WritingPage() {
                       sx={{
                         height: 32,
                         minWidth: 64,
-                        fontSize: 12.5,
+                        fontSize: uiFontSize(12.5),
                         flexShrink: 0,
                         '& .MuiSelect-select': { py: 0.5 },
                       }}
                       inputProps={{ 'aria-label': t('writing.typography.fontSize', { n: typo.fontSize }) }}
                     >
                       {FONT_SIZE_PRESETS.map((v) => (
-                        <MenuItem key={v} value={v} sx={{ fontSize: 13 }}>
+                        <MenuItem key={v} value={v} sx={{ fontSize: uiFontSize(13) }}>
                           {v}
                         </MenuItem>
                       ))}
@@ -4157,7 +4294,7 @@ export default function WritingPage() {
                         sx={[toolbarBtnSx(false), compactBtnSx]}
                         aria-label={t('writing.typography.decreaseFont')}
                       >
-                        <TextDecreaseRoundedIcon sx={{ fontSize: 17 }} />
+                        <TextDecreaseRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                       </IconButton>
                     </span>
                   </Tooltip>
@@ -4174,7 +4311,7 @@ export default function WritingPage() {
                         sx={[toolbarBtnSx(false), compactBtnSx]}
                         aria-label={t('writing.typography.increaseFont')}
                       >
-                        <TextIncreaseRoundedIcon sx={{ fontSize: 17 }} />
+                        <TextIncreaseRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                       </IconButton>
                     </span>
                   </Tooltip>
@@ -4202,7 +4339,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(editor?.isActive('highlight') ?? false), compactBtnSx]}
                       aria-label={t('writing.fmtHighlightColor')}
                     >
-                      <HighlightRoundedIcon sx={{ fontSize: 17 }} />
+                      <HighlightRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Popover
@@ -4247,7 +4384,7 @@ export default function WritingPage() {
                           }}
                           sx={{ width: 24, height: 24, color: 'text.disabled' }}
                         >
-                          <ClearIcon sx={{ fontSize: 16 }} />
+                          <ClearIcon sx={{ fontSize: uiFontSize(16) }} />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -4258,22 +4395,22 @@ export default function WritingPage() {
                     [
                       {
                         align: 'left',
-                        icon: <FormatAlignLeftRoundedIcon sx={{ fontSize: 17 }} />,
+                        icon: <FormatAlignLeftRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
                         label: t('writing.fmtAlignLeft'),
                       },
                       {
                         align: 'center',
-                        icon: <FormatAlignCenterRoundedIcon sx={{ fontSize: 17 }} />,
+                        icon: <FormatAlignCenterRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
                         label: t('writing.fmtAlignCenter'),
                       },
                       {
                         align: 'right',
-                        icon: <FormatAlignRightRoundedIcon sx={{ fontSize: 17 }} />,
+                        icon: <FormatAlignRightRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
                         label: t('writing.fmtAlignRight'),
                       },
                       {
                         align: 'justify',
-                        icon: <FormatAlignJustifyRoundedIcon sx={{ fontSize: 17 }} />,
+                        icon: <FormatAlignJustifyRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
                         label: t('writing.fmtAlignJustify'),
                       },
                     ] as const
@@ -4307,7 +4444,7 @@ export default function WritingPage() {
                         sx={[toolbarBtnSx(false), compactBtnSx]}
                         aria-label={t('writing.fmtIndentDecrease')}
                       >
-                        <FormatIndentDecreaseRoundedIcon sx={{ fontSize: 17 }} />
+                        <FormatIndentDecreaseRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                       </IconButton>
                     </span>
                   </Tooltip>
@@ -4319,7 +4456,7 @@ export default function WritingPage() {
                         sx={[toolbarBtnSx(false), compactBtnSx]}
                         aria-label={t('writing.fmtIndentIncrease')}
                       >
-                        <FormatIndentIncreaseRoundedIcon sx={{ fontSize: 17 }} />
+                        <FormatIndentIncreaseRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                       </IconButton>
                     </span>
                   </Tooltip>
@@ -4331,7 +4468,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(false), compactBtnSx]}
                       aria-label={t('writing.fmtClearFormat')}
                     >
-                      <FormatClearRoundedIcon sx={{ fontSize: 17 }} />
+                      <FormatClearRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                 </Box>
@@ -4356,7 +4493,7 @@ export default function WritingPage() {
                         sx={[toolbarBtnSx(false), compactBtnSx]}
                         aria-label={t('writing.prevChapter')}
                       >
-                        <NavigateBeforeRoundedIcon sx={{ fontSize: 17 }} />
+                        <NavigateBeforeRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                       </IconButton>
                     </span>
                   </Tooltip>
@@ -4369,38 +4506,18 @@ export default function WritingPage() {
                         sx={[toolbarBtnSx(false), compactBtnSx]}
                         aria-label={t('writing.nextChapter')}
                       >
-                        <NavigateNextRoundedIcon sx={{ fontSize: 17 }} />
+                        <NavigateNextRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                       </IconButton>
                     </span>
                   </Tooltip>
-                  <Tooltip
-                    title={
-                      focusMode === 'zen'
-                        ? t('writing.exitZen')
-                        : focusMode === 'focus'
-                          ? t('writing.exitFocus')
-                          : t('writing.focusMode')
-                    }
-                  >
+                  <Tooltip title={focusModeActionLabel}>
                     <IconButton
                       size="small"
-                      onClick={() =>
-                        setFocusMode((v) => {
-                          if (v === 'normal') return 'focus';
-                          if (v === 'focus') return 'zen';
-                          return 'normal';
-                        })
-                      }
+                      onClick={cycleFocusMode}
+                      aria-label={focusModeActionLabel}
                       sx={[toolbarBtnSx(focusMode !== 'normal'), compactBtnSx]}
-                      aria-label={
-                        focusMode === 'zen'
-                          ? t('writing.exitZen')
-                          : focusMode === 'focus'
-                            ? t('writing.exitFocus')
-                            : t('writing.focusMode')
-                      }
                     >
-                      <ChromeReaderModeRoundedIcon sx={{ fontSize: 17 }} />
+                      <ChromeReaderModeRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('writing.noteFab')}>
@@ -4414,7 +4531,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(false), compactBtnSx]}
                       aria-label={t('writing.noteFab')}
                     >
-                      <StickyNote2RoundedIcon sx={{ fontSize: 17 }} />
+                      <StickyNote2RoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Divider orientation="vertical" flexItem sx={{ mx: 0.25, my: 0.5 }} />
@@ -4437,7 +4554,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(false), compactBtnSx]}
                       aria-label={t('writing.proofreadTitle')}
                     >
-                      <SpellcheckRoundedIcon sx={{ fontSize: 17 }} />
+                      <SpellcheckRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('writing.aiFlavorTitle')}>
@@ -4457,7 +4574,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(false), compactBtnSx]}
                       aria-label={t('writing.aiFlavorTitle')}
                     >
-                      <AutoAwesomeRoundedIcon sx={{ fontSize: 17 }} />
+                      <AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('writing.findReplace')}>
@@ -4468,7 +4585,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(false), compactBtnSx]}
                       aria-label={t('writing.findReplace')}
                     >
-                      <FindInPageRoundedIcon sx={{ fontSize: 17 }} />
+                      <FindInPageRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('writing.autoReview')}>
@@ -4479,7 +4596,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(false), compactBtnSx]}
                       aria-label={t('writing.autoReview')}
                     >
-                      <AutoModeRoundedIcon sx={{ fontSize: 17 }} />
+                      <AutoModeRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Divider orientation="vertical" flexItem sx={{ mx: 0.25, my: 0.5 }} />
@@ -4492,7 +4609,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(false), compactBtnSx]}
                       aria-label={t('writing.snapshots.title')}
                     >
-                      <HistoryRoundedIcon sx={{ fontSize: 17 }} />
+                      <HistoryRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('writing.shortcutsTitle')}>
@@ -4502,7 +4619,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(false), compactBtnSx]}
                       aria-label={t('writing.shortcutsTitle')}
                     >
-                      <KeyboardRoundedIcon sx={{ fontSize: 17 }} />
+                      <KeyboardRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Divider orientation="vertical" flexItem sx={{ mx: 0.25, my: 0.5 }} />
@@ -4515,7 +4632,7 @@ export default function WritingPage() {
                       sx={[toolbarBtnSx(Boolean(aiMenuAnchor)), compactBtnSx]}
                       aria-label={t('writing.aiMenu')}
                     >
-                      <AutoAwesomeRoundedIcon sx={{ fontSize: 17 }} />
+                      <AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Menu anchorEl={aiMenuAnchor} open={Boolean(aiMenuAnchor)} onClose={() => setAiMenuAnchor(null)}>
@@ -4677,51 +4794,51 @@ export default function WritingPage() {
                 }}
               >
                 <Box sx={{ maxWidth: typo.pageWidth, mx: 'auto' }}>
-                {/* 批次② 写作动线：标题点击即改名（原对话框入口），状态/层级徽章就地切换 */}
-                <Typography
-                  onClick={() =>
-                    openDialog({ kind: 'rename-chapter', chapterId: activeChapter.id }, activeChapter.title)
-                  }
-                  title={t('writing.renameChapterTitle')}
-                  sx={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    lineHeight: 1.3,
-                    cursor: 'pointer',
-                    '&:hover': { color: 'primary.main' },
-                  }}
-                >
-                  {activeChapter.title}
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
-                  {activeChapter.volume && (
+                  {/* 批次② 写作动线：标题点击即改名（原对话框入口），状态/层级徽章就地切换 */}
+                  <Typography
+                    onClick={() =>
+                      openDialog({ kind: 'rename-chapter', chapterId: activeChapter.id }, activeChapter.title)
+                    }
+                    title={t('writing.renameChapterTitle')}
+                    sx={{
+                      fontSize: uiFontSize(22),
+                      fontWeight: 700,
+                      lineHeight: 1.3,
+                      cursor: 'pointer',
+                      '&:hover': { color: 'primary.main' },
+                    }}
+                  >
+                    {activeChapter.title}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
+                    {activeChapter.volume && (
+                      <Chip
+                        size="small"
+                        label={activeChapter.volume}
+                        onClick={() =>
+                          openDialog({ kind: 'move-volume', chapterId: activeChapter.id }, activeChapter.volume)
+                        }
+                        sx={{ fontSize: uiFontSize(11), height: 22 }}
+                      />
+                    )}
+                    <ChapterMetaControls
+                      chapter={activeChapter}
+                      onStatusChange={setChapterStatus}
+                      onKindChange={renameNodeKind}
+                    />
+                    {/* 笔记完善（C）：本章笔记数入口 — 点击打开弹窗并按当前章筛选 */}
                     <Chip
                       size="small"
-                      label={activeChapter.volume}
-                      onClick={() =>
-                        openDialog({ kind: 'move-volume', chapterId: activeChapter.id }, activeChapter.volume)
-                      }
-                      sx={{ fontSize: 11, height: 22 }}
+                      color="default"
+                      variant="outlined"
+                      icon={<StickyNote2RoundedIcon sx={{ fontSize: uiFontSize(13) }} />}
+                      label={t('writing.chapterNotesChip', { n: chapterNoteCount })}
+                      onClick={() => openNotesPanel(null, activeChapterId ?? '')}
+                      sx={{ fontSize: uiFontSize(11), height: 22, cursor: 'pointer' }}
+                      clickable
+                      data-testid="chapter-notes-chip"
                     />
-                  )}
-                  <ChapterMetaControls
-                    chapter={activeChapter}
-                    onStatusChange={setChapterStatus}
-                    onKindChange={renameNodeKind}
-                  />
-                  {/* 笔记完善（C）：本章笔记数入口 — 点击打开弹窗并按当前章筛选 */}
-                  <Chip
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                    icon={<StickyNote2RoundedIcon sx={{ fontSize: 13 }} />}
-                    label={t('writing.chapterNotesChip', { n: chapterNoteCount })}
-                    onClick={() => openNotesPanel(null, activeChapterId ?? '')}
-                    sx={{ fontSize: 11, height: 22, cursor: 'pointer' }}
-                    clickable
-                    data-testid="chapter-notes-chip"
-                  />
-                </Box>
+                  </Box>
                 </Box>
               </Box>
               <Box
@@ -4766,7 +4883,7 @@ export default function WritingPage() {
                 <SaveIndicator register={registerSaveIndicator} />
                 <Box sx={{ flex: 1 }} />
                 {selectedChars > 0 && (
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary' }}>
                     {t('writing.selectedWords', { n: selectedChars })}
                   </Typography>
                 )}
@@ -4775,7 +4892,7 @@ export default function WritingPage() {
                   goal={activeBook?.dailyGoal ?? 0}
                   onOpenStats={() => setStatsOpen(true)}
                 />
-                <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
+                <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled' }}>
                   {t('writing.words', { n: chapterWordCount(editor) })}
                 </Typography>
               </Box>
@@ -4791,7 +4908,7 @@ export default function WritingPage() {
                   }}
                   sx={{ position: 'absolute', top: 116, right: 16, zIndex: 5 }}
                 >
-                  <StickyNote2RoundedIcon sx={{ fontSize: 20 }} />
+                  <StickyNote2RoundedIcon sx={{ fontSize: uiFontSize(20) }} />
                 </Fab>
               )}
             </Box>
@@ -4843,8 +4960,8 @@ export default function WritingPage() {
               gap: 1.5,
             }}
           >
-            <MenuBookRoundedIcon sx={{ fontSize: 42, color: 'text.disabled' }} />
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+            <MenuBookRoundedIcon sx={{ fontSize: uiFontSize(42), color: 'text.disabled' }} />
+            <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>
               {activeBook ? t('writing.selectChapter') : t('writing.emptyBooksHint')}
             </Typography>
             {booksLoading || chaptersLoading
@@ -4868,10 +4985,10 @@ export default function WritingPage() {
         open={!!recoverDraft}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         message={
-          <Box sx={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ fontSize: uiFontSize(12.5), display: 'flex', alignItems: 'center', gap: 1 }}>
             <span>{t('writing.draftRecoverHint', { title: recoverDraft?.chapterTitle ?? '' })}</span>
             {recoverDraft && (
-              <Typography component="span" sx={{ fontSize: 11, opacity: 0.75, flexShrink: 0 }}>
+              <Typography component="span" sx={{ fontSize: uiFontSize(11), opacity: 0.75, flexShrink: 0 }}>
                 {new Date(recoverDraft.snap.savedAt * 1000).toLocaleTimeString()}
               </Typography>
             )}
@@ -4891,7 +5008,7 @@ export default function WritingPage() {
 
       {/* ─── 新建/重命名/删除对话框 ─── */}
       <Dialog open={dialog !== null} onClose={() => setDialog(null)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontSize: 15 }}>{dialogTitle}</DialogTitle>
+        <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{dialogTitle}</DialogTitle>
         <DialogContent>{dialogBody}</DialogContent>
         <DialogActions>
           <Button size="small" onClick={() => setDialog(null)}>
@@ -4909,8 +5026,8 @@ export default function WritingPage() {
       </Dialog>
       {/* ─── 回收站（2026-09-29）：查看/恢复/永久删除软删章节 ─── */}
       <Dialog open={recycleBinOpen} onClose={() => setRecycleBinOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <DeleteSweepRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+        <DialogTitle sx={{ fontSize: uiFontSize(15), display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteSweepRoundedIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
           {t('writing.recycleBin')}
           {deletedChapters.length > 0 && (
             <Chip size="small" label={t('writing.deletedChapterCount', { n: deletedChapters.length })} />
@@ -4919,9 +5036,11 @@ export default function WritingPage() {
         <DialogContent dividers sx={{ p: 0, maxHeight: 400, overflowY: 'auto' }}>
           {deletedChapters.length === 0 ? (
             <Box sx={{ textAlign: 'center', px: 2, py: 6 }}>
-              <DeleteSweepRoundedIcon sx={{ fontSize: 34, color: 'text.disabled', mb: 1 }} />
-              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{t('writing.recycleBinEmpty')}</Typography>
-              <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5 }}>
+              <DeleteSweepRoundedIcon sx={{ fontSize: uiFontSize(34), color: 'text.disabled', mb: 1 }} />
+              <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>
+                {t('writing.recycleBinEmpty')}
+              </Typography>
+              <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.5 }}>
                 {t('writing.recycleBinHint')}
               </Typography>
             </Box>
@@ -4943,7 +5062,7 @@ export default function WritingPage() {
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography
                       sx={{
-                        fontSize: 13,
+                        fontSize: uiFontSize(13),
                         fontWeight: 600,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -4952,7 +5071,7 @@ export default function WritingPage() {
                     >
                       {ch.title}
                     </Typography>
-                    <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
+                    <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled' }}>
                       {book ? `${book.title} · ` : ''}
                       {t('writing.deletedAt', { time: new Date(chapterDeletedAt(ch) * 1000).toLocaleString() })}
                     </Typography>
@@ -4963,7 +5082,7 @@ export default function WritingPage() {
                       onClick={() => void handleRestoreChapter(ch)}
                       aria-label={t('writing.restoreChapter')}
                     >
-                      <RestoreRoundedIcon sx={{ fontSize: 17 }} />
+                      <RestoreRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title={t('writing.permanentDeleteChapter')}>
@@ -4973,7 +5092,7 @@ export default function WritingPage() {
                       onClick={() => setPermanentDeleteTarget(ch)}
                       aria-label={t('writing.permanentDeleteChapter')}
                     >
-                      <DeleteForeverRoundedIcon sx={{ fontSize: 17 }} />
+                      <DeleteForeverRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
                     </IconButton>
                   </Tooltip>
                 </Box>
@@ -4994,9 +5113,9 @@ export default function WritingPage() {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle sx={{ fontSize: 15 }}>{t('writing.permanentDeleteChapter')}</DialogTitle>
+        <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{t('writing.permanentDeleteChapter')}</DialogTitle>
         <DialogContent>
-          <Typography sx={{ fontSize: 14 }}>
+          <Typography sx={{ fontSize: uiFontSize(14) }}>
             {t('writing.permanentDeleteConfirm', { title: permanentDeleteTarget?.title ?? '' })}
           </Typography>
         </DialogContent>
@@ -5405,11 +5524,11 @@ export default function WritingPage() {
       {/* ─── 人物出场图谱（原实体图鉴迁入）：章节 × 设定出场热力矩阵，点击跳正文 ─── */}
       <Dialog open={appearanceOpen} onClose={() => setAppearanceOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pr: 1.5 }}>
-          <Typography variant="h6" sx={{ fontSize: 15, fontWeight: 700 }}>
+          <Typography variant="h6" sx={{ fontSize: uiFontSize(15), fontWeight: 700 }}>
             {t('writing.appearanceMap.title')}
           </Typography>
           <IconButton size="small" onClick={() => setAppearanceOpen(false)} aria-label={t('workbench.close')}>
-            <CloseRoundedIcon sx={{ fontSize: 18 }} />
+            <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ p: 1.5, pt: 1 }}>
@@ -5435,9 +5554,11 @@ export default function WritingPage() {
       />
       {/* ─── 自动审阅规则（P3）：模块通用的 AutoAnalysisPanel + 写作域 moduleId ─── */}
       <Dialog open={autoDialogOpen} onClose={() => setAutoDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontSize: 15 }}>{t('writing.autoReview')}</DialogTitle>
+        <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{t('writing.autoReview')}</DialogTitle>
         <DialogContent>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>{t('writing.autoReviewHint')}</Typography>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 1.5 }}>
+            {t('writing.autoReviewHint')}
+          </Typography>
           {activeBook && <AutoAnalysisPanel moduleId={WRITING_MODULE_ID} scopeId={activeBook.id} />}
         </DialogContent>
       </Dialog>
@@ -5529,7 +5650,19 @@ export default function WritingPage() {
         }}
       />
       {/* ─── P3 排版面板：字号/行距/段距/首行缩进/页宽/纸色，per-book 持久化 ─── */}
-      <TypographyPopover anchorEl={typoAnchor} onClose={() => setTypoAnchor(null)} typo={typo} onChange={setTypo} />
+      <TypographyPopover
+        anchorEl={typoAnchor}
+        onClose={() => setTypoAnchor(null)}
+        typo={typo}
+        onChange={setTypo}
+        overrideFieldCount={typoOverrideFields.length}
+        canOverride={Boolean(activeBookId)}
+        onFollowDefault={() => clearBookTypography(activeBookId)}
+        // 字段级收回（第 32 轮待办 7②）：只把点名的那一项放回「跟随全局默认」，
+        // 其余自己调过的项原样保留 —— 整本冲掉那一档太粗，用户只能放弃微调。
+        overriddenFields={typoOverrideFields}
+        onFollowDefaultField={(field) => clearBookTypographyFields(activeBookId, [field])}
+      />
       {/* ─── 章内批注（批次② T4）：新增批注 — 选中文本 → 弹窗录入并保存 ─── */}
       <AnnotationCreateDialog
         draft={annotationDraft}
@@ -5571,6 +5704,9 @@ export default function WritingPage() {
         focusNoteId={notesFocusId}
         onNotesChange={setSidebarNotes}
       />
+      {/* 作品信息（插单七）：状态 + 体裁×载体，写路径仍是 setBookMeta */}
+      {bookInfoOpen && activeBook && <BookInfoDialog book={activeBook} onClose={() => setBookInfoOpen(false)} />}
+
       {/* ─── ⌘K 命令面板（创作台重设计 · 方向 B 一期）─── */}
       <CommandPalette
         open={cmdPaletteOpen}

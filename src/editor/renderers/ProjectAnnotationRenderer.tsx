@@ -37,7 +37,7 @@ export function ProjectAnnotationRenderer(props: ProjectAnnotationRendererProps)
           border: "1.5px dashed",
           borderColor: "primary.main",
           backgroundColor: (t) =>
-            t.palette.mode === "dark" ? "rgba(99,102,241,0.06)" : "rgba(99,102,241,0.04)",
+            t.palette.mode === "dark" ? "rgb(var(--template-palette-primary-mainChannel) / 0.06)" : "rgb(var(--template-palette-primary-mainChannel) / 0.04)",
           boxSizing: "border-box",
           overflow: "hidden",
           pointerEvents: "none",

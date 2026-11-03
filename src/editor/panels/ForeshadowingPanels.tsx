@@ -176,7 +176,7 @@ export function ForeshadowingOverviewCard() {
                   borderRadius: 0.75,
                   border: 1,
                   borderColor: sortBy === mode ? 'primary.main' : 'divider',
-                  bgcolor: sortBy === mode ? 'rgba(25,118,210,0.08)' : 'transparent',
+                  bgcolor: sortBy === mode ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
                   color: sortBy === mode ? 'primary.main' : 'text.secondary',
                   fontWeight: sortBy === mode ? 700 : 400,
                   cursor: 'pointer',
@@ -305,7 +305,7 @@ export function ForeshadowingOverviewCard() {
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  border: '1px solid rgba(128,128,128,0.35)',
+  border: '1px solid var(--template-palette-divider, rgba(128,128,128,0.35))',
   borderRadius: 6,
   background: 'transparent',
   color: 'inherit',
@@ -441,7 +441,6 @@ export function ForeshadowingDetail({ item, bookId }: { item: WritingForeshadowi
         <ChapterPicker
           uniqueKey={item.id + '-plant'}
           chapters={bookChapters}
-          accent="#1976d2"
           onSelect={(v: string) => void updateForeshadowing(item.id, { plantChapterId: v })}
           width="100%"
           value={item.plantChapterId}
@@ -455,7 +454,6 @@ export function ForeshadowingDetail({ item, bookId }: { item: WritingForeshadowi
         <ChapterPicker
           uniqueKey={item.id + '-payoff'}
           chapters={bookChapters}
-          accent="#1976d2"
           onSelect={(v: string) => void updateForeshadowing(item.id, { payoffChapterId: v })}
           width="100%"
           value={item.payoffChapterId}

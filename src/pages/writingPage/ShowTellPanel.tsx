@@ -20,6 +20,7 @@ import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import type { ShowTellIssue, ShowTellKind } from '../../utils/showTell';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface ShowTellExample {
   book: string;
@@ -96,11 +97,11 @@ export function ShowTellPanel({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <VisibilityRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+      <DialogTitle sx={{ fontSize: uiFontSize(15), display: 'flex', alignItems: 'center', gap: 1 }}>
+        <VisibilityRoundedIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>{labels.title}</Box>
         <IconButton size="small" onClick={onClose} aria-label={t('ui.close')}>
-          <CloseRoundedIcon sx={{ fontSize: 18 }} />
+          <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ p: 1.5, minHeight: 160, maxHeight: 460, overflowY: 'auto' }}>
@@ -114,9 +115,9 @@ export function ShowTellPanel({
         </Stack>
         {issues.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 6 }}>
-            <CheckCircleOutlineRoundedIcon sx={{ fontSize: 34, color: 'success.main', mb: 1 }} />
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{labels.empty}</Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5 }}>{labels.hint}</Typography>
+            <CheckCircleOutlineRoundedIcon sx={{ fontSize: uiFontSize(34), color: 'success.main', mb: 1 }} />
+            <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>{labels.empty}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.5 }}>{labels.hint}</Typography>
           </Box>
         ) : (
           <Stack spacing={1}>
@@ -142,14 +143,21 @@ export function ShowTellPanel({
                 >
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontSize: 13, color: 'text.primary' }}>「{issue.excerpt}」</Typography>
+                      <Typography sx={{ fontSize: uiFontSize(13), color: 'text.primary' }}>
+                        「{issue.excerpt}」
+                      </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.25 }}>
                         <Typography
-                          sx={{ fontSize: 11, fontWeight: 700, color: KIND_COLORS[issue.emotionKind], flexShrink: 0 }}
+                          sx={{
+                            fontSize: uiFontSize(11),
+                            fontWeight: 700,
+                            color: KIND_COLORS[issue.emotionKind],
+                            flexShrink: 0,
+                          }}
                         >
                           {kindLabels[issue.emotionKind]}
                         </Typography>
-                        <Typography sx={{ fontSize: 11, color: 'text.disabled', minWidth: 0 }}>
+                        <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', minWidth: 0 }}>
                           {issue.short}
                         </Typography>
                       </Box>
@@ -163,23 +171,23 @@ export function ShowTellPanel({
                         }}
                         aria-label={labels.locate}
                       >
-                        <TouchAppRoundedIcon sx={{ fontSize: 15 }} />
+                        <TouchAppRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                       </IconButton>
                     </Tooltip>
                   </Box>
                   <Box sx={{ pt: 0.5 }}>
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 700 }}>
+                    <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', fontWeight: 700 }}>
                       {labels.directions}
                     </Typography>
                     {issue.directions.map((d) => (
-                      <Typography key={d} sx={{ fontSize: 11.5, color: 'text.primary', mt: 0.25 }}>
+                      <Typography key={d} sx={{ fontSize: uiFontSize(11.5), color: 'text.primary', mt: 0.25 }}>
                         · {d}
                       </Typography>
                     ))}
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 700, mt: 0.75 }}>
+                    <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', fontWeight: 700, mt: 0.75 }}>
                       {labels.rewriteExample}
                     </Typography>
-                    <Typography sx={{ fontSize: 12, color: 'primary.main', mt: 0.25 }}>
+                    <Typography sx={{ fontSize: uiFontSize(12), color: 'primary.main', mt: 0.25 }}>
                       {issue.rewriteExample}
                     </Typography>
                     <Box sx={{ mt: 0.75 }}>
@@ -188,7 +196,7 @@ export function ShowTellPanel({
                           size="small"
                           variant="outlined"
                           color="inherit"
-                          startIcon={<MenuBookRoundedIcon sx={{ fontSize: 15 }} />}
+                          startIcon={<MenuBookRoundedIcon sx={{ fontSize: uiFontSize(15) }} />}
                           onClick={(e) => {
                             e.stopPropagation();
                             void recallFor(issue);
@@ -198,12 +206,14 @@ export function ShowTellPanel({
                           {labels.recall}
                         </Button>
                       ) : st.loading ? (
-                        <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{labels.recalling}</Typography>
+                        <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled' }}>
+                          {labels.recalling}
+                        </Typography>
                       ) : (
                         <Box>
                           {st.examples.length > 0 ? (
                             <>
-                              <Typography sx={{ fontSize: 11, color: 'text.disabled', mb: 0.25 }}>
+                              <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mb: 0.25 }}>
                                 {labels.recalled}
                               </Typography>
                               {st.examples.slice(0, 3).map((ex, i) => (
@@ -219,15 +229,19 @@ export function ShowTellPanel({
                                     bgcolor: 'action.hover',
                                   }}
                                 >
-                                  <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>
+                                  <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled' }}>
                                     {ex.book} · {ex.chapter}
                                   </Typography>
-                                  <Typography sx={{ fontSize: 12, color: 'text.primary' }}>{ex.content}</Typography>
+                                  <Typography sx={{ fontSize: uiFontSize(12), color: 'text.primary' }}>
+                                    {ex.content}
+                                  </Typography>
                                 </Box>
                               ))}
                             </>
                           ) : (
-                            <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{labels.noRecall}</Typography>
+                            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled' }}>
+                              {labels.noRecall}
+                            </Typography>
                           )}
                         </Box>
                       )}

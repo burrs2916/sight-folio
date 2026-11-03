@@ -22,6 +22,7 @@ import TipsAndUpdatesRoundedIcon from '@mui/icons-material/TipsAndUpdatesRounded
 import TouchAppRoundedIcon from '@mui/icons-material/TouchAppRounded';
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded';
 import type { ProofreadIssue } from '../../editor/proofread/proofreadEngine';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface ProofreadPanelProps {
   open: boolean;
@@ -86,35 +87,37 @@ export function ProofreadPanel({
   const kindMeta = (i: ProofreadIssue) => {
     if (i.kind === 'typo') {
       return {
-        icon: <ErrorOutlineRoundedIcon sx={{ fontSize: 16, color: 'warning.main' }} />,
+        icon: <ErrorOutlineRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'warning.main' }} />,
         label: labels.typo,
         color: 'warning.main' as const,
       };
     }
     if (i.kind === 'repeat') {
       return {
-        icon: <RepeatRoundedIcon sx={{ fontSize: 16, color: 'info.main' }} />,
+        icon: <RepeatRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'info.main' }} />,
         label: labels.repeat,
         color: 'info.main' as const,
       };
     }
     if (i.kind === 'punct') {
       return {
-        icon: <FormatQuoteRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />,
+        icon: <FormatQuoteRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'success.main' }} />,
         label: labels.punct,
         color: 'success.main' as const,
       };
     }
     if (i.kind === 'redundant') {
       return {
-        icon: <TipsAndUpdatesRoundedIcon sx={{ fontSize: 16, color: 'secondary.main' }} />,
+        icon: <TipsAndUpdatesRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'secondary.main' }} />,
         label: labels.redundant ?? '',
         color: 'secondary.main' as const,
       };
     }
     return {
       icon: (
-        <GppBadRoundedIcon sx={{ fontSize: 16, color: i.severity === 'block' ? 'error.main' : 'secondary.main' }} />
+        <GppBadRoundedIcon
+          sx={{ fontSize: uiFontSize(16), color: i.severity === 'block' ? 'error.main' : 'secondary.main' }}
+        />
       ),
       label: labels.sensitive,
       color: 'error.main' as const,
@@ -123,20 +126,22 @@ export function ProofreadPanel({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <SpellcheckRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+      <DialogTitle sx={{ fontSize: uiFontSize(15), display: 'flex', alignItems: 'center', gap: 1 }}>
+        <SpellcheckRoundedIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>{labels.title}</Box>
         {onOpenLexicon && (
           <Tooltip title={t('writing.lexiconHint')}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Button
                 size="small"
-                startIcon={<LibraryBooksRoundedIcon sx={{ fontSize: 15 }} />}
+                startIcon={<LibraryBooksRoundedIcon sx={{ fontSize: uiFontSize(15) }} />}
                 endIcon={
-                  customEntryCount > 0 ? <Chip size="small" label={customEntryCount} sx={{ height: 16, fontSize: 11 }} /> : undefined
+                  customEntryCount > 0 ? (
+                    <Chip size="small" label={customEntryCount} sx={{ height: 16, fontSize: uiFontSize(11) }} />
+                  ) : undefined
                 }
                 onClick={onOpenLexicon}
-                sx={{ textTransform: 'none', fontSize: 12 }}
+                sx={{ textTransform: 'none', fontSize: uiFontSize(12) }}
               >
                 {t('writing.lexiconEntry')}
               </Button>
@@ -144,7 +149,7 @@ export function ProofreadPanel({
           </Tooltip>
         )}
         <IconButton size="small" onClick={onClose} aria-label={t('ui.close')}>
-          <CloseRoundedIcon sx={{ fontSize: 18 }} />
+          <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ p: 1.5, minHeight: 160, maxHeight: 420, overflowY: 'auto' }}>
@@ -173,9 +178,9 @@ export function ProofreadPanel({
         </Stack>
         {issues.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 6 }}>
-            <SpellcheckRoundedIcon sx={{ fontSize: 34, color: 'success.main', mb: 1 }} />
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{labels.empty}</Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5 }}>{labels.hint}</Typography>
+            <SpellcheckRoundedIcon sx={{ fontSize: uiFontSize(34), color: 'success.main', mb: 1 }} />
+            <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>{labels.empty}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.5 }}>{labels.hint}</Typography>
           </Box>
         ) : (
           <Stack spacing={0.75}>
@@ -204,21 +209,26 @@ export function ProofreadPanel({
                   <Box sx={{ mt: 0.15, display: 'flex', alignItems: 'center' }}>{meta.icon}</Box>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: meta.color, flexShrink: 0 }}>
+                      <Typography sx={{ fontSize: uiFontSize(11), fontWeight: 700, color: meta.color, flexShrink: 0 }}>
                         {meta.label}
                       </Typography>
                       {issue.severity === 'block' && (
-                        <Chip size="small" label={t('writing.proofreadBlock')} color="error" sx={{ height: 16, fontSize: 10 }} />
+                        <Chip
+                          size="small"
+                          label={t('writing.proofreadBlock')}
+                          color="error"
+                          sx={{ height: 16, fontSize: uiFontSize(10) }}
+                        />
                       )}
                       {issue.suggestion && (
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 0 }}>
+                        <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', minWidth: 0 }}>
                           {issue.suggestion}
                         </Typography>
                       )}
                     </Box>
                     <Typography
                       sx={{
-                        fontSize: 12.5,
+                        fontSize: uiFontSize(12.5),
                         color: 'text.primary',
                         mt: 0.25,
                         overflow: 'hidden',
@@ -241,7 +251,7 @@ export function ProofreadPanel({
                           }}
                           aria-label={labels.fix ?? 'fix'}
                         >
-                          <AutoFixHighRoundedIcon sx={{ fontSize: 15 }} />
+                          <AutoFixHighRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                         </IconButton>
                       </Tooltip>
                     )}
@@ -254,7 +264,7 @@ export function ProofreadPanel({
                         }}
                         aria-label={labels.locate}
                       >
-                        <TouchAppRoundedIcon sx={{ fontSize: 15 }} />
+                        <TouchAppRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                       </IconButton>
                     </Tooltip>
                   </Box>

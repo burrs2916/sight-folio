@@ -353,7 +353,7 @@ export function ChapterSnapshotsDialog({
                   mx: 0.5,
                   p: 1,
                   borderRadius: 1,
-                  bgcolor: 'rgba(139,92,246,0.08)',
+                  bgcolor: 'rgb(var(--template-palette-primary-mainChannel) / 0.08)',
                   border: '1px solid',
                   borderColor: 'divider',
                 }}
@@ -388,7 +388,7 @@ export function ChapterSnapshotsDialog({
                   borderRadius: 1,
                   mb: 0.5,
                   bgcolor: 'action.hover',
-                  '&:hover': { bgcolor: 'rgba(74,51,143,0.08)' },
+                  '&:hover': { bgcolor: 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' },
                 }}
               >
                 <ListItemText

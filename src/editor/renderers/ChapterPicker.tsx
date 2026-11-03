@@ -13,7 +13,6 @@ import type { WritingChapter } from '../../services/writing';
 export default function ChapterPicker({
   uniqueKey,
   chapters,
-  accent: _accent,
   onSelect,
   compact,
   width,
@@ -22,7 +21,6 @@ export default function ChapterPicker({
 }: {
   uniqueKey?: string;
   chapters: WritingChapter[];
-  accent: string;
   onSelect: (chapterId: string) => void;
   compact?: boolean;
   width?: number | string;

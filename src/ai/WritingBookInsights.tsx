@@ -34,6 +34,7 @@ import { buildBookOverview } from '../utils/writingOverview';
 import { parseSettingExtra } from '../services/writing';
 import { t } from '../i18n';
 import { logger } from '../utils/logger';
+import { AI_GRADIENT, AI_COLOR, AI_COLOR_END } from './aiBrand';
 
 /** 章节状态：completed = 已完稿（后端 status 语义，与语料库/总览同口径） */
 const isCompleted = (status: string) => status === 'completed';
@@ -201,7 +202,7 @@ export function WritingBookInsights() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'linear-gradient(135deg, #4f46e5 0%, #9333ea 100%)',
+            background: AI_GRADIENT,
             flexShrink: 0,
           }}
         >
@@ -276,7 +277,7 @@ export function WritingBookInsights() {
                     sx={{
                       height: '100%',
                       borderRadius: 3,
-                      background: 'linear-gradient(90deg, #6366f1, #a855f7)',
+                      background: `linear-gradient(90deg, ${AI_COLOR}, ${AI_COLOR_END})`,
                       width: `${progress.pct}%`,
                       transition: 'width 0.3s',
                     }}
@@ -372,7 +373,7 @@ export function WritingBookInsights() {
                     : undefined
                 }
               >
-                <Chip size="small" label={c.name} sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(99,102,241,0.08)' }} />
+                <Chip size="small" label={c.name} sx={{ height: 20, fontSize: 10, bgcolor: 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' }} />
               </Tooltip>
             ))}
           </Box>

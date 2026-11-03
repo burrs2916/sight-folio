@@ -27,6 +27,7 @@ import { t } from '../../i18n';
 import { highlight } from '../../utils/corpusHighlight';
 import { analyzeCraft, type CraftTagKey } from '../../utils/craftTags';
 import { useDragBodyGuard } from '../../hooks/useDragBodyGuard';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface CorpusReferencePanelProps {
   /** 当前输入片段（WritingPage 从编辑器 onUpdate 提取；空串 = 无输入/光标在块首且块空） */
@@ -402,8 +403,8 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
             borderColor: 'divider',
           }}
         >
-          <LocalLibraryRoundedIcon sx={{ fontSize: 15, color: 'primary.main' }} />
-          <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'primary.main' }}>
+          <LocalLibraryRoundedIcon sx={{ fontSize: uiFontSize(15), color: 'primary.main' }} />
+          <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 700, color: 'primary.main' }}>
             {t('writing.corpusTitle')}
           </Typography>
           {!searching && q && hits.length > 0 && (
@@ -412,7 +413,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
               label={t('writing.corpusHits', { n: totalHits })}
               sx={(theme) => ({
                 height: 18,
-                fontSize: 10.5,
+                fontSize: uiFontSize(10.5),
                 ml: 'auto',
                 maxWidth: 150,
                 fontWeight: 600,
@@ -423,7 +424,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
             />
           )}
           {searching && (
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', ml: 'auto' }}>
+            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', ml: 'auto' }}>
               {t('writing.corpusSearching')}
             </Typography>
           )}
@@ -437,7 +438,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
               color: 'error.contrastText',
             }}
           >
-            <Typography sx={{ fontSize: 12.5 }}>{unavailable}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(12.5) }}>{unavailable}</Typography>
           </Box>
         ) : (
           <>
@@ -455,7 +456,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                     py: 0.75,
                   })}
                 >
-                  <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: 'text.secondary', mb: 0.4 }}>
+                  <Typography sx={{ fontSize: uiFontSize(10.5), fontWeight: 700, color: 'text.secondary', mb: 0.4 }}>
                     {t('writing.corpusBookHits', { n: bookHits.length })}
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -466,7 +467,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                         label={`《${b.title}》${b.author || ''}`}
                         sx={(theme) => ({
                           height: 20,
-                          fontSize: 10.5,
+                          fontSize: uiFontSize(10.5),
                           fontWeight: 600,
                           color: theme.palette.primary.main,
                           bgcolor: coverTint(theme, theme.palette.primary.main),
@@ -517,7 +518,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 0.25, alignItems: 'center' }}>
                         <Typography
                           sx={(theme) => ({
-                            fontSize: 11,
+                            fontSize: uiFontSize(11),
                             fontWeight: 700,
                             color: theme.palette[coverKey].main,
                             flexShrink: 1,
@@ -531,9 +532,13 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                           《{h.bookTitle}》
                         </Typography>
                         {h.chapterTitle && (
-                          <Chip label={h.chapterTitle} size="small" sx={{ height: 16, fontSize: 9.5, maxWidth: 100 }} />
+                          <Chip
+                            label={h.chapterTitle}
+                            size="small"
+                            sx={{ height: 16, fontSize: uiFontSize(9.5), maxWidth: 100 }}
+                          />
                         )}
-                        <Typography sx={{ fontSize: 10, color: 'text.disabled', flexShrink: 0 }}>
+                        <Typography sx={{ fontSize: uiFontSize(10), color: 'text.disabled', flexShrink: 0 }}>
                           {t('writing.corpusSentenceSeq', { n: h.seq + 1 })}
                         </Typography>
                         {h.occurrenceCount > 1 && (
@@ -542,7 +547,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                             label={t('writing.corpusOccurrence', { n: h.occurrenceCount })}
                             sx={(theme) => ({
                               height: 16,
-                              fontSize: 9.5,
+                              fontSize: uiFontSize(9.5),
                               fontWeight: 600,
                               color: theme.palette.success.main,
                               bgcolor: coverTint(theme, theme.palette.success.main),
@@ -554,27 +559,29 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                           <Button
                             size="small"
                             variant="outlined"
-                            startIcon={<ContentCopyRoundedIcon sx={{ fontSize: 12 }} />}
+                            startIcon={<ContentCopyRoundedIcon sx={{ fontSize: uiFontSize(12) }} />}
                             onClick={() => void copyHit(h)}
-                            sx={{ minWidth: 0, px: 0.75, fontSize: 10.5 }}
+                            sx={{ minWidth: 0, px: 0.75, fontSize: uiFontSize(10.5) }}
                           >
                             {t('writing.corpusCopy')}
                           </Button>
                           <Button
                             size="small"
                             variant="contained"
-                            startIcon={<InsertDriveFileOutlinedIcon sx={{ fontSize: 12 }} />}
+                            startIcon={<InsertDriveFileOutlinedIcon sx={{ fontSize: uiFontSize(12) }} />}
                             onClick={() => {
                               onInsertText(h.content);
                               flashInserted(h.chunkId);
                             }}
-                            sx={{ minWidth: 0, px: 0.75, fontSize: 10.5 }}
+                            sx={{ minWidth: 0, px: 0.75, fontSize: uiFontSize(10.5) }}
                           >
                             {t('writing.corpusInsert')}
                           </Button>
                         </Box>
                       </Box>
-                      <Typography sx={{ fontSize: 12.5, lineHeight: 1.6 }}>{highlight(h.content, q)}</Typography>
+                      <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.6 }}>
+                        {highlight(h.content, q)}
+                      </Typography>
                       {h.referenceTier && TIER_KEYS[h.referenceTier] && (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.65 }}>
                           <Chip
@@ -582,7 +589,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                             size="small"
                             sx={(theme) => ({
                               height: 18,
-                              fontSize: 10,
+                              fontSize: uiFontSize(10),
                               fontWeight: 700,
                               color: h.referenceTier === 'high' ? theme.palette.primary.main : 'text.secondary',
                               bgcolor:
@@ -602,7 +609,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                       )}
                       {h.analysis && (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.65, alignItems: 'center' }}>
-                          <Typography sx={{ fontSize: 10.5, color: 'text.disabled', mr: 0.25 }}>
+                          <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', mr: 0.25 }}>
                             {t('writing.corpusCharCount', {
                               n: h.analysis.charCount,
                               m: h.analysis.tokenCount,
@@ -622,7 +629,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                                 minWidth: 0,
                                 px: 0.5,
                                 py: 0.25,
-                                fontSize: 10,
+                                fontSize: uiFontSize(10),
                                 textTransform: 'none',
                                 fontWeight: 700,
                                 color: 'text.secondary',
@@ -641,7 +648,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                                   label={t(CRAFT_TAG_KEYS[tag])}
                                   sx={{
                                     height: 16,
-                                    fontSize: 9,
+                                    fontSize: uiFontSize(9),
                                     color: expandedCraft === h.chunkId ? 'primary.main' : 'text.secondary',
                                   }}
                                 />
@@ -656,7 +663,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                                 py: 0.75,
                                 borderRadius: 1,
                                 bgcolor: coverTint(theme, theme.palette.primary.main),
-                                fontSize: 10.5,
+                                fontSize: uiFontSize(10.5),
                                 lineHeight: 1.7,
                                 color: 'text.primary',
                               })}
@@ -694,7 +701,13 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                           <Button
                             size="small"
                             onClick={() => setExpandedSources((prev) => (prev === h.chunkId ? null : h.chunkId))}
-                            sx={{ minWidth: 0, px: 0.5, fontSize: 10, textTransform: 'none', color: 'text.secondary' }}
+                            sx={{
+                              minWidth: 0,
+                              px: 0.5,
+                              fontSize: uiFontSize(10),
+                              textTransform: 'none',
+                              color: 'text.secondary',
+                            }}
                           >
                             {expandedSources === h.chunkId
                               ? t('writing.corpusOccurrenceLess')
@@ -706,7 +719,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                                 <Box
                                   component="li"
                                   key={oi}
-                                  sx={{ fontSize: 10.5, color: 'text.secondary', lineHeight: 1.7 }}
+                                  sx={{ fontSize: uiFontSize(10.5), color: 'text.secondary', lineHeight: 1.7 }}
                                 >
                                   {t('writing.corpusOccurrenceAt', {
                                     chapter: o.chapterTitle || t('writing.corpusUnknownChapter'),
@@ -735,7 +748,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                     py: 2,
                   })}
                 >
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', textAlign: 'center' }}>
                     {t('writing.corpusNoHits')}
                   </Typography>
                 </Box>
@@ -751,7 +764,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                     py: 2,
                   })}
                 >
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', textAlign: 'center' }}>
                     {t('writing.corpusHint')}
                   </Typography>
                 </Box>
@@ -774,7 +787,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                   bgcolor: 'background.paper',
                 }}
               >
-                <Typography sx={{ fontSize: 10.5, color: 'text.disabled', flexShrink: 0 }}>
+                <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', flexShrink: 0 }}>
                   {t('writing.corpusPageInfo', { cur: page + 1, total: pageCount })}
                 </Typography>
                 <Pagination
@@ -788,7 +801,7 @@ export function CorpusReferencePanel({ query, onInsertText, embedded = false }: 
                   }}
                   size="small"
                   sx={{
-                    '& .MuiPaginationItem-root': { fontSize: 10.5, minWidth: 22, height: 22 },
+                    '& .MuiPaginationItem-root': { fontSize: uiFontSize(10.5), minWidth: 22, height: 22 },
                   }}
                 />
               </Box>

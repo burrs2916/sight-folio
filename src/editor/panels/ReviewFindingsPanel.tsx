@@ -25,6 +25,7 @@ import { topDirOf } from "../utils/architectureMetrics";
 import { triggerDiagnosis } from "../../ai/triggerDiagnosis";
 import type { ReviewFinding } from "../../services/tauri";
 import { t } from "../../i18n";
+import { currentScrollBehavior } from '../../utils/reducedMotion';
 
 const SEVERITY_ORDER = ["critical", "warning", "info"] as const;
 
@@ -199,7 +200,7 @@ export function ReviewFindingsPanel() {
     }
     const raf = requestAnimationFrame(() => {
       const el = scrollRef.current?.querySelector<HTMLElement>(`[data-finding-id="${CSS.escape(id)}"]`);
-      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      el?.scrollIntoView({ block: "center", behavior: currentScrollBehavior() });
     });
     setFlashId(id);
     if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -351,7 +352,11 @@ export function ReviewFindingsPanel() {
             gap: 0.5,
             "& .MuiToggleButton-root": {
               border: 0,
-              borderRadius: "8px !important",
+              // 圆角挂档位：这是筛选按钮（控件外壳），此前写死 8px，切「圆角风格」纹丝不动。
+              // 保留 !important 是因为要盖过 MUI ToggleButtonGroup 给首/尾子项单独设的半径；
+              // 系数 1.33 是为了让 medium 档（base 6px）折出 7.998≈8px，与改动前逐像素一致，
+              // 而「直角」档 base=0 → 真的归零（写死 8px 或 calc(base+2px) 都做不到这一点）。
+              borderRadius: "calc(var(--app-radius-base, 6px) * 1.33) !important",
               px: 1,
               py: 0.25,
               fontSize: 10,

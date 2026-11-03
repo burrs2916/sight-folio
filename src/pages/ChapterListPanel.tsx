@@ -169,7 +169,7 @@ function ChapterListPanelInner(props: ChapterListPanelProps) {
               py: 0.6,
               borderRadius: 1.5,
               cursor: 'pointer',
-              bgcolor: selected ? 'rgba(74,51,143,0.08)' : 'transparent',
+              bgcolor: selected ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
               '&:hover': { bgcolor: 'action.hover' },
               '& .row-actions': { opacity: 0 },
               '&:hover .row-actions': { opacity: 1 },

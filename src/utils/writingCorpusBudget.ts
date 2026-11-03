@@ -33,6 +33,13 @@ export const MANUSCRIPT_PREV_COUNT = 2;
 /** 正文写作：前情提要每章截取的尾部字数 */
 export const MANUSCRIPT_TAIL_CHARS = 400;
 
+/**
+ * 当前章正文「喂模型的尾部口径」：末尾 N 字符足够接住文风与情节（超长只留尾）。
+ * 单一真源：内联续写（writingAssistant.TAIL_CHARS 即本常量的对外别名）与
+ * buildManuscriptCorpus 当前章长度闸共用，口径零第二份（第三十八轮批次1刀②）。
+ */
+export const CHAPTER_TAIL_CHARS = 3000;
+
 /** 大纲题材：念头池（未落章节拍）至多列出的条数 */
 export const MAX_LOOSE_BEATS = 30;
 

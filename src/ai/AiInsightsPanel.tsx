@@ -19,6 +19,8 @@
  */
 import { useCallback, useMemo } from "react";
 import Box from "@mui/material/Box";
+import { INSIGHT_ACCENTS, type StatusTone } from "../theme/semanticColors";
+import { useSemanticColors } from "../theme/useSemanticColors";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
@@ -39,8 +41,8 @@ import { useState } from "react";
 import { useInsightOverlayStore } from "../store/insightOverlayStore";
 import { useInsightOverlaySync } from "./useInsightOverlaySync";
 import {
-  SEVERITY_COLOR,
   SEVERITY_RANK,
+  SEVERITY_TONE,
   normalizeRefPath,
   normalizeSeverity,
   resolveMarkedPaths,
@@ -68,25 +70,26 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 /**
- * 严重度取色/取名/排序统一走 insightOverlay 的归一化 —— 画布角标与本列表必须
+ * 严重度取名/排序统一走 insightOverlay 的归一化 —— 画布角标与本列表必须
  * 同源，否则同一条洞察在两处显示成不同颜色，用户会以为是两回事。
  * DTO 里的 severity 是自由字符串（历史行什么都有），这里归一后再查表。
+ * （取色已下沉到组件内：它依赖当前明暗 + 卡片底色，见 sevColor。）
  */
-const sevColor = (raw: string) => SEVERITY_COLOR[normalizeSeverity(raw)];
 const sevLabel = (raw: string) => t("severity." + normalizeSeverity(raw));
 const sevRank = (raw: string) => SEVERITY_RANK[normalizeSeverity(raw)];
 
 /**
  * 时效配色与判断。结论会随代码变化而失效——没有时效，沉淀就只会单调增长，
  * 改完的问题继续挂在面板上误导人，Agent 每轮还把已经不成立的结论重读一遍（烧 token）。
- * 这里把后端算好的 freshness 映射成面板能用的颜色，并抽出「待复核」判定（stale/orphaned）。
+ * 这里把后端算好的 freshness 映射成语义族，并抽出「待复核」判定（stale/orphaned）。
+ * 具体色值随明暗派生（面板里它既作文字又作淡底），不写死字面量。
  */
-const FRESHNESS_COLOR: Record<string, string> = {
-  current: "#16a34a",
-  stale: "#d97706",
-  orphaned: "#64748b",
-  unanchored: "#0891b2",
-  unknown: "#94a3b8",
+const FRESHNESS_TONE: Record<string, StatusTone> = {
+  current: "success",
+  stale: "warning",
+  orphaned: "neutral",
+  unanchored: "cyan",
+  unknown: "neutral",
 };
 
 /** stale（证据变了）或 orphaned（证据没了）都意味着这条结论站不住了，必须复核 */
@@ -110,6 +113,13 @@ const relTime = (ts?: number): string => {
 };
 
 export function AiInsightsPanel({ analysisId, compact = false }: Props) {
+  // 语义状态色的实际取值随「当前明暗 + 卡片底色」派生：同一档在深色底上自动换成偏亮的前景，
+  // 浅色底上换成偏深的前景，并保证对自身淡底仍满足 4.5:1（见 theme/semanticColors.ts）。
+  const T = useSemanticColors().tone;
+  const sevTone = (raw: string) => SEVERITY_TONE[normalizeSeverity(raw)];
+  const sevColor = (raw: string) => T[sevTone(raw)].color;
+  const freshTone = (raw?: string | null) => FRESHNESS_TONE[normalizeFreshness(raw ?? undefined)];
+
   const insights = useInsightOverlayStore((s) => s.insights);
   const loading = useInsightOverlayStore((s) => s.loading);
   const unresolved = useInsightOverlayStore((s) => s.unresolved);
@@ -251,11 +261,11 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            bgcolor: "rgba(234,179,8,0.12)",
+            bgcolor: T[INSIGHT_ACCENTS.insight].bg,
             flexShrink: 0,
           }}
         >
-          <LightbulbOutlinedIcon sx={{ fontSize: compact ? 16 : 18, color: "#ca8a04" }} />
+          <LightbulbOutlinedIcon sx={{ fontSize: compact ? 16 : 18, color: T[INSIGHT_ACCENTS.insight].color }} />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontSize: fs(13), fontWeight: 700, lineHeight: 1.2 }}>
@@ -307,7 +317,7 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
                   fontSize: fs(10),
                   fontWeight: 600,
                   color: sevColor(sev),
-                  bgcolor: `${sevColor(sev)}1f`,
+                  bgcolor: T[sevTone(sev)].bg,
                   border: "none",
                 }}
               />
@@ -323,15 +333,16 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
           {(
             [
               { key: "all" as const, label: t("aiPanel.filter.all"), count: openInsights.length, color: undefined },
-              { key: "review" as const, label: t("aiPanel.filter.review"), count: freshCounts.review, color: "#d97706" },
-              { key: "current" as const, label: t("aiPanel.filter.current"), count: freshCounts.current, color: "#16a34a" },
-              { key: "unanchored" as const, label: t("aiPanel.filter.unanchored"), count: freshCounts.unanchored, color: "#0891b2" },
-              { key: "unknown" as const, label: t("aiPanel.filter.unknown"), count: freshCounts.unknown, color: "#94a3b8" },
-              { key: "resolved" as const, label: t("aiPanel.filter.resolved"), count: resolvedInsights.length, color: "#16a34a" },
+              { key: "review" as const, label: t("aiPanel.filter.review"), count: freshCounts.review, color: "warning" as const },
+              { key: "current" as const, label: t("aiPanel.filter.current"), count: freshCounts.current, color: "success" as const },
+              { key: "unanchored" as const, label: t("aiPanel.filter.unanchored"), count: freshCounts.unanchored, color: "cyan" as const },
+              { key: "unknown" as const, label: t("aiPanel.filter.unknown"), count: freshCounts.unknown, color: "neutral" as const },
+              { key: "resolved" as const, label: t("aiPanel.filter.resolved"), count: resolvedInsights.length, color: "success" as const },
             ] as const
           ).map((f) => {
             const active = freshFilter === f.key;
-            const color = f.color ?? "text.secondary";
+            const tint = f.color ? T[f.color] : null;
+            const color = tint ? tint.color : "text.secondary";
             return (
               <Tooltip
                 key={f.key}
@@ -353,7 +364,7 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
                     fontWeight: active ? 700 : 500,
                     cursor: "pointer",
                     color: active ? color : "text.secondary",
-                    bgcolor: active && f.color ? `${color}1f` : "transparent",
+                    bgcolor: active && tint ? tint.bg : "transparent",
                     border: active ? "none" : "1px solid",
                     borderColor: active ? "transparent" : "divider",
                   }}
@@ -454,8 +465,8 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
                           sx={{
                             fontSize: fs(9),
                             fontWeight: 700,
-                            color: FRESHNESS_COLOR[normalizeFreshness(ins.freshness)],
-                            bgcolor: `${FRESHNESS_COLOR[normalizeFreshness(ins.freshness)]}1f`,
+                            color: T[freshTone(ins.freshness)].color,
+                            bgcolor: T[freshTone(ins.freshness)].bg,
                             px: 0.5,
                             borderRadius: 0.5,
                           }}
@@ -470,8 +481,8 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
                           sx={{
                             fontSize: fs(9),
                             fontWeight: 700,
-                            color: "#0ea5e9",
-                            bgcolor: "rgba(14,165,233,0.12)",
+                            color: T[INSIGHT_ACCENTS.confirmed].color,
+                            bgcolor: T[INSIGHT_ACCENTS.confirmed].bg,
                             px: 0.5,
                             borderRadius: 0.5,
                           }}
@@ -508,7 +519,7 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
                   </Typography>
                   {ins.changedRefs && ins.changedRefs.length > 0 && (
                     <Box sx={{ mt: 0.5 }}>
-                      <Typography sx={{ fontSize: fs(9), fontWeight: 600, color: FRESHNESS_COLOR.stale }}>
+                      <Typography sx={{ fontSize: fs(9), fontWeight: 600, color: T[FRESHNESS_TONE.stale].color }}>
                         {t("aiPanel.insights.evidenceChanged")}
                       </Typography>
                       <Tooltip title={ins.changedRefs.join("\n")}>
@@ -523,7 +534,7 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
                   )}
                   {ins.missingRefs && ins.missingRefs.length > 0 && (
                     <Box sx={{ mt: 0.5 }}>
-                      <Typography sx={{ fontSize: fs(9), fontWeight: 600, color: FRESHNESS_COLOR.orphaned }}>
+                      <Typography sx={{ fontSize: fs(9), fontWeight: 600, color: T[FRESHNESS_TONE.orphaned].color }}>
                         {t("aiPanel.insights.evidenceGone")}
                       </Typography>
                       <Tooltip title={ins.missingRefs.join("\n")}>
@@ -584,7 +595,7 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
                       理由必填（后端同样强校验）：没有依据的关闭只是把问题藏起来。 */}
                   {ins.status === "resolved" ? (
                     <Box sx={{ mt: 0.75 }}>
-                      <Typography sx={{ fontSize: fs(9), fontWeight: 700, color: "#16a34a" }}>
+                      <Typography sx={{ fontSize: fs(9), fontWeight: 700, color: T.success.color }}>
                         {t("aiPanel.insights.resolvedAt", { time: relTime(ins.resolvedAt) })}
                         {ins.resolvedBy
                           ? t("aiPanel.insights.resolvedBy", { name: ins.resolvedBy })
@@ -648,10 +659,10 @@ export function AiInsightsPanel({ analysisId, compact = false }: Props) {
                           fontSize: fs(10),
                           fontWeight: 600,
                           cursor: "pointer",
-                          color: "#16a34a",
-                          bgcolor: "rgba(22,163,74,0.12)",
+                          color: T[INSIGHT_ACCENTS.adopted].color,
+                          bgcolor: T[INSIGHT_ACCENTS.adopted].bg,
                           "& .MuiChip-label": { px: 0.75 },
-                          "& .MuiChip-icon": { color: "#16a34a" },
+                          "& .MuiChip-icon": { color: T[INSIGHT_ACCENTS.adopted].color },
                         }}
                       />
                     </Tooltip>

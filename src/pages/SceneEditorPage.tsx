@@ -67,6 +67,8 @@ import { useProjectStore } from '../store/projectStore';
 import { projectScanApi, spawnCodeWorkbench, writingScanApi, type AssetInfo } from '../services/tauri';
 import { createBookNamed, importBookFromDialog, openBookInStudio, parseBookIdFromRoot } from '../utils/studioBook';
 import { genreLabelKey, mediumLabelKey, genreDef } from '../utils/writingSchema';
+import { BookStatusChip } from './BookStatusControl';
+import { BookInfoDialog } from './BookInfoDialog';
 import { NewBookDialog, type NewBookResult } from './NewBookDialog';
 import { openWritingDesk as openWritingDeskWindow } from '../utils/writingDeskWindow';
 import { buildBookOverview } from '../utils/bookOverview';
@@ -94,7 +96,9 @@ import { runPortrait, type PortraitKind } from '../editor/utils/portraits';
 import { CommandPalette, type WorkbenchCommand } from '../editor/panels/CommandPalette';
 import { t, getLang } from '../i18n';
 import { formatBigCount } from '../utils/formatCount';
-import { PORTRAIT_ICON_COLORS, PORTRAIT_FALLBACK_COLOR, WATCHING_STATUS_COLOR } from '../theme/categoryColors';
+import { PORTRAIT_ICON_COLORS, PORTRAIT_FALLBACK_COLOR } from '../theme/categoryColors';
+import { useSemanticColors } from '../theme/useSemanticColors';
+import { uiFontSize } from '../theme/appearanceScales';
 
 /**
  * 写作预设画板（H1/H5）
@@ -124,21 +128,21 @@ const BOARD_MENU: {
     kind: 'overview',
     labelKey: 'editorPage.board.overview.label',
     descKey: 'editorPage.board.overview.desc',
-    icon: <AccountTreeIcon sx={{ fontSize: 17 }} />,
+    icon: <AccountTreeIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.violet,
   },
   {
     kind: 'storyboard',
     labelKey: 'editorPage.board.storyboard.label',
     descKey: 'editorPage.board.storyboard.desc',
-    icon: <ViewCarouselIcon sx={{ fontSize: 17 }} />,
+    icon: <ViewCarouselIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.violet,
   },
   {
     kind: 'relation',
     labelKey: 'editorPage.board.relation.label',
     descKey: 'editorPage.board.relation.desc',
-    icon: <HubIcon sx={{ fontSize: 17 }} />,
+    icon: <HubIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.amber,
   },
 ];
@@ -165,7 +169,7 @@ const PORTRAIT_MENU: {
     kind: 'directory',
     labelKey: 'editorPage.portrait.directory.label',
     descKey: 'editorPage.portrait.directory.desc',
-    icon: <FolderSpecialIcon sx={{ fontSize: 17 }} />,
+    icon: <FolderSpecialIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.amber,
   },
   {
@@ -173,7 +177,7 @@ const PORTRAIT_MENU: {
     kind: 'moduleGraph',
     labelKey: 'editorPage.portrait.moduleGraph.label',
     descKey: 'editorPage.portrait.moduleGraph.desc',
-    icon: <HubIcon sx={{ fontSize: 17 }} />,
+    icon: <HubIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.violet,
   },
   {
@@ -181,7 +185,7 @@ const PORTRAIT_MENU: {
     kind: 'symbols',
     labelKey: 'editorPage.portrait.symbols.label',
     descKey: 'editorPage.portrait.symbols.desc',
-    icon: <CodeIcon sx={{ fontSize: 17 }} />,
+    icon: <CodeIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.blue,
   },
   {
@@ -189,7 +193,7 @@ const PORTRAIT_MENU: {
     kind: 'dependency',
     labelKey: 'editorPage.portrait.dependency.label',
     descKey: 'editorPage.portrait.dependency.desc',
-    icon: <AccountTreeIcon sx={{ fontSize: 17 }} />,
+    icon: <AccountTreeIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.indigo,
   },
   {
@@ -197,7 +201,7 @@ const PORTRAIT_MENU: {
     kind: 'changeCoupling',
     labelKey: 'editorPage.portrait.changeCoupling.label',
     descKey: 'editorPage.portrait.changeCoupling.desc',
-    icon: <LinkIcon sx={{ fontSize: 17 }} />,
+    icon: <LinkIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.amber,
   },
   {
@@ -205,7 +209,7 @@ const PORTRAIT_MENU: {
     kind: 'coupling',
     labelKey: 'editorPage.portrait.coupling.label',
     descKey: 'editorPage.portrait.coupling.desc',
-    icon: <ScatterPlotIcon sx={{ fontSize: 17 }} />,
+    icon: <ScatterPlotIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.fuchsia,
   },
   {
@@ -213,7 +217,7 @@ const PORTRAIT_MENU: {
     kind: 'layering',
     labelKey: 'editorPage.portrait.layering.label',
     descKey: 'editorPage.portrait.layering.desc',
-    icon: <LayersIcon sx={{ fontSize: 17 }} />,
+    icon: <LayersIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.sky,
   },
   {
@@ -221,7 +225,7 @@ const PORTRAIT_MENU: {
     kind: 'architecture',
     labelKey: 'editorPage.portrait.architecture.label',
     descKey: 'editorPage.portrait.architecture.desc',
-    icon: <AccountTreeIcon sx={{ fontSize: 17 }} />,
+    icon: <AccountTreeIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.indigo,
   },
   {
@@ -229,7 +233,7 @@ const PORTRAIT_MENU: {
     kind: 'callGraph',
     labelKey: 'editorPage.portrait.callGraph.label',
     descKey: 'editorPage.portrait.callGraph.desc',
-    icon: <HubIcon sx={{ fontSize: 17 }} />,
+    icon: <HubIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.violet,
   },
   {
@@ -237,7 +241,7 @@ const PORTRAIT_MENU: {
     kind: 'dataFlow',
     labelKey: 'editorPage.portrait.dataFlow.label',
     descKey: 'editorPage.portrait.dataFlow.desc',
-    icon: <WaterfallChartIcon sx={{ fontSize: 17 }} />,
+    icon: <WaterfallChartIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.teal,
   },
   {
@@ -245,7 +249,7 @@ const PORTRAIT_MENU: {
     kind: 'executionFlow',
     labelKey: 'editorPage.portrait.executionFlow.label',
     descKey: 'editorPage.portrait.executionFlow.desc',
-    icon: <AccountTreeIcon sx={{ fontSize: 17 }} />,
+    icon: <AccountTreeIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.green,
   },
   {
@@ -253,7 +257,7 @@ const PORTRAIT_MENU: {
     kind: 'apiTrace',
     labelKey: 'editorPage.portrait.apiTrace.label',
     descKey: 'editorPage.portrait.apiTrace.desc',
-    icon: <ApiIcon sx={{ fontSize: 17 }} />,
+    icon: <ApiIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.blue,
   },
   {
@@ -261,7 +265,7 @@ const PORTRAIT_MENU: {
     kind: 'taintFlow',
     labelKey: 'editorPage.portrait.taintFlow.label',
     descKey: 'editorPage.portrait.taintFlow.desc',
-    icon: <CoronavirusIcon sx={{ fontSize: 17 }} />,
+    icon: <CoronavirusIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.red,
   },
   {
@@ -269,7 +273,7 @@ const PORTRAIT_MENU: {
     kind: 'patterns',
     labelKey: 'editorPage.portrait.patterns.label',
     descKey: 'editorPage.portrait.patterns.desc',
-    icon: <AutoAwesomeMosaicIcon sx={{ fontSize: 17 }} />,
+    icon: <AutoAwesomeMosaicIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.cyan,
   },
   { key: 'h2', labelKey: 'editorPage.portrait.h2', divider: true },
@@ -278,7 +282,7 @@ const PORTRAIT_MENU: {
     kind: 'hotspotFunctions',
     labelKey: 'editorPage.portrait.hotspotFunctions.label',
     descKey: 'editorPage.portrait.hotspotFunctions.desc',
-    icon: <LocalFireDepartmentIcon sx={{ fontSize: 17 }} />,
+    icon: <LocalFireDepartmentIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.red,
   },
   {
@@ -286,7 +290,7 @@ const PORTRAIT_MENU: {
     kind: 'quadrant',
     labelKey: 'editorPage.portrait.quadrant.label',
     descKey: 'editorPage.portrait.quadrant.desc',
-    icon: <GridViewIcon sx={{ fontSize: 17 }} />,
+    icon: <GridViewIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.purple,
   },
   {
@@ -294,7 +298,7 @@ const PORTRAIT_MENU: {
     kind: 'complexity',
     labelKey: 'editorPage.portrait.complexity.label',
     descKey: 'editorPage.portrait.complexity.desc',
-    icon: <WhatshotIcon sx={{ fontSize: 17 }} />,
+    icon: <WhatshotIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.orange,
   },
   {
@@ -302,7 +306,7 @@ const PORTRAIT_MENU: {
     kind: 'risk',
     labelKey: 'editorPage.portrait.risk.label',
     descKey: 'editorPage.portrait.risk.desc',
-    icon: <GppMaybeIcon sx={{ fontSize: 17 }} />,
+    icon: <GppMaybeIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.red,
   },
   {
@@ -310,7 +314,7 @@ const PORTRAIT_MENU: {
     kind: 'techDebt',
     labelKey: 'editorPage.portrait.techDebt.label',
     descKey: 'editorPage.portrait.techDebt.desc',
-    icon: <BuildIcon sx={{ fontSize: 17 }} />,
+    icon: <BuildIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.amber,
   },
   {
@@ -318,7 +322,7 @@ const PORTRAIT_MENU: {
     kind: 'churn',
     labelKey: 'editorPage.portrait.churn.label',
     descKey: 'editorPage.portrait.churn.desc',
-    icon: <TrendingUpIcon sx={{ fontSize: 17 }} />,
+    icon: <TrendingUpIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.pink,
   },
   {
@@ -326,7 +330,7 @@ const PORTRAIT_MENU: {
     kind: 'duplication',
     labelKey: 'editorPage.portrait.duplication.label',
     descKey: 'editorPage.portrait.duplication.desc',
-    icon: <ContentCopyIcon sx={{ fontSize: 17 }} />,
+    icon: <ContentCopyIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.teal,
   },
   {
@@ -334,7 +338,7 @@ const PORTRAIT_MENU: {
     kind: 'deadCode',
     labelKey: 'editorPage.portrait.deadCode.label',
     descKey: 'editorPage.portrait.deadCode.desc',
-    icon: <BlockIcon sx={{ fontSize: 17 }} />,
+    icon: <BlockIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.slate,
   },
   {
@@ -342,7 +346,7 @@ const PORTRAIT_MENU: {
     kind: 'syntax',
     labelKey: 'editorPage.portrait.syntax.label',
     descKey: 'editorPage.portrait.syntax.desc',
-    icon: <ErrorOutlinedIcon sx={{ fontSize: 17 }} />,
+    icon: <ErrorOutlinedIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.red,
   },
   { key: 'h3', labelKey: 'editorPage.portrait.h3', divider: true },
@@ -351,7 +355,7 @@ const PORTRAIT_MENU: {
     kind: 'testCoverage',
     labelKey: 'editorPage.portrait.testCoverage.label',
     descKey: 'editorPage.portrait.testCoverage.desc',
-    icon: <VerifiedIcon sx={{ fontSize: 17 }} />,
+    icon: <VerifiedIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.green,
   },
   {
@@ -359,7 +363,7 @@ const PORTRAIT_MENU: {
     kind: 'security',
     labelKey: 'editorPage.portrait.security.label',
     descKey: 'editorPage.portrait.security.desc',
-    icon: <SecurityIcon sx={{ fontSize: 17 }} />,
+    icon: <SecurityIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.red,
   },
   {
@@ -367,7 +371,7 @@ const PORTRAIT_MENU: {
     kind: 'apiSurface',
     labelKey: 'editorPage.portrait.apiSurface.label',
     descKey: 'editorPage.portrait.apiSurface.desc',
-    icon: <ApiIcon sx={{ fontSize: 17 }} />,
+    icon: <ApiIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.cyan,
   },
   {
@@ -375,7 +379,7 @@ const PORTRAIT_MENU: {
     kind: 'busFactor',
     labelKey: 'editorPage.portrait.busFactor.label',
     descKey: 'editorPage.portrait.busFactor.desc',
-    icon: <GroupsIcon sx={{ fontSize: 17 }} />,
+    icon: <GroupsIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.fuchsia,
   },
   {
@@ -383,7 +387,7 @@ const PORTRAIT_MENU: {
     kind: 'ripple',
     labelKey: 'editorPage.portrait.ripple.label',
     descKey: 'editorPage.portrait.ripple.desc',
-    icon: <ShareIcon sx={{ fontSize: 17 }} />,
+    icon: <ShareIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.sky,
   },
   {
@@ -391,7 +395,7 @@ const PORTRAIT_MENU: {
     kind: 'docsCoverage',
     labelKey: 'editorPage.portrait.docsCoverage.label',
     descKey: 'editorPage.portrait.docsCoverage.desc',
-    icon: <MenuBookIcon sx={{ fontSize: 17 }} />,
+    icon: <MenuBookIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.amber,
   },
   {
@@ -399,7 +403,7 @@ const PORTRAIT_MENU: {
     kind: 'errorHandling',
     labelKey: 'editorPage.portrait.errorHandling.label',
     descKey: 'editorPage.portrait.errorHandling.desc',
-    icon: <BugReportIcon sx={{ fontSize: 17 }} />,
+    icon: <BugReportIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.orange,
   },
   {
@@ -407,7 +411,7 @@ const PORTRAIT_MENU: {
     kind: 'logging',
     labelKey: 'editorPage.portrait.logging.label',
     descKey: 'editorPage.portrait.logging.desc',
-    icon: <TerminalIcon sx={{ fontSize: 17 }} />,
+    icon: <TerminalIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.slate,
   },
   {
@@ -415,7 +419,7 @@ const PORTRAIT_MENU: {
     kind: 'commentRatio',
     labelKey: 'editorPage.portrait.commentRatio.label',
     descKey: 'editorPage.portrait.commentRatio.desc',
-    icon: <CommentIcon sx={{ fontSize: 17 }} />,
+    icon: <CommentIcon sx={{ fontSize: uiFontSize(17) }} />,
     color: PORTRAIT_ICON_COLORS.teal,
   },
 ];
@@ -431,6 +435,9 @@ export default function SceneEditorPage() {
   const activeSceneId = useSceneStore((s) => s.activeSceneId);
   const scenes = useSceneStore((s) => s.scenes);
   const updateScene = useSceneStore((s) => s.updateScene);
+
+  // T5：监视状态胶囊的语义色（success 族）按当前明暗 + 卡片底派生，替代写死的绿色字面量（旧 #4caf50 系）
+  const T = useSemanticColors().tone;
 
   const activeScene = scenes.find((s) => s.id === activeSceneId) ?? null;
 
@@ -828,6 +835,8 @@ export default function SceneEditorPage() {
   // 羽化 P：新建改走命名向导（NewBookDialog → createBookNamed），干掉「新建作品 N」丑默认名；
   // 导入仍走系统对话框。
   const [newBookOpen, setNewBookOpen] = useState(false);
+  // 「作品信息」对话框（插单七）：顶栏带文字按钮的落点，写路径仍是 writingStore.setBookMeta
+  const [bookInfoOpen, setBookInfoOpen] = useState(false);
   const handleNewBookInStudio = () => setNewBookOpen(true);
   const handleBookCreated = (book: NewBookResult) => {
     // F7：不跳写作台 —— 书=场景，createBookNamed 已落支撑场景并 setActiveScene，
@@ -1088,7 +1097,7 @@ export default function SceneEditorPage() {
           gap: 1,
         }}
       >
-        <AccountTreeIcon sx={{ fontSize: 56, opacity: 0.25 }} />
+        <AccountTreeIcon sx={{ fontSize: uiFontSize(56), opacity: 0.25 }} />
         <Typography variant="h6" sx={{ fontWeight: 500 }}>
           {t('editorPage.noAnalysisTitle')}
         </Typography>
@@ -1098,7 +1107,7 @@ export default function SceneEditorPage() {
           <Button
             variant="contained"
             size="small"
-            startIcon={<MenuBookRoundedIcon sx={{ fontSize: 16 }} />}
+            startIcon={<MenuBookRoundedIcon sx={{ fontSize: uiFontSize(16) }} />}
             onClick={() => void handleNewBookInStudio()}
           >
             {t('studio.newBook')}
@@ -1106,7 +1115,7 @@ export default function SceneEditorPage() {
           <Button
             variant="outlined"
             size="small"
-            startIcon={<UploadFileRoundedIcon sx={{ fontSize: 16 }} />}
+            startIcon={<UploadFileRoundedIcon sx={{ fontSize: uiFontSize(16) }} />}
             onClick={() => void handleImportBookInStudio()}
           >
             {t('studio.importBook')}
@@ -1684,7 +1693,7 @@ export default function SceneEditorPage() {
               size="small"
               variant="contained"
               color="warning"
-              startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
+              startIcon={<RefreshIcon sx={{ fontSize: uiFontSize(14) }} />}
               onClick={handleScan}
               disabled={!activeScene?.projectRoot}
             >
@@ -1723,8 +1732,7 @@ export default function SceneEditorPage() {
           flexShrink: 0,
           borderBottom: 1,
           borderColor: 'divider',
-          backgroundColor: (theme) =>
-            theme.palette.mode === 'dark' ? 'rgba(18, 18, 24, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          backgroundColor: (theme) => 'rgb(var(--template-palette-background-paperChannel) / 0.95)',
         }}
       >
         {isBookScene ? (
@@ -1774,7 +1782,7 @@ export default function SceneEditorPage() {
                     color: activeBookGenreColor,
                   }}
                 >
-                  <MenuBookRoundedIcon sx={{ fontSize: 15 }} />
+                  <MenuBookRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                 </Box>
                 {/* 书名 = 作品身份：flexShrink: 0 保证不被挤压裁断；超长时才省略，
                   并始终可用悬停看到完整书名（MUI Tooltip 取代原生 title，即时且可读）。 */}
@@ -1784,7 +1792,7 @@ export default function SceneEditorPage() {
                     sx={{
                       color: 'text.primary',
                       fontWeight: 700,
-                      fontSize: 13,
+                      fontSize: uiFontSize(13),
                       flexShrink: 0,
                       maxWidth: 360,
                       overflow: 'hidden',
@@ -1811,7 +1819,7 @@ export default function SceneEditorPage() {
                       label={t(genreLabelKey(activeBook.genre))}
                       sx={{
                         height: 20,
-                        fontSize: 11,
+                        fontSize: uiFontSize(11),
                         fontWeight: 600,
                         bgcolor: `${activeBookGenreColor}1f`,
                         color: activeBookGenreColor,
@@ -1824,21 +1832,37 @@ export default function SceneEditorPage() {
                       label={t(mediumLabelKey(activeBook.medium))}
                       sx={{
                         height: 20,
-                        fontSize: 11,
+                        fontSize: uiFontSize(11),
                         color: 'text.secondary',
                         borderColor: 'divider',
                         '& .MuiChip-label': { px: 1 },
                       }}
                     />
-                    <Chip
-                      size="small"
-                      variant={activeBook.status === 'finished' ? 'filled' : 'outlined'}
-                      color={activeBook.status === 'finished' ? 'success' : 'default'}
-                      label={
-                        activeBook.status === 'finished' ? t('dashboard.statusFinished') : t('dashboard.statusOngoing')
-                      }
-                      sx={{ height: 20, fontSize: 11, '& .MuiChip-label': { px: 1 } }}
+                    <BookStatusChip
+                      bookId={activeBook.id}
+                      status={activeBook.status}
+                      chipSx={{ height: 20, fontSize: uiFontSize(11), '& .MuiChip-label': { px: 1 } }}
                     />
+                    {/* 插单七：状态/体裁/载体的明示入口。此前只有一枚看着像徽章的 chip 可点，
+                        李先生驳回「谁知道该怎么改」——顶栏这枚按钮自己写着它干什么。 */}
+                    <Button
+                      size="small"
+                      onClick={() => setBookInfoOpen(true)}
+                      sx={{
+                        height: 20,
+                        minHeight: 0,
+                        px: 0.75,
+                        textTransform: 'none',
+                        fontSize: uiFontSize(11),
+                        color: 'text.secondary',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        '&:hover': { color: 'primary.main', borderColor: 'primary.main' },
+                      }}
+                    >
+                      {t('writing.bookInfo.title')}
+                    </Button>
                   </Box>
                 )}
                 <Box sx={{ width: '1px', height: 16, bgcolor: 'divider', mx: 0.25, flexShrink: 0 }} />
@@ -1877,7 +1901,7 @@ export default function SceneEditorPage() {
                     sx={{ position: 'relative' }}
                     aria-label={t('editorPage.layerManageTipBook')}
                   >
-                    <LayersIcon sx={{ fontSize: 14 }} />
+                    <LayersIcon sx={{ fontSize: uiFontSize(14) }} />
                     {(isBookScene ? bookChapters.length : layers.length) > 0 && (
                       <Box
                         sx={{
@@ -1889,7 +1913,7 @@ export default function SceneEditorPage() {
                           borderRadius: 6,
                           bgcolor: 'primary.main',
                           color: 'common.white',
-                          fontSize: 8,
+                          fontSize: uiFontSize(8),
                           fontWeight: 600,
                           display: 'flex',
                           alignItems: 'center',
@@ -1908,7 +1932,7 @@ export default function SceneEditorPage() {
                     onClick={() => void handleImportBookInStudio()}
                     aria-label={t('studio.importBookTip')}
                   >
-                    <UploadFileRoundedIcon sx={{ fontSize: 14 }} />
+                    <UploadFileRoundedIcon sx={{ fontSize: uiFontSize(14) }} />
                   </IconButton>
                 </Tooltip>
               </Box>
@@ -1926,7 +1950,7 @@ export default function SceneEditorPage() {
                           ? 'warning.main'
                           : 'info.main',
                     color: 'common.white',
-                    fontSize: 10,
+                    fontSize: uiFontSize(10),
                   }}
                 >
                   {t('editorPage.totalFindings', { n: findings.length })}
@@ -1938,7 +1962,7 @@ export default function SceneEditorPage() {
           </>
         ) : (
           <>
-            <FolderOpenIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+            <FolderOpenIcon sx={{ fontSize: uiFontSize(16), color: 'primary.main' }} />
             <Typography
               variant="caption"
               sx={{
@@ -1955,7 +1979,7 @@ export default function SceneEditorPage() {
             </Typography>
             <Tooltip title={t('editorPage.selectRoot')}>
               <IconButton size="small" onClick={handleSelectRoot} aria-label={t('editorPage.selectRoot')}>
-                <FolderOpenIcon sx={{ fontSize: 14 }} />
+                <FolderOpenIcon sx={{ fontSize: uiFontSize(14) }} />
               </IconButton>
             </Tooltip>
           </>
@@ -1970,7 +1994,7 @@ export default function SceneEditorPage() {
               disabled={!activeSceneId}
               aria-label={t('editorPage.scanSettingsTip')}
             >
-              <TuneIcon sx={{ fontSize: 14 }} />
+              <TuneIcon sx={{ fontSize: uiFontSize(14) }} />
             </IconButton>
           </Tooltip>
         )}
@@ -1985,7 +2009,7 @@ export default function SceneEditorPage() {
               sx={{ position: 'relative' }}
               aria-label={t('editorPage.layerManageTip')}
             >
-              <LayersIcon sx={{ fontSize: 14 }} />
+              <LayersIcon sx={{ fontSize: uiFontSize(14) }} />
               {layers.length > 0 && (
                 <Box
                   sx={{
@@ -1997,7 +2021,7 @@ export default function SceneEditorPage() {
                     borderRadius: 6,
                     bgcolor: 'primary.main',
                     color: 'common.white',
-                    fontSize: 8,
+                    fontSize: uiFontSize(8),
                     fontWeight: 600,
                     display: 'flex',
                     alignItems: 'center',
@@ -2020,7 +2044,7 @@ export default function SceneEditorPage() {
               <Button
                 size="small"
                 sx={{ minWidth: 0, px: 1 }}
-                startIcon={<MenuBookRoundedIcon sx={{ fontSize: 14 }} />}
+                startIcon={<MenuBookRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
                 onClick={() => void handleNewBookInStudio()}
               >
                 {!compact && t('studio.newBook')}
@@ -2030,7 +2054,7 @@ export default function SceneEditorPage() {
               <Button
                 size="small"
                 sx={{ minWidth: 0, px: 1 }}
-                startIcon={<UploadFileRoundedIcon sx={{ fontSize: 14 }} />}
+                startIcon={<UploadFileRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
                 onClick={() => void handleImportBookInStudio()}
               >
                 {!compact && t('studio.importBook')}
@@ -2056,8 +2080,8 @@ export default function SceneEditorPage() {
                     px: 0.75,
                     py: 0.25,
                     borderRadius: 1,
-                    bgcolor: 'rgba(76, 175, 80, 0.12)',
-                    border: '1px solid rgba(76, 175, 80, 0.35)',
+                    bgcolor: T.success.tint,
+                    border: `1px solid ${T.success.border}`,
                     cursor: 'default',
                   }}
                 >
@@ -2067,7 +2091,7 @@ export default function SceneEditorPage() {
                       width: 8,
                       height: 8,
                       borderRadius: '50%',
-                      bgcolor: WATCHING_STATUS_COLOR,
+                      bgcolor: T.success.color,
                       animation: 'watchPulse 1.5s ease-in-out infinite',
                       '@keyframes watchPulse': {
                         '0%': { opacity: 1, transform: 'scale(1)' },
@@ -2076,7 +2100,10 @@ export default function SceneEditorPage() {
                       },
                     }}
                   />
-                  <Typography variant="caption" sx={{ fontSize: 10, color: WATCHING_STATUS_COLOR, fontWeight: 600 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: uiFontSize(10), color: T.success.color, fontWeight: 600 }}
+                  >
                     {t('editorPage.watching')}
                   </Typography>
                   {recentChanges.length > 0 && (
@@ -2087,9 +2114,9 @@ export default function SceneEditorPage() {
                           height: 16,
                           px: 0.5,
                           borderRadius: 8,
-                          bgcolor: WATCHING_STATUS_COLOR,
+                          bgcolor: T.success.fill,
                           color: 'common.white',
-                          fontSize: 9,
+                          fontSize: uiFontSize(9),
                           fontWeight: 600,
                           display: 'flex',
                           alignItems: 'center',
@@ -2111,7 +2138,7 @@ export default function SceneEditorPage() {
                   }}
                   aria-label={t('editorPage.stopWatch')}
                 >
-                  <VisibilityOffIcon sx={{ fontSize: 14 }} />
+                  <VisibilityOffIcon sx={{ fontSize: uiFontSize(14) }} />
                 </IconButton>
               </Tooltip>
             </>
@@ -2122,7 +2149,7 @@ export default function SceneEditorPage() {
                 onClick={() => activeSceneId && startWatching(activeSceneId, projectRoot)}
                 aria-label={t('editorPage.watchingTip')}
               >
-                <VisibilityIcon sx={{ fontSize: 14 }} />
+                <VisibilityIcon sx={{ fontSize: uiFontSize(14) }} />
               </IconButton>
             </Tooltip>
           ))}
@@ -2174,7 +2201,7 @@ export default function SceneEditorPage() {
                           ? t('editorPage.incremental', { n: scanChangedCount })
                           : t('editorPage.incrementalPlain')
                       }
-                      sx={{ fontSize: 10, height: 20, '& .MuiChip-label': { px: 0.75 } }}
+                      sx={{ fontSize: uiFontSize(10), height: 20, '& .MuiChip-label': { px: 0.75 } }}
                     />
                   ) : (
                     <Chip
@@ -2182,7 +2209,7 @@ export default function SceneEditorPage() {
                       color="default"
                       variant="outlined"
                       label={t('editorPage.fullScan')}
-                      sx={{ fontSize: 10, height: 20, '& .MuiChip-label': { px: 0.75 } }}
+                      sx={{ fontSize: uiFontSize(10), height: 20, '& .MuiChip-label': { px: 0.75 } }}
                     />
                   )}
                   <CircularProgress size={14} />
@@ -2193,7 +2220,11 @@ export default function SceneEditorPage() {
                       sx={{ height: 4, borderRadius: 2 }}
                     />
                   </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, whiteSpace: 'nowrap' }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ fontSize: uiFontSize(10), whiteSpace: 'nowrap' }}
+                  >
                     {currentJob.message
                       ? currentJob.message
                       : currentJob.totalFiles > 0
@@ -2215,7 +2246,7 @@ export default function SceneEditorPage() {
                     <Box
                       key={st.key}
                       sx={{
-                        fontSize: 10,
+                        fontSize: uiFontSize(10),
                         px: 0.75,
                         py: 0.25,
                         borderRadius: 1,
@@ -2231,7 +2262,7 @@ export default function SceneEditorPage() {
                   ))}
                 </Box>
                 {cov && (
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: uiFontSize(10) }}>
                     {t('editorPage.covSummary', {
                       files: cov.files,
                       lines: cov.lines.toLocaleString(),
@@ -2258,8 +2289,8 @@ export default function SceneEditorPage() {
                 size="small"
                 variant="outlined"
                 color="warning"
-                sx={{ fontSize: 11, minWidth: 0, px: 1 }}
-                startIcon={<StopIcon sx={{ fontSize: 13 }} />}
+                sx={{ fontSize: uiFontSize(11), minWidth: 0, px: 1 }}
+                startIcon={<StopIcon sx={{ fontSize: uiFontSize(13) }} />}
                 onClick={handleCancel}
               >
                 {!compact && t('editorPage.cancel')}
@@ -2275,7 +2306,7 @@ export default function SceneEditorPage() {
                     disabled={!activeScene.projectRoot}
                     aria-label={t('editorPage.refreshTip')}
                   >
-                    <RefreshIcon sx={{ fontSize: 13 }} />
+                    <RefreshIcon sx={{ fontSize: uiFontSize(13) }} />
                   </IconButton>
                 </span>
               </Tooltip>
@@ -2284,8 +2315,8 @@ export default function SceneEditorPage() {
                   <Button
                     size="small"
                     variant="contained"
-                    sx={{ fontSize: 11, minWidth: 0, px: 1 }}
-                    startIcon={<SearchIcon sx={{ fontSize: 13 }} />}
+                    sx={{ fontSize: uiFontSize(11), minWidth: 0, px: 1 }}
+                    startIcon={<SearchIcon sx={{ fontSize: uiFontSize(13) }} />}
                     onClick={handleScan}
                     disabled={!activeScene.projectRoot}
                   >
@@ -2303,8 +2334,8 @@ export default function SceneEditorPage() {
               <Button
                 size="small"
                 variant="outlined"
-                sx={{ fontSize: 11, minWidth: 0, px: 1 }}
-                startIcon={<AccountTreeIcon sx={{ fontSize: 13 }} />}
+                sx={{ fontSize: uiFontSize(11), minWidth: 0, px: 1 }}
+                startIcon={<AccountTreeIcon sx={{ fontSize: uiFontSize(13) }} />}
                 onClick={handleSyncToCanvas}
               >
                 {!compact && t('editorPage.syncToCanvas')}
@@ -2315,9 +2346,9 @@ export default function SceneEditorPage() {
                 size="small"
                 variant="outlined"
                 color="secondary"
-                sx={{ fontSize: 11, minWidth: 0, px: 1 }}
-                startIcon={<InsightsIcon sx={{ fontSize: 13 }} />}
-                endIcon={<ArrowDropDownIcon sx={{ fontSize: 15 }} />}
+                sx={{ fontSize: uiFontSize(11), minWidth: 0, px: 1 }}
+                startIcon={<InsightsIcon sx={{ fontSize: uiFontSize(13) }} />}
+                endIcon={<ArrowDropDownIcon sx={{ fontSize: uiFontSize(15) }} />}
                 onClick={(e) => setPortraitAnchor(e.currentTarget)}
               >
                 {!compact && t('editorPage.morePortraits')}
@@ -2331,10 +2362,12 @@ export default function SceneEditorPage() {
                   placeholder={t('portrait.quadrant.search')}
                   value={quadSearch}
                   onChange={(e) => setQuadSearch(e.target.value)}
-                  sx={{ width: 188, fontSize: 11, '& .MuiInputBase-root': { height: 30 } }}
+                  sx={{ width: 188, fontSize: uiFontSize(11), '& .MuiInputBase-root': { height: 30 } }}
                   slotProps={{
                     input: {
-                      startAdornment: <SearchIcon sx={{ fontSize: 14, color: 'text.secondary', mr: 0.5 }} />,
+                      startAdornment: (
+                        <SearchIcon sx={{ fontSize: uiFontSize(14), color: 'text.secondary', mr: 0.5 }} />
+                      ),
                     },
                   }}
                 />
@@ -2344,8 +2377,8 @@ export default function SceneEditorPage() {
               <Button
                 size="small"
                 variant="outlined"
-                sx={{ fontSize: 11, minWidth: 0, px: 1 }}
-                startIcon={<CodeIcon sx={{ fontSize: 13 }} />}
+                sx={{ fontSize: uiFontSize(11), minWidth: 0, px: 1 }}
+                startIcon={<CodeIcon sx={{ fontSize: uiFontSize(13) }} />}
                 onClick={() => {
                   if (!activeSceneId) return;
                   spawnCodeWorkbench('', null, activeSceneId).catch((e) => {
@@ -2364,7 +2397,7 @@ export default function SceneEditorPage() {
             >
               {PORTRAIT_MENU.map((item) =>
                 item.divider ? (
-                  <ListSubheader key={item.key} sx={{ lineHeight: '30px', fontSize: 11 }}>
+                  <ListSubheader key={item.key} sx={{ lineHeight: '30px', fontSize: uiFontSize(11) }}>
                     {t(item.labelKey)}
                   </ListSubheader>
                 ) : (
@@ -2380,8 +2413,8 @@ export default function SceneEditorPage() {
                       primary={t(item.labelKey)}
                       secondary={item.descKey ? t(item.descKey) : undefined}
                       slotProps={{
-                        primary: { sx: { fontSize: 13 } },
-                        secondary: { sx: { fontSize: 11 } },
+                        primary: { sx: { fontSize: uiFontSize(13) } },
+                        secondary: { sx: { fontSize: uiFontSize(11) } },
                       }}
                     />
                   </MenuItem>
@@ -2410,7 +2443,7 @@ export default function SceneEditorPage() {
                     ? 'warning.main'
                     : 'info.main',
               color: 'common.white',
-              fontSize: 10,
+              fontSize: uiFontSize(10),
             }}
           >
             {t('editorPage.totalFindings', { n: findings.length })}
@@ -2462,7 +2495,7 @@ export default function SceneEditorPage() {
 
       {/* 扫描设置对话框（R40）：gitignore 提示 + 手动排除目录 + 非代码资源开关 */}
       <Dialog open={scanSettingsOpen} onClose={() => setScanSettingsOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontSize: 15, pb: 1 }}>{t('editorPage.scanSettingsTitle')}</DialogTitle>
+        <DialogTitle sx={{ fontSize: uiFontSize(15), pb: 1 }}>{t('editorPage.scanSettingsTitle')}</DialogTitle>
         <DialogContent sx={{ pt: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           {/* gitignore 状态提示 */}
           {hasGitignore === true && (
@@ -2472,7 +2505,7 @@ export default function SceneEditorPage() {
                 py: 0.75,
                 borderRadius: 1,
                 backgroundColor: 'success.soft',
-                fontSize: 12,
+                fontSize: uiFontSize(12),
                 color: 'success.main',
                 lineHeight: 1.5,
               }}
@@ -2487,7 +2520,7 @@ export default function SceneEditorPage() {
                 py: 0.75,
                 borderRadius: 1,
                 backgroundColor: 'warning.soft',
-                fontSize: 12,
+                fontSize: uiFontSize(12),
                 color: 'warning.main',
                 lineHeight: 1.5,
               }}
@@ -2511,7 +2544,7 @@ export default function SceneEditorPage() {
               <Switch size="small" checked={excludeResources} onChange={(e) => setExcludeResources(e.target.checked)} />
             }
             label={
-              <Typography variant="body2" sx={{ fontSize: 13 }}>
+              <Typography variant="body2" sx={{ fontSize: uiFontSize(13) }}>
                 {t('editorPage.excludeResources')}
               </Typography>
             }
@@ -2546,6 +2579,9 @@ export default function SceneEditorPage() {
 
       {/* 画布 AI 助手（H3）：AI 出方案 → 预览 → 应用/撤销 */}
       <CanvasAiDialog open={canvasAiOpen} onClose={() => setCanvasAiOpen(false)} />
+
+      {/* 作品信息（插单七）：状态 + 体裁×载体 */}
+      {bookInfoOpen && activeBook && <BookInfoDialog book={activeBook} onClose={() => setBookInfoOpen(false)} />}
 
       {/* 羽化 P：显式「新建作品」入口（空态 + 代码场景工具栏）共用命名向导 */}
       <NewBookDialog

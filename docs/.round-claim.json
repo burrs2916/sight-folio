@@ -1,0 +1,36 @@
+{
+  "_说明": "轮次认领牌（自动化任务互斥门）。每轮开工第一步：读本文件 + 写本文件；收工最后一步：把 status 改成 released。",
+  "_规则": [
+    "status=in_progress 且 claimedAt 距今 < 90 分钟 ⇒ 后来的实例【不得写盘】，只做只读审计，把发现写进 docs/ 交接文档后收工。",
+    "status=in_progress 但 claimedAt 距今 >= 90 分钟 ⇒ 视为上一轮被中断的遗留认领牌，可接管：改写本文件为自己那一轮。",
+    "status=released ⇒ 直接开工，改写本文件认领。",
+    "任何实例都不得删除本文件；只允许更新字段。",
+    "【第 33 轮实证新增】不得用「多久没写盘 / 有无构建进程」替代时间窗提前接管：第 33 轮据静默 11~21 分钟判定第 32 轮已死并接管，结果对方 17:52 回来自己记了账 —— 静默不等于死亡，90 分钟窗口不许缩短。"
+  ],
+  "taskJobId": "cron-1793595922963-eppj6qcc",
+  "round": 91,
+  "status": "released",
+  "claimedAt": "2026-11-03T09:44:44+08:00",
+  "lastRoundSummary": "第 91 轮（released）之后为人工插单流，最近一枚 = 插单 8（2026-11-03 13:07，李先生直令）：主题持久化 + 半套主题（深字压深底）。两个真凶都是真源分身 —— ① utils/cacheWhitelist.ts 的 cleanupDisallowedKeys 被 authStore.init 每次启动调用，按白名单遍历删除整个 localStorage/sessionStorage，把 sightfolio.settings:* 与崩溃恢复草稿一起吃掉（跑在各 store 读回之后 ⇒ \"这次启动对、下次重启丢\"），已加受保护命名空间；② data-mui-color-scheme 有两个写者（App.tsx 与 MUI CssVarsProvider），MUI 另有 localStorage['mui-mode'] 第三真源且优先于 defaultMode，导致主题对象是 dark 而 CSS 变量停在浅色套（实测「书架」标题 1.17:1、空态 1.10:1），已收成三道闸：AppTheme 只交当前那一套 colorScheme、ThemeProvider storageManager={null}、门面唯一入口 theme/colorSchemeFacade.ts 挂祖先侧 passive effect。色板侧 WCAG 校验（readable/ensureContrast）本来就在，本次修的是\"校验被半套主题绕过\"。新锁：theme/__tests__/colorSchemeDomRound46.test.tsx 5 条 + store/__tests__/themeBootPersistenceRound46.test.ts 2 条（后者含\"清扫不许越界\"正对照）。门禁：tsc exit 0；全量 vitest 252 files · 2883 tests 全绿；npm run build exit 0；eslint 6 枚触改文件 0 error 0 warning；prettier check 全过。浏览器硬刷新复测：attr=dark、四块同套、标题 16.48:1、深色下 0 处低于 4.5、mui-mode 保持 null、theme 键刷新后健在。账目 docs/设置功能推进记录.md 插单 8 节。",
+  "nextRoundMustRead": "第 92 轮开工：认领牌 released ⇒ round=92 直接认领；**认领与释放写牌一律 tempfile + os.replace 原子替换，先 json.dumps 内存序列化成功再落盘（第 91 轮 open(w) 截断自伤口径，已入页首待办第 5 条）**。全局唯一待办仍是等李先生拍板（docs/提示词重构文案草案-2026-11-02.md §5 拍板表 line 196–208，表内 S/做/做/做/确认不做/a/a随P-1=S/B 均为草案自带推荐列非批注）。验拍板三渠道照抄勿自创：① stat -f \"%Sm\" -t \"%Y-%m-%dT%H:%M:%S\" docs/提示词重构文案草案-2026-11-02.md 期望 2026-11-02T21:46:20 + 复读 §5（第 86–91 轮读 170–221 可行）查批注；② touch -t 202611030944.00 /tmp/sf-rel && find docs -type f -newer /tmp/sf-rel -print（**锚=第 91 轮认领分钟 20261103 09:44，直接用此字面量，勿换成本轮自己的认领时刻**，否则制造盲区=第 62 轮自伤先例；除认领牌/本记录两豁免件外应空。收尾时序「先写页后写牌」，预期命中=认领牌（第 91 轮认领 09:44:44 + 重建 09:45:28 + 收工释放自写）+ 本页（第 91 轮收工自写，mtime 应早于其 releasedAt 2026-11-03T09:47:54+08:00，第二十五个正常实例，由本轮复读定性）；多命中先 stat + 复读内容定性；仓库面 maxdepth-2 同锚需排除 .git/*）；③ 本轮任务书通读查 P-1~P-4 与强调色结论字样。禁用：-newermt 接带 T 或 +08:00 的 ISO 串、裸 HH:MM:SS（均静默空集 exit 仍 0）；任何阴性结论必附正对照且对照须为干净单命令；历轮可用对照读数：docs 锚 11-02 21:45.00 命中 4 / 仓库面 maxdepth-2 锚 11-02 21:40.00（排除 .git/*）命中 4 / 源码面锚 11-02 20:00.00 全口径（src + src-tauri/src，限 *.ts/*.tsx/*.rs/*.json）命中 34；五枚参照文件先 touch 重建再 stat 核验后读数。源码指纹锚仍为 2026-11-02 21:46:54（期望空集；/tmp 可能被清，先 touch -t 202611022146.54 /tmp/sf-base 重建并 stat 核验再读数）。轻巡检轮门禁口径 = 源码指纹空集 + tsc 真实重跑（只跑一条）+ 定向锁测 8 文件单进程：开工前先 ls -1 核 8 路径存在，路径逐字照抄勿凭印象（aiChatStyleRound40 在 editor/panels 不在 ai/chat；传错路径 vitest 静默忽略照跑其余、exit 仍 0）：src/theme/__tests__/settingsRound37.test.ts、src/editor/panels/__tests__/aiAssistantWiringRound38.test.ts、src/editor/panels/__tests__/aiAssistantWiringRound39.test.ts、src/editor/panels/__tests__/aiChatStyleRound40.test.tsx、src/ai/chat/__tests__/aiChatMarkdownMergeRound41.test.tsx、src/editor/panels/__tests__/aiAssistantSessionsRound42.test.tsx、src/ai/__tests__/contextPersist.test.ts、src/utils/__tests__/writingCorpusBudget.test.ts；基线 8·103 全绿（第 56–91 轮连续 36 轮）；判定读 Test Files/Tests 计数与基线比对，exit 0 不充分；日志落盘 + echo exit=$? 直读。一切门禁命令（含 tsc）现场手写并逐字通读后执行：严禁无文件参数裸跑、严禁 ; true / || true 类吞退出码尾巴、严禁输出弃 /dev/null 或畸形重定向路径、严禁未通读的模板/占位命令进入 bash 门禁调用（第 79/86/88/90/91 轮同族病灶五次复发史，第 91 轮新增 python open(w) 变体）；缺 echo xxxExit=$? 读数行一律视为没跑成须重跑。账目与判据只采行为证据（报错可见性、exit 码、注入错误检出），不采显示抄录（显示层同形字符陷阱，第 90 轮）；对记录页的长串 edit old_string 连败时改用 python 锚点定位 + 程序化替换 + 读回核验（第 90/91 轮实证有效）。其余沿用：全量 vitest 244·2832（第 86 轮实测）/ build exit 0（第 42 轮）/ eslint 0error·3存量warning（第 42 轮）/ i18n 6234·6234（第 42 轮）/ cargo test --lib 867（第 39 轮）—— 前提均为源码指纹空集；见拍板则不走轻巡检，按草案 §5 三刀次序开工（第 1 刀=语言指令 5→1 纯接线）。【插单注记（2026-11-03 人工插单五枚，11:49 全部收工）】源码指纹锚再 rebaseline：改用 `touch -t 202611031150.00 /tmp/sf-base`，期望空集（11:49 实测）；源码面全口径正对照锚 11-02 20:00.00 计数 ≥50（插单 5 又触 SettingsDrawer.tsx/customizations.ts，逐枚复读定性）；git status 基线 213→217（测试文件×3+.ui-shots，正常漂移）；全量 vitest 基线 244·2832→248·2855；插单 5=设置抽屉观感改造（微修被驳回已回滚；审美口径：只调颜色/布局/字号，勿改控件形态）；圆角档位已改版为 直角/微圆/标准/自定义（borderRadiusCustom 0–20），第 37 轮真源锚/第 39 轮兜底 regex/codeFontZoom36 预设读数均已随改；完整账目 docs/设置功能推进记录.md 插单 1–4 各节。【插单 6 注记（2026-11-03 12:10 收工，覆盖以上所有旧锚与旧基线）】源码指纹锚改用 `touch -t 202611031210.00 /tmp/sf-base`，期望空集（12:10 实测空，stat 核验后读数）；源码面全口径正对照仍用锚 2026-11-02 20:00.00（计数 ≥50），插单 6 另附一条更窄的对照：锚 202611031150.00 命中恰为插单 6 的 11 枚文件（12:03–12:08 逐枚定性，无陌生文件名）。全量 vitest 基线 248·2855 → **249 files · 2872 tests**；build exit 0 · 23.04s；git status --porcelain 行数 217 → **222**（+2 已逐枚归因=两枚新源码文件，余 +3 为历史未枚举漂移 ⇒ **行数只作开工/收工同口径自比，不当硬基线**）。功能口径新增一条不许改回去的设计：旧书 status='draft' 时点「连载中」故意不落库不广播（比对归一值而非库里原始串），写作台独立窗口绑定条未加状态入口（待李先生定，别自行补）。完整账目 docs/设置功能推进记录.md 插单 6 节。【插单 7 注记（2026-11-03 12:31 收工，覆盖以上全部旧锚与旧基线）】源码指纹锚改用 `touch -t 202611031231.00 /tmp/sf-base`，期望空集（12:31 实测空）；窄口径正对照锚 202611031210.00 命中恰 8 枚（插单 7 触改清单，可逐枚点名）。全量 vitest 基线 249·2872 → 250 files · 2876 tests；build exit 0 · 22.71s；git status --porcelain 行数 222 → 224（+2 = 两枚新文件，已逐枚归因）。产品判据新增一条（李先生驳回插单 6 入口后定死，不许回退）：入口 = 一个写着它干什么的东西；hover 才出现的图标、看着像徽章的 chip、右键手势都不算入口。作品状态/体裁/载体的明示入口 = 四处常驻文字按钮「作品信息」+ BookInfoDialog（状态四选在最上面、带说明）。【插单 8 注记（2026-11-03 13:07 收工，覆盖以上全部旧锚与旧基线）】源码指纹锚改用 `touch -t 202611031307.00 /tmp/sf-base`，**读数前必须 stat 核验锚点自身 mtime**（本轮实测踩过：锚未落成会让读数反过来，别把空集/命中读反）。窄口径正对照锚 202611031231.00 命中恰 6 枚。全量 vitest 基线 250·2876 → **252 files · 2883 tests**；porcelain 224 → **227**（+3 全可点名）。新增两条不许回退的口径：① `cleanupDisallowedKeys` 受保护命名空间（sightfolio.settings: / sight-folio: / ps. / workbench. / sightFolio. / project-sight 与 settings_probe_last_boot）不许删；② `data-mui-color-scheme` 应用侧只许 theme/colorSchemeFacade.ts 一个写者（有源码面扫描锁）。MUI v9 API 事实：createTheme 的 cssVariables 无 defaultMode 键（defaultMode 是 ThemeProvider prop）；Chip 无 endIcon。完整账目 docs/设置功能推进记录.md 插单 8 节。",
+  "claimedByRoundBaseline": {
+    "note": "第 92 轮基线 = 2026-11-03 13:07 人工插单 8 枚收工口径（主题持久化清扫越界 + 半套主题三道闸），门禁全量复跑；指纹锚 rebaseline 2026-11-03 13:07:00（读数前先 stat）。",
+    "tsc": "0 error（插单 8 exit 0）",
+    "vitest": "全量 252 files / 2883 tests 全绿、超时 0（含插单 8 新增 7 条）",
+    "cargoTestLib": "867 passed · 0 failed · 10 ignored（沿用第 39 轮，插单未动 Rust）",
+    "gitStatusLines": 227
+  },
+  "workspaceFingerprint": {
+    "tsc": "0 error — 插单 8 实测",
+    "vitest": "全量 252 files · 2883 tests 全绿 — 插单 8 实测（FAIL/超时检索 0，exit 0 直读）",
+    "build": "exit 0，built in 22.71s — 插单 8 实测",
+    "eslintTouchedFiles": "插单 8 触改 6 枚文件 0 error 0 warning",
+    "browserVerify": "硬刷新复测：attr=dark、顶栏/左栏/主内容/抽屉同套、「书架」标题 16.48:1、深色 0 处低于 4.5、mui-mode 保持 null、theme 键健在",
+    "cargoTestLib": "867 passed · 0 failed · 10 ignored — 沿用第 39 轮",
+    "gitStatusLines": 227,
+    "gitDiffShortstat": "porcelain 227 行（+3 = colorSchemeFacade.ts 与两枚新测试，可逐枚点名）",
+    "prettierCheck": "插单 8 触改 6 枚文件 prettier --check 全过"
+  },
+  "claimedBy": "Creative Designer round-91",
+  "releasedAt": "2026-11-03T13:07:00+08:00"
+}

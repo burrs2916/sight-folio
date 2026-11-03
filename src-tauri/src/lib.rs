@@ -304,6 +304,7 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::delete_setting,
+            commands::get_database_status,
             commands::get_all_groups,
             commands::get_group,
             commands::save_group,

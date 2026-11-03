@@ -837,8 +837,8 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
               borderRadius: 1,
               backgroundColor: (theme) =>
                 theme.palette.mode === "dark"
-                  ? "rgba(25,118,210,0.12)"
-                  : "rgba(25,118,210,0.08)",
+                  ? "rgb(var(--template-palette-primary-mainChannel) / 0.12)"
+                  : "rgb(var(--template-palette-primary-mainChannel) / 0.08)",
               opacity: 0.8,
             }}
           >

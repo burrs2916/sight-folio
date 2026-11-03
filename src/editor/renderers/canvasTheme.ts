@@ -47,7 +47,7 @@ export const CV = {
   text: `var(${P}-text-primary, rgba(0,0,0,0.87))`,
   text2: `var(${P}-text-secondary, rgba(0,0,0,0.6))`,
   text3: `var(${P}-text-disabled, rgba(0,0,0,0.38))`,
-  primary: `var(${P}-primary-main, #1976d2)`,
+  primary: `var(${P}-primary-main, #4a338f)`,
   primaryLight: `var(${P}-primary-light, #42a5f5)`,
   onPrimary: `var(${P}-primary-contrastText, #fff)`,
   success: `var(${P}-success-main, #2e7d32)`,

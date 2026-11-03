@@ -5,6 +5,11 @@
 // 这里收敛为单一数据源：同组视觉用同一命名 token，改一处全组生效。
 // 注意：这些色与主题 palette 的语义色（primary/success/error…）无依赖，
 // 仅服务于画像分类的图标辨识，不改动既有业务色值。
+//
+// T5（2026-11-02）：「文件监视中」状态色已从本文件迁出 —— 它表达的是「状态」
+// （监视中 = success 语义），原先写死 #4caf50 在浅底上作文字仅 2.1:1。
+// 现由 sceneEditorPage 经 useSemanticColors().tone.success 按当前明暗 + 卡片底派生
+// （圆点与文字用 color 角色、计数徽章用 fill 角色）。
 
 /** 画像/画板菜单图标的分类辨识色（按语义命名，而非按画像 key 命名） */
 export const PORTRAIT_ICON_COLORS = {
@@ -40,6 +45,3 @@ export const PORTRAIT_ICON_COLORS = {
 
 /** 未知体裁时的画像兜底色（原为散落的 #8b5cf6） */
 export const PORTRAIT_FALLBACK_COLOR = PORTRAIT_ICON_COLORS.violet;
-
-/** 「文件监视中」状态色（watching 圆点/文字/徽标，原为散落的 #4caf50） */
-export const WATCHING_STATUS_COLOR = '#4caf50';

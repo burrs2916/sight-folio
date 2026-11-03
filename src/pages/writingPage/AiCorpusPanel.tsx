@@ -55,6 +55,7 @@ import {
   type CorpusGeneratePurpose,
 } from '../../utils/aiCorpusChat';
 import { isConvStale } from './conversationGuard';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface AiCorpusPanelProps {
   /** 会话标题（per 书唯一：「语料参谋 · 书名」），与写作台 AI 会话独立、不互相污染 */
@@ -196,10 +197,7 @@ export function AiCorpusPanel({
   // 草稿自动保存（对齐主流对话工具：输入内容跨会话/切标签不丢）；按书（chatTitle）隔离，
   // 切书时面板不卸载，必须随 chatTitle 换成目标书自己的草稿——否则 A 书没发完的话出现在 B 书输入框
   const [input, setInput] = useState(() => loadDraft(chatTitle));
-  const saveDraft = useCallback(
-    (v: string) => saveDraftFor(chatTitle, v),
-    [chatTitle],
-  );
+  const saveDraft = useCallback((v: string) => saveDraftFor(chatTitle, v), [chatTitle]);
   const lastDraftTitleRef = useRef<string | null>(chatTitle);
   useEffect(() => {
     if (lastDraftTitleRef.current === chatTitle) return;
@@ -494,11 +492,11 @@ export function AiCorpusPanel({
       }}
       data-testid={`${testidBase}-card`}
     >
-      <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, flex: 1, minWidth: 0 }}>{picked}</Typography>
+      <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.6, flex: 1, minWidth: 0 }}>{picked}</Typography>
       <Button
         size="small"
         variant="text"
-        sx={{ flexShrink: 0, minWidth: 0, px: 0.75, fontSize: 12, textTransform: 'none' }}
+        sx={{ flexShrink: 0, minWidth: 0, px: 0.75, fontSize: uiFontSize(12), textTransform: 'none' }}
         onClick={() => onInsertText(picked)}
         data-testid={`${testidBase}-insert`}
       >
@@ -507,7 +505,14 @@ export function AiCorpusPanel({
       <Button
         size="small"
         variant="text"
-        sx={{ flexShrink: 0, minWidth: 0, px: 0.75, fontSize: 12, textTransform: 'none', color: 'text.secondary' }}
+        sx={{
+          flexShrink: 0,
+          minWidth: 0,
+          px: 0.75,
+          fontSize: uiFontSize(12),
+          textTransform: 'none',
+          color: 'text.secondary',
+        }}
         onClick={() => void handleCopy(picked)}
         data-testid={`${testidBase}-copy`}
       >
@@ -566,14 +571,14 @@ export function AiCorpusPanel({
               e.preventDefault();
               saveEditCard();
             }}
-            slotProps={{ input: { sx: { fontSize: 12.5 } } }}
+            slotProps={{ input: { sx: { fontSize: uiFontSize(12.5) } } }}
             data-testid={`ai-corpus-gen-${i}-edit-input`}
           />
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
             <Button
               size="small"
               variant="text"
-              sx={{ minWidth: 0, px: 0.75, fontSize: 12, textTransform: 'none', color: 'text.secondary' }}
+              sx={{ minWidth: 0, px: 0.75, fontSize: uiFontSize(12), textTransform: 'none', color: 'text.secondary' }}
               onClick={() => setEditingIdx(null)}
               data-testid={`ai-corpus-gen-${i}-edit-cancel`}
             >
@@ -583,7 +588,7 @@ export function AiCorpusPanel({
               size="small"
               variant="contained"
               disableElevation
-              sx={{ minWidth: 0, px: 1, fontSize: 12, textTransform: 'none' }}
+              sx={{ minWidth: 0, px: 1, fontSize: uiFontSize(12), textTransform: 'none' }}
               onClick={saveEditCard}
               data-testid={`ai-corpus-gen-${i}-edit-save`}
             >
@@ -609,11 +614,11 @@ export function AiCorpusPanel({
         }}
         data-testid={`ai-corpus-gen-${i}-card`}
       >
-        <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, flex: 1, minWidth: 0 }}>{picked}</Typography>
+        <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.6, flex: 1, minWidth: 0 }}>{picked}</Typography>
         <Button
           size="small"
           variant="text"
-          sx={{ flexShrink: 0, minWidth: 0, px: 0.75, fontSize: 12, textTransform: 'none' }}
+          sx={{ flexShrink: 0, minWidth: 0, px: 0.75, fontSize: uiFontSize(12), textTransform: 'none' }}
           onClick={() => onInsertText(picked)}
           data-testid={`ai-corpus-gen-${i}-insert`}
         >
@@ -622,7 +627,14 @@ export function AiCorpusPanel({
         <Button
           size="small"
           variant="text"
-          sx={{ flexShrink: 0, minWidth: 0, px: 0.75, fontSize: 12, textTransform: 'none', color: 'text.secondary' }}
+          sx={{
+            flexShrink: 0,
+            minWidth: 0,
+            px: 0.75,
+            fontSize: uiFontSize(12),
+            textTransform: 'none',
+            color: 'text.secondary',
+          }}
           onClick={() => void handleCopy(picked)}
           data-testid={`ai-corpus-gen-${i}-copy`}
         >
@@ -636,7 +648,7 @@ export function AiCorpusPanel({
           data-testid={`ai-corpus-gen-${i}-edit`}
           sx={{ flexShrink: 0, p: 0.5, color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
         >
-          <EditRoundedIcon sx={{ fontSize: 13 }} />
+          <EditRoundedIcon sx={{ fontSize: uiFontSize(13) }} />
         </IconButton>
         <IconButton
           size="small"
@@ -646,7 +658,7 @@ export function AiCorpusPanel({
           data-testid={`ai-corpus-gen-${i}-delete`}
           sx={{ flexShrink: 0, p: 0.5, color: 'text.secondary', '&:hover': { color: 'error.main' } }}
         >
-          <DeleteOutlineRoundedIcon sx={{ fontSize: 13 }} />
+          <DeleteOutlineRoundedIcon sx={{ fontSize: uiFontSize(13) }} />
         </IconButton>
       </Box>
     );
@@ -675,8 +687,8 @@ export function AiCorpusPanel({
           borderColor: 'divider',
         }}
       >
-        <AutoAwesomeRoundedIcon sx={{ fontSize: 15, color: 'primary.main' }} />
-        <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'primary.main', flex: 1, minWidth: 0 }}>
+        <AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(15), color: 'primary.main' }} />
+        <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 700, color: 'primary.main', flex: 1, minWidth: 0 }}>
           {t('writing.aiCorpusTitle')}
         </Typography>
         <Select
@@ -685,16 +697,16 @@ export function AiCorpusPanel({
           onChange={(e) => onAgentChange(e.target.value)}
           displayEmpty
           disabled={noAgent || isStreaming}
-          sx={{ height: 26, '& .MuiSelect-select': { py: 0, fontSize: 12 } }}
+          sx={{ height: 26, '& .MuiSelect-select': { py: 0, fontSize: uiFontSize(12) } }}
           data-testid="ai-corpus-agent"
         >
           {!agentId && (
-            <MenuItem value="" sx={{ fontSize: 12 }}>
+            <MenuItem value="" sx={{ fontSize: uiFontSize(12) }}>
               {t('writing.aiAgent')}
             </MenuItem>
           )}
           {agents.map((a) => (
-            <MenuItem key={a.id} value={a.id} sx={{ fontSize: 12 }}>
+            <MenuItem key={a.id} value={a.id} sx={{ fontSize: uiFontSize(12) }}>
               {a.name}
             </MenuItem>
           ))}
@@ -708,7 +720,7 @@ export function AiCorpusPanel({
             data-testid="ai-corpus-new"
             sx={{ flexShrink: 0, color: 'text.secondary' }}
           >
-            <AddRoundedIcon sx={{ fontSize: 17 }} />
+            <AddRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
           </IconButton>
         )}
       </Box>
@@ -742,7 +754,7 @@ export function AiCorpusPanel({
                 minWidth: 0,
                 px: 1.25,
                 py: 0.25,
-                fontSize: 12,
+                fontSize: uiFontSize(12),
                 textTransform: 'none',
                 color: subMode === mode ? undefined : 'text.secondary',
               }}
@@ -761,12 +773,12 @@ export function AiCorpusPanel({
           <Alert
             severity="error"
             variant="outlined"
-            sx={{ fontSize: 12, '& .MuiAlert-message': { py: 0.25 } }}
+            sx={{ fontSize: uiFontSize(12), '& .MuiAlert-message': { py: 0.25 } }}
             action={
               <Button
                 size="small"
                 color="error"
-                startIcon={<ReplayRoundedIcon sx={{ fontSize: 14 }} />}
+                startIcon={<ReplayRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
                 onClick={() => {
                   if (subMode === 'generate') {
                     void handleGenerate();
@@ -788,11 +800,11 @@ export function AiCorpusPanel({
         <Box sx={{ px: 1.5, py: 0.5 }}>
           <Chip
             size="small"
-            icon={<StopRoundedIcon sx={{ fontSize: 12 }} />}
+            icon={<StopRoundedIcon sx={{ fontSize: uiFontSize(12) }} />}
             label={t('writing.aiStopped')}
             color="error"
             variant="outlined"
-            sx={{ fontSize: 10.5, height: 20 }}
+            sx={{ fontSize: uiFontSize(10.5), height: 20 }}
           />
         </Box>
       )}
@@ -805,7 +817,7 @@ export function AiCorpusPanel({
       ) : noAgent ? (
         // 无 agent：给「去配置」出口，避免死面板（与 WritingAiChatDialog 同款引导）
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, px: 2, py: 5 }}>
-          <Typography sx={{ fontSize: 12.5, color: 'text.secondary', textAlign: 'center' }}>
+          <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary', textAlign: 'center' }}>
             {t('writing.aiCorpusNoAgent')}
           </Typography>
           <Button size="small" variant="outlined" onClick={onOpenSettings}>
@@ -823,7 +835,9 @@ export function AiCorpusPanel({
             {messages.length === 0 && !isStreaming ? (
               // 空会话：引导 + 快捷提问（降低冷启动门槛）
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, px: 1, py: 3 }}>
-                <Typography sx={{ fontSize: 12.5, color: 'text.secondary', textAlign: 'center', lineHeight: 1.7 }}>
+                <Typography
+                  sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary', textAlign: 'center', lineHeight: 1.7 }}
+                >
                   {t('writing.aiCorpusEmpty')}
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 0.75 }}>
@@ -832,7 +846,7 @@ export function AiCorpusPanel({
                       key={k}
                       size="small"
                       variant="outlined"
-                      sx={{ fontSize: 12, textTransform: 'none', px: 1.25 }}
+                      sx={{ fontSize: uiFontSize(12), textTransform: 'none', px: 1.25 }}
                       onClick={() => void handleSend(t(`writing.${k}`))}
                       data-testid={`ai-corpus-chip-${k}`}
                     >
@@ -872,7 +886,7 @@ export function AiCorpusPanel({
                             '&:hover': { opacity: 1, color: 'text.secondary' },
                           }}
                         >
-                          <ContentCopyRoundedIcon sx={{ fontSize: 12.5 }} />
+                          <ContentCopyRoundedIcon sx={{ fontSize: uiFontSize(12.5) }} />
                         </IconButton>
                         <Box
                           sx={{
@@ -885,7 +899,7 @@ export function AiCorpusPanel({
                             wordBreak: 'break-word',
                           }}
                         >
-                          <Typography sx={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                          <Typography sx={{ fontSize: uiFontSize(13), lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                             {m.content}
                           </Typography>
                         </Box>
@@ -909,13 +923,19 @@ export function AiCorpusPanel({
                               }}
                               data-testid="ai-corpus-pick"
                             >
-                              <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, flex: 1, minWidth: 0 }}>
+                              <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.6, flex: 1, minWidth: 0 }}>
                                 {p}
                               </Typography>
                               <Button
                                 size="small"
                                 variant="text"
-                                sx={{ flexShrink: 0, minWidth: 0, px: 0.75, fontSize: 12, textTransform: 'none' }}
+                                sx={{
+                                  flexShrink: 0,
+                                  minWidth: 0,
+                                  px: 0.75,
+                                  fontSize: uiFontSize(12),
+                                  textTransform: 'none',
+                                }}
                                 onClick={() => onInsertText(p)}
                                 data-testid={`ai-corpus-pick-insert-${i}`}
                               >
@@ -931,7 +951,7 @@ export function AiCorpusPanel({
                 {isOwnStreaming && streamText && (
                   <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1 }}>
                     <Box sx={{ maxWidth: '88%', px: 1.25, py: 0.75, borderRadius: 2, bgcolor: 'action.hover' }}>
-                      <Typography sx={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                      <Typography sx={{ fontSize: uiFontSize(13), lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                         {streamText}
                       </Typography>
                     </Box>
@@ -981,7 +1001,7 @@ export function AiCorpusPanel({
                 data-testid="ai-corpus-cmd"
                 sx={{ flexShrink: 0, color: 'text.secondary' }}
               >
-                <BoltRoundedIcon sx={{ fontSize: 16 }} />
+                <BoltRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
               </IconButton>
               <Menu
                 anchorEl={cmdAnchor}
@@ -994,7 +1014,7 @@ export function AiCorpusPanel({
                 {CMD_PRESETS.map(({ labelKey, textKey }) => (
                   <MenuItem
                     key={labelKey}
-                    sx={{ fontSize: 12.5, py: 0.5 }}
+                    sx={{ fontSize: uiFontSize(12.5), py: 0.5 }}
                     onClick={() => {
                       const v = t(`writing.${textKey}`);
                       setInput(v);
@@ -1028,7 +1048,7 @@ export function AiCorpusPanel({
                   if (canSend) void handleSend();
                 }}
                 slotProps={{ input: { disableUnderline: true } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: 12.5 } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) } }}
               />
               {isOwnStreaming ? (
                 <IconButton
@@ -1057,8 +1077,10 @@ export function AiCorpusPanel({
             </Box>
             {/* 输入区辅助行：上下文提示 + 快捷键 + 字数（对齐主流对话工具的信息密度） */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 0.25, pt: 0.5 }}>
-              <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{t('writing.aiCorpusInputHint')}</Typography>
-              <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>
+              <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled' }}>
+                {t('writing.aiCorpusInputHint')}
+              </Typography>
+              <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled' }}>
                 {t('writing.aiCorpusChars', { n: input.length })}
               </Typography>
             </Box>
@@ -1084,11 +1106,11 @@ export function AiCorpusPanel({
               value={genCount}
               onChange={(e) => setGenCount(Number(e.target.value))}
               disabled={isStreaming}
-              sx={{ height: 26, '& .MuiSelect-select': { py: 0, fontSize: 12 } }}
+              sx={{ height: 26, '& .MuiSelect-select': { py: 0, fontSize: uiFontSize(12) } }}
               data-testid="ai-corpus-gen-count"
             >
               {[1, 2, 3, 4, 5].map((n) => (
-                <MenuItem key={n} value={n} sx={{ fontSize: 12 }}>
+                <MenuItem key={n} value={n} sx={{ fontSize: uiFontSize(12) }}>
                   {n} {t('writing.aiCorpusGenerateCount')}
                 </MenuItem>
               ))}
@@ -1098,11 +1120,11 @@ export function AiCorpusPanel({
               value={genPurpose}
               onChange={(e) => setGenPurpose(e.target.value as CorpusGeneratePurpose)}
               disabled={isStreaming}
-              sx={{ height: 26, flex: 1, minWidth: 0, '& .MuiSelect-select': { py: 0, fontSize: 12 } }}
+              sx={{ height: 26, flex: 1, minWidth: 0, '& .MuiSelect-select': { py: 0, fontSize: uiFontSize(12) } }}
               data-testid="ai-corpus-gen-purpose"
             >
               {PURPOSE_KEYS.map(({ value, labelKey }) => (
-                <MenuItem key={value} value={value} sx={{ fontSize: 12 }}>
+                <MenuItem key={value} value={value} sx={{ fontSize: uiFontSize(12) }}>
                   {t(`writing.${labelKey}`)}
                 </MenuItem>
               ))}
@@ -1113,7 +1135,7 @@ export function AiCorpusPanel({
                 color="error"
                 variant="outlined"
                 onClick={() => useAgentStore.getState().requestInterrupt()}
-                sx={{ flexShrink: 0, minWidth: 0, px: 1.25, fontSize: 12, textTransform: 'none' }}
+                sx={{ flexShrink: 0, minWidth: 0, px: 1.25, fontSize: uiFontSize(12), textTransform: 'none' }}
                 data-testid="ai-corpus-gen-stop"
               >
                 {t('writing.aiChatStop')}
@@ -1123,7 +1145,7 @@ export function AiCorpusPanel({
                 size="small"
                 variant="contained"
                 onClick={() => void handleGenerate()}
-                sx={{ flexShrink: 0, minWidth: 0, px: 1.25, fontSize: 12, textTransform: 'none' }}
+                sx={{ flexShrink: 0, minWidth: 0, px: 1.25, fontSize: uiFontSize(12), textTransform: 'none' }}
                 data-testid="ai-corpus-generate"
               >
                 {t('writing.aiCorpusGenerateBtn')}
@@ -1142,7 +1164,7 @@ export function AiCorpusPanel({
               <>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                   <CircularProgress size={14} />
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
                     {t('writing.aiCorpusGenerating')}
                   </Typography>
                 </Box>
@@ -1151,7 +1173,12 @@ export function AiCorpusPanel({
                     {extractAiCorpusPicks(streamText).map((p, i) => renderPickCard(p, `ai-corpus-gen-stream-${i}`))}
                     {!extractAiCorpusPicks(streamText).includes(streamText.trim()) && (
                       <Typography
-                        sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}
+                        sx={{
+                          fontSize: uiFontSize(11.5),
+                          color: 'text.disabled',
+                          lineHeight: 1.6,
+                          whiteSpace: 'pre-wrap',
+                        }}
                       >
                         {streamText}
                       </Typography>
@@ -1170,7 +1197,7 @@ export function AiCorpusPanel({
                     size="small"
                     variant="outlined"
                     onClick={handleRegenerate}
-                    sx={{ fontSize: 12, textTransform: 'none' }}
+                    sx={{ fontSize: uiFontSize(12), textTransform: 'none' }}
                     data-testid="ai-corpus-regen"
                   >
                     {t('writing.aiCorpusRegenerate')}
@@ -1180,7 +1207,9 @@ export function AiCorpusPanel({
             ) : (
               // 空态：未生成过 → 引导；生成过但无结果 → 提示调整
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, px: 1, py: 3 }}>
-                <Typography sx={{ fontSize: 12.5, color: 'text.secondary', textAlign: 'center', lineHeight: 1.7 }}>
+                <Typography
+                  sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary', textAlign: 'center', lineHeight: 1.7 }}
+                >
                   {genAttempted ? t('writing.aiCorpusGenEmpty') : t('writing.aiCorpusGenHint')}
                 </Typography>
               </Box>

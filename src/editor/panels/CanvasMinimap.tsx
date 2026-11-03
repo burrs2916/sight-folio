@@ -66,7 +66,7 @@ const MinimapDots = memo(function MinimapDots({ dots }: { dots: ReturnType<typeo
           rx={0.5}
           fill={d.color}
           fillOpacity={d.selected ? 1 : 0.62}
-          stroke={d.selected ? "#6366f1" : "none"}
+          stroke={d.selected ? "var(--template-palette-primary-main)" : "none"}
           strokeWidth={d.selected ? 1 : 0}
         />
       ))}
@@ -221,11 +221,11 @@ export default function CanvasMinimap({
             right: 12,
             bottom: 12,
             zIndex: 11,
-            backgroundColor: (t) => (t.palette.mode === "dark" ? "rgba(30,30,40,0.85)" : "rgba(255,255,255,0.9)"),
+            backgroundColor: "rgb(var(--template-palette-background-paperChannel) / 0.9)",
             border: 1,
             borderColor: "divider",
             backdropFilter: "blur(8px)",
-            "&:hover": { backgroundColor: (t) => (t.palette.mode === "dark" ? "rgba(40,40,55,0.95)" : "#fff") },
+            "&:hover": { backgroundColor: "rgb(var(--template-palette-background-paperChannel) / 0.98)" },
           }}
          aria-label={t("canvasTip.minimapExpand")}>
           <MapIcon sx={{ fontSize: 16 }} />
@@ -246,7 +246,7 @@ export default function CanvasMinimap({
         border: 1,
         borderColor: "divider",
         overflow: "hidden",
-        backgroundColor: (t) => (t.palette.mode === "dark" ? "rgba(24,24,34,0.9)" : "rgba(255,255,255,0.92)"),
+        backgroundColor: "rgb(var(--template-palette-background-paperChannel) / 0.92)",
         backdropFilter: "blur(10px)",
         boxShadow: 3,
       }}
@@ -303,8 +303,8 @@ export default function CanvasMinimap({
             y={0}
             width={0}
             height={0}
-            fill="rgba(99,102,241,0.12)"
-            stroke="#6366f1"
+            fill="rgb(var(--template-palette-primary-mainChannel) / 0.12)"
+            stroke="var(--template-palette-primary-main)"
             strokeWidth={1}
             pointerEvents="none"
           />

@@ -101,6 +101,7 @@ import { ForeshadowingDetail } from '../panels/ForeshadowingPanels';
 import { InspirationDetail } from '../panels/InspirationPanels';
 import { ChapterStatusDot } from '../components/ChapterStatusDot';
 import { DraftInput } from '../components/DraftInput';
+import { currentScrollBehavior } from '../../utils/reducedMotion';
 
 export const NOVEL_ACCENT = '#4A338F';
 export const ESSAY_ACCENT = '#0ea5e9';
@@ -656,7 +657,6 @@ export function CastPane({
                     <ChapterPicker
                       uniqueKey={x.id}
                       chapters={unbound}
-                      accent={accent}
                       onSelect={(chapterId: string) => void bindToChapter(x.id, chapterId)}
                     />
                   )}
@@ -1385,7 +1385,7 @@ export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId:
           border: 'none',
           cursor: 'pointer',
           minWidth: 0,
-          background: active ? 'rgba(25,118,210,0.08)' : 'transparent',
+          background: active ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
           boxShadow: active ? `inset 0 0 0 1px ${accent}` : 'none',
         }}
       >
@@ -1487,7 +1487,7 @@ export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId:
                       borderRadius: 4,
                       border: '1px solid',
                       borderColor: sortMode === mode ? accent : CV.divider,
-                      background: sortMode === mode ? 'rgba(25,118,210,0.08)' : 'transparent',
+                      background: sortMode === mode ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
                       color: sortMode === mode ? accent : CV.text3,
                       fontWeight: sortMode === mode ? 700 : 400,
                       cursor: 'pointer',
@@ -1715,7 +1715,7 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
                         border: 'none',
                         cursor: 'pointer',
                         minWidth: 0,
-                        background: active ? 'rgba(25,118,210,0.08)' : 'transparent',
+                        background: active ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
                         boxShadow: active ? `inset 0 0 0 1px ${accent}` : 'none',
                       }}
                     >
@@ -1963,7 +1963,7 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
                     border: 'none',
                     cursor: 'pointer',
                     minWidth: 0,
-                    background: active ? 'rgba(25,118,210,0.08)' : 'transparent',
+                    background: active ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
                     boxShadow: active ? `inset 0 0 0 1px ${accent}` : 'none',
                   }}
                 >
@@ -2021,7 +2021,7 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
                     borderRadius: 4,
                     border: '1px solid',
                     borderColor: sevFilter === mode ? accent : CV.divider,
-                    background: sevFilter === mode ? 'rgba(25,118,210,0.08)' : 'transparent',
+                    background: sevFilter === mode ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
                     color: sevFilter === mode ? accent : CV.text3,
                     fontWeight: sevFilter === mode ? 700 : 400,
                     cursor: 'pointer',
@@ -2053,7 +2053,7 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
                     borderRadius: 4,
                     border: '1px solid',
                     borderColor: sortMode === mode ? accent : CV.divider,
-                    background: sortMode === mode ? 'rgba(25,118,210,0.08)' : 'transparent',
+                    background: sortMode === mode ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
                     color: sortMode === mode ? accent : CV.text3,
                     fontWeight: sortMode === mode ? 700 : 400,
                     cursor: 'pointer',
@@ -2144,7 +2144,7 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
                       gap: 4,
                       width: '100%',
                       borderRadius: 4,
-                      background: flashKey === issue.key ? 'rgba(25, 118, 210, 0.14)' : 'transparent',
+                      background: flashKey === issue.key ? 'rgb(var(--template-palette-primary-mainChannel) / 0.14)' : 'transparent',
                       transition: 'background 0.25s ease',
                     }}
                   >
@@ -2202,7 +2202,7 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
-                            background: 'rgba(25, 118, 210, 0.08)',
+                            background: 'rgb(var(--template-palette-primary-mainChannel) / 0.08)',
                             borderRadius: 4,
                             padding: '0 5px',
                           }}
@@ -2687,7 +2687,7 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
                     border: 'none',
                     background:
                       flashChId === r.id
-                        ? 'rgba(25, 118, 210, 0.14)'
+                        ? 'rgb(var(--template-palette-primary-mainChannel) / 0.14)'
                         : r.outlier
                           ? 'rgba(180, 83, 9, 0.06)'
                           : 'transparent',
@@ -2865,7 +2865,7 @@ function StorylineSection({
                   padding: '2px 4px',
                   borderRadius: 4,
                   minWidth: 0,
-                  background: active ? 'rgba(25,118,210,0.08)' : 'transparent',
+                  background: active ? 'rgb(var(--template-palette-primary-mainChannel) / 0.08)' : 'transparent',
                   boxShadow: active ? `inset 0 0 0 1px ${accent}` : 'none',
                 }}
               >
@@ -3311,7 +3311,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
     const raf = requestAnimationFrame(() => {
       document
         .querySelector(`[data-ev-id="${justCreatedId}"]`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        ?.scrollIntoView({ behavior: currentScrollBehavior(), block: 'nearest' });
     });
     return () => cancelAnimationFrame(raf);
   }, [justCreatedId]);
@@ -4264,7 +4264,6 @@ function EventChip({
         <ChapterPicker
           uniqueKey={ev.id}
           chapters={chapters}
-          accent={color}
           onSelect={(chId) => onUpdate({ chapterId: chId })}
           compact
           width="100%"

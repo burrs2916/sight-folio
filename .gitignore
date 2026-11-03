@@ -76,3 +76,6 @@ cad_*_analysis.md
 
 # Temporary i18n verification build output
 dist-i18n/
+
+# One-off UI verification screenshots (cleanup 快照, 不入库)
+.ui-shots/

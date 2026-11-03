@@ -9,6 +9,7 @@ import FormatListBulletedRoundedIcon from '@mui/icons-material/FormatListBullete
 import { Typography } from '@mui/material';
 import { t } from '../../i18n';
 import type { Editor } from '@tiptap/react';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface ToolbarButton {
   icon: React.ReactNode;
@@ -40,55 +41,55 @@ export function useToolbarButtons({ editor, openDialog }: ToolbarDeps) {
     if (!editor) return buttons;
     buttons.push(
       {
-        icon: <FormatBoldRoundedIcon sx={{ fontSize: 17 }} />,
+        icon: <FormatBoldRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
         label: t('writing.fmtBold'),
         active: editor.isActive('bold'),
         onClick: () => editor.chain().focus().toggleBold().run(),
       },
       {
-        icon: <FormatItalicRoundedIcon sx={{ fontSize: 17 }} />,
+        icon: <FormatItalicRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
         label: t('writing.fmtItalic'),
         active: editor.isActive('italic'),
         onClick: () => editor.chain().focus().toggleItalic().run(),
       },
       {
-        icon: <FormatUnderlinedRoundedIcon sx={{ fontSize: 17 }} />,
+        icon: <FormatUnderlinedRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
         label: t('writing.fmtUnderline'),
         active: editor.isActive('underline'),
         onClick: () => editor.chain().focus().toggleUnderline().run(),
       },
       {
-        icon: <FormatStrikethroughRoundedIcon sx={{ fontSize: 17 }} />,
+        icon: <FormatStrikethroughRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
         label: t('writing.fmtStrike'),
         active: editor.isActive('strike'),
         onClick: () => editor.chain().focus().toggleStrike().run(),
       },
       {
-        icon: <Typography sx={{ fontSize: 12, fontWeight: 700 }}>H1</Typography>,
+        icon: <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 700 }}>H1</Typography>,
         label: t('writing.fmtH1'),
         active: editor.isActive('heading', { level: 1 }),
         onClick: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
       },
       {
-        icon: <Typography sx={{ fontSize: 12, fontWeight: 700 }}>H2</Typography>,
+        icon: <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 700 }}>H2</Typography>,
         label: t('writing.fmtH2'),
         active: editor.isActive('heading', { level: 2 }),
         onClick: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
       },
       {
-        icon: <FormatQuoteRoundedIcon sx={{ fontSize: 17 }} />,
+        icon: <FormatQuoteRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
         label: t('writing.fmtQuote'),
         active: editor.isActive('blockquote'),
         onClick: () => editor.chain().focus().toggleBlockquote().run(),
       },
       {
-        icon: <FormatListBulletedRoundedIcon sx={{ fontSize: 17 }} />,
+        icon: <FormatListBulletedRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
         label: t('writing.fmtBullet'),
         active: editor.isActive('bulletList'),
         onClick: () => editor.chain().focus().toggleBulletList().run(),
       },
       {
-        icon: <LinkRoundedIcon sx={{ fontSize: 17 }} />,
+        icon: <LinkRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
         label: t('writing.fmtLink'),
         active: editor.isActive('link'),
         onClick: () => openDialog({ kind: 'insert-link' }),

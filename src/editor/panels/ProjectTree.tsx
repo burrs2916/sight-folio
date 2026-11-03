@@ -36,6 +36,7 @@ import { useEditorStore } from "../../store/editorStore";
 import { useProjectStore } from "../../store/projectStore";
 import { useToastStore } from "../../store/toastStore";
 import type { TreeNode } from "../utils/fileTree";
+import { currentScrollBehavior } from '../../utils/reducedMotion';
 
 /** 按搜索词裁剪树：文件命中 name/relPath，目录仅保留含命中后代的祖先链。 */
 function pruneTree(nodes: TreeNode[], q: string): TreeNode[] {
@@ -416,7 +417,7 @@ export function ProjectTree({
     requestAnimationFrame(() => {
       const el = listRef.current?.querySelector<HTMLElement>(`[data-tree-id="${id}"]`);
       if (el) {
-        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        el.scrollIntoView({ block: "nearest", behavior: currentScrollBehavior() });
         pendingScrollId.current = null;
       }
     });

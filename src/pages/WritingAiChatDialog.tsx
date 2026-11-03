@@ -9,6 +9,9 @@
 //   「新会话」按钮清空本地会话句柄，下一条消息触发重建 + 重新注入。
 // - 流式：订阅 store.streamingContent（与内联任务同通道，isStreaming 并发闸门保证唯一流），
 //   isStreaming 期间在消息尾渲染流式气泡；停止走 requestInterrupt（全局先例）。
+// - 渲染（第 40 轮批次 3）：助手回复走 aiMarkdown.MarkdownView（标题/列表/代码块/内联标记 +
+//   流式尾修补），fontSize=13 保持对话弹窗正文视觉不回归；用户消息保持纯文本 pre-wrap
+//   （用户输入不跑 Markdown，防 * _ ` 被误解析）。字号全走 uiFontSize() 吃字体档位。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Dialog from '@mui/material/Dialog';
@@ -34,6 +37,8 @@ import { useToastStore } from '../store/toastStore';
 import { t } from '../i18n';
 import { logger } from '../utils/logger';
 import { sanitizeDisplayMessages } from '../utils/aiCorpusChat';
+import { uiFontSize } from '../theme/appearanceScales';
+import { MarkdownView } from '../editor/panels/aiMarkdown';
 
 export interface WritingAiChatDialogProps {
   open: boolean;
@@ -237,18 +242,18 @@ export function WritingAiChatDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 1.5 }}>
-        <Typography component="span" sx={{ fontSize: 15, fontWeight: 700, flex: 1 }}>
+        <Typography component="span" sx={{ fontSize: uiFontSize(15), fontWeight: 700, flex: 1 }}>
           {t('writing.aiChatTitle')}
         </Typography>
         <Select
           size="small"
           value={agentId || ''}
           onChange={(e) => onAgentChange(e.target.value)}
-          sx={{ fontSize: 12.5, '& .MuiSelect-select': { py: 0.5, fontSize: 12.5 } }}
+          sx={{ fontSize: uiFontSize(12.5), '& .MuiSelect-select': { py: 0.5, fontSize: uiFontSize(12.5) } }}
           disabled={isStreaming}
         >
           {agents.map((a) => (
-            <MenuItem key={a.id} value={a.id} sx={{ fontSize: 12.5 }}>
+            <MenuItem key={a.id} value={a.id} sx={{ fontSize: uiFontSize(12.5) }}>
               {a.name}
             </MenuItem>
           ))}
@@ -260,10 +265,10 @@ export function WritingAiChatDialog({
           data-testid="ai-chat-new"
           aria-label={t('writing.aiChatNew')}
         >
-          <AddRoundedIcon sx={{ fontSize: 17 }} />
+          <AddRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
         </IconButton>
         <IconButton size="small" onClick={onClose} aria-label={t('writing.aiChatClose')}>
-          <CloseRoundedIcon sx={{ fontSize: 18 }} />
+          <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
         </IconButton>
       </DialogTitle>
       <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
@@ -278,12 +283,12 @@ export function WritingAiChatDialog({
               <Alert
                 severity="error"
                 variant="outlined"
-                sx={{ fontSize: 12, '& .MuiAlert-message': { py: 0.25 } }}
+                sx={{ fontSize: uiFontSize(12), '& .MuiAlert-message': { py: 0.25 } }}
                 action={
                   <Button
                     size="small"
                     color="error"
-                    startIcon={<ReplayRoundedIcon sx={{ fontSize: 14 }} />}
+                    startIcon={<ReplayRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
                     onClick={() => void retryLastTurn()}
                     data-testid="ai-chat-error-retry"
                   >
@@ -299,11 +304,11 @@ export function WritingAiChatDialog({
             <Box sx={{ mb: 1 }}>
               <Chip
                 size="small"
-                icon={<StopRoundedIcon sx={{ fontSize: 12 }} />}
+                icon={<StopRoundedIcon sx={{ fontSize: uiFontSize(12) }} />}
                 label={t('writing.aiStopped')}
                 color="error"
                 variant="outlined"
-                sx={{ fontSize: 10.5, height: 20 }}
+                sx={{ fontSize: uiFontSize(10.5), height: 20 }}
               />
             </Box>
           )}
@@ -314,13 +319,15 @@ export function WritingAiChatDialog({
           ) : noAgent ? (
             // 边界缺口修复：无 agent 时原先是死面板（输入/建会话全无响应）——给引导出口
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 6 }}>
-              <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t('writing.aiNoAgent')}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
+                {t('writing.aiNoAgent')}
+              </Typography>
               <Button size="small" variant="outlined" onClick={onOpenSettings}>
                 {t('writing.aiGoConfigure')}
               </Button>
             </Box>
           ) : messages.length === 0 && !isStreaming ? (
-            <Typography sx={{ fontSize: 12.5, color: 'text.secondary', textAlign: 'center', py: 6 }}>
+            <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary', textAlign: 'center', py: 6 }}>
               {t('writing.aiChatEmpty')}
             </Typography>
           ) : (
@@ -340,14 +347,20 @@ export function WritingAiChatDialog({
                       color: m.role === 'user' ? 'primary.contrastText' : 'text.primary',
                     }}
                   >
-                    <Typography sx={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{m.content}</Typography>
+                    {m.role === 'user' ? (
+                      <Typography sx={{ fontSize: uiFontSize(13), lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                        {m.content}
+                      </Typography>
+                    ) : (
+                      <MarkdownView content={m.content} fontSize={13} />
+                    )}
                   </Box>
                 </Box>
               ))}
               {isOwnStreaming && streamText && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1 }}>
                   <Box sx={{ maxWidth: '86%', px: 1.25, py: 0.75, borderRadius: 2, bgcolor: 'action.hover' }}>
-                    <Typography sx={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{streamText}</Typography>
+                    <MarkdownView content={streamText} fontSize={13} canApply={false} streaming />
                   </Box>
                 </Box>
               )}
@@ -372,7 +385,7 @@ export function WritingAiChatDialog({
                   if (canSend) void handleSend();
                 }
               }}
-              sx={{ '& .MuiInputBase-input': { fontSize: 13 } }}
+              sx={{ '& .MuiInputBase-input': { fontSize: uiFontSize(13) } }}
             />
             {isOwnStreaming ? (
               <IconButton

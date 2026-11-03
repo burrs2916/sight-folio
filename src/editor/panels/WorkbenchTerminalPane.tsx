@@ -14,6 +14,7 @@ import "@xterm/xterm/css/xterm.css";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import Box from "@mui/material/Box";
 import { terminalApi } from "../../services/tauri";
+import { useCodeFont } from "../../hooks/useCodeFont";
 
 /** 暗色终端主题（与现有 TerminalBlock 配色一致） */
 const TERMINAL_THEME = {
@@ -61,6 +62,22 @@ export function WorkbenchTerminalPane({
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const sessionRef = useRef<string>(sessionId);
+  // 字号跟随「设置 → 字体大小」（此前写死 12，切档位终端毫无反应）。
+  // 初值经 ref 交给挂载 effect 里的 new Terminal；**已开着**的终端由下面这条 effect 就地改字号
+  // 并 refit —— 只改构造参数的话，改档位只对之后新开的 tab 生效，观感又是「设置没生效」。
+  const codeFont = useCodeFont("terminal");
+  const codeFontRef = useRef(codeFont.fontSize);
+  codeFontRef.current = codeFont.fontSize;
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term || term.options.fontSize === codeFont.fontSize) return;
+    term.options.fontSize = codeFont.fontSize;
+    try {
+      fitRef.current?.fit();
+    } catch {
+      /* 容器尺寸为 0 时 fit 会抛，下一帧 ResizeObserver 会补 */
+    }
+  }, [codeFont.fontSize]);
 
   // 挂载：起 xterm + 监听输出 + 转发输入；卸载：回收 PTY
   useEffect(() => {
@@ -84,7 +101,7 @@ export function WorkbenchTerminalPane({
       term = new Terminal({
         fontFamily:
           'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-        fontSize: 12,
+        fontSize: codeFontRef.current,
         cursorBlink: true,
         // 真 PTY 自己管换行（输出已是 \r\n），convertEol 必须关，否则会出现双换行
         convertEol: false,

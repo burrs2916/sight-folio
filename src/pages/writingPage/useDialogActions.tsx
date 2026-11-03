@@ -10,6 +10,7 @@ import { GenreMediumFields } from '../GenreMediumFields';
 import type { WritingSettingKind } from '../../services/writing';
 import type { WritingChapter } from '../../services/tauri';
 import type { Editor } from '@tiptap/react';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export type WritingDialogState =
   | { kind: 'edit-book-meta'; bookId: string }
@@ -331,7 +332,7 @@ export function useDialogActions(options: {
       // 章节缓存只对当前激活书有效；非激活书拿不到章数，用无计数文案
       const knownCount = dialog.bookId === activeBookId;
       return (
-        <Typography sx={{ fontSize: 14 }}>
+        <Typography sx={{ fontSize: uiFontSize(14) }}>
           {knownCount
             ? t('writing.deleteBookConfirm', { title: book?.title ?? '', n: chapters.length })
             : t('writing.deleteBookConfirmNoCount', { title: book?.title ?? '' })}
@@ -341,14 +342,14 @@ export function useDialogActions(options: {
     if (dialog.kind === 'delete-chapter') {
       const ch = chapters.find((c) => c.id === dialog.chapterId);
       return (
-        <Typography sx={{ fontSize: 14 }}>
+        <Typography sx={{ fontSize: uiFontSize(14) }}>
           {t('writing.deleteChapterSoftConfirm', { title: ch?.title ?? '' })}
         </Typography>
       );
     }
     if (dialog.kind === 'delete-chapters-batch') {
       return (
-        <Typography sx={{ fontSize: 14 }}>
+        <Typography sx={{ fontSize: uiFontSize(14) }}>
           {t('writing.batchDeleteConfirm', { n: selectedChapterIds.length })}
         </Typography>
       );
@@ -370,7 +371,7 @@ export function useDialogActions(options: {
             sx={{ mt: 1 }}
           />
           {names.length > 0 && (
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 1 }}>
+            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 1 }}>
               {t('writing.volumeExisting')}：{names.join('、')}
             </Typography>
           )}
@@ -380,7 +381,7 @@ export function useDialogActions(options: {
     if (dialog.kind === 'delete-outline') {
       const outline = outlines.find((o) => o.id === dialog.outlineId);
       return (
-        <Typography sx={{ fontSize: 14 }}>
+        <Typography sx={{ fontSize: uiFontSize(14) }}>
           {t('writing.deleteOutlineConfirm', { title: outline?.title ?? '' })}
         </Typography>
       );
@@ -388,7 +389,7 @@ export function useDialogActions(options: {
     if (dialog.kind === 'delete-setting') {
       const setting = settings.find((x) => x.id === dialog.settingId);
       return (
-        <Typography sx={{ fontSize: 14 }}>
+        <Typography sx={{ fontSize: uiFontSize(14) }}>
           {t('writing.deleteSettingConfirm', { title: setting?.name ?? '' })}
         </Typography>
       );

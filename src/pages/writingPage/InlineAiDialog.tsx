@@ -18,6 +18,7 @@ import {
 import type { InlineWritingKind, PolishStyle } from '../../ai/writingAssistant';
 import { t } from '../../i18n';
 import type { AiAgent } from '../../services/agent';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 /** 模式清单与文案键：既用于渲染，也用于 running 时统一禁用（漏一项就是漏锁） */
 const INLINE_KINDS: InlineWritingKind[] = ['continue', 'polish', 'rewrite', 'summarize', 'review'];
@@ -99,14 +100,14 @@ export function InlineAiDialog({
 }: InlineAiDialogProps) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontSize: 15 }}>{t('writing.inlineAi')}</DialogTitle>
+      <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{t('writing.inlineAi')}</DialogTitle>
       <DialogContent>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, mb: 1 }}>
+        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mt: 0.5, mb: 1 }}>
           {t('writing.inlineHint')}
         </Typography>
         {/* B 选区级任务：打开时已选中文本 → 明示本次只作用于选区（改写/润色） */}
         {(kind === 'polish' || kind === 'rewrite') && selChars > 0 && (
-          <Typography sx={{ fontSize: 12, color: 'primary.main', mb: 1 }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'primary.main', mb: 1 }}>
             {t('writing.inlineSelectionHint', { n: selChars })}
           </Typography>
         )}
@@ -115,12 +116,12 @@ export function InlineAiDialog({
             这里补一条发起前就看得见的整章警示（纯文案，不改行为——无选区润色=整章
             替换是刻意设计：见 buildPolishMessage 走「整章润色」）。 */}
         {(kind === 'polish' || kind === 'rewrite') && selChars === 0 && (
-          <Typography sx={{ fontSize: 12, color: 'warning.main', mb: 1 }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'warning.main', mb: 1 }}>
             {t('writing.inlineWholeChapterHint')}
           </Typography>
         )}
         <FormControl fullWidth sx={{ mb: 1.5 }}>
-          <FormLabel sx={{ fontSize: 13 }}>{t('writing.inlineMode')}</FormLabel>
+          <FormLabel sx={{ fontSize: uiFontSize(13) }}>{t('writing.inlineMode')}</FormLabel>
           <RadioGroup
             row
             sx={{ flexWrap: 'wrap' }}
@@ -138,10 +139,12 @@ export function InlineAiDialog({
           </RadioGroup>
         </FormControl>
         <FormControl fullWidth>
-          <FormLabel sx={{ fontSize: 13 }}>{t('writing.aiAgent')}</FormLabel>
+          <FormLabel sx={{ fontSize: uiFontSize(13) }}>{t('writing.aiAgent')}</FormLabel>
           {agents.length === 0 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-              <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>{t('writing.aiNoAgent')}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary' }}>
+                {t('writing.aiNoAgent')}
+              </Typography>
               <Button size="small" variant="outlined" onClick={onGoSettings}>
                 {t('writing.aiGoConfigure')}
               </Button>
@@ -153,7 +156,7 @@ export function InlineAiDialog({
                   key={agent.id}
                   value={agent.id}
                   control={<Radio size="small" disabled={running} />}
-                  label={<Typography sx={{ fontSize: 13.5 }}>{agent.name}</Typography>}
+                  label={<Typography sx={{ fontSize: uiFontSize(13.5) }}>{agent.name}</Typography>}
                 />
               ))}
             </RadioGroup>
@@ -170,7 +173,7 @@ export function InlineAiDialog({
               value={words}
               disabled={running}
               onChange={(e) => onWordsChange(e.target.value)}
-              sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: 12.5 } }}
+              sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) } }}
             />
             <TextField
               fullWidth
@@ -183,29 +186,29 @@ export function InlineAiDialog({
               value={directive}
               disabled={running}
               onChange={(e) => onDirectiveChange(e.target.value)}
-              sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: 12.5 } }}
+              sx={{ mt: 1.5, '& .MuiInputBase-input': { fontSize: uiFontSize(12.5) } }}
             />
           </>
         ) : kind === 'polish' || kind === 'rewrite' ? (
           <FormControl fullWidth sx={{ mt: 1.5 }}>
-            <FormLabel sx={{ fontSize: 13 }}>{t('writing.polishStyle')}</FormLabel>
+            <FormLabel sx={{ fontSize: uiFontSize(13) }}>{t('writing.polishStyle')}</FormLabel>
             <RadioGroup row value={style} onChange={(e) => onStyleChange(e.target.value as PolishStyle)}>
               {POLISH_STYLES.map((st) => (
                 <FormControlLabel
                   key={st}
                   value={st}
                   control={<Radio size="small" disabled={running} />}
-                  label={<Typography sx={{ fontSize: 12.5 }}>{t(STYLE_LABEL_KEYS[st])}</Typography>}
+                  label={<Typography sx={{ fontSize: uiFontSize(12.5) }}>{t(STYLE_LABEL_KEYS[st])}</Typography>}
                 />
               ))}
             </RadioGroup>
           </FormControl>
         ) : kind === 'summarize' ? (
-          <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1.5 }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mt: 1.5 }}>
             {t('writing.inlineSummarizeHint')}
           </Typography>
         ) : (
-          <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1.5 }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mt: 1.5 }}>
             {t('writing.inlineReviewHint')}
           </Typography>
         )}
@@ -223,8 +226,8 @@ export function InlineAiDialog({
               }
               label={
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                  <Typography sx={{ fontSize: 12.5 }}>{t('writing.styleConsistencyLabel')}</Typography>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.5 }}>
+                  <Typography sx={{ fontSize: uiFontSize(12.5) }}>{t('writing.styleConsistencyLabel')}</Typography>
+                  <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', lineHeight: 1.5 }}>
                     {styleFingerprintAvailable
                       ? t('writing.styleConsistencyHint')
                       : t('writing.styleConsistencyUnavailable')}
@@ -250,14 +253,16 @@ export function InlineAiDialog({
                 p: 1.25,
               }}
             >
-              <Typography sx={{ fontSize: 12.5, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{streamText}</Typography>
+              <Typography sx={{ fontSize: uiFontSize(12.5), lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                {streamText}
+              </Typography>
             </Box>
           ) : (
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', py: 1 }}>
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', textAlign: 'center', py: 1 }}>
               {t('writing.inlineStreamingHint')}
             </Typography>
           )}
-          <Typography sx={{ fontSize: 11.5, color: 'text.disabled', mt: 0.5, textAlign: 'center' }}>
+          <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled', mt: 0.5, textAlign: 'center' }}>
             {t('writing.inlineLockedHint')}
           </Typography>
           <Button size="small" fullWidth color="error" sx={{ mt: 0.5 }} onClick={onStop}>

@@ -29,6 +29,7 @@
 export type InsightSeverity = "critical" | "high" | "medium" | "low" | "info";
 
 import { t } from "../i18n";
+import { STATUS_TOKENS, type StatusTone } from "../theme/semanticColors";
 
 /** 严重度标签（本地化，随当前 UI 语言；与 severity.* 命名空间同源） */
 export function severityLabel(sev: InsightSeverity): string {
@@ -367,11 +368,27 @@ export function insightsForPath(
   );
 }
 
-/** 画布角标配色（与 AiInsightsPanel 的严重度色同源，保证左右两侧语义一致） */
+/** 严重度 → 语义族。画布角标与右侧面板共用同一张映射表，语义永远同源。 */
+export const SEVERITY_TONE: Record<InsightSeverity, StatusTone> = {
+  critical: "danger",
+  high: "accent",
+  medium: "warning",
+  low: "cyan",
+  info: "indigo",
+};
+
+/**
+ * 画布角标配色（与 AiInsightsPanel 的严重度色同源，保证左右两侧语义一致）。
+ *
+ * 这里取的是 **fill（填充）角色**，不是文字角色：角标是「彩色底 + 白字」，
+ * 而右侧面板里同一严重度是当**文字色**用的。两者取值必须不同 —— 深色下文字要偏亮、
+ * 白字填充底要偏深，混用就会出现「浅底白字」（旧值 #ea580c / #d97706 作白字底只有
+ * 3.0:1 左右，角标上的字基本糊掉）或「深底深字」。定义见 theme/semanticColors.ts。
+ */
 export const SEVERITY_COLOR: Record<InsightSeverity, string> = {
-  critical: "#dc2626",
-  high: "#ea580c",
-  medium: "#d97706",
-  low: "#0891b2",
-  info: "#6366f1",
+  critical: STATUS_TOKENS.danger.fill,
+  high: STATUS_TOKENS.accent.fill,
+  medium: STATUS_TOKENS.warning.fill,
+  low: STATUS_TOKENS.cyan.fill,
+  info: STATUS_TOKENS.indigo.fill,
 };

@@ -8,6 +8,7 @@ import SubjectRoundedIcon from '@mui/icons-material/SubjectRounded';
 import type { Editor } from '@tiptap/react';
 import { t } from '../../i18n';
 import type { InlineWritingKind } from '../../ai/writingAssistant';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 interface AiSelectionMenuProps {
   editor: Editor | null;
@@ -18,11 +19,31 @@ interface AiSelectionMenuProps {
 }
 
 const MENU_ITEMS: Array<{ kind: InlineWritingKind; icon: ReactNode; labelKey: string }> = [
-  { kind: 'rewrite', icon: <RateReviewRoundedIcon sx={{ fontSize: 17 }} />, labelKey: 'writing.inlineRewrite' },
-  { kind: 'continue', icon: <NotesRoundedIcon sx={{ fontSize: 17 }} />, labelKey: 'writing.inlineContinue' },
-  { kind: 'polish', icon: <AutoFixHighRoundedIcon sx={{ fontSize: 17 }} />, labelKey: 'writing.inlinePolish' },
-  { kind: 'summarize', icon: <SubjectRoundedIcon sx={{ fontSize: 17 }} />, labelKey: 'writing.inlineSummarize' },
-  { kind: 'review', icon: <SpellcheckRoundedIcon sx={{ fontSize: 17 }} />, labelKey: 'writing.inlineReview' },
+  {
+    kind: 'rewrite',
+    icon: <RateReviewRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
+    labelKey: 'writing.inlineRewrite',
+  },
+  {
+    kind: 'continue',
+    icon: <NotesRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
+    labelKey: 'writing.inlineContinue',
+  },
+  {
+    kind: 'polish',
+    icon: <AutoFixHighRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
+    labelKey: 'writing.inlinePolish',
+  },
+  {
+    kind: 'summarize',
+    icon: <SubjectRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
+    labelKey: 'writing.inlineSummarize',
+  },
+  {
+    kind: 'review',
+    icon: <SpellcheckRoundedIcon sx={{ fontSize: uiFontSize(17) }} />,
+    labelKey: 'writing.inlineReview',
+  },
 ];
 
 /**
@@ -117,6 +138,8 @@ export function AiSelectionMenu({ editor, scrollRef, onPick }: AiSelectionMenuPr
           gap: 0.25,
           px: 0.5,
           py: 0.25,
+          // 圆角例外（第 32 轮逐处拍板）：这是一条**胶囊形**浮层工具条，18px 是让它读起来像药丸的
+          // 尺寸值，不是界面圆角档。跟档位会在「直角」档塌成方框，胶囊这条视觉语言就没了。
           borderRadius: '18px',
           bgcolor: 'background.paper',
           border: 1,

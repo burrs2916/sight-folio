@@ -3,6 +3,7 @@ import type { Editor } from '@tiptap/react';
 import { t } from '../../i18n';
 import { findMatches, replaceAllMatches } from './editorUtils';
 import { useToastStore } from '../../store/toastStore';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface FindReplaceDialogProps {
   open: boolean;
@@ -35,7 +36,7 @@ export function FindReplaceDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontSize: 15 }}>{t('writing.findReplace')}</DialogTitle>
+      <DialogTitle sx={{ fontSize: uiFontSize(15) }}>{t('writing.findReplace')}</DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
@@ -55,7 +56,7 @@ export function FindReplaceDialog({
           sx={{ mt: 1.5 }}
         />
         {findText.trim() && editor && (
-          <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1.5 }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mt: 1.5 }}>
             {t('writing.matchCount', { n: findMatches(editor, findText).length })}
           </Typography>
         )}

@@ -29,6 +29,7 @@ import { findComponentForFile } from "../utils/canvasLink";
 import { navigateToSource } from "../utils/sourceNavigate";
 import type { ProjectFile, ProjectSymbol } from "../../services/tauri";
 import { t } from "../../i18n";
+import { currentScrollBehavior } from '../../utils/reducedMotion';
 
 /** 文件行统计（含此前未被文件树使用的复杂度与重复代码） */
 interface FileRowStats {
@@ -273,7 +274,7 @@ export const ScannedFilesPanel = memo(function ScannedFilesPanel() {
     requestAnimationFrame(() => {
       const el = listRef.current?.querySelector<HTMLElement>(`[data-file-id="${id}"]`);
       if (el) {
-        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        el.scrollIntoView({ block: "nearest", behavior: currentScrollBehavior() });
         pendingScrollId.current = null;
       }
     });
@@ -858,7 +859,7 @@ const FileTreeNode = memo(function FileTreeNode({
               color: AI_COLOR,
               opacity: 0,
               transition: "opacity 0.12s",
-              "&:hover": { bgcolor: "rgba(99,102,241,0.12)" },
+              "&:hover": { bgcolor: "rgb(var(--template-palette-primary-mainChannel) / 0.12)" },
             }}
             title={t("aiPanel.diagnoseFile")}
            aria-label={t("aiPanel.diagnoseFile")}>

@@ -33,10 +33,12 @@ import CodeIcon from '@mui/icons-material/Code';
 import MicIcon from '@mui/icons-material/Mic';
 import MicOffIcon from '@mui/icons-material/MicOff';
 import ReplayIcon from '@mui/icons-material/Replay';
-import { keyframes, useTheme } from '@mui/material/styles';
+import { keyframes } from '@mui/material/styles';
+import { useSemanticColors } from '../../theme/useSemanticColors';
 
 import { getLang, t } from '../../i18n';
 import { L } from '../../ai/aiLang';
+import { uiFontSize, BORDER_RADIUS_BASE } from '../../theme/appearanceScales';
 import { useVerifyOverlayStore } from '../../store/verifyOverlayStore';
 import { useProjectStore } from '../../store/projectStore';
 import { useAgentStore } from '../../store/agentStore';
@@ -159,7 +161,7 @@ export function VerifyDeltas({ before, after, relPath }: { before: FileFacts; af
   const changed = dims.filter((d) => d.b !== d.a);
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-      <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>
+      <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
         {relPath}：
       </Typography>
       {changed.map((d) => {
@@ -171,7 +173,7 @@ export function VerifyDeltas({ before, after, relPath }: { before: FileFacts; af
             key={d.key}
             size="small"
             label={`${d.label} ${d.b}→${d.a}`}
-            sx={{ fontSize: 9, height: 16, color, borderColor: color, '& .MuiChip-label': { px: 0.5 } }}
+            sx={{ fontSize: uiFontSize(9), height: 16, color, borderColor: color, '& .MuiChip-label': { px: 0.5 } }}
             variant="outlined"
           />
         );
@@ -215,7 +217,7 @@ export function VerifySummary({ entries }: { entries: { relPath: string; before:
   if (findingsUp) chips.push({ label: t('workbench.aiVerify.summaryFindingsUp', { n: findingsUp }), tone: 'bad' });
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', px: 1, pb: 0.5 }}>
-      <Typography variant="caption" sx={{ fontSize: 9.5, fontWeight: 700, color: 'text.primary' }}>
+      <Typography variant="caption" sx={{ fontSize: uiFontSize(9.5), fontWeight: 700, color: 'text.primary' }}>
         {t('workbench.aiVerify.summaryTitle')}：
       </Typography>
       {chips.map((c, i) => {
@@ -227,7 +229,7 @@ export function VerifySummary({ entries }: { entries: { relPath: string; before:
             size="small"
             label={c.label}
             variant="outlined"
-            sx={{ fontSize: 9, height: 16, color, borderColor: border, '& .MuiChip-label': { px: 0.5 } }}
+            sx={{ fontSize: uiFontSize(9), height: 16, color, borderColor: border, '& .MuiChip-label': { px: 0.5 } }}
           />
         );
       })}
@@ -247,18 +249,18 @@ export function VerifySection({
   onDismiss: (id: string) => void;
   onToggleCanvas: () => void;
 }) {
-  const theme = useTheme();
-  const dark = theme.palette.mode === 'dark';
+  const T = useSemanticColors().tone;
   const canvasEnabled = useVerifyOverlayStore((s) => s.enabled);
   if (entries.length === 0 && settled.length < 2) return null;
   return (
-    <Box
-      sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: dark ? 'rgba(76,175,80,0.08)' : 'rgba(76,175,80,0.06)' }}
-    >
+    <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: T.success.tint }}>
       <VerifySummary entries={settled} />
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.25 }}>
-        <AssessmentIcon sx={{ fontSize: 14, color: 'success.main' }} />
-        <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 10.5, flex: 1, color: 'text.primary' }}>
+        <AssessmentIcon sx={{ fontSize: uiFontSize(14), color: 'success.main' }} />
+        <Typography
+          variant="caption"
+          sx={{ fontWeight: 700, fontSize: uiFontSize(10.5), flex: 1, color: 'text.primary' }}
+        >
           {t('workbench.aiVerify.title')}
         </Typography>
         <Tooltip title={canvasEnabled ? t('workbench.aiVerify.canvasOn') : t('workbench.aiVerify.canvasOff')}>
@@ -269,15 +271,15 @@ export function VerifySection({
             aria-label={canvasEnabled ? t('workbench.aiVerify.canvasOn') : t('workbench.aiVerify.canvasOff')}
           >
             {canvasEnabled ? (
-              <VisibilityIcon sx={{ fontSize: 14, color: 'success.main' }} />
+              <VisibilityIcon sx={{ fontSize: uiFontSize(14), color: 'success.main' }} />
             ) : (
-              <VisibilityOffIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+              <VisibilityOffIcon sx={{ fontSize: uiFontSize(14), color: 'text.disabled' }} />
             )}
           </IconButton>
         </Tooltip>
         <Tooltip title={t('workbench.aiVerify.tip')}>
           <Box sx={{ cursor: 'help', display: 'flex' }}>
-            <LightbulbIcon sx={{ fontSize: 13, color: 'text.secondary' }} />
+            <LightbulbIcon sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }} />
           </Box>
         </Tooltip>
       </Box>
@@ -285,13 +287,13 @@ export function VerifySection({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1, pb: 0.25, flexWrap: 'wrap' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
           <span style={{ ...legendBadge, color: '#22c55e', borderColor: '#22c55e' }}>AI✓</span>
-          <Typography variant="caption" sx={{ fontSize: 8.5, color: 'text.secondary' }}>
+          <Typography variant="caption" sx={{ fontSize: uiFontSize(8.5), color: 'text.secondary' }}>
             {t('workbench.aiVerify.legendImproved')}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
           <span style={{ ...legendBadge, color: '#dc2626', borderColor: '#dc2626' }}>AI!</span>
-          <Typography variant="caption" sx={{ fontSize: 8.5, color: 'text.secondary' }}>
+          <Typography variant="caption" sx={{ fontSize: uiFontSize(8.5), color: 'text.secondary' }}>
             {t('workbench.aiVerify.legendWorsened')}
           </Typography>
         </Box>
@@ -301,14 +303,14 @@ export function VerifySection({
           {e.status === 'verifying' ? (
             <>
               <CircularProgress size={10} />
-              <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
                 {t('workbench.aiVerify.verifying', { file: e.relPath })}
               </Typography>
             </>
           ) : e.after && factsSig(e.after) !== factsSig(e.before) ? (
             <VerifyDeltas before={e.before} after={e.after} relPath={e.relPath} />
           ) : (
-            <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>
+            <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
               {t('workbench.aiVerify.noChange')} · {e.relPath}
             </Typography>
           )}
@@ -319,7 +321,7 @@ export function VerifySection({
             sx={{ p: 0.2 }}
             aria-label={t('workbench.aiVerify.dismiss')}
           >
-            <CloseIcon sx={{ fontSize: 13 }} />
+            <CloseIcon sx={{ fontSize: uiFontSize(13) }} />
           </IconButton>
         </Box>
       ))}
@@ -346,7 +348,16 @@ export function ImpactSurfaceBlock({
   const [open, setOpen] = useState(false);
   if (files.length === 0) return null;
   return (
-    <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'rgba(255,152,0,0.05)' }}>
+    <Box
+      sx={{
+        borderBottom: 1,
+        borderColor: 'divider',
+        bgcolor: (theme) =>
+          theme.palette.mode === 'dark'
+            ? 'rgb(var(--template-palette-warning-mainChannel) / 0.12)'
+            : 'rgb(var(--template-palette-warning-mainChannel) / 0.05)',
+      }}
+    >
       <Box
         onClick={() => setOpen((v) => !v)}
         sx={{
@@ -359,8 +370,11 @@ export function ImpactSurfaceBlock({
           '&:hover': { bgcolor: 'action.hover' },
         }}
       >
-        <HubIcon sx={{ fontSize: 14, color: 'warning.main', flexShrink: 0 }} />
-        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: 11, flex: 1, color: 'text.primary' }}>
+        <HubIcon sx={{ fontSize: uiFontSize(14), color: 'warning.main', flexShrink: 0 }} />
+        <Typography
+          variant="caption"
+          sx={{ fontWeight: 600, fontSize: uiFontSize(11), flex: 1, color: 'text.primary' }}
+        >
           {t('workbench.aiImpact.title', { n: files.length })}
         </Typography>
         {onToggle && (
@@ -373,28 +387,35 @@ export function ImpactSurfaceBlock({
                 aria-label={t('workbench.aiImpact.canvasToggleTip')}
               >
                 {enabled ? (
-                  <VisibilityIcon sx={{ fontSize: 15, color: 'primary.main' }} />
+                  <VisibilityIcon sx={{ fontSize: uiFontSize(15), color: 'primary.main' }} />
                 ) : (
-                  <VisibilityOffIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
+                  <VisibilityOffIcon sx={{ fontSize: uiFontSize(15), color: 'text.disabled' }} />
                 )}
               </IconButton>
             </span>
           </Tooltip>
         )}
-        {open ? <ExpandLessIcon sx={{ fontSize: 16 }} /> : <ExpandMoreIcon sx={{ fontSize: 16 }} />}
+        {open ? (
+          <ExpandLessIcon sx={{ fontSize: uiFontSize(16) }} />
+        ) : (
+          <ExpandMoreIcon sx={{ fontSize: uiFontSize(16) }} />
+        )}
       </Box>
       {/* 图例：解释画布上靛蓝「波及」标记的语义（护城河对用户是「未知符号」unless 解释，与 verify 图例同形） */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 1, pb: 0.25 }}>
         <span style={{ ...legendBadge, color: '#6366f1', borderColor: '#6366f1' }}>
           {t('workbench.aiImpact.canvasBadge')}
         </span>
-        <Typography variant="caption" sx={{ fontSize: 8.5, color: 'text.secondary' }}>
+        <Typography variant="caption" sx={{ fontSize: uiFontSize(8.5), color: 'text.secondary' }}>
           {t('workbench.aiImpact.legend')}
         </Typography>
       </Box>
       {open && (
         <Box sx={{ px: 1, pb: 0.5, maxHeight: 200, overflow: 'auto' }}>
-          <Typography variant="caption" sx={{ display: 'block', fontSize: 9.5, color: 'text.secondary', mb: 0.25 }}>
+          <Typography
+            variant="caption"
+            sx={{ display: 'block', fontSize: uiFontSize(9.5), color: 'text.secondary', mb: 0.25 }}
+          >
             {t('workbench.aiImpact.hint')}
           </Typography>
           {files.map((f) => (
@@ -411,11 +432,11 @@ export function ImpactSurfaceBlock({
                 '&:hover': onOpenPath ? { bgcolor: 'action.selected' } : {},
               }}
             >
-              <CallSplitIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
+              <CallSplitIcon sx={{ fontSize: uiFontSize(12), color: 'text.disabled', flexShrink: 0 }} />
               <Typography
                 variant="caption"
                 sx={{
-                  fontSize: 10,
+                  fontSize: uiFontSize(10),
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -446,7 +467,7 @@ export const legendBadge: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 8.5,
+  fontSize: uiFontSize(8.5),
   fontWeight: 700,
   lineHeight: 1,
   height: 14,
@@ -486,7 +507,7 @@ export function DiagnosticsStrip({ diagnostics, onFix }: { diagnostics: EditorDi
               size="small"
               label={t('workbench.aiDiag.errorCount', { n: errors.length })}
               color="error"
-              sx={{ fontSize: 9.5, height: 18 }}
+              sx={{ fontSize: uiFontSize(9.5), height: 18 }}
             />
           )}
           {warnings.length > 0 && (
@@ -494,13 +515,13 @@ export function DiagnosticsStrip({ diagnostics, onFix }: { diagnostics: EditorDi
               size="small"
               label={t('workbench.aiDiag.warnCount', { n: warnings.length })}
               color="warning"
-              sx={{ fontSize: 9.5, height: 18 }}
+              sx={{ fontSize: uiFontSize(9.5), height: 18 }}
             />
           )}
           <Typography
             variant="caption"
             sx={{
-              fontSize: 10,
+              fontSize: uiFontSize(10),
               color: 'text.secondary',
               lineHeight: 1.4,
               flex: 1,
@@ -517,7 +538,7 @@ export function DiagnosticsStrip({ diagnostics, onFix }: { diagnostics: EditorDi
             variant="contained"
             color="error"
             onClick={onFix}
-            sx={{ fontSize: 9.5, height: 20, minWidth: 0, px: 0.75 }}
+            sx={{ fontSize: uiFontSize(9.5), height: 20, minWidth: 0, px: 0.75 }}
           >
             {t('workbench.aiDiag.fix')}
           </Button>
@@ -586,6 +607,34 @@ export interface WorkbenchInputBarCtx {
   agents: AiAgent[];
   selectedAgentId: string | null;
   selectAgent: (id: string | null) => void;
+}
+
+// composer 卡的圆角乘数 —— 必须与上方卡片 sx 的 borderRadius 字面量保持一致，
+// 行内收量按这个乘数复算弧位置（composerEdgeClearance 锁会核对两处同步）。
+const CARD_RADIUS_MULT = 3;
+// 贴边行内容与弧线之间保留的最小气口（px）：描边 1px + 视觉留白，避免「挨着=压线」观感。
+const EDGE_GAP = 2;
+// 卡片 px/py = 1.5 × spacing(8)：贴边行默认起笔位，内收量以此为基准做差值。
+const CARD_EDGE_PAD = 12;
+
+/**
+ * 贴边行（快捷标签排 / 底部动作条）的动态左收量 = 弧在该行顶边高度上的横向位置
+ * 往后推的气口对齐值（2026-11-03 李先生定案：「算出圆角从哪开始变圆，按那个往后推」）。
+ *
+ * 卡圆角 r = 档位 × 3（全圆档 60px，卡保持全圆不钳）。左上角弧是圆心 (r, r)、
+ * 半径 r 的圆；行顶边在 y = CARD_EDGE_PAD(12px)，弧在该高度的横坐标是
+ * x = r − √(r² − (r−y)²)。内容左缘 ≥ x + 气口才算「对齐到弧线之后」。
+ * 返回的是在既有 12px 内边距上**追加**的量：none~large 档弧切不到行（返回 0，
+ * 逐像素零改动），round 档返回 14（24px 弧位 + 2 气口 − 12 内边距）。
+ * 只依赖档位不依赖宽高 —— 拖动左/右边框改变面板宽度时，圆角位置不变、内收量
+ * 不变，控件相对卡片角的位置恒定，不会飘。
+ */
+export function composerRowInsetExtra(theme: { shape: { borderRadius: unknown } }): number {
+  const base = typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius : BORDER_RADIUS_BASE.medium;
+  const r = base * CARD_RADIUS_MULT;
+  if (!(r > 0) || CARD_EDGE_PAD >= r) return 0;
+  const arcX = r - Math.sqrt(r * r - (r - CARD_EDGE_PAD) * (r - CARD_EDGE_PAD));
+  return Math.max(0, arcX + EDGE_GAP - CARD_EDGE_PAD);
 }
 
 export function WorkbenchInputBar({
@@ -722,10 +771,19 @@ export function WorkbenchInputBar({
         sx={{
           m: 1,
           mt: 0.5,
-          borderRadius: '20px',
+          // 圆角挂档位（乘数 3）：卡片里包的编辑区已从第 32 轮起跟随「圆角风格」，
+          // 外壳若继续写死 20px，切到「直角」就会出现「方框套圆卡」的错位。
+          // medium 档 6×3 = 18px（原 20px，差 2px，档位一致性优先）。
+          // 全圆档 60px 弧与贴边控件的冲突**不靠钳卡解决**（钳卡 = 牺牲用户选的档位，
+          // 2026-11-03 李先生驳回）：卡保持全圆，改由 composerRowInsetExtra 把贴边行
+          // 对齐到弧线之后。乘数若改，必须同步 CARD_RADIUS_MULT。
+          borderRadius: 3,
           border: 1,
           borderColor: 'divider',
-          bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)'),
+          bgcolor: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'rgb(var(--template-palette-text-primaryChannel) / 0.04)'
+              : 'rgb(var(--template-palette-text-primaryChannel) / 0.02)',
           px: 1.5,
           py: 1.5,
           display: 'flex',
@@ -735,12 +793,24 @@ export function WorkbenchInputBar({
           '&:focus-within': {
             borderColor: 'primary.main',
             boxShadow: (theme) =>
-              `0 0 0 3px ${theme.palette.mode === 'dark' ? 'rgba(144,202,249,0.16)' : 'rgba(25,118,210,0.12)'}`,
+              `0 0 0 3px ${theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-primary-mainChannel) / 0.16)' : 'rgb(var(--template-palette-primary-mainChannel) / 0.12)'}`,
           },
         }}
       >
-        {/* 卡片内第一排：编辑快捷动作 pill（左）+ 助手选择框（右） */}
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+        {/* 卡片内第一排：编辑快捷动作 pill（左）+ 助手选择框（右）
+            圆角例外（第 32 轮逐处拍板，共 12 枚 pill）：它们的 borderRadius 一律 '11px' = height 22 的一半，
+            是**胶囊**而不是圆角档 —— 挂上档位会在「大圆角 / 全圆」档溢出成椭圆，「直角」档又失去 pill 语义。 */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 0.5,
+            alignItems: 'center',
+            // 全圆档弧切到这一排的高度时，左缘对齐到弧线之后（只推左、右缘自然换行，
+            // 整排不会"往中间挤"；量由档位算出，拖动宽高不变 —— 李先生定案口径）
+            pl: composerRowInsetExtra,
+          }}
+        >
           {ctx.isBookScene ? (
             <>
               {selection && (
@@ -751,7 +821,7 @@ export function WorkbenchInputBar({
                     variant="outlined"
                     label={t('workbench.aiExplainSelectionBook')}
                     onClick={() => ctx.quickAction('book-explain-sel')}
-                    sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                    sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
                   />
                   <Chip
                     size="small"
@@ -759,7 +829,7 @@ export function WorkbenchInputBar({
                     variant="outlined"
                     label={t('workbench.aiPolishSelection')}
                     onClick={() => ctx.quickAction('book-polish')}
-                    sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                    sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
                   />
                 </>
               )}
@@ -769,7 +839,7 @@ export function WorkbenchInputBar({
                 variant="outlined"
                 label={t('workbench.aiUnderstandChapter')}
                 onClick={() => ctx.quickAction('book-understand')}
-                sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
               <Chip
                 size="small"
@@ -777,7 +847,7 @@ export function WorkbenchInputBar({
                 variant="outlined"
                 label={t('workbench.aiConsistencyChapter')}
                 onClick={() => ctx.quickAction('book-consistency')}
-                sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
               <Chip
                 size="small"
@@ -785,7 +855,7 @@ export function WorkbenchInputBar({
                 variant="outlined"
                 label={t('workbench.aiPlotChapter')}
                 onClick={() => ctx.quickAction('book-plot')}
-                sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
               <Chip
                 size="small"
@@ -793,7 +863,7 @@ export function WorkbenchInputBar({
                 variant="outlined"
                 label={t('workbench.aiConsistencyWorld')}
                 onClick={() => ctx.quickAction('book-consistency-world')}
-                sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
             </>
           ) : (
@@ -806,7 +876,7 @@ export function WorkbenchInputBar({
                     variant="outlined"
                     label={t('workbench.aiExplainSelection')}
                     onClick={() => ctx.quickAction('selection')}
-                    sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                    sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
                   />
                   <Chip
                     size="small"
@@ -814,7 +884,7 @@ export function WorkbenchInputBar({
                     variant="outlined"
                     label={t('workbench.aiFixSelection')}
                     onClick={() => ctx.quickAction('fix')}
-                    sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                    sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
                   />
                 </>
               )}
@@ -824,7 +894,7 @@ export function WorkbenchInputBar({
                 variant="outlined"
                 label={t('workbench.aiExplainFile')}
                 onClick={() => ctx.quickAction('file')}
-                sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
               <Chip
                 size="small"
@@ -832,7 +902,7 @@ export function WorkbenchInputBar({
                 variant="outlined"
                 label={t('workbench.aiGenTest')}
                 onClick={() => ctx.quickAction('test')}
-                sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
               <Chip
                 size="small"
@@ -840,7 +910,7 @@ export function WorkbenchInputBar({
                 variant="outlined"
                 label={t('workbench.aiReviewFile')}
                 onClick={() => ctx.quickAction('review')}
-                sx={{ fontSize: 10, height: 22, borderRadius: '11px' }}
+                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
             </>
           )}
@@ -850,7 +920,7 @@ export function WorkbenchInputBar({
                 size="small"
                 label={t('workbench.aiQueue.badge', { n: ctx.queued.length })}
                 color="info"
-                sx={{ fontSize: 9.5, height: 20 }}
+                sx={{ fontSize: uiFontSize(9.5), height: 20 }}
               />
             </Tooltip>
           )}
@@ -877,16 +947,24 @@ export function WorkbenchInputBar({
               flex: 1,
               minWidth: 0,
               '& .MuiInputBase-root': {
-                fontSize: 12.5,
+                fontSize: uiFontSize(12.5),
                 p: 0,
                 py: 0.25,
                 pl: '6px',
                 pr: '10px',
                 alignItems: 'flex-start',
-                borderRadius: '12px',
+                // 圆角走 MUI 乘数（= shape 基准 × 2）而非 '12px' 字面量：此前它是写死值，
+                // 「设置 → 圆角风格」切到「直角 / 大圆角」时这个输入框纹丝不动（第 32 轮收第 31 轮待办 1）。
+                // 刻意用乘数而不是 calc(var(--app-radius-base) + 6px)：乘数在「直角」档真的归零，
+                // 加固定值不会 —— 用户选了直角还留着圆角，就又是一处「设置了没生效」。
+                // medium 档 6×2 = 12px，与改动前逐像素一致，老用户观感不变。
+                borderRadius: 2,
                 border: '1px solid',
                 borderColor: 'divider',
-                bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.045)'),
+                bgcolor: (theme) =>
+                  theme.palette.mode === 'dark'
+                    ? 'rgb(var(--template-palette-text-primaryChannel) / 0.055)'
+                    : 'rgb(var(--template-palette-text-primaryChannel) / 0.045)',
                 transition: 'border-color 120ms ease, background-color 120ms ease',
                 '&:hover': { borderColor: 'text.secondary' },
                 '&.Mui-focused': { borderColor: 'primary.main' },
@@ -903,7 +981,17 @@ export function WorkbenchInputBar({
             }}
           />
           {/* 输入框下方工具行：左侧语音/斜杠，右侧助手选择 + 发送/停止，同高同线不突兀 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              // 两端各对齐到所在下角弧线之后：左缘（麦克风/斜杠）与右缘（助手/发送）
+              // 由同一条弧几何推出，档位不变量不变，拖拽面板不飘
+              pl: composerRowInsetExtra,
+              pr: composerRowInsetExtra,
+            }}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
               {isSpeechRecognitionSupported() && (
                 <Tooltip title={listening ? t('workbench.aiVoice.stop') : t('workbench.aiVoice.start')}>
@@ -912,7 +1000,7 @@ export function WorkbenchInputBar({
                     onClick={toggleVoice}
                     sx={{
                       p: 0.4,
-                      '& .MuiSvgIcon-root': { fontSize: 17 },
+                      '& .MuiSvgIcon-root': { fontSize: uiFontSize(17) },
                       flexShrink: 0,
                       color: listening ? 'error.main' : 'text.secondary',
                       animation: listening ? `${voicePulse} 1.4s ease-in-out infinite` : undefined,
@@ -933,7 +1021,12 @@ export function WorkbenchInputBar({
                     }
                     ctx.setSlashAnchor(e.currentTarget);
                   }}
-                  sx={{ p: 0.4, '& .MuiSvgIcon-root': { fontSize: 17 }, flexShrink: 0, color: 'text.secondary' }}
+                  sx={{
+                    p: 0.4,
+                    '& .MuiSvgIcon-root': { fontSize: uiFontSize(17) },
+                    flexShrink: 0,
+                    color: 'text.secondary',
+                  }}
                   aria-label={t('workbench.aiSlash')}
                 >
                   <CodeIcon />
@@ -947,33 +1040,42 @@ export function WorkbenchInputBar({
                     value={ctx.selectedAgentId ?? ''}
                     onChange={(e) => ctx.selectAgent((e.target.value as string) || null)}
                     sx={{
-                      fontSize: 9.5,
+                      fontSize: uiFontSize(9.5),
                       height: 24,
-                      '& .MuiSelect-select': { py: 0, pl: 0.5, pr: '18px !important', fontSize: 9.5 },
+                      '& .MuiSelect-select': { py: 0, pl: 0.5, pr: '18px !important', fontSize: uiFontSize(9.5) },
                       '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
                       '&:hover .MuiOutlinedInput-notchedOutline': { border: 'none' },
                       '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: 'none' },
-                      '& .MuiSelect-icon': { fontSize: 14, right: 0 },
+                      '& .MuiSelect-icon': { fontSize: uiFontSize(14), right: 0 },
                     }}
                     displayEmpty
                     MenuProps={{
                       sx: { '& .MuiPaper-root': { maxWidth: 300 }, '& .MuiMenuItem-root': { whiteSpace: 'normal' } },
                     }}
                   >
-                    <MenuItem value="" disabled sx={{ fontSize: 10 }}>
+                    <MenuItem value="" disabled sx={{ fontSize: uiFontSize(10) }}>
                       {t('workbench.aiAgent.none')}
                     </MenuItem>
                     {ctx.agents.map((a) => (
                       <MenuItem
                         key={a.id}
                         value={a.id}
-                        sx={{ fontSize: 10, flexDirection: 'column', alignItems: 'flex-start', py: 0.75, gap: 0.25 }}
+                        sx={{
+                          fontSize: uiFontSize(10),
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          py: 0.75,
+                          gap: 0.25,
+                        }}
                       >
                         <Box component="span" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
                           {a.name}
                         </Box>
                         {a.description && (
-                          <Box component="span" sx={{ fontSize: 9, color: 'text.secondary', lineHeight: 1.4 }}>
+                          <Box
+                            component="span"
+                            sx={{ fontSize: uiFontSize(9), color: 'text.secondary', lineHeight: 1.4 }}
+                          >
                             {a.description}
                           </Box>
                         )}
@@ -988,7 +1090,7 @@ export function WorkbenchInputBar({
                   color="error"
                   disabled={interruptRequested}
                   onClick={() => useAgentStore.getState().requestInterrupt()}
-                  sx={{ p: 0.4, '& .MuiSvgIcon-root': { fontSize: 17 }, flexShrink: 0 }}
+                  sx={{ p: 0.4, '& .MuiSvgIcon-root': { fontSize: uiFontSize(17) }, flexShrink: 0 }}
                   aria-label={t('workbench.aiQueue.queued')}
                 >
                   <StopRoundedIcon />
@@ -999,7 +1101,7 @@ export function WorkbenchInputBar({
                   color="primary"
                   onClick={submit}
                   disabled={!value.trim()}
-                  sx={{ p: 0.4, '& .MuiSvgIcon-root': { fontSize: 17 }, flexShrink: 0 }}
+                  sx={{ p: 0.4, '& .MuiSvgIcon-root': { fontSize: uiFontSize(17) }, flexShrink: 0 }}
                   aria-label={t('workbench.aiQueue.send')}
                 >
                   <SendRoundedIcon />
@@ -1014,7 +1116,7 @@ export function WorkbenchInputBar({
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: 0.75,
-                borderRadius: '10px',
+                borderRadius: 1.5,
                 border: 1,
                 borderColor: 'warning.main',
                 bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(237,108,2,0.10)' : 'rgba(237,108,2,0.06)'),
@@ -1022,18 +1124,18 @@ export function WorkbenchInputBar({
                 py: 0.75,
               }}
             >
-              <MicOffIcon sx={{ fontSize: 14, color: 'warning.main', mt: 0.125, flexShrink: 0 }} />
+              <MicOffIcon sx={{ fontSize: uiFontSize(14), color: 'warning.main', mt: 0.125, flexShrink: 0 }} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.primary', lineHeight: 1.4 }}>
+                <Typography sx={{ fontSize: uiFontSize(11), fontWeight: 600, color: 'text.primary', lineHeight: 1.4 }}>
                   {micGuideLaunch ? t('workbench.aiVoice.micGuideLaunchTitle') : t('workbench.aiVoice.micGuideTitle')}
                 </Typography>
-                <Typography sx={{ fontSize: 10, color: 'text.secondary', lineHeight: 1.5, mt: 0.25 }}>
+                <Typography sx={{ fontSize: uiFontSize(10), color: 'text.secondary', lineHeight: 1.5, mt: 0.25 }}>
                   {micGuideLaunch ? t('workbench.aiVoice.micGuideLaunchBody') : t('workbench.aiVoice.micGuideBody')}
                 </Typography>
                 {voiceDiag && (
                   <Typography
                     sx={{
-                      fontSize: 9,
+                      fontSize: uiFontSize(9),
                       fontFamily: 'monospace',
                       color: 'text.disabled',
                       lineHeight: 1.4,
@@ -1049,7 +1151,12 @@ export function WorkbenchInputBar({
                 size="small"
                 onClick={toggleVoice}
                 aria-label={t('workbench.aiVoice.micGuideRetry')}
-                sx={{ p: 0.3, flexShrink: 0, fontSize: 10, '& .MuiSvgIcon-root': { fontSize: 15 } }}
+                sx={{
+                  p: 0.3,
+                  flexShrink: 0,
+                  fontSize: uiFontSize(10),
+                  '& .MuiSvgIcon-root': { fontSize: uiFontSize(15) },
+                }}
               >
                 <ReplayIcon />
               </IconButton>
@@ -1057,7 +1164,7 @@ export function WorkbenchInputBar({
                 size="small"
                 onClick={() => setMicGuideOpen(false)}
                 aria-label={t('workbench.aiVoice.micGuideClose')}
-                sx={{ p: 0.3, flexShrink: 0, '& .MuiSvgIcon-root': { fontSize: 15 } }}
+                sx={{ p: 0.3, flexShrink: 0, '& .MuiSvgIcon-root': { fontSize: uiFontSize(15) } }}
               >
                 <CloseIcon />
               </IconButton>
@@ -1092,11 +1199,11 @@ export function WorkbenchInputBar({
                     variant="caption"
                     sx={{ fontFamily: 'monospace', color: 'primary.main', fontWeight: 700 }}
                   >{`/${s.cmd}`}</Typography>
-                  <Typography variant="caption" sx={{ fontSize: 11 }}>
+                  <Typography variant="caption" sx={{ fontSize: uiFontSize(11) }}>
                     {s.label()}
                   </Typography>
                 </Box>
-                <Typography variant="caption" sx={{ fontSize: 9.5, color: 'text.secondary' }}>
+                <Typography variant="caption" sx={{ fontSize: uiFontSize(9.5), color: 'text.secondary' }}>
                   {s.description()}
                 </Typography>
               </Box>

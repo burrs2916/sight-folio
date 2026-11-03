@@ -196,6 +196,14 @@ function subscribe(cb: () => void): () => void {
   };
 }
 
+/**
+ * 订阅语言变化（非 React 侧用：store 需要把语言镜像进自己的状态，
+ * 这样无论从哪一处调用 setLang —— 顶栏按钮 / 设置抽屉 / 另一窗口 —— 各处读数都一致）。
+ */
+export function subscribeLang(cb: () => void): () => void {
+  return subscribe(cb);
+}
+
 function getSnapshot(): Lang {
   return current;
 }

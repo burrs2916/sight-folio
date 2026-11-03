@@ -199,7 +199,7 @@ export function InspirationOverviewCard() {
 const fieldStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  border: '1px solid rgba(128,128,128,0.35)',
+  border: '1px solid var(--template-palette-divider, rgba(128,128,128,0.35))',
   borderRadius: 6,
   background: 'transparent',
   color: 'inherit',
@@ -464,7 +464,6 @@ export function InspirationDetail({ beat }: { beat: WritingOutline }) {
         <ChapterPicker
           uniqueKey={beat.id}
           chapters={bookChapters}
-          accent="#1976d2"
           onSelect={(v: string) => bindChapter(v)}
           width="100%"
           value={beat.chapterId}
@@ -478,7 +477,7 @@ export function InspirationDetail({ beat }: { beat: WritingOutline }) {
           characters.map((c) => ({ id: c.id, name: c.name })),
           'cast',
           CAST_COLOR,
-          'rgba(74,51,143,0.12)',
+          'rgb(var(--template-palette-primary-mainChannel) / 0.12)',
         )}
         {mountRow(
           t('writingDesign.mountScenes'),

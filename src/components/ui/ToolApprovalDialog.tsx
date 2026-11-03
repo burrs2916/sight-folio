@@ -59,7 +59,7 @@ export function ToolApprovalDialog() {
             </Typography>
             <Box
               sx={{
-                bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                bgcolor: (th) => (th.palette.mode === 'dark' ? 'rgb(var(--template-palette-text-primaryChannel) / 0.06)' : 'rgb(var(--template-palette-text-primaryChannel) / 0.04)'),
                 border: 1,
                 borderColor: 'divider',
                 borderRadius: 1,

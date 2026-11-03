@@ -14,6 +14,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import GroupIcon from '@mui/icons-material/Group';
 import PublicIcon from '@mui/icons-material/Public';
 import { t } from '../i18n';
+import { uiFontSize } from '../theme/appearanceScales';
 import type { AiConversation } from '../services/agent';
 
 export type QuickActionKind = 'continue' | 'polish' | 'analyze' | 'outline' | 'character' | 'world';
@@ -91,12 +92,12 @@ export function WelcomeView({
             },
           }}
         >
-          <SmartToyIcon sx={{ fontSize: 40, color: '#fff' }} />
+          <SmartToyIcon sx={{ fontSize: uiFontSize(40), color: '#fff' }} />
         </Box>
 
         <Typography
           sx={{
-            fontSize: 24,
+            fontSize: uiFontSize(24),
             fontWeight: 700,
             mb: 1,
             background: (theme) =>
@@ -110,7 +111,7 @@ export function WelcomeView({
 
         <Typography
           sx={{
-            fontSize: 14,
+            fontSize: uiFontSize(14),
             color: 'text.secondary',
             textAlign: 'center',
             maxWidth: 400,
@@ -126,7 +127,7 @@ export function WelcomeView({
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
           <Chip
             size="small"
-            icon={<MenuBookIcon sx={{ fontSize: 14 }} />}
+            icon={<MenuBookIcon sx={{ fontSize: uiFontSize(14) }} />}
             label={currentBook.title}
             color="primary"
             variant="outlined"
@@ -134,7 +135,7 @@ export function WelcomeView({
           {currentChapter && (
             <Chip
               size="small"
-              icon={<AutoStoriesIcon sx={{ fontSize: 14 }} />}
+              icon={<AutoStoriesIcon sx={{ fontSize: uiFontSize(14) }} />}
               label={t('agent.welcome.wordCount', { title: currentChapter.title, wordCount: currentChapter.wordCount })}
               variant="outlined"
             />
@@ -154,37 +155,37 @@ export function WelcomeView({
       >
         {[
           {
-            icon: <PsychologyIcon sx={{ fontSize: 28, color: 'primary.main' }} />,
+            icon: <PsychologyIcon sx={{ fontSize: uiFontSize(28), color: 'primary.main' }} />,
             title: t('agent.welcome.continue'),
             desc: t('agent.welcome.continueDesc'),
             action: () => onQuickAction?.('continue'),
           },
           {
-            icon: <AutoAwesomeIcon sx={{ fontSize: 28, color: 'secondary.main' }} />,
+            icon: <AutoAwesomeIcon sx={{ fontSize: uiFontSize(28), color: 'secondary.main' }} />,
             title: t('agent.welcome.polish'),
             desc: t('agent.welcome.polishDesc'),
             action: () => onQuickAction?.('polish'),
           },
           {
-            icon: <BuildIcon sx={{ fontSize: 28, color: 'warning.main' }} />,
+            icon: <BuildIcon sx={{ fontSize: uiFontSize(28), color: 'warning.main' }} />,
             title: t('agent.welcome.impact'),
             desc: t('agent.welcome.analyzeDesc'),
             action: () => onQuickAction?.('analyze'),
           },
           {
-            icon: <AccountTreeIcon sx={{ fontSize: 28, color: 'info.main' }} />,
+            icon: <AccountTreeIcon sx={{ fontSize: uiFontSize(28), color: 'info.main' }} />,
             title: t('agent.welcome.outline'),
             desc: t('agent.welcome.outlineDesc'),
             action: () => onQuickAction?.('outline'),
           },
           {
-            icon: <GroupIcon sx={{ fontSize: 28, color: 'success.main' }} />,
+            icon: <GroupIcon sx={{ fontSize: uiFontSize(28), color: 'success.main' }} />,
             title: t('agent.welcome.character'),
             desc: t('agent.welcome.characterDesc'),
             action: () => onQuickAction?.('character'),
           },
           {
-            icon: <PublicIcon sx={{ fontSize: 28, color: 'text.secondary' }} />,
+            icon: <PublicIcon sx={{ fontSize: uiFontSize(28), color: 'text.secondary' }} />,
             title: t('agent.welcome.world'),
             desc: t('agent.welcome.worldDesc'),
             action: () => onQuickAction?.('world'),
@@ -227,7 +228,7 @@ export function WelcomeView({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                bgcolor: 'rgba(99,102,241,0.08)',
+                bgcolor: 'rgb(var(--template-palette-primary-mainChannel) / 0.08)',
                 mx: 'auto',
                 mb: 1.5,
                 transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -235,8 +236,10 @@ export function WelcomeView({
             >
               {item.icon}
             </Box>
-            <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 0.5 }}>{item.title}</Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.5 }}>{item.desc}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(14), fontWeight: 600, mb: 0.5 }}>{item.title}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', lineHeight: 1.5 }}>
+              {item.desc}
+            </Typography>
           </Paper>
         ))}
       </Box>
@@ -246,7 +249,7 @@ export function WelcomeView({
         <Box sx={{ width: '100%', maxWidth: 600 }}>
           <Typography
             sx={{
-              fontSize: 13,
+              fontSize: uiFontSize(13),
               fontWeight: 600,
               color: 'text.secondary',
               mb: 1.5,
@@ -255,7 +258,7 @@ export function WelcomeView({
               gap: 0.5,
             }}
           >
-            <HistoryIcon sx={{ fontSize: 16 }} />
+            <HistoryIcon sx={{ fontSize: uiFontSize(16) }} />
             {t('agent.welcome.recentChats')}
           </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
@@ -276,17 +279,17 @@ export function WelcomeView({
                   transition: 'all 0.15s',
                   '&:hover': {
                     borderColor: 'primary.main',
-                    bgcolor: 'rgba(99,102,241,0.04)',
+                    bgcolor: 'rgb(var(--template-palette-primary-mainChannel) / 0.04)',
                   },
                 }}
               >
-                <ChatBubbleOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
+                <ChatBubbleOutlinedIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary', flexShrink: 0 }} />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>
+                  <Typography noWrap sx={{ fontSize: uiFontSize(13), fontWeight: 500 }}>
                     {c.title}
                   </Typography>
                 </Box>
-                <Typography sx={{ fontSize: 11, color: 'text.disabled', flexShrink: 0 }}>
+                <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', flexShrink: 0 }}>
                   {new Date(c.updatedAt * 1000).toLocaleDateString()}
                 </Typography>
               </Paper>
@@ -299,7 +302,7 @@ export function WelcomeView({
       <Box sx={{ width: '100%', maxWidth: 700, textAlign: 'center' }}>
         <Typography
           sx={{
-            fontSize: 11,
+            fontSize: uiFontSize(11),
             fontWeight: 500,
             color: 'text.disabled',
             mb: 1,
@@ -324,7 +327,7 @@ export function WelcomeView({
                 borderRadius: 4,
                 border: 1,
                 borderColor: 'divider',
-                fontSize: 12,
+                fontSize: uiFontSize(12),
                 color: 'text.secondary',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
@@ -344,7 +347,7 @@ export function WelcomeView({
       {/* 键盘快捷键提示 */}
       <Typography
         sx={{
-          fontSize: 11,
+          fontSize: uiFontSize(11),
           color: 'text.disabled',
           textAlign: 'center',
           maxWidth: 500,

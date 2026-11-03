@@ -15,6 +15,7 @@ import { useAgentStore } from '../store/agentStore';
 import { agentApi } from '../services/tauri';
 import { L } from './aiLang';
 import { getLang, t } from '../i18n';
+import { CHAPTER_TAIL_CHARS } from '../utils/writingCorpusBudget';
 
 export type InlineWritingKind = 'continue' | 'polish' | 'rewrite' | 'summarize' | 'review';
 
@@ -64,8 +65,10 @@ export interface InlineWritingContext {
   characterCognitiveWeights?: string[];
 }
 
-/** 续写只喂尾部，控制 token：末尾 TAIL_CHARS 字符足够接住文风与情节 */
-export const TAIL_CHARS = 3000;
+/** 续写只喂尾部，控制 token：末尾 TAIL_CHARS 字符足够接住文风与情节。
+ *  值来自语料预算单一真源 writingCorpusBudget.CHAPTER_TAIL_CHARS（本名保留为对外别名，
+ *  与 buildManuscriptCorpus 当前章长度闸同一口径，第三十八轮批次1刀②）。 */
+export const TAIL_CHARS = CHAPTER_TAIL_CHARS;
 
 export function tailOf(text: string, chars = TAIL_CHARS): string {
   if (text.length <= chars) return text;

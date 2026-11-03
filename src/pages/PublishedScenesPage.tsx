@@ -46,6 +46,7 @@ import { useWritingStore } from '../store/writingStore';
 import { completedWorksApi, type CompletedWork as WorkRecord, type CompletedWorkFormat } from '../services/tauri';
 import { invoke } from '../services/core';
 import { logger } from '../utils/logger';
+import { uiFontSize } from '../theme/appearanceScales';
 
 // ═══════════════════════════════════════════════════
 //  类型
@@ -105,6 +106,9 @@ const FORMAT_META: Record<WorkFormat, { label: string; Icon: React.ComponentType
   backup: { label: t('scene.backupLabel'), Icon: SaveIcon },
 };
 
+/** 格式徽章专属色相（docx 深蓝 / md 紫）：保持「一格式一色相」辨识度，属语义标识，不随主题皮肤联动 */
+const FORMAT_HUE = { docx: '#1a4f9c', md: '#7b1fa2' } as const;
+
 /**
  * 格式徽章配色：从主题语义色派生（浅色柔和、深色自适配），替代硬编码 Material 旧色板。
  * 保持原「一格式一色相」的辨识度：pdf 红 / epub 蓝 / docx 深蓝 / html 橙 / md 紫 / txt 灰 / backup 绿。
@@ -117,11 +121,11 @@ function formatPalette(theme: Theme, format: WorkFormat): { color: string; bg: s
     case 'epub':
       return { color: p.info.main, bg: alpha(p.info.main, 0.1) };
     case 'docx':
-      return { color: '#1a4f9c', bg: alpha(p.info.main, 0.12) };
+      return { color: FORMAT_HUE.docx, bg: alpha(p.info.main, 0.12) };
     case 'html':
       return { color: p.warning.dark, bg: alpha(p.warning.dark, 0.1) };
     case 'md':
-      return { color: '#7b1fa2', bg: alpha('#7b1fa2', 0.1) };
+      return { color: FORMAT_HUE.md, bg: alpha(FORMAT_HUE.md, 0.1) };
     case 'txt':
       return { color: p.text.secondary, bg: alpha(p.text.secondary, 0.09) };
     case 'backup':
@@ -477,12 +481,12 @@ export default function PublishedScenesPage() {
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <Tooltip title={t('published.import')}>
               <IconButton size="small" onClick={openImportDialog} color="default">
-                <UploadFileIcon sx={{ fontSize: 20 }} />
+                <UploadFileIcon sx={{ fontSize: uiFontSize(20) }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={t('published.refresh')}>
               <IconButton size="small" onClick={handleRefresh} color="default">
-                <FolderOpenIcon sx={{ fontSize: 20 }} />
+                <FolderOpenIcon sx={{ fontSize: uiFontSize(20) }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={t('published.listView')}>
@@ -546,7 +550,7 @@ export default function PublishedScenesPage() {
           <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
             <Tooltip title={t('published.bulkRemove')}>
               <IconButton size="small" onClick={handleBulkRemoveClick} color="error">
-                <DeleteIcon sx={{ fontSize: 18 }} />
+                <DeleteIcon sx={{ fontSize: uiFontSize(18) }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={t('published.cancelSelection')}>
@@ -557,7 +561,7 @@ export default function PublishedScenesPage() {
                   setAllSelected(false);
                 }}
               >
-                <ClearIcon sx={{ fontSize: 18 }} />
+                <ClearIcon sx={{ fontSize: uiFontSize(18) }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -586,7 +590,7 @@ export default function PublishedScenesPage() {
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  <SearchIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
                 </InputAdornment>
               ),
             },
@@ -811,7 +815,7 @@ function EmptyState({ isFiltered, onClear }: { isFiltered: boolean; onClear: () 
           bgcolor: (th) => `${th.palette.primary.main}10`,
         }}
       >
-        <BookIcon sx={{ fontSize: 36, color: 'primary.main', opacity: 0.5 }} />
+        <BookIcon sx={{ fontSize: uiFontSize(36), color: 'primary.main', opacity: 0.5 }} />
       </Box>
       <Box sx={{ textAlign: 'center', maxWidth: 380 }}>
         <Typography variant="h6" sx={{ fontWeight: 600, opacity: 0.7, mb: 1 }}>
@@ -974,13 +978,17 @@ function BookGroupList({
           }}
         >
           <IconButton size="small" sx={{ p: 0.25, flexShrink: 0 }} tabIndex={-1}>
-            {collapsed ? <ChevronRightIcon sx={{ fontSize: 20 }} /> : <ExpandMoreIcon sx={{ fontSize: 20 }} />}
+            {collapsed ? (
+              <ChevronRightIcon sx={{ fontSize: uiFontSize(20) }} />
+            ) : (
+              <ExpandMoreIcon sx={{ fontSize: uiFontSize(20) }} />
+            )}
           </IconButton>
           <Tooltip title={g.bookTitle}>
             <Typography
               sx={{
                 fontWeight: 600,
-                fontSize: 14,
+                fontSize: uiFontSize(14),
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -998,7 +1006,13 @@ function BookGroupList({
                   key={f}
                   size="small"
                   label={n > 1 ? `${FORMAT_META[f].label} ×${n}` : FORMAT_META[f].label}
-                  sx={{ fontSize: 11, height: 22, bgcolor: fmtPal.bg, color: fmtPal.color, fontWeight: 600 }}
+                  sx={{
+                    fontSize: uiFontSize(11),
+                    height: 22,
+                    bgcolor: fmtPal.bg,
+                    color: fmtPal.color,
+                    fontWeight: 600,
+                  }}
                 />
               );
             })}
@@ -1010,10 +1024,10 @@ function BookGroupList({
                 color="primary"
                 variant="outlined"
                 label={t('published.groupSelected', { n: groupSelected })}
-                sx={{ fontSize: 11, height: 22 }}
+                sx={{ fontSize: uiFontSize(11), height: 22 }}
               />
             )}
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
               {t('published.groupCount', { n: g.works.length })}
             </Typography>
           </Box>
@@ -1042,7 +1056,7 @@ function BookGroupList({
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {groups.length > 1 && (
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <Button size="small" variant="text" onClick={onExpandAll} sx={{ fontSize: 12 }}>
+          <Button size="small" variant="text" onClick={onExpandAll} sx={{ fontSize: uiFontSize(12) }}>
             {t('published.expandAll')}
           </Button>
           <Button
@@ -1053,7 +1067,7 @@ function BookGroupList({
                 if (!collapsedIds.has(g.bookId)) onToggleGroup(g.bookId);
               })
             }
-            sx={{ fontSize: 12 }}
+            sx={{ fontSize: uiFontSize(12) }}
           >
             {t('published.collapseAll')}
           </Button>
@@ -1134,15 +1148,21 @@ function WorkCard({
             bgcolor: pal.bg,
           }}
         >
-          <Icon sx={{ fontSize: 22, color: pal.color }} />
+          <Icon sx={{ fontSize: uiFontSize(22), color: pal.color }} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography
-            sx={{ fontWeight: 600, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            sx={{
+              fontWeight: 600,
+              fontSize: uiFontSize(15),
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
           >
             {work.bookTitle}
           </Typography>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
             {meta.label} · {formatFileSize(work.fileSize)}
           </Typography>
         </Box>
@@ -1156,23 +1176,23 @@ function WorkCard({
             chapters: work.chapterCount,
             words: formatWordCount(work.wordCount),
           })}
-          sx={{ fontSize: 11, height: 22 }}
+          sx={{ fontSize: uiFontSize(11), height: 22 }}
         />
         {work.isFileMissing && (
           <Chip
             size="small"
             color="warning"
             variant="outlined"
-            icon={<WarningAmberIcon sx={{ fontSize: 14 }} />}
+            icon={<WarningAmberIcon sx={{ fontSize: uiFontSize(14) }} />}
             label={t('published.fileMissing')}
-            sx={{ fontSize: 11, height: 22 }}
+            sx={{ fontSize: uiFontSize(11), height: 22 }}
           />
         )}
       </Box>
 
       {/* 日期 + 操作 */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 'auto', pt: 0.5 }}>
-        <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>
+        <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled' }}>
           {t('published.exportedOn', { date: formatDate(work.createdAt) })}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -1183,17 +1203,17 @@ function WorkCard({
               disabled={work.isFileMissing}
               sx={{ color: 'primary.main' }}
             >
-              <DownloadIcon sx={{ fontSize: 18 }} />
+              <DownloadIcon sx={{ fontSize: uiFontSize(18) }} />
             </IconButton>
           </Tooltip>
           <Tooltip title={t('published.move')}>
             <IconButton size="small" onClick={() => onMove(work)} sx={{ color: 'text.secondary' }}>
-              <DriveFileMoveIcon sx={{ fontSize: 18 }} />
+              <DriveFileMoveIcon sx={{ fontSize: uiFontSize(18) }} />
             </IconButton>
           </Tooltip>
           <Tooltip title={t('published.revoke')}>
             <IconButton size="small" onClick={() => onRemove(work)} sx={{ color: 'text.secondary' }}>
-              <DeleteIcon sx={{ fontSize: 18 }} />
+              <DeleteIcon sx={{ fontSize: uiFontSize(18) }} />
             </IconButton>
           </Tooltip>
         </Box>
@@ -1263,30 +1283,38 @@ function WorkRow({
           flexShrink: 0,
         }}
       >
-        <Icon sx={{ fontSize: 20, color: pal.color }} />
+        <Icon sx={{ fontSize: uiFontSize(20), color: pal.color }} />
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
         <Typography
-          sx={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          sx={{
+            fontWeight: 600,
+            fontSize: uiFontSize(14),
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
         >
           {work.bookTitle}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
             {meta.label} · {formatFileSize(work.fileSize)}
           </Typography>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>
             {t('published.chaptersWords', {
               chapters: work.chapterCount,
               words: formatWordCount(work.wordCount),
             })}
           </Typography>
-          {work.pageCount && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{work.pageCount}页</Typography>}
+          {work.pageCount && (
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary' }}>{work.pageCount}页</Typography>
+          )}
         </Box>
       </Box>
 
-      <Typography sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0, minWidth: 90 }}>
+      <Typography sx={{ fontSize: uiFontSize(12), color: 'text.disabled', flexShrink: 0, minWidth: 90 }}>
         {formatDate(work.createdAt)}
       </Typography>
 
@@ -1297,9 +1325,9 @@ function WorkRow({
               size="small"
               color="warning"
               variant="outlined"
-              icon={<WarningAmberIcon sx={{ fontSize: 14 }} />}
+              icon={<WarningAmberIcon sx={{ fontSize: uiFontSize(14) }} />}
               label={t('published.fileMissing')}
-              sx={{ fontSize: 11, height: 24, mr: 0.5 }}
+              sx={{ fontSize: uiFontSize(11), height: 24, mr: 0.5 }}
             />
           </Tooltip>
         )}
@@ -1310,17 +1338,17 @@ function WorkRow({
             disabled={work.isFileMissing}
             sx={{ color: 'primary.main' }}
           >
-            <DownloadIcon sx={{ fontSize: 18 }} />
+            <DownloadIcon sx={{ fontSize: uiFontSize(18) }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={t('published.move')}>
           <IconButton size="small" onClick={() => onMove(work)} sx={{ color: 'text.secondary' }}>
-            <DriveFileMoveIcon sx={{ fontSize: 18 }} />
+            <DriveFileMoveIcon sx={{ fontSize: uiFontSize(18) }} />
           </IconButton>
         </Tooltip>
         <Tooltip title={t('published.revoke')}>
           <IconButton size="small" onClick={() => onRemove(work)} sx={{ color: 'text.secondary' }}>
-            <DeleteIcon sx={{ fontSize: 18 }} />
+            <DeleteIcon sx={{ fontSize: uiFontSize(18) }} />
           </IconButton>
         </Tooltip>
       </Box>

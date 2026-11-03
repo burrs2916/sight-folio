@@ -39,6 +39,7 @@ import {
   MAX_SKELETON_CHAPTERS,
   MANUSCRIPT_PREV_COUNT,
   MANUSCRIPT_TAIL_CHARS,
+  CHAPTER_TAIL_CHARS,
 } from './writingCorpusBudget';
 
 // ─── 共享字段位模板表（builder 与 provider 同源，防双维护） ───
@@ -594,9 +595,9 @@ export function stripChapterHtml(html: string): string {
 }
 
 /**
- * 正文写作语料（双语）：当前激活章全文 + 前情提要（前 2 章各尾部 400 字）
- * + 全书章节骨架。供「写作」题材（正文视图）的 AI 消息自动注入——续写/修改建议
- * 都要有当前章正文与前后文才能作答。无激活章时只给骨架。
+ * 正文写作语料（双语）：当前激活章正文（超 CHAPTER_TAIL_CHARS 只注入结尾并显式标注）
+ * + 前情提要（前 2 章各尾部 400 字）+ 全书章节骨架。供「写作」题材（正文视图）的
+ * AI 消息自动注入——续写/修改建议都要有当前章正文与前后文才能作答。无激活章时只给骨架。
  */
 export function buildManuscriptCorpus(
   bookTitle: string | null,
@@ -635,13 +636,24 @@ export function buildManuscriptCorpus(
     }
   }
 
+  // 长度闸（第三十八轮批次1刀②）：超长章全文直接注入会整窗撑爆——本语料每轮拼进 user
+  // 消息，3 万字章 ≈ 3 万+ token 起步。口径复用内联续写的 TAIL_CHARS（真源
+  // writingCorpusBudget.CHAPTER_TAIL_CHARS，双语同一份判定，只算一次）：超上限只注入结尾，
+  // 并在头行显式标注，防模型把尾段当整章、或把「字数」读成注入内容的体积。
+  const currentText = current ? stripChapterHtml(current.content ?? '') : '';
+  const currentOverCap = currentText.length > CHAPTER_TAIL_CHARS;
+  const currentBody = currentOverCap ? `…${currentText.slice(-CHAPTER_TAIL_CHARS)}` : currentText;
+
   const linesZh: string[] = [`【正文写作】${titleZh}共 ${sorted.length} 章`];
   linesZh.push('〔章节骨架〕');
   linesZh.push(...skeletonZh);
   if (current) {
-    linesZh.push(`〔当前章〕${current.title || '未命名'}（${(current.wordCount || 0).toLocaleString()} 字）`);
-    const text = stripChapterHtml(current.content ?? '');
-    if (text) linesZh.push(text);
+    linesZh.push(
+      `〔当前章〕${current.title || '未命名'}（${(current.wordCount || 0).toLocaleString()} 字${
+        currentOverCap ? ' · 超长，仅注入结尾部分' : ''
+      }）`,
+    );
+    if (currentText) linesZh.push(currentBody);
     else linesZh.push('（本章正文为空——新章起步）');
     if (prevZh.length > 0) {
       linesZh.push('〔前情提要〕');
@@ -657,10 +669,11 @@ export function buildManuscriptCorpus(
   linesEn.push(...skeletonEn);
   if (current) {
     linesEn.push(
-      `[Current chapter] ${current.title || 'untitled'} (${(current.wordCount || 0).toLocaleString()} words)`,
+      `[Current chapter] ${current.title || 'untitled'} (${(current.wordCount || 0).toLocaleString()} words${
+        currentOverCap ? ' · tail only, length-capped' : ''
+      })`,
     );
-    const text = stripChapterHtml(current.content ?? '');
-    if (text) linesEn.push(text);
+    if (currentText) linesEn.push(currentBody);
     else linesEn.push('(This chapter is empty — fresh start)');
     if (prevEn.length > 0) {
       linesEn.push('[Previously]');
@@ -674,6 +687,16 @@ export function buildManuscriptCorpus(
   );
 
   return { zh: linesZh.join('\n'), en: linesEn.join('\n') };
+}
+
+/**
+ * 正文视图此刻是否有可用正文（第三十八轮批次1刀③：兜底追问分流的判据）。
+ * 与 buildManuscriptCorpus「本章正文为空——新章起步」同一判定源：HTML 拍平后非空才算有，
+ * 空标签/纯空白不算——防止追问说「润色上面这段正文」而视图里根本没有正文。
+ */
+export function hasChapterManuscript(chapters: WritingChapter[], activeChapterId: string | null): boolean {
+  const current = activeChapterId ? (chapters.find((c) => c.id === activeChapterId) ?? null) : null;
+  return !!current && stripChapterHtml(current.content ?? '').trim().length > 0;
 }
 
 /**

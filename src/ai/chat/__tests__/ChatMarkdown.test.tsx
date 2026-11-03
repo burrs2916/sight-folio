@@ -150,8 +150,10 @@ describe('ChatMarkdown streaming 增量渲染', () => {
     expect(textOf()).toContain('后文');
   });
 
-  it('增量缓存隔离：对话页与工作台侧栏不共享缓存（各自样式独立）', async () => {
-    // chatStreamingCache 是模块私有，无法直接断言；此测试保证 streaming 模式可多次挂载渲染不抛错
+  it('增量缓存按变体隔离：对话页与工作台侧栏共用 aiMarkdown 缓存但字号不互套', async () => {
+    // 第 41 轮批次 4 并源后：缓存真源在 aiMarkdown.streamingStableCache，键带变体倍率
+    // （cacheKeyOf(k, text)），14px 对话页与 11.5px 侧栏互不命中。缓存本体不宜直接断言，
+    // 此测试保证 streaming 模式可多次挂载渲染不抛错（接线隔离锁在 aiChatStyleRound40.test.tsx）
     await act(async () => {
       root!.render(<ChatMarkdown streaming content={'甲段\n\n乙段\n\n丙段'} />);
     });

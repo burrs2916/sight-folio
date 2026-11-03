@@ -83,8 +83,7 @@ export function AlignToolbar({ selectedIds }: { selectedIds: string[] }) {
         display: "flex",
         alignItems: "center",
         gap: 0.25,
-        backgroundColor: (t) =>
-          t.palette.mode === "dark" ? "rgba(30, 30, 40, 0.85)" : "rgba(255, 255, 255, 0.85)",
+        backgroundColor: "rgb(var(--template-palette-background-paperChannel) / 0.88)",
         backdropFilter: "blur(8px)",
         borderRadius: 1.5,
         border: 1,

@@ -16,6 +16,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import TouchAppRoundedIcon from '@mui/icons-material/TouchAppRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
 import type { EmotionArcSegment, ArcEmotion } from '../../utils/emotionArc';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface EmotionArcPanelProps {
   open: boolean;
@@ -123,11 +124,11 @@ export function EmotionArcPanel({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <ShowChartRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+      <DialogTitle sx={{ fontSize: uiFontSize(15), display: 'flex', alignItems: 'center', gap: 1 }}>
+        <ShowChartRoundedIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>{labels.title}</Box>
         <IconButton size="small" onClick={onClose} aria-label={t('ui.close')}>
-          <CloseRoundedIcon sx={{ fontSize: 18 }} />
+          <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ p: 1.5, minHeight: 160, maxHeight: 460, overflowY: 'auto' }}>
@@ -147,9 +148,9 @@ export function EmotionArcPanel({
         </Stack>
         {segments.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 6 }}>
-            <ShowChartRoundedIcon sx={{ fontSize: 34, color: 'success.main', mb: 1 }} />
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{labels.empty}</Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5 }}>{labels.hint}</Typography>
+            <ShowChartRoundedIcon sx={{ fontSize: uiFontSize(34), color: 'success.main', mb: 1 }} />
+            <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>{labels.empty}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.5 }}>{labels.hint}</Typography>
           </Box>
         ) : (
           <>
@@ -169,7 +170,7 @@ export function EmotionArcPanel({
                     y={TOP - 2}
                     width={b.w}
                     height={CHART_H - PAD_B - TOP + 4}
-                    fill="#f5f5f5"
+                    style={{ fill: 'rgb(var(--template-palette-text-primaryChannel) / 0.06)' }}
                     rx={2}
                   />
                 ))}
@@ -178,38 +179,37 @@ export function EmotionArcPanel({
                   y1={CHART_H - PAD_B}
                   x2={CHART_W - 6}
                   y2={CHART_H - PAD_B}
-                  stroke="#bdbdbd"
+                  style={{ stroke: 'var(--template-palette-divider)' }}
                   strokeWidth={1}
                 />
                 <polyline
                   points={polyline}
                   fill="none"
-                  stroke="#1976d2"
+                  style={{ stroke: 'var(--template-palette-primary-main)' }}
                   strokeWidth={2}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                <path d={crossMarks} fill="none" stroke="#e53935" strokeWidth={1.6} strokeLinecap="round" />
+                {/* 断层标记（红）：与 anger 情绪同色，语义固定不随主题 */}
+                <path
+                  d={crossMarks}
+                  fill="none"
+                  stroke={EMOTION_COLORS.anger}
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                />
                 {/* 段落圆点（按情绪着色） */}
                 {segments.map((s, i) => {
                   const n = segments.length;
                   const step = n > 1 ? (CHART_W - 12) / (n - 1) : 0;
                   const x = 6 + (n > 1 ? i * step : 0);
                   const y = TOP + (CHART_H - PAD_B - TOP) * (1 - (s.intensity - 1) / 4);
-                  return (
-                    <circle
-                      key={i}
-                      cx={x}
-                      cy={y}
-                      r={2.6}
-                      fill={s.emotion === 'none' ? '#bdbdbd' : EMOTION_COLORS[s.emotion]}
-                    />
-                  );
+                  return <circle key={i} cx={x} cy={y} r={2.6} fill={EMOTION_COLORS[s.emotion]} />;
                 })}
               </svg>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 0.5, mt: 0.25 }}>
-                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>1</Typography>
-                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>5</Typography>
+                <Typography sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>1</Typography>
+                <Typography sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>5</Typography>
               </Box>
             </Box>
             <Stack spacing={0.75}>
@@ -247,7 +247,11 @@ export function EmotionArcPanel({
                         }}
                       />
                       <Typography
-                        sx={{ fontSize: 10, fontWeight: 700, color: s.breakpoint ? 'error.main' : 'text.secondary' }}
+                        sx={{
+                          fontSize: uiFontSize(10),
+                          fontWeight: 700,
+                          color: s.breakpoint ? 'error.main' : 'text.secondary',
+                        }}
                       >
                         {s.intensity}
                       </Typography>
@@ -256,7 +260,7 @@ export function EmotionArcPanel({
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                         <Typography
                           sx={{
-                            fontSize: 11,
+                            fontSize: uiFontSize(11),
                             fontWeight: 700,
                             color: s.emotion === 'none' ? 'text.disabled' : EMOTION_COLORS[s.emotion],
                             flexShrink: 0,
@@ -265,19 +269,19 @@ export function EmotionArcPanel({
                           {emotionLabels[s.emotion]}
                         </Typography>
                         {s.breakpoint && (
-                          <Typography sx={{ fontSize: 10, color: 'error.main', flexShrink: 0 }}>
+                          <Typography sx={{ fontSize: uiFontSize(10), color: 'error.main', flexShrink: 0 }}>
                             {labels.breakpoint}
                           </Typography>
                         )}
                         {s.flat && !s.breakpoint && (
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled', flexShrink: 0 }}>
+                          <Typography sx={{ fontSize: uiFontSize(10), color: 'text.disabled', flexShrink: 0 }}>
                             {labels.flat}
                           </Typography>
                         )}
                       </Box>
                       <Typography
                         sx={{
-                          fontSize: 12.5,
+                          fontSize: uiFontSize(12.5),
                           color: 'text.primary',
                           mt: 0.25,
                           overflow: 'hidden',
@@ -297,7 +301,7 @@ export function EmotionArcPanel({
                         }}
                         aria-label={labels.locate}
                       >
-                        <TouchAppRoundedIcon sx={{ fontSize: 15 }} />
+                        <TouchAppRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                       </IconButton>
                     </Tooltip>
                   </Box>

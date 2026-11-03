@@ -41,6 +41,7 @@ import {
 import { useToastStore } from '../../store/toastStore';
 import { buildCaptureInsertText, type CaptureInsertAnalysis, type CaptureInsertPart } from './captureInsert';
 import { logger } from '../../utils/logger';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 function kindLabel(kind: ExternalCaptureKind): string {
   switch (kind) {
@@ -56,7 +57,7 @@ function kindLabel(kind: ExternalCaptureKind): string {
 }
 
 function kindIcon(kind: ExternalCaptureKind) {
-  const sx = { fontSize: 13 };
+  const sx = { fontSize: uiFontSize(13) };
   switch (kind) {
     case 'image':
       return <ImageRoundedIcon sx={sx} />;
@@ -224,21 +225,21 @@ export function ExternalCapturePanel({
           flexShrink: 0,
         }}
       >
-        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'text.secondary', flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: uiFontSize(11), fontWeight: 600, color: 'text.secondary', flex: 1, minWidth: 0 }}>
           {t('writing.capturePanelTitle')}
         </Typography>
         <Button
           size="small"
           variant="contained"
-          startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
+          startIcon={<AddRoundedIcon sx={{ fontSize: uiFontSize(14) }} />}
           onClick={onOpenCapture}
           sx={{
-            fontSize: 11.5,
+            fontSize: uiFontSize(11.5),
             minWidth: 0,
             px: 1,
             py: 0.25,
             textTransform: 'none',
-            '& .MuiButton-startIcon svg': { fontSize: 14 },
+            '& .MuiButton-startIcon svg': { fontSize: uiFontSize(14) },
           }}
         >
           {t('writing.captureAdd')}
@@ -252,8 +253,8 @@ export function ExternalCapturePanel({
           </Box>
         ) : items.length === 0 ? (
           <Box sx={{ py: 2.5, px: 1, textAlign: 'center' }}>
-            <AutoAwesomeRoundedIcon sx={{ fontSize: 22, color: 'text.disabled', mb: 0.5 }} />
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.7 }}>
+            <AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(22), color: 'text.disabled', mb: 0.5 }} />
+            <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', lineHeight: 1.7 }}>
               {t('writing.captureEmpty')}
             </Typography>
           </Box>
@@ -286,7 +287,7 @@ export function ExternalCapturePanel({
                     <Box sx={{ color: 'text.secondary', display: 'flex' }}>{kindIcon(c.kind)}</Box>
                     <Typography
                       sx={{
-                        fontSize: 12,
+                        fontSize: uiFontSize(12),
                         fontWeight: 600,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -309,7 +310,7 @@ export function ExternalCapturePanel({
                         sx={{ color: 'text.disabled', p: 0.25, '&:hover': { color: 'primary.main' } }}
                         data-testid={`capture-insert-${c.id}`}
                       >
-                        <MoreVertRoundedIcon sx={{ fontSize: 15 }} />
+                        <MoreVertRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                       </IconButton>
                       <Menu
                         open={insertMenu?.id === c.id}
@@ -331,7 +332,7 @@ export function ExternalCapturePanel({
                             onClick={() => handleInsert(c, analysis, part)}
                             data-testid={`capture-insert-${part}`}
                           >
-                            <ListItemText sx={{ '&': { fontSize: 12.5 } }}>{t(key)}</ListItemText>
+                            <ListItemText sx={{ '&': { fontSize: uiFontSize(12.5) } }}>{t(key)}</ListItemText>
                           </MenuItem>
                         ))}
                       </Menu>
@@ -351,7 +352,7 @@ export function ExternalCapturePanel({
                       {reanalyzingId === c.id ? (
                         <CircularProgress size={13} />
                       ) : (
-                        <RefreshRoundedIcon sx={{ fontSize: 15 }} />
+                        <RefreshRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                       )}
                     </IconButton>
                   )}
@@ -366,7 +367,7 @@ export function ExternalCapturePanel({
                     {deletingId === c.id ? (
                       <CircularProgress size={13} />
                     ) : (
-                      <DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} />
+                      <DeleteOutlineRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                     )}
                   </IconButton>
                 </Box>
@@ -375,7 +376,7 @@ export function ExternalCapturePanel({
                 {analysis.timeline && analysis.timeline.length > 0 && (
                   <Box sx={{ mt: 0.75 }}>
                     {analysis.timeline.map((item, i) => (
-                      <Typography key={i} sx={{ fontSize: 11.5, lineHeight: 1.7, color: 'text.secondary' }}>
+                      <Typography key={i} sx={{ fontSize: uiFontSize(11.5), lineHeight: 1.7, color: 'text.secondary' }}>
                         <b style={{ color: 'text.primary' }}>{item.at || '—'}</b>：{item.event}
                       </Typography>
                     ))}
@@ -384,7 +385,7 @@ export function ExternalCapturePanel({
 
                 {/* 创作价值 / 建议卡片 */}
                 {analysis.creativeValue && (
-                  <Typography sx={{ fontSize: 11.5, lineHeight: 1.7, mt: 0.5, color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: uiFontSize(11.5), lineHeight: 1.7, mt: 0.5, color: 'text.secondary' }}>
                     {analysis.creativeValue}
                   </Typography>
                 )}
@@ -396,7 +397,7 @@ export function ExternalCapturePanel({
                         size="small"
                         label={s}
                         sx={{
-                          fontSize: 11,
+                          fontSize: uiFontSize(11),
                           height: 'auto',
                           py: 0.3,
                           whiteSpace: 'normal',
@@ -412,7 +413,7 @@ export function ExternalCapturePanel({
                   c.extractedText && (
                     <Typography
                       sx={{
-                        fontSize: 11.5,
+                        fontSize: uiFontSize(11.5),
                         lineHeight: 1.7,
                         mt: 0.5,
                         color: 'text.secondary',
@@ -425,9 +426,15 @@ export function ExternalCapturePanel({
                   )}
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.75, flexWrap: 'wrap' }}>
-                  <Chip size="small" label={kindLabel(c.kind)} sx={{ height: 18, fontSize: 10.5 }} />
+                  <Chip size="small" label={kindLabel(c.kind)} sx={{ height: 18, fontSize: uiFontSize(10.5) }} />
                   {tags.map((tag) => (
-                    <Chip key={tag} size="small" label={tag} sx={{ height: 18, fontSize: 10.5 }} color="default" />
+                    <Chip
+                      key={tag}
+                      size="small"
+                      label={tag}
+                      sx={{ height: 18, fontSize: uiFontSize(10.5) }}
+                      color="default"
+                    />
                   ))}
                 </Box>
               </Box>

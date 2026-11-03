@@ -82,6 +82,7 @@ import { CanvasLoadingSkeleton } from './loading';
 import { AlignToolbar } from './alignToolbar';
 import { CanvasEntityNode } from './canvasEntityNode';
 import type { CanvasEmphasis } from './types';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: () => void; syncing?: boolean }) {
   const components = useEditorStore((s) => s.components);
@@ -1379,7 +1380,10 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             border: '2px dashed',
             borderColor: 'primary.main',
             borderRadius: 1,
-            backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.08)'),
+            backgroundColor: (t) =>
+              t.palette.mode === 'dark'
+                ? 'rgb(var(--template-palette-primary-mainChannel) / 0.12)'
+                : 'rgb(var(--template-palette-primary-mainChannel) / 0.08)',
             zIndex: 20,
             pointerEvents: 'none',
             display: 'flex',
@@ -1387,7 +1391,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             justifyContent: 'center',
           }}
         >
-          <Typography variant="caption" sx={{ color: 'primary.main', fontSize: 10 }}>
+          <Typography variant="caption" sx={{ color: 'primary.main', fontSize: uiFontSize(10) }}>
             {t('editor.placeEntity')}
           </Typography>
         </Box>
@@ -1423,8 +1427,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
               alignItems: 'center',
               gap: 0.5,
               pointerEvents: 'auto',
-              backgroundColor: (t) =>
-                t.palette.mode === 'dark' ? 'rgba(30, 30, 40, 0.85)' : 'rgba(255, 255, 255, 0.88)',
+              backgroundColor: 'rgb(var(--template-palette-background-paperChannel) / 0.88)',
               backdropFilter: 'blur(8px)',
               borderRadius: 1.5,
               border: 1,
@@ -1433,14 +1436,14 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
               py: 0.4,
             }}
           >
-            <HubIcon sx={{ fontSize: 13, color: chainDepth > 0 ? 'primary.main' : 'text.disabled' }} />
+            <HubIcon sx={{ fontSize: uiFontSize(13), color: chainDepth > 0 ? 'primary.main' : 'text.disabled' }} />
             <Typography
               variant="caption"
               onClick={() => setChainDepth((d) => (d >= 3 ? 0 : d + 1))}
               title={t('editor.chainDepthTip')}
               sx={{
                 cursor: 'pointer',
-                fontSize: 10,
+                fontSize: uiFontSize(10),
                 lineHeight: 1,
                 whiteSpace: 'nowrap',
                 color: chainDepth > 0 ? 'text.primary' : 'text.disabled',
@@ -1458,7 +1461,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                   title={impactChain.source === 'callGraph' ? t('editor.impactSymbolTip') : t('editor.impactFileTip')}
                   sx={{
                     height: 15,
-                    fontSize: 9,
+                    fontSize: uiFontSize(9),
                     '& .MuiChip-label': { px: 0.5 },
                     bgcolor: impactChain.source === 'callGraph' ? 'success.main' : 'warning.main',
                     color: '#fff',
@@ -1472,7 +1475,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                     title={t('editor.prunedTip', { n: impactChain.pruned })}
                     sx={{
                       height: 15,
-                      fontSize: 9,
+                      fontSize: uiFontSize(9),
                       '& .MuiChip-label': { px: 0.5 },
                       bgcolor: 'info.main',
                       color: '#fff',
@@ -1490,8 +1493,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
           <Box
             sx={{
               pointerEvents: 'auto',
-              backgroundColor: (t) =>
-                t.palette.mode === 'dark' ? 'rgba(30, 30, 40, 0.85)' : 'rgba(255, 255, 255, 0.88)',
+              backgroundColor: 'rgb(var(--template-palette-background-paperChannel) / 0.88)',
               backdropFilter: 'blur(8px)',
               borderRadius: 1.5,
               border: 1,
@@ -1525,7 +1527,10 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                         flexShrink: 0,
                       }}
                     />
-                    <Typography variant="caption" sx={{ fontSize: 9.5, lineHeight: 1, color: 'text.secondary' }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ fontSize: uiFontSize(9.5), lineHeight: 1, color: 'text.secondary' }}
+                    >
                       {t('editor.chainSide.' + side)} {n}
                     </Typography>
                   </Box>
@@ -1550,7 +1555,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             </Box>
             <Typography
               variant="caption"
-              sx={{ fontSize: 9.5, lineHeight: 1.35, color: 'text.secondary', maxWidth: 300 }}
+              sx={{ fontSize: uiFontSize(9.5), lineHeight: 1.35, color: 'text.secondary', maxWidth: 300 }}
             >
               {summarizeChain(impactChain)}
             </Typography>
@@ -1558,7 +1563,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             {testImpact && (
               <Chip
                 size="small"
-                icon={<ScienceOutlinedIcon sx={{ fontSize: 11 }} />}
+                icon={<ScienceOutlinedIcon sx={{ fontSize: uiFontSize(11) }} />}
                 label={
                   testImpact.tests.length > 0
                     ? t('editor.testImpactLabel', { n: testImpact.tests.length })
@@ -1580,7 +1585,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                 }
                 sx={{
                   height: 17,
-                  fontSize: 9,
+                  fontSize: uiFontSize(9),
                   alignSelf: 'flex-start',
                   cursor: 'pointer',
                   '& .MuiChip-label': { px: 0.6 },
@@ -1600,12 +1605,12 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             >
               <Box sx={{ width: 440, maxHeight: 460, overflow: 'auto', p: 1.5 }}>
                 {!testImpact || testImpact.tests.length === 0 ? (
-                  <Alert severity="warning" sx={{ fontSize: 12 }}>
+                  <Alert severity="warning" sx={{ fontSize: uiFontSize(12) }}>
                     {t('editor.tiaAlert')}
                   </Alert>
                 ) : (
                   <>
-                    <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.75 }}>
+                    <Typography variant="subtitle2" sx={{ fontSize: uiFontSize(12), mb: 0.75 }}>
                       {t('editor.tiaTitle', { n: testImpact.tests.length })}
                     </Typography>
                     {testCommandPlan?.groups.map((g) => (
@@ -1620,13 +1625,13 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                         >
                           <Typography
                             variant="caption"
-                            sx={{ fontSize: 10.5, fontWeight: 600, color: 'text.secondary' }}
+                            sx={{ fontSize: uiFontSize(10.5), fontWeight: 600, color: 'text.secondary' }}
                           >
                             {resolveFragments(g.label)} · {g.tests.length}
                           </Typography>
                           <Button
                             size="small"
-                            startIcon={<ContentCopyIcon sx={{ fontSize: 12 }} />}
+                            startIcon={<ContentCopyIcon sx={{ fontSize: uiFontSize(12) }} />}
                             onClick={() =>
                               copyText(
                                 g.command,
@@ -1634,7 +1639,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                                 t('editor.copyCmdFail', { label: g.label }),
                               )
                             }
-                            sx={{ minWidth: 0, fontSize: 10, py: 0.2, lineHeight: 1 }}
+                            sx={{ minWidth: 0, fontSize: uiFontSize(10), py: 0.2, lineHeight: 1 }}
                           >
                             {t('editor.copy')}
                           </Button>
@@ -1644,7 +1649,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                           sx={{
                             m: 0,
                             p: 0.75,
-                            fontSize: 10.5,
+                            fontSize: uiFontSize(10.5),
                             lineHeight: 1.4,
                             bgcolor: 'action.hover',
                             borderRadius: 1,
@@ -1662,7 +1667,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                       <Button
                         size="small"
                         variant="contained"
-                        startIcon={<ContentCopyIcon sx={{ fontSize: 13 }} />}
+                        startIcon={<ContentCopyIcon sx={{ fontSize: uiFontSize(13) }} />}
                         onClick={() =>
                           copyText(testCommandPlan!.allCommandsText, t('editor.copyAllOk'), t('editor.copyFail'))
                         }
@@ -1672,7 +1677,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                       <Button
                         size="small"
                         variant="outlined"
-                        startIcon={<TerminalIcon sx={{ fontSize: 13 }} />}
+                        startIcon={<TerminalIcon sx={{ fontSize: uiFontSize(13) }} />}
                         onClick={() =>
                           copyText(buildCIPipelineScript(testImpact), t('editor.ciScriptOk'), t('editor.copyFail'))
                         }
@@ -1682,7 +1687,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                       <Button
                         size="small"
                         variant="outlined"
-                        startIcon={<BuildIcon sx={{ fontSize: 13 }} />}
+                        startIcon={<BuildIcon sx={{ fontSize: uiFontSize(13) }} />}
                         onClick={() =>
                           copyText(buildGitHubActionStep(testImpact), t('editor.ghActionsOk'), t('editor.copyFail'))
                         }
@@ -1717,8 +1722,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             display: 'flex',
             alignItems: 'center',
             gap: 0.5,
-            backgroundColor: (t) =>
-              t.palette.mode === 'dark' ? 'rgba(30, 30, 40, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+            backgroundColor: 'rgb(var(--template-palette-background-paperChannel) / 0.88)',
             backdropFilter: 'blur(8px)',
             borderRadius: 1.5,
             border: 1,
@@ -1733,7 +1737,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             sx={{
               cursor: 'pointer',
               px: 0.5,
-              fontSize: 14,
+              fontSize: uiFontSize(14),
               lineHeight: 1,
               color: 'text.secondary',
               '&:hover': { color: 'text.primary' },
@@ -1746,7 +1750,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             size="small"
             variant="outlined"
             onClick={handleResetView}
-            sx={{ height: 20, fontSize: 10, cursor: 'pointer' }}
+            sx={{ height: 20, fontSize: uiFontSize(10), cursor: 'pointer' }}
           />
           {/* LOD 模式提示：全览时实体会降级成简卡/色块，这是刻意的性能取舍，
             不加提示历史上被反复误读成「实体没渲染出来」。 */}
@@ -1760,7 +1764,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
                 height: 20,
                 padding: '0 6px',
                 borderRadius: 10,
-                fontSize: 10,
+                fontSize: uiFontSize(10),
                 lineHeight: 1,
                 cursor: 'help',
                 whiteSpace: 'nowrap',
@@ -1785,7 +1789,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             sx={{
               cursor: 'pointer',
               px: 0.5,
-              fontSize: 14,
+              fontSize: uiFontSize(14),
               lineHeight: 1,
               color: 'text.secondary',
               '&:hover': { color: 'text.primary' },
@@ -1800,7 +1804,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             sx={{
               cursor: 'pointer',
               px: 0.5,
-              fontSize: 10,
+              fontSize: uiFontSize(10),
               lineHeight: 1,
               color: 'text.secondary',
               '&:hover': { color: 'text.primary' },
@@ -1817,7 +1821,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             sx={{
               cursor: 'pointer',
               px: 0.5,
-              fontSize: 10,
+              fontSize: uiFontSize(10),
               lineHeight: 1,
               color: 'text.secondary',
               '&:hover': { color: 'text.primary' },
@@ -1833,7 +1837,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             sx={{
               cursor: exportingPng ? 'wait' : 'pointer',
               px: 0.5,
-              fontSize: 10,
+              fontSize: uiFontSize(10),
               lineHeight: 1,
               color: 'text.secondary',
               '&:hover': { color: 'text.primary' },
@@ -1886,12 +1890,15 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             }}
           >
             <ListItemIcon sx={{ color: AI_COLOR, minWidth: 28 }}>
-              <AutoFixHighIcon sx={{ fontSize: 18 }} />
+              <AutoFixHighIcon sx={{ fontSize: uiFontSize(18) }} />
             </ListItemIcon>
             <ListItemText
               primary={t('aiPanel.diagnoseSelected')}
               secondary={selectedFileForAi ? null : t('aiPanel.diagnoseSelectedHint')}
-              sx={{ '& .MuiListItemText-primary': { fontSize: 13 }, '& .MuiListItemText-secondary': { fontSize: 10 } }}
+              sx={{
+                '& .MuiListItemText-primary': { fontSize: uiFontSize(13) },
+                '& .MuiListItemText-secondary': { fontSize: uiFontSize(10) },
+              }}
             />
           </MenuItem>
           <MenuItem
@@ -1901,11 +1908,11 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             }}
           >
             <ListItemIcon sx={{ color: AI_COLOR, minWidth: 28 }}>
-              <SmartToyIcon sx={{ fontSize: 18 }} />
+              <SmartToyIcon sx={{ fontSize: uiFontSize(18) }} />
             </ListItemIcon>
             <ListItemText
               primary={t('aiPanel.openAssistant')}
-              sx={{ '& .MuiListItemText-primary': { fontSize: 13 } }}
+              sx={{ '& .MuiListItemText-primary': { fontSize: uiFontSize(13) } }}
             />
           </MenuItem>
         </Menu>
@@ -1936,7 +1943,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
           overflow: 'hidden',
           position: 'relative',
           cursor: isPanning ? 'grabbing' : 'grab',
-          backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(20, 20, 28, 1)' : 'rgba(248, 250, 252, 1)'),
+          backgroundColor: 'rgb(var(--template-palette-background-paperChannel))',
           backgroundImage: (t) =>
             t.palette.mode === 'dark'
               ? 'linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)'
@@ -2177,7 +2184,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
               />
             ) : (
               <>
-                <AccountTreeIcon sx={{ fontSize: 48, opacity: 0.2 }} />
+                <AccountTreeIcon sx={{ fontSize: uiFontSize(48), opacity: 0.2 }} />
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary' }}>
                   {t('editor.emptyTitle')}
                 </Typography>

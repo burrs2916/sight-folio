@@ -9,57 +9,52 @@
  *  - 高亮区间（复杂度热力 / 死代码 / 克隆 / 可定位符号 / 光标符号面包屑）均按本窗格激活文件
  *    从 projectStore 独立推导，保证多窗格互不干扰。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Box from "@mui/material/Box";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import Divider from "@mui/material/Divider";
-import Typography from "@mui/material/Typography";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Popover from "@mui/material/Popover";
-import { useTheme } from "@mui/material/styles";
-import CloseIcon from "@mui/icons-material/Close";
-import PushPinIcon from "@mui/icons-material/PushPin";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
-import FolderIcon from "@mui/icons-material/Folder";
-import TerminalIcon from "@mui/icons-material/Terminal";
-import CallSplitIcon from "@mui/icons-material/CallSplit";
-import SyncAltIcon from "@mui/icons-material/SyncAlt";
-import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
-import ImageIcon from "@mui/icons-material/Image";
-import DescriptionIcon from "@mui/icons-material/Description";
-import { LanguageIcon } from "../../utils/languageIcon";
-import BookmarkIcon from "@mui/icons-material/Bookmark";
-import { paneScrollBus } from "./paneScrollSync";
-import { t } from "../../i18n";
-import { invoke } from "@tauri-apps/api/core";
-import { readLineFromMetadata } from "../utils/sourceNavigate";
-import { useProjectStore } from "../../store/projectStore";
-import { useCodeWorkbenchStore, registerPaneFocus, unregisterPaneFocus } from "../../store/codeWorkbenchStore";
-import { useToastStore } from "../../store/toastStore";
-import { useEditorStore } from "../../store/editorStore";
-import { useProblemsPanelStore } from "../../store/problemsPanelStore";
-import { triggerDiagnosis } from "../../ai/triggerDiagnosis";
-import { runPortrait, type PortraitKind } from "../utils/portraits";
-import type {
-  WorkbenchTab,
-  SplitDirection,
-  SplitMode,
-  PaneOrientation,
-} from "../../store/codeWorkbenchStore";
-import type { ProjectFile, ProjectSymbol, SourceFileContent } from "../../services/tauri";
-import { parseFileMetricMeta, projectScanApi } from "../../services/tauri";
-import { ccLevel } from "./CodeWorkbenchTree";
-import { EditorPane } from "./CodeWorkbenchEditorPane";
-import { MonacoDiffEditor } from "./MonacoDiffEditor";
-import { WorkbenchMediaPreview, WorkbenchMarkdownPreview } from "./WorkbenchPreviewPanes";
-import { Breadcrumbs } from "./Breadcrumbs";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Box from '@mui/material/Box';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Divider from '@mui/material/Divider';
+import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
+import Popover from '@mui/material/Popover';
+import { useTheme } from '@mui/material/styles';
+import CloseIcon from '@mui/icons-material/Close';
+import PushPinIcon from '@mui/icons-material/PushPin';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import FolderIcon from '@mui/icons-material/Folder';
+import TerminalIcon from '@mui/icons-material/Terminal';
+import CallSplitIcon from '@mui/icons-material/CallSplit';
+import SyncAltIcon from '@mui/icons-material/SyncAlt';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import ImageIcon from '@mui/icons-material/Image';
+import DescriptionIcon from '@mui/icons-material/Description';
+import { LanguageIcon } from '../../utils/languageIcon';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import { paneScrollBus } from './paneScrollSync';
+import { t } from '../../i18n';
+import { invoke } from '@tauri-apps/api/core';
+import { readLineFromMetadata } from '../utils/sourceNavigate';
+import { useProjectStore } from '../../store/projectStore';
+import { useCodeWorkbenchStore, registerPaneFocus, unregisterPaneFocus } from '../../store/codeWorkbenchStore';
+import { useToastStore } from '../../store/toastStore';
+import { useEditorStore } from '../../store/editorStore';
+import { useProblemsPanelStore } from '../../store/problemsPanelStore';
+import { triggerDiagnosis } from '../../ai/triggerDiagnosis';
+import { runPortrait, type PortraitKind } from '../utils/portraits';
+import type { WorkbenchTab, SplitDirection, SplitMode, PaneOrientation } from '../../store/codeWorkbenchStore';
+import type { ProjectFile, ProjectSymbol, SourceFileContent } from '../../services/tauri';
+import { parseFileMetricMeta, projectScanApi } from '../../services/tauri';
+import { ccLevel } from './CodeWorkbenchTree';
+import { EditorPane } from './CodeWorkbenchEditorPane';
+import { MonacoDiffEditor } from './MonacoDiffEditor';
+import { WorkbenchMediaPreview, WorkbenchMarkdownPreview } from './WorkbenchPreviewPanes';
+import { Breadcrumbs } from './Breadcrumbs';
 import type {
   MonacoEditorHandle,
   EditorSelectionInfo,
@@ -69,8 +64,9 @@ import type {
   CursorStatus,
   EditorInfo,
   MarkerStats,
-} from "./MonacoCodeEditor";
-import type { SourceMark } from "../../store/sourceViewerStore";
+} from './MonacoCodeEditor';
+import type { SourceMark } from '../../store/sourceViewerStore';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 interface WorkbenchEditorPaneProps {
   paneId: string;
@@ -109,18 +105,13 @@ interface WorkbenchEditorPaneProps {
     language: string | null,
     line?: number | null,
     reason?: string | null,
-    marks?: never[]
+    marks?: never[],
   ) => void;
   /** 面包屑目录段 / 文件名打开文件（外壳实现，含画布联动） */
   onOpenFile: (fileId: string) => void;
   onToggleOutline: () => void;
   /** 跨窗格拖拽落点：把 fileId 从 fromPaneId 拆分到本窗格(targetPaneId) 的指定方向新窗格 */
-  splitPaneWithTab: (
-    fromPaneId: string,
-    fileId: string,
-    targetPaneId: string,
-    direction: SplitDirection
-  ) => void;
+  splitPaneWithTab: (fromPaneId: string, fileId: string, targetPaneId: string, direction: SplitDirection) => void;
   /** 设置/清除跨窗格拖拽中的标签 */
   setDraggingTab: (info: { paneId: string; fileId: string } | null) => void;
   /** 设置/清除跨组件拖拽中的「文件树条目」（从文件树拖出时记录 fileId） */
@@ -147,64 +138,64 @@ interface WorkbenchEditorPaneProps {
     language: string | null,
     line: number | null,
     dir?: SplitDirection,
-    column?: number | null
+    column?: number | null,
   ) => void;
   /** 光标行回传（供外壳大纲跟随光标高亮） */
   onCursorLineChange?: (line: number) => void;
 }
 
 const isTerminalTarget = (e: React.KeyboardEvent | KeyboardEvent): boolean =>
-  !!(e.target as HTMLElement | null)?.closest?.(".xterm");
+  !!(e.target as HTMLElement | null)?.closest?.('.xterm');
 
 /** 把 SourceFileContent 还原为纯文本（与 WorkbenchPreviewPanes 同源口径：按行 join；二进制 skippedReason 时返回空串） */
 function tabTextContent(c: SourceFileContent | null | undefined): string {
-  if (!c || c.skippedReason) return "";
-  return c.lines.join("\n");
+  if (!c || c.skippedReason) return '';
+  return c.lines.join('\n');
 }
 
 /** 跨窗格拖拽拆分落点指示：在窗格对应边画出金色条带 + 方向标签（对标 Zed drop_target） */
 function DropEdge({ dir }: { dir: SplitDirection }) {
-  const isHoriz = dir === "left" || dir === "right";
+  const isHoriz = dir === 'left' || dir === 'right';
   const edge: React.CSSProperties = isHoriz
-    ? { top: 0, bottom: 0, width: "30%" }
-    : { left: 0, right: 0, height: "30%" };
-  if (dir === "left") edge.left = 0;
-  else if (dir === "right") edge.right = 0;
-  else if (dir === "up") edge.top = 0;
+    ? { top: 0, bottom: 0, width: '30%' }
+    : { left: 0, right: 0, height: '30%' };
+  if (dir === 'left') edge.left = 0;
+  else if (dir === 'right') edge.right = 0;
+  else if (dir === 'up') edge.top = 0;
   else edge.bottom = 0;
   const labelKey =
-    dir === "left"
-      ? "workbench.drop.splitLeft"
-      : dir === "right"
-        ? "workbench.drop.splitRight"
-        : dir === "up"
-          ? "workbench.drop.splitUp"
-          : "workbench.drop.splitDown";
-  const arrow = dir === "left" ? "←" : dir === "right" ? "→" : dir === "up" ? "↑" : "↓";
+    dir === 'left'
+      ? 'workbench.drop.splitLeft'
+      : dir === 'right'
+        ? 'workbench.drop.splitRight'
+        : dir === 'up'
+          ? 'workbench.drop.splitUp'
+          : 'workbench.drop.splitDown';
+  const arrow = dir === 'left' ? '←' : dir === 'right' ? '→' : dir === 'up' ? '↑' : '↓';
   return (
     <>
       <Box
         sx={{
-          position: "absolute",
+          position: 'absolute',
           ...edge,
-          bgcolor: "rgba(239,159,39,0.22)",
-          border: "2px solid #EF9F27",
+          bgcolor: 'rgba(239,159,39,0.22)',
+          border: '2px solid #EF9F27',
           borderRadius: 1,
-          boxShadow: "inset 0 0 12px rgba(239,159,39,0.35)",
+          boxShadow: 'inset 0 0 12px rgba(239,159,39,0.35)',
         }}
       />
       <Box
         sx={{
-          position: "relative",
+          position: 'relative',
           px: 1.5,
           py: 0.5,
           borderRadius: 1.5,
-          bgcolor: "rgba(15,23,42,0.85)",
-          color: "#fff",
-          fontSize: 12,
+          bgcolor: 'rgba(15,23,42,0.85)',
+          color: '#fff',
+          fontSize: uiFontSize(12),
           fontWeight: 600,
-          boxShadow: "0 2px 10px rgba(0,0,0,0.4)",
-          whiteSpace: "nowrap",
+          boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+          whiteSpace: 'nowrap',
         }}
       >
         {arrow} {t(labelKey)}
@@ -278,19 +269,13 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
   const [dropState, setDropState] = useState<{ dir: SplitDirection | null } | null>(null);
   const tabs = pane?.tabs ?? [];
   const activeFileId = pane?.activeFileId ?? null;
-  const activeTab: WorkbenchTab | null =
-    tabs.find((t) => t.fileId === activeFileId) ?? null;
+  const activeTab: WorkbenchTab | null = tabs.find((t) => t.fileId === activeFileId) ?? null;
   const isActive = activePaneId === paneId;
 
   // 当前文件的书签行号集合（对标 Zed BookmarkStore，供编辑器沟槽渲染 + 状态栏计数）。
   // 订阅 store.bookmarks[fileId]，该引用仅在当前文件书签变更时变化，memo 稳定、不引发多余重渲染。
-  const tabBookmarks = useCodeWorkbenchStore((s) =>
-    activeTab ? s.bookmarks[activeTab.fileId] : undefined
-  );
-  const bookmarkLines = useMemo(
-    () => (tabBookmarks ? tabBookmarks.map((b) => b.line) : []),
-    [tabBookmarks]
-  );
+  const tabBookmarks = useCodeWorkbenchStore((s) => (activeTab ? s.bookmarks[activeTab.fileId] : undefined));
+  const bookmarkLines = useMemo(() => (tabBookmarks ? tabBookmarks.map((b) => b.line) : []), [tabBookmarks]);
   const toggleBookmark = useCodeWorkbenchStore((s) => s.toggleBookmark);
 
   // 进入任何交互前先把本窗格设为激活（保证后续标签动作落到正确的 pane）
@@ -309,7 +294,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
         paneScrollBus.publish({ paneId, ratio });
       });
     },
-    [paneId]
+    [paneId],
   );
 
   // 切标签噪声屏蔽：activeFileId 变化时短暂忽略本窗格的滚动广播（避免误拉其它窗格）
@@ -333,55 +318,48 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
 
   // 跨窗格拖拽落点方向计算（对标 Zed `drag_split_direction` 边缘邻近启发式）：
   // 光标落在窗格某条边带内 → 该方向拆分；落在内部（远离四条边）→ null（移入中心）。
-  const computeSplitDir = useCallback(
-    (e: React.DragEvent, rect: DOMRect): SplitDirection | null => {
-      const w = rect.width;
-      const h = rect.height;
-      // 边缘判定带宽度：随窗格尺寸自适应，限制在合理范围，避免误触
-      const band = Math.min(64, Math.max(28, Math.min(w, h) * 0.16));
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const nearLeft = x < band;
-      const nearRight = x > w - band;
-      const nearTop = y < band;
-      const nearBottom = y > h - band;
-      if (!(nearLeft || nearRight || nearTop || nearBottom)) return null;
-      const candidates: [SplitDirection, number][] = [
-        ["left", x],
-        ["right", w - x],
-        ["up", y],
-        ["down", h - y],
-      ];
-      candidates.sort((a, b) => a[1] - b[1]);
-      return candidates[0][0];
-    },
-    []
-  );
+  const computeSplitDir = useCallback((e: React.DragEvent, rect: DOMRect): SplitDirection | null => {
+    const w = rect.width;
+    const h = rect.height;
+    // 边缘判定带宽度：随窗格尺寸自适应，限制在合理范围，避免误触
+    const band = Math.min(64, Math.max(28, Math.min(w, h) * 0.16));
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const nearLeft = x < band;
+    const nearRight = x > w - band;
+    const nearTop = y < band;
+    const nearBottom = y > h - band;
+    if (!(nearLeft || nearRight || nearTop || nearBottom)) return null;
+    const candidates: [SplitDirection, number][] = [
+      ['left', x],
+      ['right', w - x],
+      ['up', y],
+      ['down', h - y],
+    ];
+    candidates.sort((a, b) => a[1] - b[1]);
+    return candidates[0][0];
+  }, []);
 
   // 窗格级拖拽落点处理：跨窗格拖拽时把来源标签拆分/移入本窗格
   const handlePaneDragOver = useCallback(
     (e: React.DragEvent) => {
       if (!draggingTab && !draggingFile) return;
       // 标签栏区域（含具体标签）→ 交给标签级精确插入处理，本层只负责编辑区（拆分 / 合并到末位）
-      if ((e.target as HTMLElement).closest("[data-wb-tabbar]")) {
+      if ((e.target as HTMLElement).closest('[data-wb-tabbar]')) {
         setDropState(null);
         return;
       }
       // 同源窗格 + 悬停在某个标签上 → 交给标签级重排，本层不介入拆分
-      if (
-        draggingTab &&
-        draggingTab.paneId === paneId &&
-        (e.target as HTMLElement).closest("[data-wb-tab]")
-      ) {
+      if (draggingTab && draggingTab.paneId === paneId && (e.target as HTMLElement).closest('[data-wb-tab]')) {
         setDropState(null);
         return;
       }
       e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
+      e.dataTransfer.dropEffect = 'move';
       const rect = e.currentTarget.getBoundingClientRect();
       setDropState({ dir: computeSplitDir(e, rect) });
     },
-    [draggingTab, draggingFile, paneId, computeSplitDir]
+    [draggingTab, draggingFile, paneId, computeSplitDir],
   );
 
   const handlePaneDrop = useCallback(
@@ -391,9 +369,9 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
       setDropState(null);
       if (!src && !fileSrc) return;
       // 标签栏落点（精确插入）由标签级 onDrop 处理（已 stopPropagation），本层跳过避免双触发
-      if ((e.target as HTMLElement).closest("[data-wb-tabbar]")) return;
+      if ((e.target as HTMLElement).closest('[data-wb-tabbar]')) return;
       // 同源窗格 + 落在标签上 → 标签级重排已处理，本层跳过
-      if (src && src.paneId === paneId && (e.target as HTMLElement).closest("[data-wb-tab]")) return;
+      if (src && src.paneId === paneId && (e.target as HTMLElement).closest('[data-wb-tab]')) return;
       e.preventDefault();
       const rect = e.currentTarget.getBoundingClientRect();
       const dir = computeSplitDir(e, rect);
@@ -436,7 +414,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
       openTab,
       allFiles,
       computeSplitDir,
-    ]
+    ],
   );
 
   const handlePaneDragLeave = useCallback((e: React.DragEvent) => {
@@ -449,7 +427,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
 
   // 标签拖拽重排（复用外壳既有 store.reorderTab 语义）
   const [dragId, setDragId] = useState<string | null>(null);
-  const [dropPos, setDropPos] = useState<{ fileId: string; pos: "before" | "after" } | null>(null);
+  const [dropPos, setDropPos] = useState<{ fileId: string; pos: 'before' | 'after' } | null>(null);
   const [tabMenu, setTabMenu] = useState<{
     anchor: HTMLElement;
     fileId: string;
@@ -480,12 +458,12 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
   const [fontSize, setFontSize] = useState(13);
   // 软换行状态（状态栏指示项，对标 Zed 软换行视觉反馈）：开启时显示并一键关闭
   const [wordWrap, setWordWrap] = useState(false);
-  const themeMode = useTheme().palette.mode as "light" | "dark";
+  const themeMode = useTheme().palette.mode as 'light' | 'dark';
 
   // 语言显示名（tab.language 可能为 "source.rust" 这类带命名空间 id，取末段并首字母大写）
   const langLabel = useMemo(() => {
     if (!activeTab?.language) return null;
-    const raw = activeTab.language.split("/").pop() ?? activeTab.language;
+    const raw = activeTab.language.split('/').pop() ?? activeTab.language;
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }, [activeTab?.language]);
 
@@ -550,10 +528,10 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
   // 审查发现严重度筛选 + 内联总开关（与「审查结果」面板共享同一事实来源，双向联动）
   const findingFilter = useEditorStore((s) => s.reviewFindingFilter);
 
-  const severityToMark = (sev: string): SourceMark["severity"] => {
-    if (sev === "critical") return "error";
-    if (sev === "warning") return "warning";
-    return "info";
+  const severityToMark = (sev: string): SourceMark['severity'] => {
+    if (sev === 'critical') return 'error';
+    if (sev === 'warning') return 'warning';
+    return 'info';
   };
 
   const findingMarks = useMemo<SourceMark[]>(() => {
@@ -589,29 +567,24 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
       useEditorStore.getState().focusReviewFinding(findingId);
       setMarkPopover({ anchorEl, findingId });
     },
-    [focusPane]
+    [focusPane],
   );
 
-  const markFinding = markPopover
-    ? findings.find((f) => f.id === markPopover.findingId) ?? null
-    : null;
+  const markFinding = markPopover ? (findings.find((f) => f.id === markPopover.findingId) ?? null) : null;
 
   const handleMarkDiagnose = useCallback(() => {
     if (!markFinding) return;
     const file = files.find((x) => x.id === markFinding.targetId);
     const filePath = file?.relPath;
     if (!filePath) {
-      useToastStore.getState().showToast(
-        t("panel.review.diagnoseNoFile", { msg: markFinding.message }),
-        "warning"
-      );
+      useToastStore.getState().showToast(t('panel.review.diagnoseNoFile', { msg: markFinding.message }), 'warning');
       return;
     }
     const line = readLineFromMetadata(markFinding.metadata);
     triggerDiagnosis({
       filePath,
-      kind: "review",
-      title: markFinding.ruleId ? markFinding.ruleId.replace(/_/g, " ") : markFinding.message,
+      kind: 'review',
+      title: markFinding.ruleId ? markFinding.ruleId.replace(/_/g, ' ') : markFinding.message,
       lineRange: line ? [line, line] : undefined,
       detail: markFinding.message,
     });
@@ -630,10 +603,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
       .sort((a, b) => a.lineStart - b.lineStart || a.name.localeCompare(b.name));
   }, [symbols, activeFileId]);
 
-  const gotoSymbols = useMemo<string[]>(
-    () => Array.from(new Set(symbols.map((s) => s.name.toLowerCase()))),
-    [symbols],
-  );
+  const gotoSymbols = useMemo<string[]>(() => Array.from(new Set(symbols.map((s) => s.name.toLowerCase()))), [symbols]);
 
   // 面包屑符号链：对标 Zed `breadcrumbs_inner` + `outline_symbols_at_cursor`。
   // Zed 在光标处取「包含光标的所有外层→内层符号」整条链（如 Class › method › block），
@@ -644,9 +614,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
   const caretLine = cursorStatus?.line ?? selection?.startLine ?? null;
   const activeSymbolChain = useMemo<{ name: string; line: number; kind?: string }[]>(() => {
     if (caretLine == null || outlineSymbols.length === 0) return [];
-    const chain = outlineSymbols.filter(
-      (s) => s.lineStart <= caretLine && s.lineEnd >= caretLine,
-    );
+    const chain = outlineSymbols.filter((s) => s.lineStart <= caretLine && s.lineEnd >= caretLine);
     // outer→inner：lineStart 升序（外层先开始）；相等时 lineEnd 降序（外层跨度更大）
     chain.sort((a, b) => a.lineStart - b.lineStart || b.lineEnd - a.lineEnd);
     return chain.map((s) => ({ name: s.name, line: s.lineStart, kind: s.kind }));
@@ -663,24 +631,21 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
 
   // 面包屑分析动作回调：文件段 → 画像(依赖聚焦此文件 / 复杂度 / 调用图) + AI 诊断；符号段 → AI 诊断。
   // 对标 Zed breadcrumbs「上下文感知动作」——把导航面包屑变成连接「分析能力层」的入口（renderable AND useful）。
-  const onAnalyzeFile = useCallback(
-    (fileId: string, kind: PortraitKind) => {
-      const aid = useProjectStore.getState().activeAnalysisId;
-      if (!aid) {
-        useToastStore.getState().showToast(t("portrait.msg.noAnalysis"), "warning");
-        return;
-      }
-      void runPortrait(kind, aid, kind === "dependency" ? { focusFileId: fileId } : undefined).then((r) => {
-        useToastStore.getState().showToast(r.message, r.severity);
-      });
-    },
-    [],
-  );
+  const onAnalyzeFile = useCallback((fileId: string, kind: PortraitKind) => {
+    const aid = useProjectStore.getState().activeAnalysisId;
+    if (!aid) {
+      useToastStore.getState().showToast(t('portrait.msg.noAnalysis'), 'warning');
+      return;
+    }
+    void runPortrait(kind, aid, kind === 'dependency' ? { focusFileId: fileId } : undefined).then((r) => {
+      useToastStore.getState().showToast(r.message, r.severity);
+    });
+  }, []);
   const onDiagnoseFile = useCallback(
     (fileId: string) => {
       const f = allFiles.find((x) => x.id === fileId);
       if (!f) return;
-      void triggerDiagnosis({ filePath: f.relPath, kind: "file", title: f.name });
+      void triggerDiagnosis({ filePath: f.relPath, kind: 'file', title: f.name });
     },
     [allFiles],
   );
@@ -690,7 +655,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
       if (!f) return;
       void triggerDiagnosis({
         filePath: f.relPath,
-        kind: "complexity",
+        kind: 'complexity',
         title: symbolName,
         lineRange: [line, line],
       });
@@ -704,8 +669,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
 
   // 跨窗格落点整框发光：来源标签来自「其他窗格」且正悬停本窗格时，给本窗格加琥珀金 outline，
   // 使跨窗格目标被整框「瞄准」（与内部 DropEdge/移入徽标浮层叠加，落点更明确）。
-  const isCrossPaneTarget =
-    !!dropState && !!draggingTab && draggingTab.paneId !== paneId;
+  const isCrossPaneTarget = !!dropState && !!draggingTab && draggingTab.paneId !== paneId;
 
   // 跨窗格拖拽中的来源标签（来自其他窗格）；用于标签级精确插入（对齐 Zed 把标签拖到另一窗格标签条→按 ix 并入）。
   const crossDrag = draggingTab && draggingTab.paneId !== paneId ? draggingTab : null;
@@ -717,25 +681,21 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
         flex: paneFlex ?? 1,
         minWidth: 0,
         minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-        borderRight: paneAxis === "row" ? 1 : 0,
-        borderBottom: paneAxis === "col" ? 1 : 0,
-        borderColor: "divider",
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        borderRight: paneAxis === 'row' ? 1 : 0,
+        borderBottom: paneAxis === 'col' ? 1 : 0,
+        borderColor: 'divider',
         // 激活窗格高亮（键盘导航/点击聚焦后可见，对标 Zed active pane 边框）；拖拽落点高亮优先
-        outline: isCrossPaneTarget
-          ? "2px solid #EF9F27"
-          : isActive
-          ? "2px solid"
-          : "none",
-        outlineColor: isCrossPaneTarget ? undefined : "primary.main",
-        outlineOffset: isCrossPaneTarget ? "-2px" : "-2px",
+        outline: isCrossPaneTarget ? '2px solid #EF9F27' : isActive ? '2px solid' : 'none',
+        outlineColor: isCrossPaneTarget ? undefined : 'primary.main',
+        outlineOffset: isCrossPaneTarget ? '-2px' : '-2px',
         boxShadow: isCrossPaneTarget
-          ? "0 0 0 3px rgba(239,159,39,0.25)"
+          ? '0 0 0 3px rgba(239,159,39,0.25)'
           : isActive
-          ? "0 0 0 2px rgba(25,118,210,0.18)"
-          : "none",
+            ? '0 0 0 2px rgb(var(--template-palette-primary-mainChannel) / 0.18)'
+            : 'none',
       }}
       onMouseDown={focusPane}
       onDragOver={handlePaneDragOver}
@@ -745,45 +705,67 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
       {/* 窗格工具条：拆分 / 关闭窗格 */}
       <Box
         sx={{
-          display: "flex",
-          alignItems: "center",
+          display: 'flex',
+          alignItems: 'center',
           gap: 0.25,
           px: 0.5,
           py: 0.25,
           borderBottom: 1,
-          borderColor: "divider",
+          borderColor: 'divider',
           // 激活窗格工具条着色（键盘导航后清晰可辨，对标 Zed active pane 高亮）
-          bgcolor: isActive ? "rgba(25,118,210,0.10)" : "background.paper",
-          color: isActive ? "primary.main" : "inherit",
+          bgcolor: isActive ? 'rgb(var(--template-palette-primary-mainChannel) / 0.10)' : 'background.paper',
+          color: isActive ? 'primary.main' : 'inherit',
         }}
       >
-        <Tooltip title={t("workbench.pane.splitRight")}>
-          <IconButton size="small" onClick={() => { focusPane(); splitPane("right", "clone"); }} aria-label={t("workbench.pane.splitRight")}>
-            <CallSplitIcon sx={{ fontSize: 15, transform: "rotate(90deg)" }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={t("workbench.pane.splitDown")}>
-          <IconButton size="small" onClick={() => { focusPane(); splitPane("down", "clone"); }} aria-label={t("workbench.pane.splitDown")}>
-            <CallSplitIcon sx={{ fontSize: 15 }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={syncScroll ? t("workbench.pane.syncScrollOn") : t("workbench.pane.syncScrollOff")}>
+        <Tooltip title={t('workbench.pane.splitRight')}>
           <IconButton
             size="small"
-            color={syncScroll ? "primary" : "default"}
-            onClick={() => { focusPane(); toggleSyncScroll(); }}
-           aria-label={syncScroll ? t("workbench.pane.syncScrollOn") : t("workbench.pane.syncScrollOff")}>
-            <SyncAltIcon sx={{ fontSize: 15 }} />
+            onClick={() => {
+              focusPane();
+              splitPane('right', 'clone');
+            }}
+            aria-label={t('workbench.pane.splitRight')}
+          >
+            <CallSplitIcon sx={{ fontSize: uiFontSize(15), transform: 'rotate(90deg)' }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t('workbench.pane.splitDown')}>
+          <IconButton
+            size="small"
+            onClick={() => {
+              focusPane();
+              splitPane('down', 'clone');
+            }}
+            aria-label={t('workbench.pane.splitDown')}
+          >
+            <CallSplitIcon sx={{ fontSize: uiFontSize(15) }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={syncScroll ? t('workbench.pane.syncScrollOn') : t('workbench.pane.syncScrollOff')}>
+          <IconButton
+            size="small"
+            color={syncScroll ? 'primary' : 'default'}
+            onClick={() => {
+              focusPane();
+              toggleSyncScroll();
+            }}
+            aria-label={syncScroll ? t('workbench.pane.syncScrollOn') : t('workbench.pane.syncScrollOff')}
+          >
+            <SyncAltIcon sx={{ fontSize: uiFontSize(15) }} />
           </IconButton>
         </Tooltip>
         <Box sx={{ flex: 1 }} />
-        <Tooltip title={t("workbench.pane.closePane")}>
+        <Tooltip title={t('workbench.pane.closePane')}>
           <IconButton
             size="small"
             disabled={activePaneId === paneId && false}
-            onClick={() => { focusPane(); closePane(paneId); }}
-           aria-label={t("workbench.pane.closePane")}>
-            <CloseIcon sx={{ fontSize: 15 }} />
+            onClick={() => {
+              focusPane();
+              closePane(paneId);
+            }}
+            aria-label={t('workbench.pane.closePane')}
+          >
+            <CloseIcon sx={{ fontSize: uiFontSize(15) }} />
           </IconButton>
         </Tooltip>
       </Box>
@@ -797,7 +779,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
           const isCross = !!draggingTab && draggingTab.paneId !== paneId;
           if (!isLocal && !isCross) return;
           e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
+          e.dataTransfer.dropEffect = 'move';
         }}
         onDrop={(e) => {
           if (e.target !== e.currentTarget) return;
@@ -817,20 +799,20 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
           }
         }}
         sx={{
-          display: "flex",
-          alignItems: "center",
+          display: 'flex',
+          alignItems: 'center',
           gap: 0.5,
           px: 1,
           py: 0.5,
           borderBottom: 1,
-          borderColor: "divider",
-          bgcolor: "background.paper",
-          overflowX: "auto",
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          overflowX: 'auto',
         }}
       >
         {tabs.length === 0 && (
           <Typography variant="caption" color="text.disabled">
-            {t("workbench.noActive")}
+            {t('workbench.noActive')}
           </Typography>
         )}
         {tabs.map((tab, index) => {
@@ -839,9 +821,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
           const isLocalDrag = !!dragId && dragId !== tab.fileId;
           const isCrossDrag = !!crossDrag && crossDrag.fileId !== tab.fileId;
           const dropHere =
-            (isLocalDrag || isCrossDrag) && dropPos && dropPos.fileId === tab.fileId
-              ? dropPos.pos
-              : null;
+            (isLocalDrag || isCrossDrag) && dropPos && dropPos.fileId === tab.fileId ? dropPos.pos : null;
           return (
             <Box
               key={tab.fileId}
@@ -867,16 +847,16 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                 }
               }}
               onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", tab.fileId);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', tab.fileId);
                 // 品牌化拖影（对标 Zed DragMoveEvent + 自定义 drag preview）：注入深色胶囊+琥珀金描边，
                 // 让跟随光标的浮影一眼可辨是「被拖起的标签」，而非浏览器默认灰快照。
-                const ghost = document.createElement("div");
+                const ghost = document.createElement('div');
                 ghost.textContent = tab.name;
                 ghost.style.cssText =
-                  "position:absolute;top:-1000px;left:-1000px;padding:4px 10px;border-radius:6px;" +
-                  "font:600 12px -apple-system,system-ui,sans-serif;background:rgba(15,23,42,0.94);color:#fff;" +
-                  "border:1px solid #EF9F27;box-shadow:0 6px 18px rgba(239,159,39,0.45);white-space:nowrap;";
+                  'position:absolute;top:-1000px;left:-1000px;padding:4px 10px;border-radius:6px;' +
+                  'font:600 12px -apple-system,system-ui,sans-serif;background:rgba(15,23,42,0.94);color:#fff;' +
+                  'border:1px solid #EF9F27;box-shadow:0 6px 18px rgba(239,159,39,0.45);white-space:nowrap;';
                 document.body.appendChild(ghost);
                 e.dataTransfer.setDragImage(ghost, 16, 14);
                 setTimeout(() => document.body.removeChild(ghost), 0);
@@ -888,10 +868,9 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                 const isCross = !!crossDrag && crossDrag.fileId !== tab.fileId;
                 if (!isLocal && !isCross) return;
                 e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
+                e.dataTransfer.dropEffect = 'move';
                 const rect = e.currentTarget.getBoundingClientRect();
-                const pos: "before" | "after" =
-                  e.clientX < rect.left + rect.width / 2 ? "before" : "after";
+                const pos: 'before' | 'after' = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
                 setDropPos({ fileId: tab.fileId, pos });
               }}
               onDragLeave={() => {
@@ -937,62 +916,54 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                 setDraggingTab(null);
               }}
               sx={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
                 gap: 0.5,
                 px: 1,
                 py: 0.4,
                 borderRadius: 1,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
                 opacity: isDragging ? 0.5 : 1,
                 boxShadow: isDragging
-                  ? "inset 0 0 0 1px rgba(239,159,39,0.4)"
+                  ? 'inset 0 0 0 1px rgba(239,159,39,0.4)'
                   : dropHere
-                    ? "inset 0 0 0 1px rgba(239,159,39,0.5)"
-                    : "none",
-                bgcolor: active
-                  ? "rgba(59,130,246,0.12)"
-                  : dropHere
-                    ? "rgba(239,159,39,0.12)"
-                    : "transparent",
-                color: active ? "primary.main" : "text.secondary",
-                borderBottom: active ? "2px solid" : "2px solid transparent",
-                borderBottomColor: active ? "primary.main" : "transparent",
-                "&:hover": { bgcolor: active ? "rgba(59,130,246,0.18)" : "action.hover" },
+                    ? 'inset 0 0 0 1px rgba(239,159,39,0.5)'
+                    : 'none',
+                bgcolor: active ? 'rgba(59,130,246,0.12)' : dropHere ? 'rgba(239,159,39,0.12)' : 'transparent',
+                color: active ? 'primary.main' : 'text.secondary',
+                borderBottom: active ? '2px solid' : '2px solid transparent',
+                borderBottomColor: active ? 'primary.main' : 'transparent',
+                '&:hover': { bgcolor: active ? 'rgba(59,130,246,0.18)' : 'action.hover' },
               }}
             >
               {dropHere && (
                 <Box
                   sx={{
-                    position: "absolute",
+                    position: 'absolute',
                     top: 1,
                     bottom: 1,
                     width: 3,
                     borderRadius: 2,
-                    bgcolor: "#EF9F27",
-                    boxShadow: "0 0 6px 1px rgba(239,159,39,0.85)",
-                    left: dropHere === "before" ? -1 : undefined,
-                    right: dropHere === "after" ? -1 : undefined,
+                    bgcolor: '#EF9F27',
+                    boxShadow: '0 0 6px 1px rgba(239,159,39,0.85)',
+                    left: dropHere === 'before' ? -1 : undefined,
+                    right: dropHere === 'after' ? -1 : undefined,
                     zIndex: 3,
                   }}
                 />
               )}
-              {tab.pinned && (
-                <PushPinIcon sx={{ fontSize: 11, color: "primary.main", opacity: 0.85 }} />
-              )}
-              {tab.readOnly && (
-                <LockIcon sx={{ fontSize: 11, color: "text.disabled", opacity: 0.85 }} />
-              )}
-              {tab.kind === "image" || tab.kind === "svg" ? (
-                <ImageIcon sx={{ fontSize: 13, color: "text.secondary" }} />
-              ) : tab.kind === "markdown" ? (
-                <DescriptionIcon sx={{ fontSize: 13, color: "text.secondary" }} />
+              {tab.pinned && <PushPinIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main', opacity: 0.85 }} />}
+              {tab.readOnly && <LockIcon sx={{ fontSize: uiFontSize(11), color: 'text.disabled', opacity: 0.85 }} />}
+              {tab.kind === 'image' || tab.kind === 'svg' ? (
+                <ImageIcon sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }} />
+              ) : tab.kind === 'markdown' ? (
+                <DescriptionIcon sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }} />
               ) : (
                 <LanguageIcon lang={tab.language} size={13} />
               )}
-              <Typography variant="caption" sx={{ fontSize: 11, fontWeight: active ? 600 : 400 }}>
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(11), fontWeight: active ? 600 : 400 }}>
                 {tab.name}
               </Typography>
               <IconButton
@@ -1002,8 +973,9 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                   handleCloseTab(tab.fileId);
                 }}
                 sx={{ p: 0.1, ml: 0.3 }}
-               aria-label={t("workbench.tabMenu.close")}>
-                <CloseIcon sx={{ fontSize: 13 }} />
+                aria-label={t('workbench.tabMenu.close')}
+              >
+                <CloseIcon sx={{ fontSize: uiFontSize(13) }} />
               </IconButton>
             </Box>
           );
@@ -1017,156 +989,178 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
         onClose={() => setTabMenu(null)}
         slotProps={{ paper: { sx: { minWidth: 180 } } }}
       >
-        {tabMenu && (() => {
-          setActivePane(paneId);
-          const target = tabMenu;
-          const file = files.find((x) => x.id === target.fileId);
-          const hasLeftCloseable = tabs.slice(0, target.index).some((t) => !t.pinned);
-          const hasRightCloseable = tabs.slice(target.index + 1).some((t) => !t.pinned);
-          const parentDir = file?.path
-            ? (() => {
-                const sep = file.path.includes("\\") ? "\\" : "/";
-                const i = file.path.lastIndexOf(sep);
-                return i > 0 ? file.path.slice(0, i) : file.path;
-              })()
-            : "";
-          return (
-            <>
-              <MenuItem onClick={() => { closeTab(target.fileId); setTabMenu(null); }}>
-                {t("workbench.tabMenu.close")}
-              </MenuItem>
-              <MenuItem
-                disabled={tabs.length <= 1}
-                onClick={() => { closeOthers(target.fileId); setTabMenu(null); }}
-              >
-                {t("workbench.tabMenu.closeOthers")}
-              </MenuItem>
-              <Divider />
-              <MenuItem
-                disabled={!hasLeftCloseable}
-                onClick={() => { closeLeft(target.fileId); setTabMenu(null); }}
-              >
-                {t("workbench.tabMenu.closeLeft")}
-              </MenuItem>
-              <MenuItem
-                disabled={!hasRightCloseable}
-                onClick={() => { closeRight(target.fileId); setTabMenu(null); }}
-              >
-                {t("workbench.tabMenu.closeRight")}
-              </MenuItem>
-              <MenuItem
-                disabled={tabs.length <= 1}
-                onClick={() => { closeAll(); setTabMenu(null); }}
-              >
-                {t("workbench.tabMenu.closeAll")}
-              </MenuItem>
-              <Divider />
-              <MenuItem
-                onClick={() => { togglePin(target.fileId); setTabMenu(null); }}
-              >
-                <PushPinIcon sx={{ fontSize: 15, mr: 1 }} />
-                {target.pinned ? t("workbench.tabMenu.unpin") : t("workbench.tabMenu.pin")}
-              </MenuItem>
-              <Divider />
-              <MenuItem
-                onClick={() => {
-                  const f = files.find((x) => x.id === target.fileId);
-                  if (f?.path) navigator.clipboard?.writeText(f.path);
-                  setTabMenu(null);
-                }}
-              >
-                <ContentCopyIcon sx={{ fontSize: 15, mr: 1 }} />
-                {t("workbench.tabMenu.copyPath")}
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  const f = files.find((x) => x.id === target.fileId);
-                  if (f?.relPath) navigator.clipboard?.writeText(f.relPath);
-                  setTabMenu(null);
-                }}
-              >
-                <ContentCopyIcon sx={{ fontSize: 15, mr: 1 }} />
-                {t("workbench.tabMenu.copyRelativePath")}
-              </MenuItem>
-              <Divider />
-              <MenuItem
-                disabled={!parentDir}
-                onClick={() => {
-                  // 复用外壳集成终端：拉起终端并 cd 到文件目录（由外壳提供 sendToActiveTerminal）
-                  setTabMenu(null);
-                  onOpenInTerminal?.(parentDir);
-                }}
-              >
-                <TerminalIcon sx={{ fontSize: 15, mr: 1 }} />
-                {t("workbench.tabMenu.openInTerminal")}
-              </MenuItem>
-              <MenuItem
-                disabled={!file?.path}
-                onClick={() => {
-                  if (file?.path) {
-                    void invoke("reveal_in_file_manager", { path: file.path }).catch(() => {});
-                  }
-                  setTabMenu(null);
-                }}
-              >
-                <FolderIcon sx={{ fontSize: 15, mr: 1 }} />
-                {t("workbench.tabMenu.revealInFileManager")}
-              </MenuItem>
-              <Divider />
-              <MenuItem
-                onClick={() => { toggleReadOnly(target.fileId); setTabMenu(null); }}
-              >
-                {target.readOnly ? (
-                  <LockOpenIcon sx={{ fontSize: 15, mr: 1 }} />
-                ) : (
-                  <LockIcon sx={{ fontSize: 15, mr: 1 }} />
-                )}
-                {target.readOnly
-                  ? t("workbench.tabMenu.makeEditable")
-                  : t("workbench.tabMenu.makeReadOnly")}
-              </MenuItem>
-              <Divider />
-              {/* 对比视图：对标 Zed DiffEditor 双 buffer 对照（renderable AND useful 的审查能力） */}
-              <MenuItem
-                disabled={activeTab?.kind !== "text"}
-                onClick={async () => {
-                  const fid = target.fileId;
-                  try {
-                    const savedRaw = await projectScanApi.readSourceFile(fid);
-                    const savedText = tabTextContent(savedRaw);
-                    const live =
-                      fid === activeTab?.fileId
-                        ? editorHandleRef.current?.getValue() ?? tabTextContent(activeTab?.content)
-                        : tabTextContent(activeTab?.content);
-                    openDiffTab(target.fileId, {
-                      kind: "saved",
-                      modifiedLabel: `${file?.name ?? fid} — ${t("workbench.diff.working")}`,
-                      modifiedText: live,
-                      originalLabel: t("workbench.diff.savedOnDisk"),
-                      originalText: savedText,
-                    });
-                  } catch {
-                    /* 读盘失败静默放弃，不影响其它菜单项 */
-                  }
-                  setTabMenu(null);
-                }}
-              >
-                <CompareArrowsIcon sx={{ fontSize: 15, mr: 1 }} />
-                {t("workbench.diff.compareWithSaved")}
-              </MenuItem>
-              <MenuItem
-                disabled={activeTab?.kind !== "text"}
-                onClick={() => {
-                  setCompareMenu({ anchor: tabMenu!.anchor, fileId: target.fileId });
-                  setTabMenu(null);
-                }}
-              >
-                <CompareArrowsIcon sx={{ fontSize: 15, mr: 1 }} />
-                {t("workbench.diff.compareWithOpenTab")}
-              </MenuItem>
-            </>
-          );
-        })()}
+        {tabMenu &&
+          (() => {
+            setActivePane(paneId);
+            const target = tabMenu;
+            const file = files.find((x) => x.id === target.fileId);
+            const hasLeftCloseable = tabs.slice(0, target.index).some((t) => !t.pinned);
+            const hasRightCloseable = tabs.slice(target.index + 1).some((t) => !t.pinned);
+            const parentDir = file?.path
+              ? (() => {
+                  const sep = file.path.includes('\\') ? '\\' : '/';
+                  const i = file.path.lastIndexOf(sep);
+                  return i > 0 ? file.path.slice(0, i) : file.path;
+                })()
+              : '';
+            return (
+              <>
+                <MenuItem
+                  onClick={() => {
+                    closeTab(target.fileId);
+                    setTabMenu(null);
+                  }}
+                >
+                  {t('workbench.tabMenu.close')}
+                </MenuItem>
+                <MenuItem
+                  disabled={tabs.length <= 1}
+                  onClick={() => {
+                    closeOthers(target.fileId);
+                    setTabMenu(null);
+                  }}
+                >
+                  {t('workbench.tabMenu.closeOthers')}
+                </MenuItem>
+                <Divider />
+                <MenuItem
+                  disabled={!hasLeftCloseable}
+                  onClick={() => {
+                    closeLeft(target.fileId);
+                    setTabMenu(null);
+                  }}
+                >
+                  {t('workbench.tabMenu.closeLeft')}
+                </MenuItem>
+                <MenuItem
+                  disabled={!hasRightCloseable}
+                  onClick={() => {
+                    closeRight(target.fileId);
+                    setTabMenu(null);
+                  }}
+                >
+                  {t('workbench.tabMenu.closeRight')}
+                </MenuItem>
+                <MenuItem
+                  disabled={tabs.length <= 1}
+                  onClick={() => {
+                    closeAll();
+                    setTabMenu(null);
+                  }}
+                >
+                  {t('workbench.tabMenu.closeAll')}
+                </MenuItem>
+                <Divider />
+                <MenuItem
+                  onClick={() => {
+                    togglePin(target.fileId);
+                    setTabMenu(null);
+                  }}
+                >
+                  <PushPinIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  {target.pinned ? t('workbench.tabMenu.unpin') : t('workbench.tabMenu.pin')}
+                </MenuItem>
+                <Divider />
+                <MenuItem
+                  onClick={() => {
+                    const f = files.find((x) => x.id === target.fileId);
+                    if (f?.path) navigator.clipboard?.writeText(f.path);
+                    setTabMenu(null);
+                  }}
+                >
+                  <ContentCopyIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  {t('workbench.tabMenu.copyPath')}
+                </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    const f = files.find((x) => x.id === target.fileId);
+                    if (f?.relPath) navigator.clipboard?.writeText(f.relPath);
+                    setTabMenu(null);
+                  }}
+                >
+                  <ContentCopyIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  {t('workbench.tabMenu.copyRelativePath')}
+                </MenuItem>
+                <Divider />
+                <MenuItem
+                  disabled={!parentDir}
+                  onClick={() => {
+                    // 复用外壳集成终端：拉起终端并 cd 到文件目录（由外壳提供 sendToActiveTerminal）
+                    setTabMenu(null);
+                    onOpenInTerminal?.(parentDir);
+                  }}
+                >
+                  <TerminalIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  {t('workbench.tabMenu.openInTerminal')}
+                </MenuItem>
+                <MenuItem
+                  disabled={!file?.path}
+                  onClick={() => {
+                    if (file?.path) {
+                      void invoke('reveal_in_file_manager', { path: file.path }).catch(() => {});
+                    }
+                    setTabMenu(null);
+                  }}
+                >
+                  <FolderIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  {t('workbench.tabMenu.revealInFileManager')}
+                </MenuItem>
+                <Divider />
+                <MenuItem
+                  onClick={() => {
+                    toggleReadOnly(target.fileId);
+                    setTabMenu(null);
+                  }}
+                >
+                  {target.readOnly ? (
+                    <LockOpenIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  ) : (
+                    <LockIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  )}
+                  {target.readOnly ? t('workbench.tabMenu.makeEditable') : t('workbench.tabMenu.makeReadOnly')}
+                </MenuItem>
+                <Divider />
+                {/* 对比视图：对标 Zed DiffEditor 双 buffer 对照（renderable AND useful 的审查能力） */}
+                <MenuItem
+                  disabled={activeTab?.kind !== 'text'}
+                  onClick={async () => {
+                    const fid = target.fileId;
+                    try {
+                      const savedRaw = await projectScanApi.readSourceFile(fid);
+                      const savedText = tabTextContent(savedRaw);
+                      const live =
+                        fid === activeTab?.fileId
+                          ? (editorHandleRef.current?.getValue() ?? tabTextContent(activeTab?.content))
+                          : tabTextContent(activeTab?.content);
+                      openDiffTab(target.fileId, {
+                        kind: 'saved',
+                        modifiedLabel: `${file?.name ?? fid} — ${t('workbench.diff.working')}`,
+                        modifiedText: live,
+                        originalLabel: t('workbench.diff.savedOnDisk'),
+                        originalText: savedText,
+                      });
+                    } catch {
+                      /* 读盘失败静默放弃，不影响其它菜单项 */
+                    }
+                    setTabMenu(null);
+                  }}
+                >
+                  <CompareArrowsIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  {t('workbench.diff.compareWithSaved')}
+                </MenuItem>
+                <MenuItem
+                  disabled={activeTab?.kind !== 'text'}
+                  onClick={() => {
+                    setCompareMenu({ anchor: tabMenu!.anchor, fileId: target.fileId });
+                    setTabMenu(null);
+                  }}
+                >
+                  <CompareArrowsIcon sx={{ fontSize: uiFontSize(15), mr: 1 }} />
+                  {t('workbench.diff.compareWithOpenTab')}
+                </MenuItem>
+              </>
+            );
+          })()}
       </Menu>
 
       {/* 「与已打开的文件对比…」二级选择器：列出全部已打开标签（排除当前文件、按 fileId 去重） */}
@@ -1176,63 +1170,64 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
         onClose={() => setCompareMenu(null)}
         slotProps={{ paper: { sx: { minWidth: 220, maxHeight: 320 } } }}
       >
-        {compareMenu && (() => {
-          const panes = useCodeWorkbenchStore.getState().panes;
-          const all = Object.values(panes).flatMap((p) => p.tabs);
-          const seen = new Set<string>();
-          const items: typeof all = [];
-          for (const tt of all) {
-            if (tt.fileId === compareMenu.fileId) continue;
-            if (seen.has(tt.fileId)) continue;
-            seen.add(tt.fileId);
-            items.push(tt);
-          }
-          if (items.length === 0) {
-            return (
-              <MenuItem disabled>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {t("workbench.diff.noOtherTabs")}
-                </Typography>
+        {compareMenu &&
+          (() => {
+            const panes = useCodeWorkbenchStore.getState().panes;
+            const all = Object.values(panes).flatMap((p) => p.tabs);
+            const seen = new Set<string>();
+            const items: typeof all = [];
+            for (const tt of all) {
+              if (tt.fileId === compareMenu.fileId) continue;
+              if (seen.has(tt.fileId)) continue;
+              seen.add(tt.fileId);
+              items.push(tt);
+            }
+            if (items.length === 0) {
+              return (
+                <MenuItem disabled>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    {t('workbench.diff.noOtherTabs')}
+                  </Typography>
+                </MenuItem>
+              );
+            }
+            return items.map((tt) => (
+              <MenuItem
+                key={tt.fileId}
+                onClick={() => {
+                  const src = all.find((x) => x.fileId === compareMenu.fileId);
+                  const other = tt;
+                  const modifiedText =
+                    compareMenu.fileId === activeTab?.fileId
+                      ? (editorHandleRef.current?.getValue() ?? tabTextContent(src?.content))
+                      : tabTextContent(src?.content);
+                  openDiffTab(compareMenu.fileId, {
+                    kind: 'file',
+                    modifiedLabel: src?.name ?? '',
+                    modifiedText,
+                    originalLabel: other.name,
+                    originalText: tabTextContent(other.content),
+                  });
+                  setCompareMenu(null);
+                }}
+              >
+                <DescriptionIcon sx={{ fontSize: uiFontSize(15), mr: 1, color: 'text.secondary' }} />
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography noWrap variant="body2">
+                    {tt.name}
+                  </Typography>
+                  <Typography noWrap variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                    {tt.relPath}
+                  </Typography>
+                </Box>
               </MenuItem>
-            );
-          }
-          return items.map((tt) => (
-            <MenuItem
-              key={tt.fileId}
-              onClick={() => {
-                const src = all.find((x) => x.fileId === compareMenu.fileId);
-                const other = tt;
-                const modifiedText =
-                  compareMenu.fileId === activeTab?.fileId
-                    ? editorHandleRef.current?.getValue() ?? tabTextContent(src?.content)
-                    : tabTextContent(src?.content);
-                openDiffTab(compareMenu.fileId, {
-                  kind: "file",
-                  modifiedLabel: src?.name ?? "",
-                  modifiedText,
-                  originalLabel: other.name,
-                  originalText: tabTextContent(other.content),
-                });
-                setCompareMenu(null);
-              }}
-            >
-              <DescriptionIcon sx={{ fontSize: 15, mr: 1, color: "text.secondary" }} />
-              <Box sx={{ minWidth: 0 }}>
-                <Typography noWrap variant="body2">
-                  {tt.name}
-                </Typography>
-                <Typography noWrap variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                  {tt.relPath}
-                </Typography>
-              </Box>
-            </MenuItem>
-          ));
-        })()}
+            ));
+          })()}
       </Menu>
 
       {/* 面包屑：仅当存在目录段或光标符号链时才渲染——否则与标签栏「文件名+语言图标」完全重复
           （根目录裸文件会塌缩成单图标空条），按用户口径不显示该行。 */}
-      {activeTab && (activeTab.relPath.includes("/") || activeSymbolChain.length > 0) && (
+      {activeTab && (activeTab.relPath.includes('/') || activeSymbolChain.length > 0) && (
         <Breadcrumbs
           relPath={activeTab.relPath}
           language={activeTab.language}
@@ -1252,11 +1247,11 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
 
       {/* 编辑器 */}
       <Box
-        sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}
+        sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}
         onKeyDownCapture={(e) => {
           if (isTerminalTarget(e.nativeEvent)) return;
-          if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "i" || e.key.toLowerCase() === "k")) {
-            if (activeFileId && activeTab?.kind === "text") {
+          if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'i' || e.key.toLowerCase() === 'k')) {
+            if (activeFileId && activeTab?.kind === 'text') {
               e.preventDefault();
               e.stopPropagation();
               focusPane();
@@ -1270,7 +1265,7 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
             severity="warning"
             sx={{ m: 1, mb: 0 }}
             action={
-              <Box sx={{ display: "flex", gap: 0.5 }}>
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
                 <Button
                   size="small"
                   color="inherit"
@@ -1279,35 +1274,31 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                     useCodeWorkbenchStore.getState().clearDiskChanged(activeFileId);
                   }}
                 >
-                  {t("workbench.discardMine")}
+                  {t('workbench.discardMine')}
                 </Button>
                 <Button
                   size="small"
                   variant="contained"
                   onClick={() => useCodeWorkbenchStore.getState().clearDiskChanged(activeFileId)}
                 >
-                  {t("workbench.keepMine")}
+                  {t('workbench.keepMine')}
                 </Button>
               </Box>
             }
           >
-            {t("workbench.diskChanged", { file: activeTab?.relPath ?? "" })}
+            {t('workbench.diskChanged', { file: activeTab?.relPath ?? '' })}
           </Alert>
         )}
         {activeTab ? (
-          activeTab.kind === "image" || activeTab.kind === "svg" ? (
+          activeTab.kind === 'image' || activeTab.kind === 'svg' ? (
             <WorkbenchMediaPreview
               fileId={activeTab.fileId}
               name={activeTab.name}
               kind={activeTab.kind}
               themeMode={themeMode}
             />
-          ) : activeTab.kind === "markdown" ? (
-            <WorkbenchMarkdownPreview
-              fileId={activeTab.fileId}
-              tab={activeTab}
-              themeMode={themeMode}
-            />
+          ) : activeTab.kind === 'markdown' ? (
+            <WorkbenchMarkdownPreview fileId={activeTab.fileId} tab={activeTab} themeMode={themeMode} />
           ) : activeTab.diff ? (
             // 对比视图（只读 DiffEditor）：左 original（磁盘/另一文件）↔ 右 modified（工作缓冲区/当前文件）
             <MonacoDiffEditor tab={activeTab} themeMode={themeMode} />
@@ -1348,36 +1339,36 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
           )
         ) : (
           <Box sx={{ p: 2 }}>
-            <Alert severity="info">{t("workbench.noActive")}</Alert>
+            <Alert severity="info">{t('workbench.noActive')}</Alert>
           </Box>
         )}
         {/* 编辑器状态栏（对标 Zed crates/go_to_line/src/cursor_position.rs 的 CursorPosition 状态栏项）：
             实时显示 行:列 + 选区统计（K 选区, N 行, M 字符），点击「行:列」打开「转到行」面板。 */}
-        {activeTab && activeTab.kind === "text" && (
+        {activeTab && activeTab.kind === 'text' && (
           <Box
             sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               gap: 1.5,
               px: 1.5,
               height: 24,
               flexShrink: 0,
               borderTop: 1,
-              borderColor: "divider",
-              bgcolor: "background.paper",
-              fontSize: 11,
-              color: "text.secondary",
-              userSelect: "none",
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+              fontSize: uiFontSize(11),
+              color: 'text.secondary',
+              userSelect: 'none',
             }}
           >
             {/* 左：文档信息簇（对标 Zed 右侧簇 ActiveBufferLanguage / LineEndingIndicator / ActiveBufferEncoding） */}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, overflow: "hidden" }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, overflow: 'hidden' }}>
               {langLabel && (
-                <Tooltip title={t("workbench.status.language")}>
+                <Tooltip title={t('workbench.status.language')}>
                   <Box
                     component="span"
-                    sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, whiteSpace: "nowrap" }}
+                    sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, whiteSpace: 'nowrap' }}
                   >
                     <LanguageIcon lang={activeTab.language} size={12} />
                     {langLabel}
@@ -1385,60 +1376,64 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                 </Tooltip>
               )}
               {editorInfo && (
-                <Tooltip title={t("workbench.status.eolToggleHint")}>
+                <Tooltip title={t('workbench.status.eolToggleHint')}>
                   <Box
                     component="span"
                     onClick={() => editorHandleRef.current?.toggleEol()}
                     sx={{
-                      cursor: "pointer",
-                      fontFamily: "monospace",
-                      whiteSpace: "nowrap",
-                      "&:hover": { color: "primary.main", textDecoration: "underline" },
+                      cursor: 'pointer',
+                      fontFamily: 'monospace',
+                      whiteSpace: 'nowrap',
+                      '&:hover': { color: 'primary.main', textDecoration: 'underline' },
                     }}
                   >
                     {editorInfo.eol}
                   </Box>
                 </Tooltip>
               )}
-              <Tooltip title={t("workbench.status.encodingHint")}>
-                <Box component="span" sx={{ whiteSpace: "nowrap", fontFamily: "monospace" }}>
+              <Tooltip title={t('workbench.status.encodingHint')}>
+                <Box component="span" sx={{ whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
                   UTF-8
                 </Box>
               </Tooltip>
             </Box>
             {/* 右：光标/选区（对标 Zed CursorPosition 状态栏项），点击「行:列」打开「转到行」面板 */}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexShrink: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
               {/* 「问题」指示项（对标 Zed 状态栏 Problems）：N 错误 · M 警告，点击打开问题面板（聚合所有已打开文件诊断，可逐项跳转） */}
               {markerStats && (markerStats.errors > 0 || markerStats.warnings > 0) && (
-                <Tooltip title={t("workbench.status.problemsHint")}>
+                <Tooltip title={t('workbench.status.problemsHint')}>
                   <Box
                     component="span"
                     onClick={() => useProblemsPanelStore.getState().requestOpen()}
                     sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
+                      display: 'inline-flex',
+                      alignItems: 'center',
                       gap: 0.75,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                      fontFamily: "monospace",
-                      "&:hover": { textDecoration: "underline" },
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      fontFamily: 'monospace',
+                      '&:hover': { textDecoration: 'underline' },
                     }}
                   >
                     {markerStats.errors > 0 && (
                       <Box
                         component="span"
-                        sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, color: "error.main" }}
+                        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, color: 'error.main' }}
                       >
-                        <Box component="span" sx={{ fontSize: 9, lineHeight: 1 }}>●</Box>
+                        <Box component="span" sx={{ fontSize: uiFontSize(9), lineHeight: 1 }}>
+                          ●
+                        </Box>
                         {markerStats.errors}
                       </Box>
                     )}
                     {markerStats.warnings > 0 && (
                       <Box
                         component="span"
-                        sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, color: "warning.main" }}
+                        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, color: 'warning.main' }}
                       >
-                        <Box component="span" sx={{ fontSize: 9, lineHeight: 1 }}>●</Box>
+                        <Box component="span" sx={{ fontSize: uiFontSize(9), lineHeight: 1 }}>
+                          ●
+                        </Box>
                         {markerStats.warnings}
                       </Box>
                     )}
@@ -1448,125 +1443,130 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
               {/* 多光标徽标（对标 Zed 多光标同步输入可视化）：selections>1 时高亮显示「N 光标」，
                   明确告知用户「输入将同步到所有光标」；点击退出多光标（保留主光标，Escape 同源），避免死指示项 */}
               {cursorStatus && cursorStatus.selections > 1 && (
-                <Tooltip title={t("workbench.status.multiCursorHint")}>
+                <Tooltip title={t('workbench.status.multiCursorHint')}>
                   <Box
                     component="span"
                     onClick={() => editorHandleRef.current?.exitMultiCursor()}
                     sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
+                      display: 'inline-flex',
+                      alignItems: 'center',
                       gap: 0.4,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                       px: 0.75,
                       py: 0.1,
                       borderRadius: 1,
-                      fontSize: 11,
+                      fontSize: uiFontSize(11),
                       fontWeight: 700,
                       lineHeight: 1.4,
-                      color: "primary.contrastText",
-                      bgcolor: "primary.main",
-                      boxShadow: "0 0 0 1px rgba(239,159,39,0.35)",
-                      "&:hover": { filter: "brightness(1.12)" },
+                      color: 'primary.contrastText',
+                      bgcolor: 'primary.main',
+                      boxShadow: '0 0 0 1px rgba(239,159,39,0.35)',
+                      '&:hover': { filter: 'brightness(1.12)' },
                     }}
                   >
-                    {t("workbench.status.multiCursor", { count: cursorStatus.selections })}
+                    {t('workbench.status.multiCursor', { count: cursorStatus.selections })}
                   </Box>
                 </Tooltip>
               )}
               {/* 列选择指示（对标 Zed ColumnarSelection 视觉反馈）：开启时显示，点击关闭 */}
               {columnSelection && (
-                <Tooltip title={t("workbench.status.columnSelectionHint")}>
+                <Tooltip title={t('workbench.status.columnSelectionHint')}>
                   <Box
                     component="span"
                     onClick={() => editorHandleRef.current?.toggleColumnSelection()}
                     sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
+                      display: 'inline-flex',
+                      alignItems: 'center',
                       gap: 0.4,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                       px: 0.75,
                       py: 0.1,
                       borderRadius: 1,
-                      fontSize: 11,
+                      fontSize: uiFontSize(11),
                       fontWeight: 700,
                       lineHeight: 1.4,
-                      color: "secondary.contrastText",
-                      bgcolor: "secondary.main",
-                      "&:hover": { filter: "brightness(1.12)" },
+                      color: 'secondary.contrastText',
+                      bgcolor: 'secondary.main',
+                      '&:hover': { filter: 'brightness(1.12)' },
                     }}
                   >
-                    {t("workbench.status.columnSelection")}
+                    {t('workbench.status.columnSelection')}
                   </Box>
                 </Tooltip>
               )}
               {/* 软换行指示（对标 Zed 软换行视觉反馈）：开启时显示，点击关闭（切换为水平滚动） */}
               {wordWrap && (
-                <Tooltip title={t("workbench.status.wordWrapHint")}>
+                <Tooltip title={t('workbench.status.wordWrapHint')}>
                   <Box
                     component="span"
                     onClick={() => editorHandleRef.current?.toggleWordWrap()}
                     sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
+                      display: 'inline-flex',
+                      alignItems: 'center',
                       gap: 0.4,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                       px: 0.75,
                       py: 0.1,
                       borderRadius: 1,
-                      fontSize: 11,
+                      fontSize: uiFontSize(11),
                       fontWeight: 700,
                       lineHeight: 1.4,
-                      color: "success.contrastText",
-                      bgcolor: "success.main",
-                      "&:hover": { filter: "brightness(1.12)" },
+                      color: 'success.contrastText',
+                      bgcolor: 'success.main',
+                      '&:hover': { filter: 'brightness(1.12)' },
                     }}
                   >
-                    {t("workbench.status.wordWrap")}
+                    {t('workbench.status.wordWrap')}
                   </Box>
                 </Tooltip>
               )}
               {/* 字号缩放控件（对标 Zed IncreaseBufferFontSize / DecreaseBufferFontSize / ResetBufferFontSize）：
                   状态栏常驻，− 缩小 / 数字点击重置默认 / + 放大；始终可见可操作，避免死控件 */}
-              <Tooltip title={t("workbench.status.fontSizeHint")}>
+              <Tooltip title={t('workbench.status.fontSizeHint')}>
                 <Box
                   sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
+                    display: 'inline-flex',
+                    alignItems: 'center',
                     gap: 0.25,
-                    whiteSpace: "nowrap",
-                    fontFamily: "monospace",
-                    fontSize: 11,
+                    whiteSpace: 'nowrap',
+                    fontFamily: 'monospace',
+                    fontSize: uiFontSize(11),
                     lineHeight: 1.4,
-                    userSelect: "none",
+                    userSelect: 'none',
                   }}
                 >
                   <Box
                     component="span"
                     role="button"
-                    aria-label={t("workbench.status.decreaseFont")}
+                    aria-label={t('workbench.status.decreaseFont')}
                     onClick={() => editorHandleRef.current?.decreaseFont()}
-                    sx={{ cursor: "pointer", px: 0.5, borderRadius: 0.5, "&:hover": { bgcolor: "action.hover" } }}
+                    sx={{ cursor: 'pointer', px: 0.5, borderRadius: 0.5, '&:hover': { bgcolor: 'action.hover' } }}
                   >
                     −
                   </Box>
                   <Box
                     component="span"
                     role="button"
-                    aria-label={t("workbench.status.resetFont")}
+                    aria-label={t('workbench.status.resetFont')}
                     onClick={() => editorHandleRef.current?.resetFont()}
-                    sx={{ cursor: "pointer", minWidth: 30, textAlign: "center", "&:hover": { textDecoration: "underline" } }}
+                    sx={{
+                      cursor: 'pointer',
+                      minWidth: 30,
+                      textAlign: 'center',
+                      '&:hover': { textDecoration: 'underline' },
+                    }}
                   >
                     {fontSize}px
                   </Box>
                   <Box
                     component="span"
                     role="button"
-                    aria-label={t("workbench.status.increaseFont")}
+                    aria-label={t('workbench.status.increaseFont')}
                     onClick={() => editorHandleRef.current?.increaseFont()}
-                    sx={{ cursor: "pointer", px: 0.5, borderRadius: 0.5, "&:hover": { bgcolor: "action.hover" } }}
+                    sx={{ cursor: 'pointer', px: 0.5, borderRadius: 0.5, '&:hover': { bgcolor: 'action.hover' } }}
                   >
                     +
                   </Box>
@@ -1574,45 +1574,45 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
               </Tooltip>
               {/* 书签计数（对标 Zed BookmarkStore 可见态）：当前文件有书签时显示，点击打开「查看书签」清单 */}
               {bookmarkLines.length > 0 && (
-                <Tooltip title={t("workbench.status.bookmarkHint", { count: bookmarkLines.length })}>
+                <Tooltip title={t('workbench.status.bookmarkHint', { count: bookmarkLines.length })}>
                   <Box
                     component="span"
                     onClick={() => onShowBookmarks?.()}
                     sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
+                      display: 'inline-flex',
+                      alignItems: 'center',
                       gap: 0.4,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
                       px: 0.75,
                       py: 0.1,
                       borderRadius: 1,
-                      fontSize: 11,
+                      fontSize: uiFontSize(11),
                       fontWeight: 700,
                       lineHeight: 1.4,
-                      color: "#3a2a05",
-                      bgcolor: "#EF9F27",
-                      "&:hover": { filter: "brightness(1.08)" },
+                      color: '#3a2a05',
+                      bgcolor: '#EF9F27',
+                      '&:hover': { filter: 'brightness(1.08)' },
                     }}
                   >
-                    <BookmarkIcon sx={{ fontSize: 13 }} />
+                    <BookmarkIcon sx={{ fontSize: uiFontSize(13) }} />
                     {bookmarkLines.length}
                   </Box>
                 </Tooltip>
               )}
               {cursorStatus && (
                 <>
-                  <Tooltip title={t("workbench.status.cursorHint")}>
+                  <Tooltip title={t('workbench.status.cursorHint')}>
                     <Box
                       component="span"
                       onClick={() => onOpenGotoLine?.()}
                       sx={{
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                        "&:hover": { color: "primary.main", textDecoration: "underline" },
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        '&:hover': { color: 'primary.main', textDecoration: 'underline' },
                       }}
                     >
-                      {t("workbench.status.cursor", {
+                      {t('workbench.status.cursor', {
                         line: cursorStatus.line,
                         column: cursorStatus.column,
                       })}
@@ -1621,13 +1621,15 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
                   {(() => {
                     const { selectedLines, selectedChars } = cursorStatus;
                     const parts: string[] = [];
-                    if (selectedLines > 1)
-                      parts.push(t("workbench.status.selLines", { count: selectedLines }));
-                    if (selectedChars > 0)
-                      parts.push(t("workbench.status.selChars", { count: selectedChars }));
+                    if (selectedLines > 1) parts.push(t('workbench.status.selLines', { count: selectedLines }));
+                    if (selectedChars > 0) parts.push(t('workbench.status.selChars', { count: selectedChars }));
                     return parts.length ? (
-                      <Typography component="span" variant="caption" sx={{ fontSize: 11, whiteSpace: "nowrap" }}>
-                        {" (" + parts.join(", ") + ")"}
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{ fontSize: uiFontSize(11), whiteSpace: 'nowrap' }}
+                      >
+                        {' (' + parts.join(', ') + ')'}
                       </Typography>
                     ) : null;
                   })()}
@@ -1643,31 +1645,56 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
         open={!!markPopover}
         anchorEl={markPopover?.anchorEl ?? null}
         onClose={() => setMarkPopover(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         slotProps={{ paper: { sx: { p: 1, maxWidth: 320 } } }}
       >
         {markFinding && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, color: "text.secondary", textTransform: "uppercase", letterSpacing: 0.4 }}>
-                {t("workbench.mark.title")}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontSize: uiFontSize(10),
+                  fontWeight: 600,
+                  color: 'text.secondary',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.4,
+                }}
+              >
+                {t('workbench.mark.title')}
               </Typography>
               {markFinding.ruleId && (
-                <Typography variant="caption" sx={{ fontSize: 9, color: "text.disabled", fontFamily: "monospace" }} noWrap>
+                <Typography
+                  variant="caption"
+                  sx={{ fontSize: uiFontSize(9), color: 'text.disabled', fontFamily: 'monospace' }}
+                  noWrap
+                >
                   {markFinding.ruleId}
                 </Typography>
               )}
             </Box>
-            <Typography variant="body2" sx={{ fontSize: 12, lineHeight: 1.4 }}>
+            <Typography variant="body2" sx={{ fontSize: uiFontSize(12), lineHeight: 1.4 }}>
               {markFinding.message}
             </Typography>
-            <Box sx={{ display: "flex", gap: 0.5, justifyContent: "flex-end" }}>
-              <Button size="small" variant="text" onClick={handleMarkCopy} sx={{ fontSize: 11, textTransform: "none", minWidth: 0, color: "text.secondary" }} startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}>
-                {t("workbench.mark.copyMsg")}
+            <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+              <Button
+                size="small"
+                variant="text"
+                onClick={handleMarkCopy}
+                sx={{ fontSize: uiFontSize(11), textTransform: 'none', minWidth: 0, color: 'text.secondary' }}
+                startIcon={<ContentCopyIcon sx={{ fontSize: uiFontSize(14) }} />}
+              >
+                {t('workbench.mark.copyMsg')}
               </Button>
-              <Button size="small" variant="contained" onClick={handleMarkDiagnose} sx={{ fontSize: 11, textTransform: "none" }} startIcon={<AutoFixHighIcon sx={{ fontSize: 14 }} />}>
-                {t("workbench.mark.diagnose")}
+              <Button
+                size="small"
+                variant="contained"
+                onClick={handleMarkDiagnose}
+                sx={{ fontSize: uiFontSize(11), textTransform: 'none' }}
+                startIcon={<AutoFixHighIcon sx={{ fontSize: uiFontSize(14) }} />}
+              >
+                {t('workbench.mark.diagnose')}
               </Button>
             </Box>
           </Box>
@@ -1678,34 +1705,34 @@ export function WorkbenchEditorPane(props: WorkbenchEditorPaneProps) {
       {dropState && (
         <Box
           sx={{
-            position: "absolute",
+            position: 'absolute',
             inset: 0,
-            pointerEvents: "none",
+            pointerEvents: 'none',
             zIndex: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          <Box sx={{ position: "absolute", inset: 0, bgcolor: "rgba(239,159,39,0.10)" }} />
+          <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(239,159,39,0.10)' }} />
           {dropState.dir ? (
             <DropEdge dir={dropState.dir} />
           ) : (
             <Box
               sx={{
-                position: "relative",
+                position: 'relative',
                 px: 1.5,
                 py: 0.5,
                 borderRadius: 1.5,
-                bgcolor: "rgba(15,23,42,0.85)",
-                color: "#fff",
-                fontSize: 12,
+                bgcolor: 'rgba(15,23,42,0.85)',
+                color: '#fff',
+                fontSize: uiFontSize(12),
                 fontWeight: 600,
-                boxShadow: "0 2px 10px rgba(0,0,0,0.4)",
-                whiteSpace: "nowrap",
+                boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+                whiteSpace: 'nowrap',
               }}
             >
-              {t("workbench.drop.moveToPane")}
+              {t('workbench.drop.moveToPane')}
             </Box>
           )}
         </Box>

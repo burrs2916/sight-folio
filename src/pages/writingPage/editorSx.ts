@@ -48,6 +48,9 @@ export function buildEditorBodySx(typo: BookTypography, dark: boolean) {
       '& mark': {
         backgroundColor: 'rgba(255, 235, 59, 0.5)',
         color: 'inherit',
+        // 圆角例外（第 32 轮逐处拍板，登记在推进记录例外清单）：mark 是**正文行内高亮**，
+        // 2px 是随字高的微圆角；跟「圆角风格」档会在 large/round 档把行内高亮撑成药丸，
+        // 破坏正文排版。纸面归「正文默认排版」管，不归界面圆角档 —— 与画布区同一口径（第 26 轮）。
         borderRadius: '2px',
         padding: '0 1px',
       },
@@ -83,6 +86,7 @@ export function buildEditorBodySx(typo: BookTypography, dark: boolean) {
       '& span.writing-annotation': {
         backgroundColor: 'rgba(255, 152, 0, 0.14)',
         borderBottom: '2px dashed rgba(255, 152, 0, 0.55)',
+        // 圆角例外：与上面 mark 同源 —— 正文行内批注色块，归「正文默认排版」管，不跟界面圆角档。
         borderRadius: '2px',
         padding: '0 1px',
         cursor: 'pointer',

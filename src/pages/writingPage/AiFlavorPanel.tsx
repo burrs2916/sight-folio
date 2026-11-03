@@ -20,6 +20,7 @@ import TouchAppRoundedIcon from '@mui/icons-material/TouchAppRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CompareArrowsRoundedIcon from '@mui/icons-material/CompareArrowsRounded';
 import type { AiFlavorIssue } from '../../editor/proofread/aiFlavorEngine';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface AiFlavorPanelProps {
   open: boolean;
@@ -70,27 +71,27 @@ export function AiFlavorPanel({
   const kindMeta = (i: AiFlavorIssue) => {
     if (i.kind === 'template') {
       return {
-        icon: <AutoAwesomeRoundedIcon sx={{ fontSize: 16, color: 'error.main' }} />,
+        icon: <AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'error.main' }} />,
         label: labels.template,
         color: 'error.main' as const,
       };
     }
     if (i.kind === 'rhythm') {
       return {
-        icon: <SyncRoundedIcon sx={{ fontSize: 16, color: 'info.main' }} />,
+        icon: <SyncRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'info.main' }} />,
         label: labels.rhythm,
         color: 'info.main' as const,
       };
     }
     if (i.kind === 'punctuation') {
       return {
-        icon: <HorizontalRuleRoundedIcon sx={{ fontSize: 16, color: 'secondary.main' }} />,
+        icon: <HorizontalRuleRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'secondary.main' }} />,
         label: labels.punctuation,
         color: 'secondary.main' as const,
       };
     }
     return {
-      icon: <FormatQuoteRoundedIcon sx={{ fontSize: 16, color: 'warning.main' }} />,
+      icon: <FormatQuoteRoundedIcon sx={{ fontSize: uiFontSize(16), color: 'warning.main' }} />,
       label: labels.vague,
       color: 'warning.main' as const,
     };
@@ -98,11 +99,11 @@ export function AiFlavorPanel({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <AutoAwesomeRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+      <DialogTitle sx={{ fontSize: uiFontSize(15), display: 'flex', alignItems: 'center', gap: 1 }}>
+        <AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>{labels.title}</Box>
         <IconButton size="small" onClick={onClose} aria-label={t('ui.close')}>
-          <CloseRoundedIcon sx={{ fontSize: 18 }} />
+          <CloseRoundedIcon sx={{ fontSize: uiFontSize(18) }} />
         </IconButton>
       </DialogTitle>
       <DialogContent dividers sx={{ p: 1.5, minHeight: 160, maxHeight: 420, overflowY: 'auto' }}>
@@ -133,9 +134,9 @@ export function AiFlavorPanel({
         </Stack>
         {issues.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 6 }}>
-            <AutoAwesomeRoundedIcon sx={{ fontSize: 34, color: 'success.main', mb: 1 }} />
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{labels.empty}</Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5 }}>{labels.hint}</Typography>
+            <AutoAwesomeRoundedIcon sx={{ fontSize: uiFontSize(34), color: 'success.main', mb: 1 }} />
+            <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>{labels.empty}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled', mt: 0.5 }}>{labels.hint}</Typography>
           </Box>
         ) : (
           <Stack spacing={0.75}>
@@ -164,18 +165,18 @@ export function AiFlavorPanel({
                   <Box sx={{ mt: 0.15, display: 'flex', alignItems: 'center' }}>{meta.icon}</Box>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: meta.color, flexShrink: 0 }}>
+                      <Typography sx={{ fontSize: uiFontSize(11), fontWeight: 700, color: meta.color, flexShrink: 0 }}>
                         {meta.label}
                       </Typography>
                       {issue.suggestion && (
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 0 }}>
+                        <Typography sx={{ fontSize: uiFontSize(11), color: 'text.secondary', minWidth: 0 }}>
                           {issue.suggestion}
                         </Typography>
                       )}
                     </Box>
                     <Typography
                       sx={{
-                        fontSize: 12.5,
+                        fontSize: uiFontSize(12.5),
                         color: 'text.primary',
                         mt: 0.25,
                         overflow: 'hidden',
@@ -195,7 +196,7 @@ export function AiFlavorPanel({
                       }}
                       aria-label={labels.locate}
                     >
-                      <TouchAppRoundedIcon sx={{ fontSize: 15 }} />
+                      <TouchAppRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                     </IconButton>
                   </Tooltip>
                   {onCompare && (
@@ -208,7 +209,7 @@ export function AiFlavorPanel({
                         }}
                         aria-label={labels.compare}
                       >
-                        <CompareArrowsRoundedIcon sx={{ fontSize: 15 }} />
+                        <CompareArrowsRoundedIcon sx={{ fontSize: uiFontSize(15) }} />
                       </IconButton>
                     </Tooltip>
                   )}

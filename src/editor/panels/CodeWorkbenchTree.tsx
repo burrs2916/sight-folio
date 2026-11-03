@@ -327,9 +327,9 @@ export function FileTreeNode({
         paddingLeft: pad.pl,
         paddingRight: 1,
         cursor: "pointer",
-        bgcolor: active ? "rgba(59,130,246,0.14)" : "transparent",
+        bgcolor: active ? "rgb(var(--template-palette-primary-mainChannel) / 0.14)" : "transparent",
         color: active ? "primary.main" : "text.primary",
-        "&:hover": { bgcolor: active ? "rgba(59,130,246,0.20)" : "action.hover" },
+        "&:hover": { bgcolor: active ? "rgb(var(--template-palette-primary-mainChannel) / 0.2)" : "action.hover" },
         userSelect: "none",
         fontWeight: active ? 600 : 400,
       }}

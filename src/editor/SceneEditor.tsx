@@ -107,6 +107,7 @@ import {
 import './registerWritingWorkbench';
 import './renderers/canvasEntity.css';
 import { ProjectCanvas } from './sceneEditor/projectCanvas';
+import { uiFontSize } from '../theme/appearanceScales';
 
 // ─── 工作室三栏工作区布局持久化（第十四轮）───
 // 右栏宽 240~720（clamp 与写作台同量级）、默认 300；折叠态布尔。键与写作台命名同前缀。
@@ -694,13 +695,16 @@ export function SceneEditor({
   const rightDragStartRef = useRef<{ x: number; w: number } | null>(null);
   const [rightDragging, setRightDragging] = useState(false);
   const { begin: beginBodyDrag, release: releaseBodyDrag } = useDragBodyGuard();
-  const startRightResize = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    rightDragStartRef.current = { x: e.clientX, w: currentRightWidth };
-    setRightDragging(true);
-    beginBodyDrag();
-  }, [currentRightWidth, beginBodyDrag]);
+  const startRightResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      rightDragStartRef.current = { x: e.clientX, w: currentRightWidth };
+      setRightDragging(true);
+      beginBodyDrag();
+    },
+    [currentRightWidth, beginBodyDrag],
+  );
   useEffect(() => {
     if (!rightDragging) return;
     const prevCursor = document.body.style.cursor;
@@ -1128,7 +1132,7 @@ export function SceneEditor({
             sx={{ opacity: canUndoVal ? 1 : 0.35 }}
             aria-label={t('editor.undo')}
           >
-            <UndoIcon sx={{ fontSize: 15 }} />
+            <UndoIcon sx={{ fontSize: uiFontSize(15) }} />
           </IconButton>
         </span>
       </Tooltip>
@@ -1141,7 +1145,7 @@ export function SceneEditor({
             sx={{ opacity: canRedoVal ? 1 : 0.35 }}
             aria-label={t('editor.redo')}
           >
-            <RedoIcon sx={{ fontSize: 15 }} />
+            <RedoIcon sx={{ fontSize: uiFontSize(15) }} />
           </IconButton>
         </span>
       </Tooltip>
@@ -1152,7 +1156,7 @@ export function SceneEditor({
           color={isDirty ? 'primary' : 'default'}
           aria-label={t('editor.save')}
         >
-          <SaveIcon sx={{ fontSize: 15 }} />
+          <SaveIcon sx={{ fontSize: uiFontSize(15) }} />
         </IconButton>
       </Tooltip>
       <Divider orientation="vertical" flexItem sx={{ mx: 0.5, height: 18 }} />
@@ -1165,7 +1169,7 @@ export function SceneEditor({
           }}
           aria-label={leftPanelOpen ? t('editor.collapseLeft') : t('editor.expandLeft')}
         >
-          <WidgetsIcon sx={{ fontSize: 15 }} />
+          <WidgetsIcon sx={{ fontSize: uiFontSize(15) }} />
         </IconButton>
       </Tooltip>
       <Tooltip title={activeSceneStatus === 'published' ? t('editor.published') : t('editor.exportReport')}>
@@ -1178,7 +1182,7 @@ export function SceneEditor({
             sx={{ opacity: activeSceneStatus === 'published' ? 0.5 : 1 }}
             aria-label={activeSceneStatus === 'published' ? t('editor.published') : t('editor.exportReport')}
           >
-            <FileDownloadIcon sx={{ fontSize: 15 }} />
+            <FileDownloadIcon sx={{ fontSize: uiFontSize(15) }} />
           </IconButton>
         </span>
       </Tooltip>
@@ -1234,8 +1238,7 @@ export function SceneEditor({
             flexShrink: 0,
             borderBottom: 1,
             borderColor: 'divider',
-            backgroundColor: (t) =>
-              t.palette.mode === 'dark' ? 'rgba(18, 18, 24, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+            backgroundColor: (t) => 'rgb(var(--template-palette-background-paperChannel) / 0.95)',
             gap: 0.5,
             height: 36,
             position: 'relative',
@@ -1252,7 +1255,7 @@ export function SceneEditor({
                   sx={{ opacity: canUndoVal ? 1 : 0.35 }}
                   aria-label={t('editor.undo')}
                 >
-                  <UndoIcon sx={{ fontSize: 15 }} />
+                  <UndoIcon sx={{ fontSize: uiFontSize(15) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -1265,7 +1268,7 @@ export function SceneEditor({
                   sx={{ opacity: canRedoVal ? 1 : 0.35 }}
                   aria-label={t('editor.redo')}
                 >
-                  <RedoIcon sx={{ fontSize: 15 }} />
+                  <RedoIcon sx={{ fontSize: uiFontSize(15) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -1276,7 +1279,7 @@ export function SceneEditor({
                 color={isDirty ? 'primary' : 'default'}
                 aria-label={t('editor.save')}
               >
-                <SaveIcon sx={{ fontSize: 15 }} />
+                <SaveIcon sx={{ fontSize: uiFontSize(15) }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -1296,7 +1299,9 @@ export function SceneEditor({
                 onChange={(_e, v) => {
                   if (v === 'layered' || v === 'force') switchDepLayout(v);
                 }}
-                sx={{ '& .MuiToggleButton-root': { height: 26, fontSize: 11, px: 1, textTransform: 'none' } }}
+                sx={{
+                  '& .MuiToggleButton-root': { height: 26, fontSize: uiFontSize(11), px: 1, textTransform: 'none' },
+                }}
               >
                 <ToggleButton value="force">{t('editor.depLayoutForce')}</ToggleButton>
                 <ToggleButton value="layered">{t('editor.depLayoutLayered')}</ToggleButton>
@@ -1312,7 +1317,9 @@ export function SceneEditor({
                     useEditorStore.getState().setDepFilter(v);
                   }
                 }}
-                sx={{ '& .MuiToggleButton-root': { height: 26, fontSize: 11, px: 1, textTransform: 'none' } }}
+                sx={{
+                  '& .MuiToggleButton-root': { height: 26, fontSize: uiFontSize(11), px: 1, textTransform: 'none' },
+                }}
               >
                 <ToggleButton value="all">{t('editor.depFilterAll')}</ToggleButton>
                 <ToggleButton value="cycles">{t('editor.depFilterCycles')}</ToggleButton>
@@ -1332,7 +1339,7 @@ export function SceneEditor({
                       px: 1,
                       borderRadius: 1,
                       bgcolor: 'action.selected',
-                      fontSize: 11,
+                      fontSize: uiFontSize(11),
                       maxWidth: 200,
                     }}
                   >
@@ -1356,7 +1363,7 @@ export function SceneEditor({
                       variant="text"
                       color="primary"
                       onClick={resetDepFocus}
-                      sx={{ height: 26, fontSize: 11, textTransform: 'none', minWidth: 0, px: 1 }}
+                      sx={{ height: 26, fontSize: uiFontSize(11), textTransform: 'none', minWidth: 0, px: 1 }}
                     >
                       {t('editor.depOverview')}
                     </Button>
@@ -1378,7 +1385,7 @@ export function SceneEditor({
                       px: 1,
                       borderRadius: 1,
                       bgcolor: 'action.selected',
-                      fontSize: 11,
+                      fontSize: uiFontSize(11),
                       maxWidth: 200,
                     }}
                   >
@@ -1402,7 +1409,7 @@ export function SceneEditor({
                       variant="text"
                       color="primary"
                       onClick={() => useEditorStore.getState().setQuadrantFocusZone(null)}
-                      sx={{ height: 26, fontSize: 11, textTransform: 'none', minWidth: 0, px: 1 }}
+                      sx={{ height: 26, fontSize: uiFontSize(11), textTransform: 'none', minWidth: 0, px: 1 }}
                     >
                       {t('editor.quadOverview')}
                     </Button>
@@ -1422,7 +1429,9 @@ export function SceneEditor({
                 exclusive
                 value={couplingFilter}
                 onChange={(_e, v) => v && handleCouplingFilter(v)}
-                sx={{ '& .MuiToggleButton-root': { height: 26, fontSize: 11, px: 1, textTransform: 'none' } }}
+                sx={{
+                  '& .MuiToggleButton-root': { height: 26, fontSize: uiFontSize(11), px: 1, textTransform: 'none' },
+                }}
               >
                 <ToggleButton value="all">{t('editor.couplingFilterAll')}</ToggleButton>
                 <ToggleButton value="hidden">{t('editor.couplingFilterHidden')}</ToggleButton>
@@ -1437,7 +1446,9 @@ export function SceneEditor({
                 onChange={(_e, v) =>
                   v !== null && v !== undefined && handleCouplingWindow(v === 'all' ? null : Number(v))
                 }
-                sx={{ '& .MuiToggleButton-root': { height: 26, fontSize: 11, px: 1, textTransform: 'none' } }}
+                sx={{
+                  '& .MuiToggleButton-root': { height: 26, fontSize: uiFontSize(11), px: 1, textTransform: 'none' },
+                }}
               >
                 <ToggleButton value="all">{t('editor.couplingWindowAll')}</ToggleButton>
                 <ToggleButton value="90">{t('editor.couplingWindowM3')}</ToggleButton>
@@ -1451,7 +1462,9 @@ export function SceneEditor({
                 exclusive
                 value={couplingLayoutMode}
                 onChange={(_e, v) => v && handleCouplingLayout(v)}
-                sx={{ '& .MuiToggleButton-root': { height: 26, fontSize: 11, px: 1, textTransform: 'none' } }}
+                sx={{
+                  '& .MuiToggleButton-root': { height: 26, fontSize: uiFontSize(11), px: 1, textTransform: 'none' },
+                }}
               >
                 <ToggleButton value="force">{t('editor.couplingLayoutForce')}</ToggleButton>
                 <ToggleButton value="cluster">{t('editor.couplingLayoutCluster')}</ToggleButton>
@@ -1470,7 +1483,7 @@ export function SceneEditor({
                       px: 1,
                       borderRadius: 1,
                       bgcolor: 'action.selected',
-                      fontSize: 11,
+                      fontSize: uiFontSize(11),
                       maxWidth: 200,
                     }}
                   >
@@ -1494,7 +1507,7 @@ export function SceneEditor({
                       variant="text"
                       color="primary"
                       onClick={resetCouplingFocus}
-                      sx={{ height: 26, fontSize: 11, textTransform: 'none', minWidth: 0, px: 1 }}
+                      sx={{ height: 26, fontSize: uiFontSize(11), textTransform: 'none', minWidth: 0, px: 1 }}
                     >
                       {t('editor.couplingOverview')}
                     </Button>
@@ -1530,7 +1543,7 @@ export function SceneEditor({
                   sx={{ backgroundColor: directoryShowFiles ? 'action.selected' : 'transparent' }}
                   aria-label={directoryShowFiles ? t('editor.hideFiles') : t('editor.showFiles')}
                 >
-                  <DescriptionOutlinedIcon sx={{ fontSize: 15 }} />
+                  <DescriptionOutlinedIcon sx={{ fontSize: uiFontSize(15) }} />
                 </IconButton>
               </Tooltip>
 
@@ -1540,12 +1553,12 @@ export function SceneEditor({
                   value={dirSearchInput}
                   onChange={onDirSearchChange}
                   placeholder={t('editor.searchDirPlaceholder')}
-                  sx={{ width: 150, '& .MuiInputBase-root': { height: 28, fontSize: 12 } }}
+                  sx={{ width: 150, '& .MuiInputBase-root': { height: 28, fontSize: uiFontSize(12) } }}
                   slotProps={{
                     input: {
                       startAdornment: (
                         <InputAdornment position="start" sx={{ mr: 0.25 }}>
-                          <SearchIcon sx={{ fontSize: 14 }} />
+                          <SearchIcon sx={{ fontSize: uiFontSize(14) }} />
                         </InputAdornment>
                       ),
                       endAdornment: dirSearchInput ? (
@@ -1556,7 +1569,7 @@ export function SceneEditor({
                             sx={{ p: 0.25 }}
                             aria-label={t('leftPanel.clearSearch')}
                           >
-                            <ClearIcon sx={{ fontSize: 13 }} />
+                            <ClearIcon sx={{ fontSize: uiFontSize(13) }} />
                           </IconButton>
                         </InputAdornment>
                       ) : undefined,
@@ -1573,12 +1586,12 @@ export function SceneEditor({
                     color="default"
                     aria-label={t('editor.sortDimTip', { label: DIR_SORT_LABEL[directorySort] })}
                   >
-                    <SortIcon sx={{ fontSize: 15 }} />
+                    <SortIcon sx={{ fontSize: uiFontSize(15) }} />
                   </IconButton>
                   <span
                     onClick={cycleDirSort}
                     style={{
-                      fontSize: 12,
+                      fontSize: uiFontSize(12),
                       color: 'var(--mui-palette-text-secondary, #64748b)',
                       cursor: 'pointer',
                       userSelect: 'none',
@@ -1605,7 +1618,7 @@ export function SceneEditor({
                 }}
                 aria-label={leftPanelOpen ? t('editor.collapseLeft') : t('editor.expandLeft')}
               >
-                <WidgetsIcon sx={{ fontSize: 15 }} />
+                <WidgetsIcon sx={{ fontSize: uiFontSize(15) }} />
               </IconButton>
             </Tooltip>
             <Tooltip title={activeSceneStatus === 'published' ? t('editor.published') : t('editor.exportReport')}>
@@ -1618,7 +1631,7 @@ export function SceneEditor({
                   sx={{ opacity: activeSceneStatus === 'published' ? 0.5 : 1 }}
                   aria-label={activeSceneStatus === 'published' ? t('editor.published') : t('editor.exportReport')}
                 >
-                  <FileDownloadIcon sx={{ fontSize: 15 }} />
+                  <FileDownloadIcon sx={{ fontSize: uiFontSize(15) }} />
                 </IconButton>
               </span>
             </Tooltip>
@@ -1657,7 +1670,12 @@ export function SceneEditor({
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
         {/* 左侧实体/文件树面板（折叠交互与 biosphere 一致：自定义宽 → 40 动画）；
             右缘拖宽手柄与右栏同范式（useEffect 挂监听 + 守卫 + 持久化 + 双击复位）。 */}
-        <ComponentCenterPanel collapsed={!leftPanelOpen} onToggle={toggleLeftPanel} width={leftPanelWidth} resizing={leftDragging} />
+        <ComponentCenterPanel
+          collapsed={!leftPanelOpen}
+          onToggle={toggleLeftPanel}
+          width={leftPanelWidth}
+          resizing={leftDragging}
+        />
         {leftPanelOpen && (
           <Box
             onMouseDown={startLeftResize}
@@ -1710,16 +1728,16 @@ export function SceneEditor({
                     backgroundColor: 'rgba(139,92,246,0.10)',
                     border: '1.5px dashed rgba(139,92,246,0.5)',
                     color: '#8b5cf6',
-                    fontSize: 26,
+                    fontSize: uiFontSize(26),
                     fontWeight: 700,
                   }}
                 >
                   ✎
                 </Box>
-                <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'text.primary' }}>
+                <Typography sx={{ fontSize: uiFontSize(15), fontWeight: 700, color: 'text.primary' }}>
                   {t('writingWorkbench.emptyCanvasHint')}
                 </Typography>
-                <Typography sx={{ fontSize: 12, color: 'text.secondary', maxWidth: 340, lineHeight: 1.6 }}>
+                <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', maxWidth: 340, lineHeight: 1.6 }}>
                   {t('writingWorkbench.emptyCanvasSub')}
                 </Typography>
               </Box>
@@ -1757,7 +1775,9 @@ export function SceneEditor({
                 minHeight: 0,
                 overflow: 'hidden',
                 backgroundColor: (t) =>
-                  t.palette.mode === 'dark' ? 'rgba(14, 14, 20, 0.92)' : 'rgba(248, 248, 252, 0.95)',
+                  t.palette.mode === 'dark'
+                    ? 'rgb(var(--template-palette-background-paperChannel) / 0.92)'
+                    : 'rgb(var(--template-palette-background-paperChannel) / 0.95)',
                 backdropFilter: 'blur(12px)',
               }}
             >
@@ -1779,7 +1799,7 @@ export function SceneEditor({
                     variant="body2"
                     sx={{
                       fontWeight: 600,
-                      fontSize: 13,
+                      fontSize: uiFontSize(13),
                       color: 'text.primary',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
@@ -1826,7 +1846,7 @@ export function SceneEditor({
                             })(),
                           }}
                         />
-                        <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary' }}>
+                        <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.secondary' }}>
                           {activeAnalyzer.language}
                           {extraAnalyzerCount > 0 ? ` +${extraAnalyzerCount}` : ''}
                         </Typography>
@@ -1868,7 +1888,7 @@ export function SceneEditor({
                   '& .MuiTab-root': {
                     minHeight: 36,
                     py: 0.5,
-                    fontSize: 10,
+                    fontSize: uiFontSize(10),
                     textTransform: 'none',
                   },
                   '& .MuiTabs-scrollButtons': {
@@ -1890,7 +1910,7 @@ export function SceneEditor({
                       <Tab
                         key="inspector"
                         value={0}
-                        icon={<WidgetsIcon sx={{ fontSize: 14 }} />}
+                        icon={<WidgetsIcon sx={{ fontSize: uiFontSize(14) }} />}
                         iconPosition="start"
                         label={
                           selectedSetting
@@ -1921,14 +1941,14 @@ export function SceneEditor({
                       <Tab
                         key="details"
                         value={1}
-                        icon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />}
+                        icon={<InfoOutlinedIcon sx={{ fontSize: uiFontSize(14) }} />}
                         iconPosition="start"
                         label={t('editor.tabDetails')}
                       />,
                       <Tab
                         key="ai"
                         value={2}
-                        icon={<SmartToyIcon sx={{ fontSize: 14 }} />}
+                        icon={<SmartToyIcon sx={{ fontSize: uiFontSize(14) }} />}
                         iconPosition="start"
                         label={t('editor.tabAi')}
                       />,
@@ -1937,7 +1957,7 @@ export function SceneEditor({
                       <Tab
                         key="details"
                         value={0}
-                        icon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />}
+                        icon={<InfoOutlinedIcon sx={{ fontSize: uiFontSize(14) }} />}
                         iconPosition="start"
                         label={t('editor.tabDetails')}
                       />,
@@ -1946,7 +1966,7 @@ export function SceneEditor({
                         value={1}
                         icon={
                           <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-                            <RuleIcon sx={{ fontSize: 14 }} />
+                            <RuleIcon sx={{ fontSize: uiFontSize(14) }} />
                             {criticalCount > 0 && (
                               <Box
                                 sx={{
@@ -1970,28 +1990,28 @@ export function SceneEditor({
                       <Tab
                         key="layers"
                         value={2}
-                        icon={<LayersIcon sx={{ fontSize: 14 }} />}
+                        icon={<LayersIcon sx={{ fontSize: uiFontSize(14) }} />}
                         iconPosition="start"
                         label={`${t('editor.tabLayers')}${projectLayers.length > 0 ? ` (${projectLayers.length})` : ''}`}
                       />,
                       <Tab
                         key="health"
                         value={3}
-                        icon={<MonitorHeartIcon sx={{ fontSize: 14 }} />}
+                        icon={<MonitorHeartIcon sx={{ fontSize: uiFontSize(14) }} />}
                         iconPosition="start"
                         label={t('editor.tabHealth')}
                       />,
                       <Tab
                         key="impact"
                         value={4}
-                        icon={<HubIcon sx={{ fontSize: 14 }} />}
+                        icon={<HubIcon sx={{ fontSize: uiFontSize(14) }} />}
                         iconPosition="start"
                         label={t('editor.tabImpact')}
                       />,
                       <Tab
                         key="ai"
                         value={5}
-                        icon={<SmartToyIcon sx={{ fontSize: 14 }} />}
+                        icon={<SmartToyIcon sx={{ fontSize: uiFontSize(14) }} />}
                         iconPosition="start"
                         label={t('editor.tabAi')}
                       />,
@@ -2132,7 +2152,7 @@ export function SceneEditor({
                         </Typography>
                         {projectLayers.length === 0 ? (
                           <Box sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}>
-                            <LayersIcon sx={{ fontSize: 36, opacity: 0.2, mb: 1 }} />
+                            <LayersIcon sx={{ fontSize: uiFontSize(36), opacity: 0.2, mb: 1 }} />
                             <Typography variant="caption" sx={{ display: 'block' }}>
                               {t('editor.noLayers')}
                             </Typography>
@@ -2167,7 +2187,7 @@ export function SceneEditor({
                                       flexShrink: 0,
                                     }}
                                   />
-                                  <Typography variant="body2" sx={{ flex: 1, fontSize: 12 }}>
+                                  <Typography variant="body2" sx={{ flex: 1, fontSize: uiFontSize(12) }}>
                                     {pl.name}
                                   </Typography>
                                   <Typography variant="caption" color="text.secondary">
@@ -2181,9 +2201,9 @@ export function SceneEditor({
                         <Button
                           size="small"
                           variant="outlined"
-                          startIcon={<SettingsIcon sx={{ fontSize: 12 }} />}
+                          startIcon={<SettingsIcon sx={{ fontSize: uiFontSize(12) }} />}
                           onClick={onOpenLayersDialog}
-                          sx={{ mt: 1, textTransform: 'none', fontSize: 11 }}
+                          sx={{ mt: 1, textTransform: 'none', fontSize: uiFontSize(11) }}
                         >
                           {t('editor.manageLayers')}
                         </Button>
@@ -2232,14 +2252,24 @@ export function SceneEditor({
             cursor: 'pointer',
             borderLeft: 1,
             borderColor: 'divider',
-            backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(18, 18, 24, 0.4)' : 'rgba(250, 250, 252, 0.6)'),
+            backgroundColor: (t) =>
+              t.palette.mode === 'dark'
+                ? 'rgb(var(--template-palette-background-paperChannel) / 0.4)'
+                : 'rgb(var(--template-palette-background-paperChannel) / 0.6)',
             '&:hover': {
-              backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+              backgroundColor: (t) =>
+                t.palette.mode === 'dark'
+                  ? 'rgb(var(--template-palette-text-primaryChannel) / 0.06)'
+                  : 'rgb(var(--template-palette-text-primaryChannel) / 0.04)',
             },
           }}
           onClick={() => persistRightPanelOpen(!rightPanelOpen)}
         >
-          {rightPanelOpen ? <ChevronRightIcon sx={{ fontSize: 14 }} /> : <ChevronLeftIcon sx={{ fontSize: 14 }} />}
+          {rightPanelOpen ? (
+            <ChevronRightIcon sx={{ fontSize: uiFontSize(14) }} />
+          ) : (
+            <ChevronLeftIcon sx={{ fontSize: uiFontSize(14) }} />
+          )}
         </Box>
       </Box>
 
@@ -2255,8 +2285,11 @@ export function SceneEditor({
           py: 0.4,
           borderTop: 1,
           borderColor: 'divider',
-          backgroundColor: (t) => (t.palette.mode === 'dark' ? 'rgba(18, 18, 24, 0.6)' : 'rgba(248, 250, 252, 0.7)'),
-          fontSize: 10,
+          backgroundColor: (t) =>
+            t.palette.mode === 'dark'
+              ? 'rgb(var(--template-palette-background-paperChannel) / 0.6)'
+              : 'rgb(var(--template-palette-background-paperChannel) / 0.7)',
+          fontSize: uiFontSize(10),
           color: 'text.secondary',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
@@ -2265,65 +2298,70 @@ export function SceneEditor({
         {isBookScene ? (
           <>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <MenuBookRoundedIcon sx={{ fontSize: 11, color: 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <MenuBookRoundedIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('editor.statusBooks', { n: writingBooks.length })}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <SubjectIcon sx={{ fontSize: 11, color: 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <SubjectIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('editor.statusChapters', { n: writingChapters.length })}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <EditNoteOutlinedIcon sx={{ fontSize: 11, color: 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <EditNoteOutlinedIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('writing.words', { n: totalWords })}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <TimelineIcon sx={{ fontSize: 11, color: 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <TimelineIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('editor.statusStorylines', { n: storylines.length })}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <PushPinIcon sx={{ fontSize: 11, color: pendingForeshadowCount > 0 ? 'warning.main' : 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <PushPinIcon
+                sx={{ fontSize: uiFontSize(11), color: pendingForeshadowCount > 0 ? 'warning.main' : 'primary.main' }}
+              />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('editor.statusForeshadowPending', { n: pendingForeshadowCount })}
               </Typography>
             </Box>
             <Box sx={{ flex: 1 }} />
-            <Typography variant="caption" sx={{ fontSize: 10, color: 'text.disabled' }}>
+            <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>
               {t('editor.statusWritingHint')}
             </Typography>
           </>
         ) : (
           <>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-              <CodeIcon sx={{ fontSize: 11, color: 'primary.main', flexShrink: 0 }} />
-              <Typography variant="caption" sx={{ fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <CodeIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main', flexShrink: 0 }} />
+              <Typography
+                variant="caption"
+                sx={{ fontSize: uiFontSize(10), overflow: 'hidden', textOverflow: 'ellipsis' }}
+              >
                 {t('editor.statusLang', { lang: activeAnalyzer?.language ?? '—' })}
                 {extraAnalyzerCount > 0 ? ` +${extraAnalyzerCount}` : ''}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <WidgetsIcon sx={{ fontSize: 11, color: 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <WidgetsIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('editor.statusEntities', { n: componentCount })}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <RuleIcon sx={{ fontSize: 11, color: criticalCount > 0 ? 'error.main' : 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <RuleIcon sx={{ fontSize: uiFontSize(11), color: criticalCount > 0 ? 'error.main' : 'primary.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('editor.statusViolations', { n: findingsCount })}
                 {criticalCount > 0 ? t('editor.statusCritical', { n: criticalCount }) : ''}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <SchemaOutlinedIcon sx={{ fontSize: 11, color: 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <SchemaOutlinedIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('editor.statusModules', {
                   m: projectModules.length,
                   f: projectFiles.filter((f: any) => !f.isDirectory).length,
@@ -2331,14 +2369,14 @@ export function SceneEditor({
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <LayersIcon sx={{ fontSize: 11, color: 'primary.main' }} />
-              <Typography variant="caption" sx={{ fontSize: 10 }}>
+              <LayersIcon sx={{ fontSize: uiFontSize(11), color: 'primary.main' }} />
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10) }}>
                 {t('editor.statusLayers', { n: projectLayers.length })}
               </Typography>
             </Box>
             <Box sx={{ flex: 1 }} />
             {componentCount > 0 && (
-              <Typography variant="caption" sx={{ fontSize: 10, color: 'text.disabled' }}>
+              <Typography variant="caption" sx={{ fontSize: uiFontSize(10), color: 'text.disabled' }}>
                 {t('editor.statusHint')}
               </Typography>
             )}

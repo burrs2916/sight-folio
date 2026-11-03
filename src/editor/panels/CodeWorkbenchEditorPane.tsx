@@ -425,7 +425,7 @@ export function EditorPane({
     );
   }
   return (
-    <Box sx={{ position: "relative", flex: 1, minHeight: 0, bgcolor: themeMode === "dark" ? "#0d1117" : "#ffffff" }}>
+    <Box sx={{ position: "relative", flex: 1, minHeight: 0, bgcolor: "background.paper" }}>
       <MonacoCodeEditor
         key={tab.fileId}
         value={tab.content.lines.join("\n")}
@@ -741,7 +741,7 @@ export function EditorPane({
                                         "&:hover": {
                                           bgcolor: isRef
                                             ? "rgba(239,159,39,0.24)"
-                                            : "rgba(59,130,246,0.10)",
+                                            : "rgb(var(--template-palette-primary-mainChannel) / 0.1)",
                                         },
                                       }}
                                     >

@@ -62,7 +62,7 @@ function rowOf(title: string): HTMLButtonElement | null {
 describe('ChapterPicker · 章节选择器按树形展开（灵感挂章/时间线/伏笔/CastPane 共用）', () => {
   it('depth=0（根）行 padding-left = 8px —— 基准位', () => {
     const chapters = [chapter('v1', '卷 1', '卷', null, 0), chapter('c1', '章 1', '章', 'v1', 0)];
-    mount(<ChapterPicker chapters={chapters} accent="#4A338F" onSelect={vi.fn()} />);
+    mount(<ChapterPicker chapters={chapters} onSelect={vi.fn()} />);
     // 触发下拉展开（输入框聚焦触发 open；无 value 时 placeholder 显示「绑定章节」）
     act(() => {
       // React 18 的 onFocus 走 focusin 委托：focus 事件不冒泡，须派发 focusin 才能展开下拉
@@ -75,7 +75,7 @@ describe('ChapterPicker · 章节选择器按树形展开（灵感挂章/时间�
 
   it('depth=1（子级）行 padding-left = 28px —— 缩进的本体就是这条 padding', () => {
     const chapters = [chapter('v1', '卷 1', '卷', null, 0), chapter('c1', '章 1', '章', 'v1', 0)];
-    mount(<ChapterPicker chapters={chapters} accent="#4A338F" onSelect={vi.fn()} />);
+    mount(<ChapterPicker chapters={chapters} onSelect={vi.fn()} />);
     act(() => {
       // React 18 的 onFocus 走 focusin 委托：focus 事件不冒泡，须派发 focusin 才能展开下拉
       document.body.querySelector('input')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
@@ -91,7 +91,7 @@ describe('ChapterPicker · 章节选择器按树形展开（灵感挂章/时间�
       chapter('c1', '章 1', '章', 'v1', 0),
       chapter('s1', '节 1', '节', 'c1', 0),
     ];
-    mount(<ChapterPicker chapters={chapters} accent="#4A338F" onSelect={vi.fn()} />);
+    mount(<ChapterPicker chapters={chapters} onSelect={vi.fn()} />);
     act(() => {
       // React 18 的 onFocus 走 focusin 委托：focus 事件不冒泡，须派发 focusin 才能展开下拉
       document.body.querySelector('input')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
@@ -108,7 +108,7 @@ describe('ChapterPicker · 章节选择器按树形展开（灵感挂章/时间�
   it('无关键字时展示完整树（12 条不再截断：9 条同层 + 1 子级全部可选）', () => {
     const chapters = Array.from({ length: 10 }, (_, i) => chapter(`c${i}`, `章 ${i + 1}`, '章', null, i));
     chapters.push(chapter('sub', '章 11（挂卷下）', '章', 'c0', 0));
-    mount(<ChapterPicker chapters={chapters} accent="#4A338F" onSelect={vi.fn()} />);
+    mount(<ChapterPicker chapters={chapters} onSelect={vi.fn()} />);
     act(() => {
       // React 18 的 onFocus 走 focusin 委托：focus 事件不冒泡，须派发 focusin 才能展开下拉
       document.body.querySelector('input')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
@@ -128,7 +128,7 @@ describe('ChapterPicker · 章节选择器按树形展开（灵感挂章/时间�
       chapter('c1', '第一章：启程', '章', 'v1', 0),
       chapter('c2', '第二章：抵达', '章', 'v1', 1),
     ];
-    mount(<ChapterPicker chapters={chapters} accent="#4A338F" onSelect={vi.fn()} />);
+    mount(<ChapterPicker chapters={chapters} onSelect={vi.fn()} />);
     act(() => {
       // React 18 的 onFocus 走 focusin 委托：focus 事件不冒泡，须派发 focusin 才能展开下拉
       document.body.querySelector('input')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
@@ -149,7 +149,7 @@ describe('ChapterPicker · 章节选择器按树形展开（灵感挂章/时间�
   it('点行（onMouseDown）→ onSelect 回调携带选中章节 id，选中链路不因树形化改变', () => {
     const chapters = [chapter('v1', '卷 1', '卷', null, 0), chapter('c1', '章 1', '章', 'v1', 0)];
     const onSelect = vi.fn();
-    mount(<ChapterPicker chapters={chapters} accent="#4A338F" onSelect={onSelect} />);
+    mount(<ChapterPicker chapters={chapters} onSelect={onSelect} />);
     act(() => {
       // React 18 的 onFocus 走 focusin 委托：focus 事件不冒泡，须派发 focusin 才能展开下拉
       document.body.querySelector('input')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
@@ -166,7 +166,7 @@ describe('ChapterPicker · 章节选择器按树形展开（灵感挂章/时间�
 
   it('选中的章节回显在输入框 placeholder（value 回显链路不因树形化改变）', () => {
     const chapters = [chapter('v1', '卷 1', '卷', null, 0), chapter('c1', '章 1', '章', 'v1', 0)];
-    mount(<ChapterPicker chapters={chapters} accent="#4A338F" onSelect={vi.fn()} value="c1" />);
+    mount(<ChapterPicker chapters={chapters} onSelect={vi.fn()} value="c1" />);
     const input = document.body.querySelector('input')!;
     expect(input.placeholder, '已绑定章应回显章标题').toBe('章 1');
   });

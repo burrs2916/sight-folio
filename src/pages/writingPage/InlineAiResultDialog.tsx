@@ -3,6 +3,7 @@ import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, T
 import type { InlineWritingKind } from '../../ai/writingAssistant';
 import { parseReviewEntries, type ReviewEntry } from '../../ai/writingAssistant';
 import { t } from '../../i18n';
+import { uiFontSize } from '../../theme/appearanceScales';
 
 export interface InlineAiResult {
   kind: InlineWritingKind;
@@ -49,10 +50,13 @@ export function InlineAiResultDialog({ result, onClose, onApply, onApplyReviewEn
 
   return (
     <Dialog open={result !== null} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15 }}>
+      <DialogTitle sx={{ fontSize: uiFontSize(15) }}>
         {kind ? t(KIND_TITLES[kind]) : ''}
         {appliesToSelection && result?.selectionChars != null && (
-          <Typography component="span" sx={{ fontSize: 12, fontWeight: 400, color: 'text.secondary', ml: 1 }}>
+          <Typography
+            component="span"
+            sx={{ fontSize: uiFontSize(12), fontWeight: 400, color: 'text.secondary', ml: 1 }}
+          >
             {t('writing.resultReplaceSelection', { n: result.selectionChars })}
           </Typography>
         )}
@@ -60,7 +64,7 @@ export function InlineAiResultDialog({ result, onClose, onApply, onApplyReviewEn
             旧版只在有选区时给「替换 N 字」提示，无选区时不加任何警示，用户易误以为只改
             当前段。这里补一条醒目的「将替换整章」警示，避免误覆盖原稿（数据丢失体验风险）。 */}
         {appliesToSelection && result?.selectionChars == null && (
-          <Typography component="span" sx={{ fontSize: 12, fontWeight: 500, color: 'warning.main', ml: 1 }}>
+          <Typography component="span" sx={{ fontSize: uiFontSize(12), fontWeight: 500, color: 'warning.main', ml: 1 }}>
             {t('writing.resultReplaceWholeChapter')}
           </Typography>
         )}
@@ -68,7 +72,7 @@ export function InlineAiResultDialog({ result, onClose, onApply, onApplyReviewEn
       <DialogContent>
         {kind === 'review' && reviewEntries.length > 0 ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxHeight: 440, overflowY: 'auto' }}>
-            <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary' }}>
               {t('writing.resultReviewListHint')}
             </Typography>
             {reviewEntries.map((entry, idx) => {
@@ -93,7 +97,7 @@ export function InlineAiResultDialog({ result, onClose, onApply, onApplyReviewEn
                       label={t('writing.corpusSentenceSeq', { n: entry.index })}
                       color="secondary"
                       variant="outlined"
-                      sx={{ height: 18, fontSize: 10.5 }}
+                      sx={{ height: 18, fontSize: uiFontSize(10.5) }}
                     />
                     {entry.issue && (
                       <Chip
@@ -101,7 +105,7 @@ export function InlineAiResultDialog({ result, onClose, onApply, onApplyReviewEn
                         label={entry.issue}
                         color="default"
                         variant="outlined"
-                        sx={{ height: 18, fontSize: 10.5 }}
+                        sx={{ height: 18, fontSize: uiFontSize(10.5) }}
                       />
                     )}
                     <Box sx={{ flex: 1 }} />
@@ -117,13 +121,13 @@ export function InlineAiResultDialog({ result, onClose, onApply, onApplyReviewEn
                       </Button>
                     )}
                   </Box>
-                  <Typography sx={{ fontSize: 12.5, color: 'text.primary', lineHeight: 1.7 }}>
+                  <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.primary', lineHeight: 1.7 }}>
                     <Box component="span" sx={{ color: 'text.disabled', mr: 0.5 }}>
                       原句
                     </Box>
                     {entry.original}
                   </Typography>
-                  <Typography sx={{ fontSize: 12.5, color: 'success.main', lineHeight: 1.7 }}>
+                  <Typography sx={{ fontSize: uiFontSize(12.5), color: 'success.main', lineHeight: 1.7 }}>
                     <Box component="span" sx={{ color: 'text.disabled', mr: 0.5 }}>
                       建议
                     </Box>
@@ -135,7 +139,9 @@ export function InlineAiResultDialog({ result, onClose, onApply, onApplyReviewEn
           </Box>
         ) : (
           <Box sx={{ maxHeight: 420, overflowY: 'auto', bgcolor: 'action.hover', borderRadius: 1.5, p: 1.5 }}>
-            <Typography sx={{ fontSize: 13.5, lineHeight: 1.9, whiteSpace: 'pre-wrap' }}>{result?.text}</Typography>
+            <Typography sx={{ fontSize: uiFontSize(13.5), lineHeight: 1.9, whiteSpace: 'pre-wrap' }}>
+              {result?.text}
+            </Typography>
           </Box>
         )}
       </DialogContent>

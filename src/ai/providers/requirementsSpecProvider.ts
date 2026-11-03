@@ -1,17 +1,21 @@
-import { aiContextRegistry } from "../contextRegistry";
+import { aiContextRegistry } from '../contextRegistry';
 import {
   AI_CONTEXT_SCHEMA_VERSION,
   type AiContextPack,
   type AiContextProvider,
   type AiContextSection,
-} from "../contextTypes";
-import { makeSection } from "./scanSections";
-import { packWithinBudget } from "../tokenBudget";
-import { packDigestFromSections, stampSections } from "../sectionDiff";
-import { useProjectStore } from "../../store/projectStore";
-import { useRequirementsStore, REQUIREMENTS_SPEC_MODULE_ID, REQUIREMENTS_SPEC_SECTION_KEY } from "../../store/requirementsStore";
-import { L } from "../aiLang";
-import { t } from "../../i18n";
+} from '../contextTypes';
+import { makeSection } from './scanSections';
+import { packWithinBudget } from '../tokenBudget';
+import { packDigestFromSections, stampSections } from '../sectionDiff';
+import { useProjectStore } from '../../store/projectStore';
+import {
+  useRequirementsStore,
+  REQUIREMENTS_SPEC_MODULE_ID,
+  REQUIREMENTS_SPEC_SECTION_KEY,
+} from '../../store/requirementsStore';
+import { L } from '../aiLang';
+import { t } from '../../i18n';
 
 /**
  * 需求规格供给者（正向「客户 → 需求」维度）。
@@ -32,13 +36,16 @@ function deriveScopeLabel(analysisId: string): string {
   const s = useProjectStore.getState();
   const root = s.watchProjectRoot;
   if (root) {
-    const base = root.replace(/[/\\]+$/g, "").split(/[/\\]/).pop();
+    const base = root
+      .replace(/[/\\]+$/g, '')
+      .split(/[/\\]/)
+      .pop();
     if (base) return base;
   }
   const first = s.files.find((f) => !f.isDirectory);
   if (first) {
-    const dir = first.relPath.split("/").slice(0, -1).join("/");
-    const top = dir.split("/")[0];
+    const dir = first.relPath.split('/').slice(0, -1).join('/');
+    const top = dir.split('/')[0];
     if (top) return top;
   }
   return analysisId;
@@ -54,13 +61,13 @@ function deriveScopeLabel(analysisId: string): string {
  * packId（`<scopeId>:requirements-spec`）去取客户基线——保证「想做」一侧真的送达。
  * 见 scanContextProvider.ts 中 REQUIREMENTS_CAPTURE_PRESET 的定义。
  */
-export const REQUIREMENTS_CAPTURE_PRESET_KEY = "requirements-capture";
+export const REQUIREMENTS_CAPTURE_PRESET_KEY = 'requirements-capture';
 
 const requirementsSpecProvider: AiContextProvider = {
   moduleId: REQUIREMENTS_SPEC_MODULE_ID,
-  label: L("需求基线", "Requirements Baseline"),
+  label: L('需求基线', 'Requirements Baseline'),
   description:
-    "客户在「需求分析」面板模式里登记的结构化需求规格（项目本质/愿景/目标用户/功能/非功能/范围边界/验收标准）。作为需求驱动分析的客观基线，与代码反推的 requirements 语义面并列，供 Agent 对照「想做」与「实际做」。",
+    '客户在「需求分析」面板模式里登记的结构化需求规格（项目本质/愿景/目标用户/功能/非功能/范围边界/验收标准）。作为需求驱动分析的客观基线，与代码反推的 requirements 语义面并列，供 Agent 对照「想做」与「实际做」。',
   isAvailable: (scopeId) => useRequirementsStore.getState().hasBaseline(scopeId),
   buildPack: (scopeId, options) => {
     const baseline = useRequirementsStore.getState().getBaseline(scopeId);
@@ -68,18 +75,23 @@ const requirementsSpecProvider: AiContextProvider = {
 
     const content = baseline.content;
     const preview =
-      content.trim().split("\n").find((l) => l.trim().length > 0)?.slice(0, 80) ??
-      t("workbench.reqBaseline.emptySummary");
+      content
+        .trim()
+        .split('\n')
+        .find((l) => l.trim().length > 0)
+        ?.slice(0, 80) ?? t('workbench.reqBaseline.emptySummary');
     const section: AiContextSection = makeSection(
       REQUIREMENTS_SPEC_SECTION_KEY,
-      L("需求基线（客户陈述）", "Requirements Baseline (Customer-Stated)"),
+      L('需求基线（客户陈述）', 'Requirements Baseline (Customer-Stated)'),
       6,
       preview,
       [content],
       { length: content.length, updatedAt: baseline.updatedAt },
     );
 
-    const { sections: packed, truncatedSections, tokenEstimate } = packWithinBudget([section]);
+    // 预算透传（第三十八轮批次1刀①）：不传第二参 packWithinBudget 会原样返回，
+    // 消费方按预算取数时裁剪失效；落库路径不传预算 ⇒ undefined 保全集（口径同 scanContextProvider）。
+    const { sections: packed, truncatedSections, tokenEstimate } = packWithinBudget([section], options?.tokenBudget);
     const now = options?.now ?? Date.now();
     const { sections: stamped, changed, unchanged } = stampSections(packed, options?.previousSections, now);
     const digest = packDigestFromSections(scopeId, AI_CONTEXT_SCHEMA_VERSION, stamped);
