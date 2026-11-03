@@ -247,6 +247,7 @@ import {
   type WritingDraftSnap,
 } from '../utils/writingCrashRecovery';
 import { useExportActions } from './writingPage/useExportActions';
+import { LockVersionDialog } from './writingPage/LockVersionDialog';
 import { ExportCountBadge } from './writingPage/ExportCountBadge';
 import { useAiActions } from './writingPage/useAiActions';
 import { useEditorScrollMemory } from './writingPage/useEditorScrollMemory';
@@ -594,6 +595,8 @@ export default function WritingPage() {
   const [healthOpen, setHealthOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null);
+  /** B2「锁定一版」弹窗开关（只新增入口，不动写作逻辑） */
+  const [lockVersionOpen, setLockVersionOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   // 选区字数（底栏显示）：跟随编辑器 selectionUpdate/transaction 刷新
   const [selectedChars, setSelectedChars] = useState(0);
@@ -3050,6 +3053,19 @@ export default function WritingPage() {
                 </IconButton>
               </span>
             </Tooltip>
+            <Tooltip title={t('writing.lockVersion')}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={!activeBook}
+                  onClick={() => setLockVersionOpen(true)}
+                  sx={toolbarBtnSx(false)}
+                  aria-label={t('writing.lockVersion')}
+                >
+                  <LockRoundedIcon sx={{ fontSize: uiFontSize(17) }} />
+                </IconButton>
+              </span>
+            </Tooltip>
             <Tooltip title={t('writing.export')}>
               <span>
                 <IconButton
@@ -3140,6 +3156,13 @@ export default function WritingPage() {
             {t('writing.restoreBook')}
           </MenuItem>
         </Menu>
+        <LockVersionDialog
+          open={lockVersionOpen}
+          onClose={() => setLockVersionOpen(false)}
+          bookId={activeBook?.id ?? ''}
+          flushSave={flushSave}
+          flushSettingSave={flushSettingSave}
+        />
         {rightTab === 'details' ? (
           /* 单一滚动容器（对齐设定卡分支）：九维统筹卡与章详情面板同处一个滚动流，
              不再各开一个滚动区、上下争高——修「切到章详情布局就乱」。

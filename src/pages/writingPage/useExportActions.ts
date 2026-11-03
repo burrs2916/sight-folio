@@ -110,8 +110,8 @@ async function inlineImagesInHtml(html: string): Promise<string> {
   return doc.body.innerHTML;
 }
 
-/** 标准化「先 flush、再取 fresh chapters、再打包导出」的重复模式 */
-function useFreshChapters() {
+/** 标准化「先 flush、再取 fresh chapters、再打包导出」的重复模式（B2「锁定一版」复用同一 flush 口径） */
+export function useFreshChapters() {
   return useCallback(async (flushSave: () => Promise<boolean>, flushSettingSave: () => Promise<boolean>) => {
     await flushSave();
     await flushSettingSave();

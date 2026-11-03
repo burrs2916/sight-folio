@@ -18,6 +18,9 @@ use std::sync::Arc;
 /// 快照内部结构版本。将来正文档格式（TipTap HTML 约定）演进时，读取侧按此分支兼容渲染。
 pub const SNAPSHOT_SCHEMA_VER: i64 = 1;
 
+/// 同指纹拦截错误的机读前缀（B2 前端「仍然锁定」出口据此判冲突，与中文文案解耦）。
+pub const SAME_CONTENT_PREFIX: &str = "SAME_CONTENT|";
+
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -103,8 +106,10 @@ pub fn lock_version(
     if !force {
         if let Some(latest) = version_repo.latest_version(book_id)? {
             if latest.content_hash == hash {
+                // SAME_CONTENT| 前缀是给前端机读的（B2「仍然锁定」出口据此区分本冲突
+                // 与普通失败）；中文部分是给人读的。前端不许按中文字面判断。
                 return Err(AppError::Validation(format!(
-                    "内容与 v{} 完全一致，没有可锁定的变化。确实要再留一版，请勾选「仍然锁定」。",
+                    "{SAME_CONTENT_PREFIX}内容与 v{} 完全一致，没有可锁定的变化。确实要再留一版，请勾选「仍然锁定」。",
                     latest.seq
                 )));
             }
@@ -257,7 +262,13 @@ mod tests {
 
         let again = lock_version("b1", "v2", "", false, false, &h.writing, &h.versions);
         match again {
-            Err(AppError::Validation(msg)) => assert!(msg.contains("完全一致"), "提示要点明是哪一版：{msg}"),
+            Err(AppError::Validation(msg)) => {
+                assert!(msg.contains("完全一致"), "提示要点明是哪一版：{msg}");
+                assert!(
+                    msg.contains(SAME_CONTENT_PREFIX),
+                    "前端靠机读前缀判冲突，消息必须带 {SAME_CONTENT_PREFIX}：{msg}"
+                );
+            }
             other => panic!("同内容重复锁定应被拦下，实际 {other:?}"),
         }
 
