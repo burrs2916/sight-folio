@@ -76,3 +76,6 @@ pub mod writing;
 pub use writing::*;
 pub mod corpus;
 pub use corpus::*;
+/// 成稿版本命令（完结作品重设计 B1：锁定版本 / 正稿 / 快照）
+pub mod work_version;
+pub use work_version::*;

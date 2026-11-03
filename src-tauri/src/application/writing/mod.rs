@@ -747,7 +747,7 @@ pub struct WritingScanSummary {
 /// 软删章节判定：extra.deletedAt 为真数（>0）即视为已进回收站。
 /// 前端软删把时间戳写进 extra JSON（零迁移），读取侧（扫描/统计）据此排除；
 /// 坏数据/缺字段一律视为未删除（保守，不丢内容）。
-fn is_chapter_soft_deleted(extra: &str) -> bool {
+pub fn is_chapter_soft_deleted(extra: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(extra)
         .ok()
         .and_then(|v| v.get("deletedAt").and_then(|d| d.as_i64()))

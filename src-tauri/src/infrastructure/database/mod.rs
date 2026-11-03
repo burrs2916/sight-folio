@@ -25,6 +25,7 @@ pub mod review_finding_repository;
 pub mod review_rule_repository;
 pub mod scan_job_repository;
 pub mod settings_repository;
+pub mod work_version_repository;
 pub mod writing_repository;
 
 pub use analysis_repository::SqliteAnalysisRepository;
@@ -53,4 +54,5 @@ pub use review_finding_repository::SqliteReviewFindingRepository;
 pub use review_rule_repository::SqliteReviewRuleRepository;
 pub use scan_job_repository::SqliteScanJobRepository;
 pub use settings_repository::SqliteSettingsRepository;
+pub use work_version_repository::SqliteWorkVersionRepository;
 pub use writing_repository::SqliteWritingRepository;

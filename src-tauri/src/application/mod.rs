@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod icons;
+pub mod work_version;
 pub mod writing;
 
 pub use auth::*;

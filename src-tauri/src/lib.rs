@@ -29,7 +29,8 @@ use infrastructure::{
     SqliteProjectGitChurnRepository, SqliteProjectLayerRepository, SqliteProjectModuleRepository,
     SqliteProjectSymbolRefRepository, SqliteProjectSymbolRepository,
     SqliteProjectTechDebtRepository, SqliteReviewFindingRepository, SqliteReviewRuleRepository,
-    SqliteScanJobRepository, SqliteSettingsRepository, SqliteWritingRepository,
+    SqliteScanJobRepository, SqliteSettingsRepository, SqliteWorkVersionRepository,
+    SqliteWritingRepository,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -188,6 +189,8 @@ pub fn run() {
                 Arc::new(SqliteProjectDataFlowRepository::new(db_arc.clone()));
             // ─── 写作域 repository（Sight Folio）───
             let writing_repo = Arc::new(SqliteWritingRepository::new(db_arc.clone()));
+            // 成稿版本（完结作品重设计 B1）：版本头/内容副本/导出产物三表的仓储
+            let work_version_repo = Arc::new(SqliteWorkVersionRepository::new(db_arc.clone()));
 
             // ─── 语料库（独立 corpus.db，与业务库隔离）───
             // B2 降级：语料库是可选功能，初始化失败**不得** abort 整个应用——
@@ -275,6 +278,7 @@ pub fn run() {
             app.manage(project_data_flow_repo);
             app.manage(analysis_repo.clone());
             app.manage(writing_repo);
+            app.manage(work_version_repo);
             app.manage(corpus_state);
 
             // 文件监视器状态
@@ -523,6 +527,12 @@ pub fn run() {
             commands::list_writing_books,
             commands::save_writing_book,
             commands::delete_writing_book,
+            // ─── 成稿版本（完结作品重设计 B1）：锁定版本 / 正稿唯一 / 快照读取 ───
+            commands::lock_work_version,
+            commands::list_work_versions,
+            commands::get_version_snapshot,
+            commands::set_final_version,
+            commands::delete_work_version,
             commands::list_writing_chapters,
             commands::get_writing_chapter,
             commands::save_writing_chapter,
