@@ -1,15 +1,6 @@
 {
-  "generatedAt": "2026-11-03T05:30:23.284Z",
-  "dead": [
-    {
-      "path": "src/editor/renderers/ornamentalDiamondPaths.json",
-      "lines": 174
-    },
-    {
-      "path": "src/utils/__tests__/.DS_Store",
-      "lines": 1
-    }
-  ],
+  "generatedAt": "2026-11-03T05:33:26.801Z",
+  "dead": [],
   "testOnly": [
     {
       "path": "src/ai/__tests__/WritingBookInsights.test.tsx",
@@ -440,10 +431,6 @@
       "lines": 305
     },
     {
-      "path": "src/editor/utils/__tests__/ruleEngine.test.ts",
-      "lines": 361
-    },
-    {
       "path": "src/editor/utils/__tests__/symbolLayout.test.ts",
       "lines": 701
     },
@@ -470,10 +457,6 @@
     {
       "path": "src/editor/utils/__tests__/virtualList.test.ts",
       "lines": 109
-    },
-    {
-      "path": "src/editor/utils/ruleEngine.ts",
-      "lines": 468
     },
     {
       "path": "src/hooks/__tests__/useBodyTypographyRound30.test.ts",
@@ -916,10 +899,6 @@
       "lines": 45
     },
     {
-      "path": "src/utils/__tests__/techDebtScore.test.ts",
-      "lines": 203
-    },
-    {
       "path": "src/utils/__tests__/timelineConflictDetails.test.ts",
       "lines": 252
     },
@@ -1030,10 +1009,6 @@
     {
       "path": "src/utils/__tests__/writingTree.test.ts",
       "lines": 68
-    },
-    {
-      "path": "src/utils/techDebtScore.ts",
-      "lines": 197
     },
     {
       "path": "src/utils/writingOverview.test.ts",

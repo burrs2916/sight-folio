@@ -1,12 +1,10 @@
 # 无主代码可达性扫描报告 v2（TS 官方解析器）
-生成: 2026-11-03T05:30:23.273Z  commit: 见 git log
+生成: 2026-11-03T05:33:26.791Z  commit: 见 git log
 应用图根: src/main.tsx(index.html <script>), src/vite-env.d.ts(ambient d.ts (tsconfig include)) …共 2
-测试图根: 253 个
-src 文件 783 | 应用可达 524 | 测试额外 258 | 两图皆不可达 2
+测试图根: 251 个
+src 文件 777 | 应用可达 524 | 测试额外 254 | 两图皆不可达 0
 
 ## A. 两图皆不可达（真无主候选）
-  src/editor/renderers/ornamentalDiamondPaths.json  174 行
-  src/utils/__tests__/.DS_Store  1 行
 
 ## B. 仅测试可达（应用不可达，测试可能随之消亡）
   src/ai/__tests__/WritingBookInsights.test.tsx  278 行  ← vitest include
@@ -116,7 +114,6 @@ src 文件 783 | 应用可达 524 | 测试额外 258 | 两图皆不可达 2
   src/editor/utils/__tests__/moduleDrill.test.ts  135 行  ← vitest include
   src/editor/utils/__tests__/panZoom.test.ts  102 行  ← vitest include
   src/editor/utils/__tests__/quadrantPortrait.test.ts  305 行  ← vitest include
-  src/editor/utils/__tests__/ruleEngine.test.ts  361 行  ← vitest include
   src/editor/utils/__tests__/symbolLayout.test.ts  701 行  ← vitest include
   src/editor/utils/__tests__/symbolRefs.test.ts  74 行  ← vitest include
   src/editor/utils/__tests__/syncLayout.test.ts  179 行  ← vitest include
@@ -124,7 +121,6 @@ src 文件 783 | 应用可达 524 | 测试额外 258 | 两图皆不可达 2
   src/editor/utils/__tests__/techDebtScore.test.ts  69 行  ← vitest include
   src/editor/utils/__tests__/viewportCulling.test.ts  85 行  ← vitest include
   src/editor/utils/__tests__/virtualList.test.ts  109 行  ← vitest include
-  src/editor/utils/ruleEngine.ts  468 行  ← import in src/editor/utils/__tests__/ruleEngine.test.ts
   src/hooks/__tests__/useBodyTypographyRound30.test.ts  102 行  ← vitest include
   src/i18n/__tests__/packIntegrity.test.ts  193 行  ← vitest include
   src/pages/__tests__/AiCorpusPanel.test.tsx  298 行  ← vitest include
@@ -235,7 +231,6 @@ src 文件 783 | 应用可达 524 | 测试额外 258 | 两图皆不可达 2
   src/utils/__tests__/rightTabClamp.test.ts  42 行  ← vitest include
   src/utils/__tests__/showTell.test.ts  50 行  ← vitest include
   src/utils/__tests__/studioAiFile.test.ts  45 行  ← vitest include
-  src/utils/__tests__/techDebtScore.test.ts  203 行  ← vitest include
   src/utils/__tests__/timelineConflictDetails.test.ts  252 行  ← vitest include
   src/utils/__tests__/typewriterScroll.test.ts  114 行  ← vitest include
   src/utils/__tests__/typography.test.ts  162 行  ← vitest include
@@ -264,7 +259,6 @@ src 文件 783 | 应用可达 524 | 测试额外 258 | 两图皆不可达 2
   src/utils/__tests__/writingStyleFingerprint.test.ts  108 行  ← vitest include
   src/utils/__tests__/writingTimeline.test.ts  286 行  ← vitest include
   src/utils/__tests__/writingTree.test.ts  68 行  ← vitest include
-  src/utils/techDebtScore.ts  197 行  ← import in src/utils/__tests__/techDebtScore.test.ts
   src/utils/writingOverview.test.ts  170 行  ← vitest include
   src/utils/writingPalette.ts  164 行  ← import in src/utils/__tests__/writingPalette.test.ts
 
