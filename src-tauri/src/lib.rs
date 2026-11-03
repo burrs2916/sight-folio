@@ -560,6 +560,8 @@ pub fn run() {
             commands::retry_export_job,
             commands::dismiss_export_job,
             commands::list_export_artifacts,
+            commands::reveal_artifact,
+            commands::copy_artifact_to,
             commands::list_writing_chapters,
             commands::get_writing_chapter,
             commands::save_writing_chapter,

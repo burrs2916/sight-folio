@@ -59,9 +59,28 @@ describe('③ 与旧产物登记表彻底切割（B6 退役的前置）', () => 
     }
   });
 
-  it('导出按钮是 disabled 占位（B4 前不接旧「另存为」链路）', () => {
-    expect(page).toMatch(/disabled data-testid=\{`published-version-export-\$\{version\.seq\}`\}/);
-    expect(page).toMatch(/exportSoonHint/);
+  it('导出入口已接快照流水线（B4b 改判）：disabled 占位与 exportSoonHint 不许回流', () => {
+    // 改判说明（红线 3）：B5a 时导出流水线未建，按钮刻意 disabled 占位（UI 不撒谎）。
+    // B4b 完成接线，占位语义作废：这里反向锁「不许退回 disabled/预告文案」，
+    // 并正向锁新入口必须走快照队列命令面（而不是旧「另存为」链路）。
+    expect(page).not.toMatch(/exportSoonHint/);
+    expect(page).not.toMatch(/disabled data-testid=\{`published-version-export/);
+    expect(page).toMatch(/from '\.\/publishedPage\/ExportVersionDialog'/);
+    for (const call of [
+      /workVersionApi\.enqueueExport\(/,
+      /workVersionApi\.listExportJobs\(/,
+      /workVersionApi\.retryExportJob/,
+      /workVersionApi\.dismissExportJob/,
+      /workVersionApi\.listArtifacts\(/,
+      /workVersionApi\.revealArtifact\(/,
+      /workVersionApi\.copyArtifactTo\(/,
+    ]) {
+      expect(page, `缺 B4b 导出接线：${call}`).toMatch(call);
+    }
+    // 导出弹窗组件自身只交「版本 + 格式」，正文/路径都不经前端（§5.2 取数死口径）
+    const dialog = readFileSync(`${ROOT}/src/pages/publishedPage/ExportVersionDialog.tsx`, 'utf8');
+    expect(dialog).toMatch(/enqueueExport\(version\.id, formats\)/);
+    expect(dialog).not.toMatch(/saveDialog|save as|另存为/);
   });
 });
 
@@ -72,8 +91,13 @@ describe('④ 文案双语齐备 + 占位符一致（缺一侧 = 对端语言渲
     'setFinal', 'setFinalDone', 'setFinalFailed', 'versionDeleted', 'deletedFilesRetainedHint', 'deleteVersionFailed',
     'snapshotFailed', 'confirmDeleteVersion', 'confirmDeleteVersionDesc', 'deleteVersion',
     'emptyTitleV2', 'emptyHintV2', 'cardFinishedChip', 'cardLockedChip', 'latestVersionN', 'finalTag',
-    'versionCountN', 'noVersionYet', 'lockedOn', 'exportBtn', 'exportSoonHint', 'alreadyFinal',
+    'versionCountN', 'noVersionYet', 'lockedOn', 'exportBtn', 'alreadyFinal',
     'snapshotChapters', 'fingerprintLabel', 'untitledChapter',
+    // B4b 导出接线新增键
+    'exportDialogTitle', 'exportFormatsHint', 'exportFormatsLabel', 'exportNeedFormat', 'exportSubmit',
+    'exportEnqueued', 'exportEnqueueFailed', 'jobsPanelTitle', 'jobQueued', 'jobRunning', 'jobFailed',
+    'jobRetry', 'jobDismiss', 'jobActionFailed', 'artifactsLabel', 'artifactsEmpty', 'artifactMissing',
+    'artifactReveal', 'artifactCopy', 'artifactCopied', 'artifactCopyFailed', 'artifactRegenerate',
   ];
   for (const key of KEYS) {
     it(`published.${key} 双语存在且占位符一致`, () => {

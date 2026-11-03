@@ -224,6 +224,97 @@ pub fn list_export_artifact_views(
     Ok(views)
 }
 
+// ─── 产物交付（B4b，需求 §6 / §9 验收 8、10）─────────────────────────────
+//
+// 「取回」与「复制到其他位置」都要把库里的 `file_rel_path` 解析成作品库根下的
+// 绝对路径 —— 这个解析只允许有一个入口。§4 的换根语义（按相对路径在新根下
+// 重定位，解析不到 = 文件缺失，而不是报错崩溃）全部收敛在 [resolve_artifact_abs]。
+
+/// 把产物记录解析为作品库根下的绝对路径，并顺手对账（§4 / §9-8 / §9-10）：
+/// - 记录不存在 → NotFound；`queued/running` 还没产生物理文件 → Validation；
+/// - 文件在：此前被标 `missing`（换根/挪走又还回来）→ 恢复 `ready` 并回填真实大小；
+/// - 文件不在：改判 `missing` + 错误原文，并把 NotFound（带绝对路径）原样抛给 UI。
+///   这里没有「凭记录假装成功」这一支 —— 「取回定位到的文件与记录一致」（§9-8）。
+pub fn resolve_artifact_abs(
+    versions: &Arc<SqliteWorkVersionRepository>,
+    settings: &SqliteSettingsRepository,
+    artifact_id: &str,
+) -> AppResult<PathBuf> {
+    let artifact = versions
+        .find_artifact(artifact_id)?
+        .ok_or_else(|| AppError::NotFound(format!("产物 {artifact_id} 不存在，无法取用")))?;
+    match artifact.status.as_str() {
+        "queued" | "running" => {
+            return Err(AppError::Validation(format!(
+                "任务还在导出队列里（{}），产物生成后才能取用",
+                artifact.status
+            )));
+        }
+        _ => {}
+    }
+    let root = library_root::get_works_library_root(settings)?;
+    let abs = PathBuf::from(root.path).join(&artifact.file_rel_path);
+    if let Ok(meta) = std::fs::metadata(&abs) {
+        if meta.is_file() {
+            if artifact.status != "ready" {
+                versions.update_artifact_outcome(
+                    artifact_id,
+                    "ready",
+                    meta.len() as i64,
+                    "",
+                )?;
+            }
+            return Ok(abs);
+        }
+    }
+    let msg = format!("文件不在作品库记录的位置：{}", abs.display());
+    if artifact.status != "missing" {
+        versions.update_artifact_outcome(artifact_id, "missing", 0, &msg)?;
+    }
+    Err(AppError::NotFound(msg))
+}
+
+/// 取回（reveal）用定位：解析出绝对路径。真正的「在文件管理器中高亮」由命令层
+/// 走既有 `reveal_in_file_manager` —— 进程派生属于 OS 边界，不掺进业务层。
+pub fn reveal_artifact(
+    versions: &Arc<SqliteWorkVersionRepository>,
+    settings: &SqliteSettingsRepository,
+    artifact_id: &str,
+) -> AppResult<PathBuf> {
+    resolve_artifact_abs(versions, settings, artifact_id)
+}
+
+/// 复制到其他位置（§4：交付动作，产物本体留在作品库内不动）。
+/// 只读库内文件写到目标，不改 `export_artifacts` 一行 —— 交付副本不是新产物。
+pub fn copy_artifact_to(
+    versions: &Arc<SqliteWorkVersionRepository>,
+    settings: &SqliteSettingsRepository,
+    artifact_id: &str,
+    dest_path: &str,
+) -> AppResult<i64> {
+    let src = resolve_artifact_abs(versions, settings, artifact_id)?;
+    let trimmed = dest_path.trim();
+    let dest = PathBuf::from(trimmed);
+    if trimmed.is_empty() || !dest.is_absolute() {
+        return Err(AppError::Validation(format!(
+            "复制目标必须是绝对路径：{dest_path}"
+        )));
+    }
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            AppError::Internal(format!("无法创建目标目录 {}：{e}", parent.display()))
+        })?;
+    }
+    std::fs::copy(&src, &dest)
+        .map(|bytes| bytes as i64)
+        .map_err(|e| {
+            AppError::Internal(format!(
+                "复制产物到 {} 失败：{e}",
+                dest.display()
+            ))
+        })
+}
+
 // ─── 并发闸 ───────────────────────────────────────────────────────────────
 
 /// 并发额度（Q5 默认 2）。领到 [ExportSlot] 才能开新任务，槽随任务线程结束自动归还。
@@ -1410,5 +1501,142 @@ mod tests {
         assert!(text.contains("> 官方简介"), "简介进引言块：{text}");
         assert!(text.contains("## 第一章"));
         assert!(text.contains("快照原文A"));
+    }
+
+    // ─── 产物交付：取回 / 复制（B4b，§9-8 / §9-10）───
+
+    /// 走完一个 txt 任务，返回产物记录（status=ready，文件已在作品库根下）。
+    fn ready_txt_artifact(h: &Harness) -> ExportArtifact {
+        seed_book(h, "b1", "测试长篇");
+        let vid = lock_one_chapter(h, "b1", "<p>快照原文A</p>");
+        let queued = enqueue_export(&h.versions, &h.writing, &vid, &fmts(&["txt"]), None).unwrap();
+        let job = h.versions.claim_next_queued().unwrap().unwrap();
+        process_export_job(&h.versions, &h.writing, &job, &h.root.0).unwrap();
+        h.versions.find_artifact(&queued[0].id).unwrap().unwrap()
+    }
+
+    #[test]
+    fn 取回解析到作品库根下绝对路径_就绪记录不误改() {
+        let h = harness("reveal-ok");
+        let art = ready_txt_artifact(&h);
+
+        let abs = reveal_artifact(&h.versions, &h.settings, &art.id).unwrap();
+
+        assert_eq!(abs, h.root.0.join(&art.file_rel_path), "§9-8：定位必须落在根下记录路径");
+        let after = h.versions.find_artifact(&art.id).unwrap().unwrap();
+        assert_eq!(after.status, "ready", "文件本来就在，状态不许被取回动作搅乱");
+        assert_eq!(after.file_size, art.file_size);
+    }
+
+    #[test]
+    fn 排队与进行中的任务不可取回() {
+        let h = harness("reveal-pending");
+        for status in ["queued", "running"] {
+            let row = artifact_row(&format!("art_{status}"), status);
+            h.versions.insert_artifact(&row).unwrap();
+            let err = reveal_artifact(&h.versions, &h.settings, &row.id);
+            assert!(
+                matches!(err, Err(AppError::Validation(_))),
+                "{status} 态没有物理产物，必须拦下而不是指空气：{err:?}"
+            );
+        }
+        assert!(matches!(
+            copy_artifact_to(&h.versions, &h.settings, "art_missing_id", "/tmp/x.txt"),
+            Err(AppError::NotFound(_))
+        ), "不存在的产物记录如实 NotFound");
+    }
+
+    #[test]
+    fn 文件被挪走_取回改判missing并带路径抛错() {
+        let h = harness("reveal-missing");
+        let art = ready_txt_artifact(&h);
+        let file = h.root.0.join(&art.file_rel_path);
+        std::fs::remove_file(&file).unwrap(); // 模拟用户手动挪走/删掉产物
+
+        let err = reveal_artifact(&h.versions, &h.settings, &art.id);
+        assert!(
+            matches!(err, Err(AppError::NotFound(ref msg)) if msg.contains(&art.file_rel_path)),
+            "§9-10：解析不到必须带具体路径如实抛错，不静默：{err:?}"
+        );
+        let after = h.versions.find_artifact(&art.id).unwrap().unwrap();
+        assert_eq!(after.status, "missing", "改判缺失，成品页据此显示文件缺失");
+        assert!(after.error.contains(&art.file_rel_path), "错误原文入库可回溯");
+    }
+
+    #[test]
+    fn 缺失文件回位_再取回恢复ready并回填真实大小() {
+        let h = harness("reveal-restore");
+        let art = ready_txt_artifact(&h);
+        let file = h.root.0.join(&art.file_rel_path);
+        let bytes = std::fs::read(&file).unwrap();
+        std::fs::remove_file(&file).unwrap();
+        assert!(reveal_artifact(&h.versions, &h.settings, &art.id).is_err());
+        assert_eq!(h.versions.find_artifact(&art.id).unwrap().unwrap().status, "missing");
+
+        std::fs::write(&file, &bytes).unwrap(); // 用户又放回来了
+        let abs = reveal_artifact(&h.versions, &h.settings, &art.id).unwrap();
+
+        assert_eq!(abs, file);
+        let after = h.versions.find_artifact(&art.id).unwrap().unwrap();
+        assert_eq!(after.status, "ready", "文件回位后取回成功就必须自愈回 ready");
+        assert_eq!(after.file_size, bytes.len() as i64, "缺失期被清零的大小要回填");
+    }
+
+    #[test]
+    fn 换根后按相对路径重定位_新根有同名文件即恢复() {
+        // §9-10 主案：修改作品库根 → 产物按 file_rel_path 在新根下解析。
+        let h = harness("reveal-relocate");
+        let art = ready_txt_artifact(&h);
+        let bytes = std::fs::read(h.root.0.join(&art.file_rel_path)).unwrap();
+
+        let new_root = TempRoot::new("reveal-relocate-new");
+        h.settings.set(WORKS_LIBRARY_ROOT_KEY, &new_root.0.to_string_lossy()).unwrap();
+
+        assert!(
+            matches!(reveal_artifact(&h.versions, &h.settings, &art.id), Err(AppError::NotFound(_))),
+            "新根下没有这个文件：缺失，而不是继续指向旧根"
+        );
+        // 把整个相对路径结构搬进新根（等价于用户把作品库文件夹整个拷走）
+        let dest = new_root.0.join(&art.file_rel_path);
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, &bytes).unwrap();
+
+        let abs = reveal_artifact(&h.versions, &h.settings, &art.id).unwrap();
+        assert_eq!(abs, dest, "换根后解析必须走新根");
+        assert_eq!(h.versions.find_artifact(&art.id).unwrap().unwrap().status, "ready");
+    }
+
+    #[test]
+    fn 复制到其他位置_字节一致且库内记录与本体不动() {
+        let h = harness("copy-to");
+        let art = ready_txt_artifact(&h);
+        let src = h.root.0.join(&art.file_rel_path);
+        let src_before = std::fs::read(&src).unwrap();
+        let dest = h.root.0.join("_交付").join("给人看的副本.txt"); // 故意放库里子目录外，验证只读不写库
+
+        let copied = copy_artifact_to(&h.versions, &h.settings, &art.id, &dest.to_string_lossy()).unwrap();
+
+        assert_eq!(copied as usize, src_before.len(), "回执字节数 = 真实复制量");
+        assert_eq!(std::fs::read(&dest).unwrap(), src_before, "副本内容必须与库内产物逐字节一致");
+        assert_eq!(std::fs::read(&src).unwrap(), src_before, "§4：交付动作不许碰库内本体");
+        let after = h.versions.find_artifact(&art.id).unwrap().unwrap();
+        assert_eq!(after, art, "§4：复制不产生新产物记录、不改旧记录");
+    }
+
+    #[test]
+    fn 复制目标必须绝对路径否则拒绝() {
+        let h = harness("copy-reject");
+        let art = ready_txt_artifact(&h);
+        for bad in ["", "   ", "交付/副本.txt"] {
+            assert!(
+                matches!(
+                    copy_artifact_to(&h.versions, &h.settings, &art.id, bad),
+                    Err(AppError::Validation(_))
+                ),
+                "相对/空目标路径必须拒：{bad:?}"
+            );
+        }
+        // 被拒的相对路径不许有任何落盘副作用
+        assert!(!h.root.0.join("交付").exists());
     }
 }

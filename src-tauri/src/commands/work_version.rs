@@ -6,7 +6,7 @@ use crate::application::work_version;
 use crate::application::work_version::library_root::WorksLibraryRootInfo;
 use crate::commands::SettingsState;
 use crate::domain::work_version::{ArtifactView, ExportArtifact, WorkVersion, WorkVersionChapter};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::work_version_repository::WorkVersionRepository;
 use crate::infrastructure::database::{SqliteWorkVersionRepository, SqliteWritingRepository};
 use std::sync::Arc;
@@ -153,5 +153,40 @@ pub fn list_export_artifacts(
         &version_repo.inner().clone(),
         &writing_repo.inner().clone(),
         book_id.as_deref(),
+    )
+}
+
+/// 取回产物（§9-8）：按 `file_rel_path` 在作品库根下定位并高亮。
+/// 解析不到时用例会改判 `missing` 并把带路径的错误抛给 UI（§9-10），不假装成功。
+#[tauri::command]
+pub fn reveal_artifact(
+    artifact_id: String,
+    version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+    settings: State<'_, SettingsState>,
+) -> AppResult<String> {
+    let abs = work_version::export_jobs::reveal_artifact(
+        &version_repo.inner().clone(),
+        &settings.repository,
+        &artifact_id,
+    )?;
+    let path = abs.to_string_lossy().into_owned();
+    crate::commands::os::reveal_in_file_manager(path.clone()).map_err(AppError::Internal)?;
+    Ok(path)
+}
+
+/// 复制产物到其他位置（§4：交付动作，库内本体与记录都不动）。
+/// 返回复制的字节数，界面可以如实回执。
+#[tauri::command]
+pub fn copy_artifact_to(
+    artifact_id: String,
+    dest_path: String,
+    version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+    settings: State<'_, SettingsState>,
+) -> AppResult<i64> {
+    work_version::export_jobs::copy_artifact_to(
+        &version_repo.inner().clone(),
+        &settings.repository,
+        &artifact_id,
+        &dest_path,
     )
 }

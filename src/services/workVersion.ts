@@ -34,6 +34,14 @@ export type ExportArtifactFormat = 'epub' | 'pdf' | 'docx' | 'html' | 'md' | 'tx
 export type ExportArtifactStatus = 'queued' | 'running' | 'ready' | 'failed' | 'missing';
 export type ExportArtifactOrigin = 'export' | 'import';
 
+/**
+ * 成品页产物视图（后端 `ArtifactView`）：产物记录全字段 + **join 现取的书名**。
+ * 库里没有 book_title 列（需求 §3），界面拿到的 bookTitle 只可能来自 writing_books 实时 join。
+ */
+export interface ArtifactView extends ExportArtifact {
+  bookTitle: string;
+}
+
 export interface ExportArtifact {
   id: string;
   versionId: string;
@@ -98,5 +106,39 @@ export const workVersionApi = {
   /** 换作品库根：只改配置不搬文件；后端建目录成功后才落库，失败不动旧值 */
   setLibraryRoot(path: string): Promise<WorksLibraryRootInfo> {
     return invoke<WorksLibraryRootInfo>('set_works_library_root', { path });
+  },
+  /**
+   * 入队导出（B4b）：一格式一条 queued 任务，后台队列消化（并发上限 2，Q5）。
+   * 渲染取数是后端从快照表读的死口径，前端只报版本号与格式（需求 §5.2）。
+   */
+  enqueueExport(versionId: string, formats: string[], specId?: string): Promise<ExportArtifact[]> {
+    return invoke<ExportArtifact[]>('enqueue_export', { versionId, formats, specId: specId ?? null });
+  },
+  /** 任务面板视图：queued/running/failed（ready 归产物列表，missing 同） */
+  listExportJobs(): Promise<ExportArtifact[]> {
+    return invoke<ExportArtifact[]>('list_export_jobs');
+  },
+  /** 原地重试：仅 failed 可回队（running 拒绝是后端诚实口径，别在前端绕） */
+  retryExportJob(jobId: string): Promise<void> {
+    return invoke<void>('retry_export_job', { jobId });
+  },
+  /** 移除任务记录：queued 取消排队 / failed 清失败账 */
+  dismissExportJob(jobId: string): Promise<void> {
+    return invoke<void>('dismiss_export_job', { jobId });
+  },
+  /** 产物列表（含 queued/running 排队态；书名后端 join 现取） */
+  listArtifacts(bookId?: string): Promise<ArtifactView[]> {
+    return invoke<ArtifactView[]>('list_export_artifacts', { bookId: bookId ?? null });
+  },
+  /**
+   * 取回：解析相对路径并高亮文件，成功返回绝对路径。
+   * 解析不到时后端改判 missing 并抛错 —— 界面必须把错误原样上屏（§9-10）。
+   */
+  revealArtifact(artifactId: string): Promise<string> {
+    return invoke<string>('reveal_artifact', { artifactId });
+  },
+  /** 复制到其他位置（§4 交付动作）：返回字节数；库内记录与本体不动 */
+  copyArtifactTo(artifactId: string, destPath: string): Promise<number> {
+    return invoke<number>('copy_artifact_to', { artifactId, destPath });
   },
 };

@@ -8,10 +8,9 @@
 //  **版本时间线**（work_versions 快照明细）。「已标完结 · 尚无版本」的书
 //  同样成卡可见并直接给「去写作台锁定一版」出口（R1 / §9 验收 1）。
 //
-//  本片刻意不做（诚实占位，下一批落地）：
-//   · 导出任务队列（B4）→ 版本行上导出按钮 disabled + tooltip 说明；
-//   · 产物区（B5b）→ 版本详情只呈现快照章节与指纹；
-//   · 旧产物登记表的导入/移动/批量操作随旧表在 B6 退役，本页不再挂接。
+//  B4b 接线完成：导出弹窗（格式多选→入队）、导出任务面板（轮询 + 原地重试 + 移除）、
+//  产物区（取回 / 复制到其他位置 / 按版本重新生成 / 缺失如实呈现）。
+//  旧产物登记表的导入/移动/批量操作随旧表在 B6 退役，本页不再挂接。
 // ═══════════════════════════════════════════════════════════════════════
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { alpha } from '@mui/material/styles';
@@ -45,10 +44,15 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
+import CloseIcon from '@mui/icons-material/Close';
+import MyLocationIcon from '@mui/icons-material/MyLocation';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { t, getLang } from '../i18n';
 import { useToastStore } from '../store/toastStore';
 import { useWritingStore } from '../store/writingStore';
-import { workVersionApi, type WorkVersion, type WorkVersionChapter, type WorksLibraryRootInfo } from '../services/workVersion';
+import { workVersionApi, type ArtifactView, type ExportArtifact, type WorkVersion, type WorkVersionChapter, type WorksLibraryRootInfo } from '../services/workVersion';
+import ExportVersionDialog from './publishedPage/ExportVersionDialog';
 import { invoke } from '../services/core';
 import { logger } from '../utils/logger';
 import { uiFontSize } from '../theme/appearanceScales';
@@ -69,6 +73,13 @@ function formatWordCount(n: number): string {
 
 function formatDate(ts: number): string {
   return new Date(ts * 1000).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+/** 产物字节数呈现（KB/MB 一档就够，成品页不是十六进制查看器） */
+function formatFileSize(n: number): string {
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+  return `${n} B`;
 }
 
 /** 一级卡片数据：书（现取）+ 它的全部锁定版本（可能为空数组 —— R1 要求这样的书也必须出现） */
@@ -112,6 +123,11 @@ export default function PublishedScenesPage() {
   const [deleteTarget, setDeleteTarget] = useState<WorkVersion | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [finalBusyId, setFinalBusyId] = useState<string | null>(null);
+  // ── B4b：导出弹窗 / 任务面板 / 产物读数 ──
+  const [exportTarget, setExportTarget] = useState<WorkVersion | null>(null);
+  const [jobs, setJobs] = useState<ExportArtifact[]>([]);
+  const [artifacts, setArtifacts] = useState<ArtifactView[]>([]);
+  const [jobBusyId, setJobBusyId] = useState<string | null>(null);
 
   // ── 数据加载：书 + 每本书的版本清单 ──
   // 版本按书逐本拉（desktop 本地 IPC，量级无碍）；书名一律现取，此处不缓存任何 title 副本。
@@ -151,14 +167,34 @@ export default function PublishedScenesPage() {
     }
   }, []);
 
+  // ── B4b：任务与产物读数（声明在挂载/轮询 effect 之前，deps 数组当场取值不吃 TDZ 亏）──
+  // 任务表就是产物表（同一张 export_artifacts 的状态视图）。读数失败只记日志：
+  // 面板不在场本身就是「暂时看不到」的如实表达，不该拿 toast 打断浏览。
+  const loadJobs = useCallback(async () => {
+    try {
+      setJobs(await workVersionApi.listExportJobs());
+    } catch (e) {
+      logger.warn('PublishedScenesPage', 'list export jobs failed', { error: e });
+    }
+  }, []);
+
+  const loadArtifacts = useCallback(async (bookId: string) => {
+    try {
+      setArtifacts(await workVersionApi.listArtifacts(bookId));
+    } catch (e) {
+      logger.warn('PublishedScenesPage', 'list artifacts failed', { error: e, bookId });
+    }
+  }, []);
+
   useEffect(() => {
     // 挂载首刷走宏任务（本仓口径，见 WritingTodayChip）：setState 全在 await 之后
     const kick = setTimeout(() => {
       void load();
       void loadRoot();
+      void loadJobs();
     }, 0);
     return () => clearTimeout(kick);
-  }, [load, loadRoot]);
+  }, [load, loadRoot, loadJobs]);
 
   // 写作台保存/锁定后回来能刷到新版本
   useEffect(() => {
@@ -166,6 +202,16 @@ export default function PublishedScenesPage() {
     window.addEventListener('writing-saved', onSaved);
     return () => window.removeEventListener('writing-saved', onSaved);
   }, [load]);
+
+  // §9-7「任务逐个可见进度」：页面只定频重读，不做进度推算（后端 600ms 一拍，
+  // 这里 2.5s 一问已够跟手；导出是重操作，轮询频率不值得再高）。
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void loadJobs();
+      if (openBookId) void loadArtifacts(openBookId);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [loadJobs, loadArtifacts, openBookId]);
 
   // 搜索词持久化
   useEffect(() => {
@@ -212,11 +258,13 @@ export default function PublishedScenesPage() {
   const openBook = useCallback((bookId: string) => {
     setOpenBookId(bookId);
     setExpandedVersionId(null);
-  }, []);
+    void loadArtifacts(bookId);
+  }, [loadArtifacts]);
 
   const backToBooks = useCallback(() => {
     setOpenBookId(null);
     setExpandedVersionId(null);
+    setArtifacts([]); // 产物读数跟着书走，回一级不留残影
   }, []);
 
   const openDesk = useCallback((bookId: string) => {
@@ -252,6 +300,9 @@ export default function PublishedScenesPage() {
     try {
       const relPaths = await workVersionApi.delete(target.id);
       await refreshBookVersions(target.bookId);
+      // 后端删版本会连带抹产物记录（B1 口径），这边的产物读数也要跟着重取
+      if (openBookId === target.bookId) await loadArtifacts(target.bookId);
+      await loadJobs();
       setSnapshots((prev) => {
         const n = { ...prev };
         delete n[target.id];
@@ -270,7 +321,93 @@ export default function PublishedScenesPage() {
     } finally {
       setDeleting(false);
     }
-  }, [deleteTarget, refreshBookVersions, showToast]);
+  }, [deleteTarget, refreshBookVersions, showToast, openBookId, loadArtifacts, loadJobs]);
+
+  // ── B4b：任务操作与产物动作 ──
+  // 重试/移除走 §5.2 的后端口径（只有 failed 可重试、running 不可移除），前端不另判一套。
+  const runJobAction = useCallback(
+    async (jobId: string, action: (id: string) => Promise<void>) => {
+      setJobBusyId(jobId);
+      try {
+        await action(jobId);
+        await loadJobs();
+        if (openBookId) await loadArtifacts(openBookId);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        showToast(t('published.jobActionFailed', { msg }), 'error');
+      } finally {
+        setJobBusyId(null);
+      }
+    },
+    [loadJobs, loadArtifacts, openBookId, showToast],
+  );
+
+  const handleEnqueued = useCallback(
+    (queued: ExportArtifact[]) => {
+      void loadJobs();
+      if (queued[0]) void loadArtifacts(queued[0].bookId);
+    },
+    [loadJobs, loadArtifacts],
+  );
+
+  const revealArtifact = useCallback(
+    async (artifact: ArtifactView) => {
+      try {
+        await workVersionApi.revealArtifact(artifact.id);
+      } catch (e) {
+        // §9-10：解析不到就原样上屏（错误带绝对路径）；后端已把记录改判 missing，重取读数
+        const msg = e instanceof Error ? e.message : String(e);
+        showToast(t('published.retrieveFailed', { msg }), 'error');
+        if (openBookId) void loadArtifacts(openBookId);
+      }
+    },
+    [openBookId, showToast, loadArtifacts],
+  );
+
+  const copyArtifact = useCallback(
+    async (artifact: ArtifactView) => {
+      const fileName = artifact.fileRelPath.split('/').pop() || `${artifact.format}.export`;
+      let dest: string | null = null;
+      try {
+        dest = await saveDialog({ defaultPath: fileName });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        showToast(t('published.artifactCopyFailed', { msg }), 'error');
+        return;
+      }
+      if (!dest) return; // 用户取消选择：不装成功也不报错
+      try {
+        await workVersionApi.copyArtifactTo(artifact.id, dest);
+        showToast(t('published.artifactCopied', { path: dest }), 'success');
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        showToast(t('published.artifactCopyFailed', { msg }), 'error');
+      }
+    },
+    [showToast],
+  );
+
+  const regenerateArtifact = useCallback(
+    async (artifact: ArtifactView) => {
+      try {
+        const queued = await workVersionApi.enqueueExport(artifact.versionId, [artifact.format]);
+        showToast(t('published.exportEnqueued', { formats: queued.map((j) => j.format).join(' / ') }), 'success');
+        await loadJobs();
+        await loadArtifacts(artifact.bookId);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        showToast(t('published.exportEnqueueFailed', { msg }), 'error');
+      }
+    },
+    [loadJobs, loadArtifacts, showToast],
+  );
+
+  // 任务行要显示「哪本书的 v 几」：版本从已加载的读数反查，书名一律现取（不存副本）
+  const versionById = useMemo(() => {
+    const m = new Map<string, WorkVersion>();
+    Object.values(versionsByBook).forEach((list) => list.forEach((v) => m.set(v.id, v)));
+    return m;
+  }, [versionsByBook]);
 
   // ── 版本详情：快照章节按需拉一次并缓存（不可变快照，缓存永远新鲜）──
   const toggleVersionDetail = useCallback(
@@ -355,7 +492,7 @@ export default function PublishedScenesPage() {
               </Tooltip>
             )}
             <Tooltip title={t('published.refresh')}>
-              <IconButton size="small" onClick={() => { void load(); void loadRoot(); }} data-testid="published-refresh">
+              <IconButton size="small" onClick={() => { void load(); void loadRoot(); void loadJobs(); }} data-testid="published-refresh">
                 <RefreshIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -370,6 +507,66 @@ export default function PublishedScenesPage() {
           </Typography>
         )}
       </Box>
+
+      {/* ── 导出任务面板（B4b，§5.2-1：入队后页面照常写作，任务逐个可见进度）── */}
+      {jobs.length > 0 && (
+        <Box
+          data-testid="published-jobs"
+          sx={{
+            mx: 3,
+            mb: 1.5,
+            p: 1.25,
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'primary.light',
+            bgcolor: 'background.paper',
+            flexShrink: 0,
+          }}
+        >
+          <Typography sx={{ fontSize: uiFontSize(12), fontWeight: 700, mb: 0.5 }}>
+            {t('published.jobsPanelTitle', { n: jobs.length })}
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {jobs.map((job) => {
+              const v = versionById.get(job.versionId);
+              const book = books.find((b) => b.id === job.bookId);
+              return (
+                <Box key={job.id} data-testid={`published-job-${job.id}`} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Chip
+                    size="small"
+                    label={`${book?.title ?? '—'} · ${v ? `v${v.seq}` : '—'} · ${job.format.toUpperCase()}`}
+                    sx={{ height: 20, fontSize: uiFontSize(11), maxWidth: 340 }}
+                  />
+                  {job.status === 'queued' && (
+                    <Chip size="small" variant="outlined" label={t('published.jobQueued')} sx={{ height: 20, fontSize: uiFontSize(10.5) }} />
+                  )}
+                  {job.status === 'running' && (
+                    <Chip size="small" variant="outlined" color="primary" label={t('published.jobRunning')} sx={{ height: 20, fontSize: uiFontSize(10.5) }} />
+                  )}
+                  {job.status === 'failed' && (
+                    <>
+                      <Chip size="small" color="error" label={t('published.jobFailed')} sx={{ height: 20, fontSize: uiFontSize(10.5) }} data-testid={`published-job-failed-${job.id}`} />
+                      <Typography title={job.error} noWrap sx={{ fontSize: uiFontSize(10.5), color: 'error.main', maxWidth: 320 }}>
+                        {job.error}
+                      </Typography>
+                      <Button size="small" disabled={jobBusyId === job.id} onClick={() => void runJobAction(job.id, workVersionApi.retryExportJob)} data-testid={`published-job-retry-${job.id}`}>
+                        {t('published.jobRetry')}
+                      </Button>
+                    </>
+                  )}
+                  {(job.status === 'queued' || job.status === 'failed') && (
+                    <Tooltip title={t('published.jobDismiss')}>
+                      <IconButton size="small" disabled={jobBusyId === job.id} onClick={() => void runJobAction(job.id, workVersionApi.dismissExportJob)} data-testid={`published-job-dismiss-${job.id}`}>
+                        <CloseIcon sx={{ fontSize: uiFontSize(15) }} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      )}
 
       {/* ── 一级筛选栏 ── */}
       {!openBookId && (
@@ -440,9 +637,16 @@ export default function PublishedScenesPage() {
                   snapshot={snapshots[v.id]}
                   snapshotLoading={snapshotLoadingId === v.id}
                   finalBusy={finalBusyId === v.id}
+                  artifacts={artifacts.filter((a) => a.versionId === v.id)}
+                  jobBusyId={jobBusyId}
                   onToggleDetail={() => void toggleVersionDetail(v.id)}
                   onSetFinal={() => void handleSetFinal(v)}
                   onDelete={() => setDeleteTarget(v)}
+                  onExport={() => setExportTarget(v)}
+                  onReveal={(a) => void revealArtifact(a)}
+                  onCopy={(a) => void copyArtifact(a)}
+                  onRegenerate={(a) => void regenerateArtifact(a)}
+                  onJobAction={(jobId, action) => void runJobAction(jobId, action)}
                 />
               ))}
             </Box>
@@ -499,6 +703,9 @@ export default function PublishedScenesPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ── 导出弹窗（B4b）：多选格式 → 入队，任务面板接后续进度 ── */}
+      <ExportVersionDialog version={exportTarget} onClose={() => setExportTarget(null)} onEnqueued={handleEnqueued} />
     </Box>
   );
 }
@@ -621,18 +828,32 @@ function VersionRow({
   snapshot,
   snapshotLoading,
   finalBusy,
+  artifacts,
+  jobBusyId,
   onToggleDetail,
   onSetFinal,
   onDelete,
+  onExport,
+  onReveal,
+  onCopy,
+  onRegenerate,
+  onJobAction,
 }: {
   version: WorkVersion;
   expanded: boolean;
   snapshot?: WorkVersionChapter[];
   snapshotLoading: boolean;
   finalBusy: boolean;
+  artifacts: ArtifactView[];
+  jobBusyId: string | null;
   onToggleDetail: () => void;
   onSetFinal: () => void;
   onDelete: () => void;
+  onExport: () => void;
+  onReveal: (artifact: ArtifactView) => void;
+  onCopy: (artifact: ArtifactView) => void;
+  onRegenerate: (artifact: ArtifactView) => void;
+  onJobAction: (jobId: string, action: (id: string) => Promise<void>) => void;
 }) {
   return (
     <Box
@@ -668,16 +889,26 @@ function VersionRow({
         <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled' }}>
           {formatDate(version.lockedAt)}
         </Typography>
+        {/* §7 版式：ready 产物以格式 chip 直接挂在版本行上 */}
+        {artifacts
+          .filter((a) => a.status === 'ready')
+          .map((a) => (
+            <Chip
+              key={a.id}
+              size="small"
+              color="primary"
+              variant="outlined"
+              label={a.format.toUpperCase()}
+              data-testid={`published-artifact-chip-${a.id}`}
+              sx={{ height: 20, fontSize: uiFontSize(10.5) }}
+            />
+          ))}
 
         <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Tooltip title={t('published.exportSoonHint')}>
-            {/* B4/B5b 前刻意 disabled：导出必须来自快照流水线，不接旧「另存为」链路 */}
-            <span>
-              <Button size="small" variant="outlined" disabled data-testid={`published-version-export-${version.seq}`}>
-                {t('published.exportBtn')}
-              </Button>
-            </span>
-          </Tooltip>
+          {/* B4b 接线：导出走快照流水线（enqueue → 后台队列），不接旧「另存为」链路 */}
+          <Button size="small" variant="outlined" onClick={onExport} data-testid={`published-version-export-${version.seq}`}>
+            {t('published.exportBtn')}
+          </Button>
           {!version.isFinal && (
             <Button size="small" onClick={onSetFinal} disabled={finalBusy} data-testid={`published-version-setfinal-${version.seq}`}>
               {t('published.setFinal')}
@@ -707,6 +938,67 @@ function VersionRow({
           <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', fontFamily: 'monospace', mb: 1 }}>
             {t('published.fingerprintLabel', { hash: version.contentHash })}
           </Typography>
+
+          {/* ── 产物区（B4b）：产物必然挂版本下（D1），状态机全量呈现 ── */}
+          <Box sx={{ mb: 1 }}>
+            <Typography sx={{ fontSize: uiFontSize(11.5), fontWeight: 650, mb: 0.5 }}>
+              {t('published.artifactsLabel', { n: artifacts.length })}
+            </Typography>
+            {artifacts.length === 0 && (
+              <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled' }} data-testid={`published-artifacts-empty-${version.seq}`}>
+                {t('published.artifactsEmpty')}
+              </Typography>
+            )}
+            {artifacts.map((a) => (
+              <Box key={a.id} data-testid={`published-artifact-${a.id}`} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', py: 0.25 }}>
+                <Typography sx={{ fontSize: uiFontSize(11.5), fontWeight: 650 }}>{a.format.toUpperCase()}</Typography>
+                {a.status === 'ready' && (
+                  <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.secondary' }}>
+                    {formatFileSize(a.fileSize)} · {formatDate(a.createdAt)}
+                  </Typography>
+                )}
+                {a.status === 'queued' && <Chip size="small" variant="outlined" label={t('published.jobQueued')} sx={{ height: 18, fontSize: uiFontSize(10) }} />}
+                {a.status === 'running' && <Chip size="small" variant="outlined" color="primary" label={t('published.jobRunning')} sx={{ height: 18, fontSize: uiFontSize(10) }} />}
+                {a.status === 'missing' && (
+                  <Chip size="small" color="warning" label={t('published.artifactMissing')} data-testid={`published-artifact-missing-${a.id}`} sx={{ height: 18, fontSize: uiFontSize(10) }} />
+                )}
+                {a.status === 'failed' && (
+                  <>
+                    <Chip size="small" color="error" label={t('published.jobFailed')} sx={{ height: 18, fontSize: uiFontSize(10) }} />
+                    <Typography title={a.error} noWrap sx={{ fontSize: uiFontSize(10.5), color: 'error.main', maxWidth: 260 }}>
+                      {a.error}
+                    </Typography>
+                    <Button size="small" disabled={jobBusyId === a.id} onClick={() => onJobAction(a.id, workVersionApi.retryExportJob)} data-testid={`published-artifact-retry-${a.id}`}>
+                      {t('published.jobRetry')}
+                    </Button>
+                  </>
+                )}
+                {(a.status === 'ready' || a.status === 'missing') && (
+                  <>
+                    <Tooltip title={t('published.artifactReveal')}>
+                      <IconButton size="small" onClick={() => onReveal(a)} data-testid={`published-artifact-reveal-${a.id}`}>
+                        <MyLocationIcon sx={{ fontSize: uiFontSize(16) }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('published.artifactCopy')}>
+                      <IconButton size="small" onClick={() => onCopy(a)} data-testid={`published-artifact-copy-${a.id}`}>
+                        <ContentCopyIcon sx={{ fontSize: uiFontSize(15) }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t('published.artifactRegenerate')}>
+                      <IconButton size="small" onClick={() => onRegenerate(a)} data-testid={`published-artifact-regen-${a.id}`}>
+                        <RefreshIcon sx={{ fontSize: uiFontSize(15) }} />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                )}
+                <Typography noWrap title={a.fileRelPath} sx={{ fontSize: uiFontSize(10), color: 'text.disabled', fontFamily: 'monospace', maxWidth: 240 }}>
+                  {a.fileRelPath}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+
           {snapshotLoading && <Skeleton variant="text" height={18} sx={{ fontSize: uiFontSize(12) }} />}
           {!snapshotLoading && snapshot && (
             <Box>

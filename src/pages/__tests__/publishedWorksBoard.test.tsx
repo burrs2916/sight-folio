@@ -24,6 +24,14 @@ const openDeskMock = vi.fn();
 const invokeMock = vi.fn();
 const showToastMock = vi.fn();
 const loadBooksMock = vi.fn();
+// B4b 导出接线新增的读数/动作面（默认空态，不影响 B5a 既有用例的断言）
+const enqueueMock = vi.fn();
+const listJobsMock = vi.fn();
+const retryJobMock = vi.fn();
+const dismissJobMock = vi.fn();
+const listArtifactsMock = vi.fn();
+const revealMock = vi.fn();
+const copyMock = vi.fn();
 
 vi.mock('../../services/workVersion', () => ({
   workVersionApi: {
@@ -32,10 +40,22 @@ vi.mock('../../services/workVersion', () => ({
     delete: (versionId: string) => deleteMock(versionId),
     snapshot: (versionId: string) => snapshotMock(versionId),
     getLibraryRoot: () => getRootMock(),
+    enqueueExport: (versionId: string, formats: string[]) => enqueueMock(versionId, formats),
+    listExportJobs: () => listJobsMock(),
+    retryExportJob: (jobId: string) => retryJobMock(jobId),
+    dismissExportJob: (jobId: string) => dismissJobMock(jobId),
+    listArtifacts: (bookId?: string) => listArtifactsMock(bookId),
+    revealArtifact: (artifactId: string) => revealMock(artifactId),
+    copyArtifactTo: (artifactId: string, destPath: string) => copyMock(artifactId, destPath),
   },
   SAME_CONTENT_ERROR_MARK: 'SAME_CONTENT|',
 }));
 vi.mock('../../services/core', () => ({ invoke: (...a: unknown[]) => invokeMock(...a) }));
+// 页面（B4b）引了目录选择器：jsdom 里必须 mock 掉插件本体，「取消选择」用 null 表达
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  save: vi.fn().mockResolvedValue(null),
+  open: vi.fn().mockResolvedValue(null),
+}));
 vi.mock('../../store/toastStore', () => ({
   useToastStore: (sel: (s: { showToast: typeof showToastMock }) => unknown) => sel({ showToast: showToastMock }),
 }));
@@ -81,6 +101,13 @@ beforeEach(() => {
   getRootMock.mockResolvedValue({ path: '/Users/x/Documents/SightFolio 作品库', isDefault: true });
   openDeskMock.mockResolvedValue(undefined);
   invokeMock.mockResolvedValue(undefined);
+  enqueueMock.mockResolvedValue([]);
+  listJobsMock.mockResolvedValue([]);
+  retryJobMock.mockResolvedValue(undefined);
+  dismissJobMock.mockResolvedValue(undefined);
+  listArtifactsMock.mockResolvedValue([]);
+  revealMock.mockResolvedValue('/Users/x/作品库/b2/v1/书-v1.epub');
+  copyMock.mockResolvedValue(2048);
 });
 
 describe('一级：书卡片（R1 / §9 验收 1）', () => {
@@ -118,13 +145,20 @@ describe('一级：书卡片（R1 / §9 验收 1）', () => {
 });
 
 describe('二级：版本时间线', () => {
-  it('点卡进时间线：v3 标当前定稿，v1 给「设为定稿」；导出钮 disabled', async () => {
+  it('点卡进时间线：v3 标当前定稿，v1 给「设为定稿」；导出钮已接线（点开快照导出弹窗）', async () => {
+    // 改判说明（红线 3）：B5a 此条钉的是「导出钮 disabled 占位」（当时流水线未建，UI 不许撒谎）。
+    // B4b 就是接线这批 —— 占位断言按产品改判翻转为「可点且点开的是入队弹窗」。
+    // 覆盖面没有弱化：disabled 语义由 PublishedFinishedBooksLink 结构锁继续反向盯（不许回流）。
     await renderPage();
     fireEvent.click(screen.getByTestId('published-book-card-b2'));
     await flush();
     expect(screen.getByTestId('published-version-3').textContent).toContain('published.alreadyFinal');
     expect(screen.getByTestId('published-version-setfinal-1')).toBeTruthy();
-    expect((screen.getByTestId('published-version-export-3') as HTMLButtonElement).disabled).toBe(true);
+    const exportBtn = screen.getByTestId('published-version-export-3') as HTMLButtonElement;
+    expect(exportBtn.disabled).toBe(false);
+    fireEvent.click(exportBtn);
+    await flush();
+    expect(screen.getByTestId('published-export-submit')).toBeTruthy();
   });
 
   it('设为定稿走后端并刷回读数（同书至多一个定稿由后端事务保证，D6）', async () => {
