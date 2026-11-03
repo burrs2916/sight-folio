@@ -606,59 +606,9 @@ export const writingScanApi = {
   importBook: (filePath: string): Promise<WritingImportSummary> => invoke('import_writing_book', { filePath }),
 };
 
-// ─── 完结作品记录（Phase 2）：写作台导出/备份成功后落库，页面统一管理 ───
-
-/** 导出产物格式：epub | pdf | docx | html | md | txt | backup（与后端 CompletedWork.format 对齐） */
-export type CompletedWorkFormat = 'epub' | 'pdf' | 'docx' | 'html' | 'md' | 'txt' | 'backup';
-
-export interface CompletedWork {
-  id: string;
-  bookId: string;
-  bookTitle: string;
-  format: CompletedWorkFormat;
-  filePath: string;
-  fileSize: number;
-  /** 源文件是否已丢失（用户移动/删除后列表加载时后端顺带检测回写）。 */
-  isFileMissing?: boolean;
-  wordCount: number;
-  chapterCount: number;
-  createdAt: number;
-}
-
-export const completedWorksApi = {
-  async list(): Promise<CompletedWork[]> {
-    return invoke<CompletedWork[]>('list_completed_works');
-  },
-
-  /** 保存一条完结作品记录；file_size 由后端 stat file_path 回填，前端不传也可。 */
-  async save(work: CompletedWork): Promise<void> {
-    return invoke('save_completed_work', { work });
-  },
-
-  /** 移除记录（只删记录，不动源文件）。 */
-  async delete(id: string): Promise<void> {
-    return invoke('delete_completed_work', { id });
-  },
-
-  /** 改名/改目录（重新定位）：后端物理移动源文件并更新记录 file_path。 */
-  async move(id: string, newPath: string): Promise<void> {
-    return invoke('move_completed_work', { id, newPath });
-  },
-
-  /** 导入磁盘上已存在的导出文件为记录（按 file_path 去重）。返回 [imported, skipped]。 */
-  async importWorks(bookId: string, bookTitle: string, filePaths: string[]): Promise<[number, number]> {
-    return invoke<[number, number]>('import_completed_works', {
-      bookId,
-      bookTitle,
-      filePaths,
-    });
-  },
-
-  /** 统计某书某格式的完结作品数量（format 空串 = 该书全部格式）。写作台「已有 n 个 PDF」数据源。 */
-  async count(bookId: string, format: string): Promise<number> {
-    return invoke<number>('query_completed_work_count', { bookId, format });
-  },
-};
+// ─── 完结作品旧登记面（CompletedWork / completedWorksApi）已退役（需求 §6）───
+// 产物统一由 export_artifacts 承载，读写走 services/workVersion.ts 的 workVersionApi；
+// 写作台徽标计数在 workVersionApi.exportCount（后端命令名沿用 query_completed_work_count）。
 
 // ─── 灵感/快速笔记（T4）：全局级、跨章、作者心流暂存 ───
 
@@ -692,11 +642,6 @@ export const writingNotesApi = {
 /** 生成笔记 id（语义前缀 note_ + uuid）。 */
 export function newNoteId(): string {
   return `note_${crypto.randomUUID().replace(/-/g, '')}`;
-}
-
-/** 生成完结作品记录 id（语义前缀 cw_ + uuid）。 */
-export function newCompletedWorkId(): string {
-  return `cw_${crypto.randomUUID().replace(/-/g, '')}`;
 }
 
 // ─── 外部素材采集（Writing Phase 1）：图片/文字/记事本片段/链接 → 素材库 ───

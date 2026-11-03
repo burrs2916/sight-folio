@@ -3145,7 +3145,6 @@ export default function WritingPage() {
             }}
           >
             {t('writing.backupBook')}
-            <ExportCountBadge bookId={activeBook?.id ?? ''} format="backup" />
           </MenuItem>
           <MenuItem
             onClick={() => {

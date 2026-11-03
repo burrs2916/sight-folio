@@ -1,5 +1,5 @@
 use crate::domain::writing::{
-    CompletedWork, ExternalCapture, WritingAnnotation, WritingBook, WritingChapter,
+    ExternalCapture, WritingAnnotation, WritingBook, WritingChapter,
     WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline,
     WritingSetting, WritingStoryline, WritingTimelineEvent,
 };
@@ -609,147 +609,10 @@ pub fn restore_writing_book(
     Ok(())
 }
 
-// ─── 完结作品记录（Phase 2）：导出/备份成功后由写作台写入，供「完结作品」页统一管理 ───
-
-#[tauri::command]
-pub fn list_completed_works(
-    repo: State<'_, Arc<SqliteWritingRepository>>,
-) -> AppResult<Vec<CompletedWork>> {
-    let mut works = repo.list_completed_works()?;
-    // 顺带做文件存在性检测并回写标记：用户移动/删除源文件后列表能如实显示
-    // 「找不到文件」，而不是保留旧的「可下载」假象。变化才回写，避免无谓写库。
-    for w in works.iter_mut() {
-        let missing = w.file_path.is_empty() || !std::path::Path::new(&w.file_path).exists();
-        if missing != w.is_file_missing {
-            repo.set_completed_work_missing(&w.id, missing)?;
-            w.is_file_missing = missing;
-        }
-    }
-    Ok(works)
-}
-
-/// 统计某书某格式的完结作品数量（写作台展示「已有 n 个 PDF」）。
-/// format 传空串 = 该书全部格式总数。
-#[tauri::command]
-pub fn query_completed_work_count(
-    book_id: String,
-    format: String,
-    repo: State<'_, Arc<SqliteWritingRepository>>,
-) -> AppResult<i64> {
-    repo.count_completed_works(&book_id, &format)
-}
-
-/// 保存一条完结作品记录（INSERT OR REPLACE，前端持完整对象）。
-/// file_size 由命令层 stat file_path 回填——前端没有文件系统能力；
-/// 文件不存在（用户事后删了源文件）时保留前端传入值（0），不阻塞记录。
-#[tauri::command]
-pub fn save_completed_work(
-    work: CompletedWork,
-    repo: State<'_, Arc<SqliteWritingRepository>>,
-) -> AppResult<()> {
-    let mut work = work;
-    if !work.file_path.is_empty() {
-        if let Ok(meta) = std::fs::metadata(&work.file_path) {
-            work.file_size = meta.len() as i64;
-        }
-    }
-    repo.save_completed_work(&work)
-}
-
-/// 移除完结作品记录（只删记录，不动源文件——与页面「仅从列表移除」语义一致）。
-#[tauri::command]
-pub fn delete_completed_work(
-    id: String,
-    repo: State<'_, Arc<SqliteWritingRepository>>,
-) -> AppResult<()> {
-    repo.delete_completed_work(&id)
-}
-
-/// 完结作品改名/改目录（重新定位）：物理移动源文件到新路径，并更新记录 file_path。
-/// - 旧文件不存在（用户已手动移动/删除）时跳过移动，仅把记录指向新路径；
-/// - 新路径对应的文件已存在且与旧路径不同 → 视为用户想把记录指向已有文件（导入语义），不移动；
-/// - 无论移动与否都会 stat 新路径回填 file_size。
-/// 用户视角：把「这一个导出产物」从磁盘挪个地方放/改个名，或修正记录指向。
-#[tauri::command]
-pub fn move_completed_work(
-    id: String,
-    new_path: String,
-    repo: State<'_, Arc<SqliteWritingRepository>>,
-) -> AppResult<()> {
-    if new_path.trim().is_empty() {
-        return Err(crate::error::AppError::Validation(
-            "new path is empty".into(),
-        ));
-    }
-    let existing = repo
-        .list_completed_works()?
-        .into_iter()
-        .find(|w| w.id == id)
-        .ok_or_else(|| crate::error::AppError::NotFound(format!("completed work {id}")))?;
-
-    let old_path = existing.file_path;
-    let new_exists = std::path::Path::new(&new_path).exists();
-    let same = !old_path.is_empty() && old_path == new_path;
-
-    // 旧文件存在且目标不同：物理移动。目标已存在时不覆盖（rsync 语义取保守）。
-    if !old_path.is_empty() && !same && std::path::Path::new(&old_path).exists() && !new_exists {
-        if let Err(e) = std::fs::rename(&old_path, &new_path) {
-            return Err(crate::error::AppError::Internal(format!(
-                "move {} -> {} failed: {e}",
-                old_path, new_path
-            )));
-        }
-    }
-
-    // stat 新路径回填 file_size（文件不在时保留 0）
-    let file_size = std::fs::metadata(&new_path)
-        .map(|m| m.len() as i64)
-        .unwrap_or(0);
-    repo.update_completed_work_path(&id, &new_path, file_size)
-}
-
-/// 扫描/导入磁盘上已存在的导出文件为完结作品记录（不重复生成）。
-/// 前端负责挑选文件；命令按 file_path 去重——已在库里则跳过。
-/// 返回 (imported, skipped)。id/created_at 由命令层生成（导入场景前端无完整对象）。
-#[tauri::command]
-pub fn import_completed_works(
-    book_id: String,
-    book_title: String,
-    file_paths: Vec<String>,
-    repo: State<'_, Arc<SqliteWritingRepository>>,
-) -> AppResult<(usize, usize)> {
-    let mut imported = 0usize;
-    let mut skipped = 0usize;
-    for raw in file_paths {
-        let path = raw.trim().to_string();
-        if path.is_empty() {
-            skipped += 1;
-            continue;
-        }
-        if repo.find_completed_work_by_path(&path)?.is_some() {
-            skipped += 1;
-            continue;
-        }
-        let file_size = std::fs::metadata(&path)
-            .map(|m| m.len() as i64)
-            .unwrap_or(0);
-        let work = CompletedWork {
-            id: format!("cw_{}", uuid::Uuid::new_v4().simple()),
-            book_id: book_id.clone(),
-            book_title: book_title.clone(),
-            format: infer_export_format(&path),
-            file_path: path,
-            file_size,
-            is_file_missing: false,
-            word_count: 0,
-            chapter_count: 0,
-            created_at: chrono::Utc::now().timestamp(),
-        };
-        repo.save_completed_work(&work)?;
-        imported += 1;
-    }
-    Ok((imported, skipped))
-}
+// ─── 完结作品旧登记命令（save/list/delete/move/import_completed_works）已退役 ──
+// 需求 §6：旧表 completed_works 退役（现 legacy_completed_works 只留数据不再读写），
+// 产物统一走 export_artifacts（commands/work_version.rs）。写作台徽标用的
+// query_completed_work_count 命令名保留，实现迁至 work_version（按 export_artifacts 计数）。
 
 // ─── 外部素材采集（Writing Phase 1）：图片/文字/记事本片段/链接 → 素材库 ───
 // book_id='' = 全局素材；AI 分析由前端调用 Agent 完成后回填 analysis_json，
@@ -779,21 +642,4 @@ pub fn delete_external_capture(
     repo.delete_external_capture(&capture_id)
 }
 
-/// 按扩展名推断导出格式（与前端 FORMAT_META 对齐；未知扩展名回退 "md" 之外 → 用 "" 表示未知）。
-fn infer_export_format(path: &str) -> String {
-    let ext = std::path::Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default();
-    match ext.as_str() {
-        "epub" => "epub".into(),
-        "pdf" => "pdf".into(),
-        "docx" => "docx".into(),
-        "html" | "htm" => "html".into(),
-        "md" | "markdown" => "md".into(),
-        "txt" => "txt".into(),
-        "db" => "backup".into(),
-        _ => "".into(),
-    }
-}
+

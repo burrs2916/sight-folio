@@ -1,5 +1,5 @@
 use crate::domain::writing::{
-    CompletedWork, ExternalCapture, ExternalCaptureKind, WritingAnnotation, WritingBook,
+    ExternalCapture, ExternalCaptureKind, WritingAnnotation, WritingBook,
     WritingChapter, WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing, WritingNote,
     WritingOutline, WritingSetting, WritingSettingRevision, WritingStoryline, WritingTimelineEvent,
 };
@@ -114,28 +114,12 @@ pub trait WritingRepository: Send + Sync {
     fn save_annotation(&self, item: &WritingAnnotation) -> AppResult<()>;
     fn delete_annotation(&self, id: &str) -> AppResult<()>;
     fn list_annotations_by_setting(&self, setting_id: &str) -> AppResult<Vec<WritingAnnotation>>;
-    /// 完结作品记录（Phase 2）：按导出时间倒序列出全部。
-    fn list_completed_works(&self) -> AppResult<Vec<CompletedWork>>;
-    /// 落一条完结作品记录（INSERT OR REPLACE，前端持完整对象）。
-    fn save_completed_work(&self, work: &CompletedWork) -> AppResult<()>;
     /// 灵感/快速笔记（T4）：按书列出（pin DESC → updated_at DESC → created_at DESC）。
     fn list_notes(&self, book_id: &str) -> AppResult<Vec<WritingNote>>;
     fn save_note(&self, item: &WritingNote) -> AppResult<()>;
     fn delete_note(&self, id: &str) -> AppResult<()>;
     /// 解绑笔记上的章节引用（删章时把该章的 notes 置 chapter_id=''，不删笔记本身）。
     fn unbind_notes_from_chapter(&self, chapter_id: &str) -> AppResult<()>;
-    /// 删除完结作品记录（只删元数据行，不删源文件——语义由前端文案明确）。
-    fn delete_completed_work(&self, id: &str) -> AppResult<()>;
-    /// 按 file_path 精确查一条完结作品记录（导入去重用：同路径不重复生成）。
-    fn find_completed_work_by_path(&self, file_path: &str) -> AppResult<Option<CompletedWork>>;
-    /// 更新完结作品记录的 file_path（改名/改目录/重新定位后记录与磁盘对齐），
-    /// file_size 由命令层 stat 新路径后传入。
-    fn update_completed_work_path(&self, id: &str, new_path: &str, file_size: i64)
-        -> AppResult<()>;
-    /// 统计某书某格式的完结作品数量（format 为空串 = 该书全部格式）。
-    fn count_completed_works(&self, book_id: &str, format: &str) -> AppResult<i64>;
-    /// 回写源文件缺失标记（列表加载时顺带检测磁盘后落库，未来可作为定时探测的落点）。
-    fn set_completed_work_missing(&self, id: &str, is_missing: bool) -> AppResult<()>;
     /// 外部素材采集（Phase 1）：按书列出（created_at 倒序；book_id='' = 全局素材）。
     fn list_external_captures(&self, book_id: &str) -> AppResult<Vec<ExternalCapture>>;
     /// 落一条外部素材（INSERT OR REPLACE，前端持完整对象；kind 存小写枚举名）。
@@ -289,24 +273,6 @@ fn row_to_external_capture(row: &rusqlite::Row) -> rusqlite::Result<ExternalCapt
         target_use: row.get("target_use")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
-    })
-}
-
-const COMPLETED_WORK_COLS: &str =
-    "id, book_id, book_title, format, file_path, file_size, is_file_missing, word_count, chapter_count, created_at";
-
-fn row_to_completed_work(row: &rusqlite::Row) -> rusqlite::Result<CompletedWork> {
-    Ok(CompletedWork {
-        id: row.get("id")?,
-        book_id: row.get("book_id")?,
-        book_title: row.get("book_title")?,
-        format: row.get("format")?,
-        file_path: row.get("file_path")?,
-        file_size: row.get("file_size")?,
-        is_file_missing: row.get::<_, i64>("is_file_missing")? != 0,
-        word_count: row.get("word_count")?,
-        chapter_count: row.get("chapter_count")?,
-        created_at: row.get("created_at")?,
     })
 }
 
@@ -1340,126 +1306,6 @@ impl WritingRepository for SqliteWritingRepository {
         Ok(rows)
     }
 
-    fn list_completed_works(&self) -> AppResult<Vec<CompletedWork>> {
-        let conn = self
-            .db
-            .0
-            .lock()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {COMPLETED_WORK_COLS} FROM legacy_completed_works ORDER BY created_at DESC, id DESC"
-        ))?;
-        let works = stmt
-            .query_map([], row_to_completed_work)?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(works)
-    }
-
-    fn save_completed_work(&self, work: &CompletedWork) -> AppResult<()> {
-        let conn = self
-            .db
-            .0
-            .lock()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute(
-            "INSERT OR REPLACE INTO legacy_completed_works
-             (id, book_id, book_title, format, file_path, file_size, is_file_missing, word_count, chapter_count, created_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-            rusqlite::params![
-                work.id,
-                work.book_id,
-                work.book_title,
-                work.format,
-                work.file_path,
-                work.file_size,
-                work.is_file_missing,
-                work.word_count,
-                work.chapter_count,
-                work.created_at,
-            ],
-        )?;
-        Ok(())
-    }
-
-    fn delete_completed_work(&self, id: &str) -> AppResult<()> {
-        let conn = self
-            .db
-            .0
-            .lock()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM legacy_completed_works WHERE id = ?1", [id])?;
-        Ok(())
-    }
-
-    fn find_completed_work_by_path(&self, file_path: &str) -> AppResult<Option<CompletedWork>> {
-        let conn = self
-            .db
-            .0
-            .lock()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {COMPLETED_WORK_COLS} FROM legacy_completed_works WHERE file_path = ?1 LIMIT 1"
-        ))?;
-        let mut rows = stmt.query_map([file_path], row_to_completed_work)?;
-        match rows.next() {
-            Some(Ok(work)) => Ok(Some(work)),
-            Some(Err(e)) => Err(AppError::Internal(e.to_string())),
-            None => Ok(None),
-        }
-    }
-
-    fn update_completed_work_path(
-        &self,
-        id: &str,
-        new_path: &str,
-        file_size: i64,
-    ) -> AppResult<()> {
-        let conn = self
-            .db
-            .0
-            .lock()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute(
-            "UPDATE legacy_completed_works SET file_path = ?2, file_size = ?3 WHERE id = ?1",
-            rusqlite::params![id, new_path, file_size],
-        )?;
-        Ok(())
-    }
-
-    fn count_completed_works(&self, book_id: &str, format: &str) -> AppResult<i64> {
-        let conn = self
-            .db
-            .0
-            .lock()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let count = if format.is_empty() {
-            conn.query_row(
-                "SELECT COUNT(*) FROM legacy_completed_works WHERE book_id = ?1",
-                [book_id],
-                |r| r.get(0),
-            )?
-        } else {
-            conn.query_row(
-                "SELECT COUNT(*) FROM legacy_completed_works WHERE book_id = ?1 AND format = ?2",
-                rusqlite::params![book_id, format],
-                |r| r.get(0),
-            )?
-        };
-        Ok(count)
-    }
-
-    fn set_completed_work_missing(&self, id: &str, is_missing: bool) -> AppResult<()> {
-        let conn = self
-            .db
-            .0
-            .lock()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute(
-            "UPDATE legacy_completed_works SET is_file_missing = ?2 WHERE id = ?1",
-            rusqlite::params![id, is_missing as i64],
-        )?;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -1527,7 +1373,6 @@ mod tests {
             ("writing_setting_revisions", SETTING_REVISION_COLS),
             ("writing_annotations", ANNOTATION_COLS),
             ("writing_notes", NOTE_COLS),
-            ("legacy_completed_works", COMPLETED_WORK_COLS),
         ] {
             let listed: Vec<String> = cols.split(',').map(|c| c.trim().to_string()).collect();
             let real = table_cols(&conn, table);
@@ -1788,144 +1633,6 @@ mod tests {
         let got = repo.get_chapter("ch_legacy").unwrap().unwrap();
         assert_eq!(got.extra, "{}");
         assert_eq!(repo.list_chapters("book_ch_legacy").unwrap().len(), 1);
-    }
-
-    /// 完结作品记录（Phase 2）：save→list 往返 + delete 删除（已先经
-    /// `cols_lists_cover_every_column_of_each_table` 锁列清单一致性，这里锁行为）。
-    fn sample_completed_work(id: &str) -> CompletedWork {
-        CompletedWork {
-            id: id.into(),
-            book_id: "book_cw".into(),
-            book_title: "长夜".into(),
-            format: "epub".into(),
-            file_path: "/tmp/长夜.epub".into(),
-            file_size: 2_097_152,
-            is_file_missing: false,
-            word_count: 120_000,
-            chapter_count: 8,
-            created_at: 1_700_000_000,
-        }
-    }
-
-    #[test]
-    fn completed_work_roundtrip_and_delete() {
-        let repo = make_repo();
-        let book = sample_book("book_cw");
-        repo.save_book(&book).unwrap();
-
-        let mut epub = sample_completed_work("cw_epub");
-        repo.save_completed_work(&epub).unwrap();
-        let mut pdf = sample_completed_work("cw_pdf");
-        pdf.format = "pdf".into();
-        pdf.file_size = 8_589_934;
-        pdf.created_at = 1_700_000_100;
-        repo.save_completed_work(&pdf).unwrap();
-
-        let listed = repo.list_completed_works().unwrap();
-        assert_eq!(listed.len(), 2, "list 应返回刚存进去的两条");
-        // created_at DESC：最新在前
-        assert_eq!(listed[0].id, "cw_pdf");
-        assert_eq!(listed[0].file_size, 8_589_934, "file_size 存取往返不丢");
-        assert_eq!(listed[1].format, "epub");
-        assert_eq!(listed[1].book_title, "长夜");
-        assert_eq!(listed[1].chapter_count, 8);
-
-        // 同名 id 覆盖（INSERT OR REPLACE）
-        epub.word_count = 121_000;
-        repo.save_completed_work(&epub).unwrap();
-        let listed = repo.list_completed_works().unwrap();
-        assert_eq!(listed.len(), 2, "同 id 重存是覆盖不是新增");
-        assert_eq!(listed[1].word_count, 121_000);
-
-        // 删除只删记录
-        repo.delete_completed_work("cw_epub").unwrap();
-        let listed = repo.list_completed_works().unwrap();
-        assert_eq!(listed.len(), 1);
-        assert_eq!(listed[0].id, "cw_pdf");
-    }
-
-    #[test]
-    fn completed_work_find_by_path_and_update_path() {
-        let repo = make_repo();
-        let book = sample_book("book_cw");
-        repo.save_book(&book).unwrap();
-        let epub = sample_completed_work("cw_path");
-        repo.save_completed_work(&epub).unwrap();
-
-        // 按路径查重：命中与未命中
-        let hit = repo.find_completed_work_by_path("/tmp/长夜.epub").unwrap();
-        assert!(hit.is_some(), "同路径应查得到");
-        assert_eq!(hit.unwrap().id, "cw_path");
-        let miss = repo
-            .find_completed_work_by_path("/tmp/不存在的书.epub")
-            .unwrap();
-        assert!(miss.is_none(), "不同路径不应命中");
-
-        // 改名/改目录：更新 file_path + file_size，其余字段不动
-        repo.update_completed_work_path("cw_path", "/Documents/长夜_v2.epub", 3_145_728)
-            .unwrap();
-        let listed = repo.list_completed_works().unwrap();
-        assert_eq!(listed.len(), 1);
-        assert_eq!(listed[0].file_path, "/Documents/长夜_v2.epub");
-        assert_eq!(listed[0].file_size, 3_145_728);
-        assert_eq!(listed[0].book_id, "book_cw", "未变字段应保持");
-        // 旧路径不再命中，新路径命中
-        let old_hit = repo.find_completed_work_by_path("/tmp/长夜.epub").unwrap();
-        assert!(old_hit.is_none(), "旧路径更新后不应再命中");
-        let new_hit = repo
-            .find_completed_work_by_path("/Documents/长夜_v2.epub")
-            .unwrap();
-        assert!(new_hit.is_some());
-    }
-
-    /// T3：按 (book_id, format) 统计数量 —— 写作台「已有 n 个 PDF」的数据源。
-    #[test]
-    fn completed_work_count_by_book_and_format() {
-        let repo = make_repo();
-        let book = sample_book("book_cw");
-        repo.save_book(&book).unwrap();
-
-        let mut epub = sample_completed_work("cw_epub");
-        repo.save_completed_work(&epub).unwrap();
-        let mut pdf1 = sample_completed_work("cw_pdf1");
-        pdf1.format = "pdf".into();
-        repo.save_completed_work(&pdf1).unwrap();
-        let mut pdf2 = sample_completed_work("cw_pdf2");
-        pdf2.format = "pdf".into();
-        pdf2.id = "cw_pdf2".into();
-        repo.save_completed_work(&pdf2).unwrap();
-
-        // 空串 format = 该书全部格式
-        assert_eq!(repo.count_completed_works("book_cw", "").unwrap(), 3);
-        assert_eq!(repo.count_completed_works("book_cw", "pdf").unwrap(), 2);
-        assert_eq!(repo.count_completed_works("book_cw", "epub").unwrap(), 1);
-        assert_eq!(repo.count_completed_works("book_cw", "docx").unwrap(), 0);
-        // 其他书不受影响
-        assert_eq!(repo.count_completed_works("book_other", "pdf").unwrap(), 0);
-    }
-
-    /// T3：文件缺失标记往返 + 仅标记位更新、其余字段保持。
-    #[test]
-    fn completed_work_missing_flag_roundtrip() {
-        let repo = make_repo();
-        let book = sample_book("book_cw");
-        repo.save_book(&book).unwrap();
-        let epub = sample_completed_work("cw_missing");
-        repo.save_completed_work(&epub).unwrap();
-
-        assert!(!repo.list_completed_works().unwrap()[0].is_file_missing);
-
-        repo.set_completed_work_missing("cw_missing", true).unwrap();
-        let listed = repo.list_completed_works().unwrap();
-        assert!(listed[0].is_file_missing, "缺失标记应读回 true");
-        assert_eq!(
-            listed[0].file_path, "/tmp/长夜.epub",
-            "标记更新不动其它字段"
-        );
-
-        repo.set_completed_work_missing("cw_missing", false)
-            .unwrap();
-        assert!(!repo.list_completed_works().unwrap()[0].is_file_missing);
     }
 
     /// 时间线事件（D）：setting_id 绑定 + NULL 两种，存取往返不丢，list 列清单覆盖。

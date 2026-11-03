@@ -63,6 +63,9 @@ pub trait WorkVersionRepository {
     /// 重启清污（需求 §5.2-4）：残留 queued/running 一律改判 failed，返回改写行数。
     /// ready 不动；已 failed 的旧账也不动（它的 error 是上一次的真因，别覆盖成中断）。
     fn fail_interrupted_artifacts(&self, error: &str) -> AppResult<i64>;
+    /// 某书某格式的 **ready** 产物计数（写作台「已有 n 个」徽标，需求 §6）。
+    /// 只数 ready：排队/失败/缺失都不算「已有成品」，徽标不许撒谎。format 空串 = 全部格式。
+    fn count_ready_artifacts(&self, book_id: &str, format: &str) -> AppResult<i64>;
 }
 
 pub struct SqliteWorkVersionRepository {
@@ -415,5 +418,96 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
             [error],
         )?;
         Ok(changed as i64)
+    }
+
+    fn count_ready_artifacts(&self, book_id: &str, format: &str) -> AppResult<i64> {
+        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let count = if format.is_empty() {
+            conn.query_row(
+                "SELECT COUNT(*) FROM export_artifacts WHERE book_id = ?1 AND status = 'ready'",
+                [book_id],
+                |r| r.get(0),
+            )?
+        } else {
+            conn.query_row(
+                "SELECT COUNT(*) FROM export_artifacts
+                 WHERE book_id = ?1 AND format = ?2 AND status = 'ready'",
+                rusqlite::params![book_id, format],
+                |r| r.get(0),
+            )?
+        };
+        Ok(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::database::{init_tables, migrate, Database};
+    use rusqlite::Connection;
+    use std::sync::Mutex;
+
+    /// 建库走**生产同一套** init_tables + migrate：手抄 schema 会得到假的绿（本仓硬口径）。
+    fn make_repo() -> SqliteWorkVersionRepository {
+        let conn = Connection::open_in_memory().unwrap();
+        init_tables(&conn).unwrap();
+        migrate(&conn).unwrap();
+        SqliteWorkVersionRepository::new(Arc::new(Database(Mutex::new(conn))))
+    }
+
+    fn artifact(id: &str, book_id: &str, format: &str, status: &str) -> ExportArtifact {
+        ExportArtifact {
+            id: id.to_string(),
+            version_id: format!("ver_{id}").to_string(),
+            book_id: book_id.to_string(),
+            format: format.to_string(),
+            spec_id: "default".to_string(),
+            file_rel_path: format!("{book_id}/v1/{id}.{format}"),
+            file_size: 1024,
+            status: status.to_string(),
+            error: String::new(),
+            origin: "export".to_string(),
+            created_at: 1,
+        }
+    }
+
+    /// B6：写作台徽标计数改按 export_artifacts 的三条硬规则——
+    /// 只数 ready（排队/失败/缺失不许冒充成品）、按书隔离、空 format = 全书汇总。
+    #[test]
+    fn count_ready_artifacts_counts_only_ready_per_book_and_format() {
+        let repo = make_repo();
+        repo.insert_artifact(&artifact("a1", "book_x", "epub", "ready"))
+            .unwrap();
+        repo.insert_artifact(&artifact("a2", "book_x", "pdf", "ready"))
+            .unwrap();
+        repo.insert_artifact(&artifact("a3", "book_x", "pdf", "ready"))
+            .unwrap();
+        repo.insert_artifact(&artifact("a4", "book_x", "pdf", "queued"))
+            .unwrap();
+        repo.insert_artifact(&artifact("a5", "book_x", "pdf", "failed"))
+            .unwrap();
+        repo.insert_artifact(&artifact("a6", "book_x", "pdf", "missing"))
+            .unwrap();
+        repo.insert_artifact(&artifact("a7", "book_y", "epub", "ready"))
+            .unwrap();
+
+        assert_eq!(repo.count_ready_artifacts("book_x", "pdf").unwrap(), 2);
+        assert_eq!(repo.count_ready_artifacts("book_x", "epub").unwrap(), 1);
+        assert_eq!(
+            repo.count_ready_artifacts("book_x", "docx").unwrap(),
+            0,
+            "没导出过的格式不许有数"
+        );
+        assert_eq!(
+            repo.count_ready_artifacts("book_x", "").unwrap(),
+            3,
+            "空 format 应汇总该书全部 ready"
+        );
+        assert_eq!(repo.count_ready_artifacts("book_y", "epub").unwrap(), 1);
+        assert_eq!(
+            repo.count_ready_artifacts("book_z", "").unwrap(),
+            0,
+            "别人的产物不许串到这本书的徽标上"
+        );
     }
 }

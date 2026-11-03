@@ -52,7 +52,8 @@ vi.mock('../../../services/tauri', () => ({
   saveWritingPdf: vi.fn(),
   backupWritingBook: vi.fn(),
   restoreWritingBook: vi.fn(),
-  completedWorksApi: { save: vi.fn() },
+  // B6：刻意不再提供 completedWorksApi mock —— 若导出链误引用旧登记面，
+  // import 会得到 undefined 并在调用处炸红，本文件任何一条测都绿不了（反证锁）。
 }));
 vi.mock('../../../services/asset', () => ({ assetApi: { resolveAssetRef: vi.fn() } }));
 vi.mock('../../../services/projectScan', () => ({ projectScanApi: { readFileBytes: vi.fn() } }));

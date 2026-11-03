@@ -70,4 +70,19 @@ describe('workVersionApi 导出队列封装（§5.2 / §6 命令面）', () => {
     });
     expect(n).toBe(20480);
   });
+
+  // B6（需求 §6）：徽标计数命令名沿用 query_completed_work_count，实现已改按 export_artifacts。
+  it('exportCount 沿用 query_completed_work_count 命令名并原样回传计数', async () => {
+    invokeMock.mockResolvedValue(7);
+    const n = await workVersionApi.exportCount('b1', 'epub');
+    expect(invokeMock).toHaveBeenCalledWith('query_completed_work_count', { bookId: 'b1', format: 'epub' });
+    expect(n).toBe(7);
+  });
+
+  it('exportCount 空 format = 全书汇总的口径由参数形状承载（空串照常上送）', async () => {
+    invokeMock.mockResolvedValue(0);
+    const n = await workVersionApi.exportCount('b1', '');
+    expect(invokeMock).toHaveBeenCalledWith('query_completed_work_count', { bookId: 'b1', format: '' });
+    expect(n).toBe(0);
+  });
 });

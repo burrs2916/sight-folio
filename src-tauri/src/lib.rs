@@ -562,6 +562,8 @@ pub fn run() {
             commands::list_export_artifacts,
             commands::reveal_artifact,
             commands::copy_artifact_to,
+            // 写作台徽标计数（B6）：命令名沿用，实现改按 export_artifacts（§6）
+            commands::query_completed_work_count,
             commands::list_writing_chapters,
             commands::get_writing_chapter,
             commands::save_writing_chapter,
@@ -627,13 +629,6 @@ pub fn run() {
             commands::restore_writing_book,
             commands::scan_writing_book,
             commands::import_writing_book,
-            // ─── 写作域 Phase 2：完结作品记录（导出/备份 → completed_works） ───
-            commands::list_completed_works,
-            commands::save_completed_work,
-            commands::delete_completed_work,
-            commands::move_completed_work,
-            commands::import_completed_works,
-            commands::query_completed_work_count,
             // ─── 写作域 Phase 1：外部素材采集（图片/文字/记事本/链接 → 素材库） ───
             commands::list_external_captures,
             commands::save_external_capture,

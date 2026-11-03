@@ -141,4 +141,13 @@ export const workVersionApi = {
   copyArtifactTo(artifactId: string, destPath: string): Promise<number> {
     return invoke<number>('copy_artifact_to', { artifactId, destPath });
   },
+  /**
+   * 某书某格式的 ready 产物计数（写作台「已有 n 个」徽标，需求 §6）。
+   * 命令名沿用退役前的 query_completed_work_count（§6 明文保留命令名），
+   * 实现已改按 export_artifacts —— 只数 ready，排队/失败/缺失不冒充成品。
+   * format 传空串 = 该书全部格式总数。
+   */
+  exportCount(bookId: string, format: string): Promise<number> {
+    return invoke<number>('query_completed_work_count', { bookId, format });
+  },
 };

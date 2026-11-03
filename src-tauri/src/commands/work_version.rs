@@ -190,3 +190,17 @@ pub fn copy_artifact_to(
         &dest_path,
     )
 }
+
+/// 某书某格式的导出产物计数（写作台「已有 n 个」徽标数据源）。
+///
+/// 命令名沿用 §6 的退役口径（前端零改动切换），实现已改按 `export_artifacts`：
+/// 只数 `ready` —— 排队中/失败/文件缺失都不算「已有成品」，徽标不许撒谎。
+/// format 传空串 = 该书全部格式总数。
+#[tauri::command]
+pub fn query_completed_work_count(
+    book_id: String,
+    format: String,
+    version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+) -> AppResult<i64> {
+    version_repo.count_ready_artifacts(&book_id, &format)
+}

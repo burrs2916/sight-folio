@@ -306,38 +306,6 @@ fn default_foreshadow_status() -> String {
     "pending".to_string()
 }
 
-/// 完结作品记录（写作台导出/备份成功后落库一条，供「完结作品」页统一管理）。
-///
-/// format: epub | pdf | docx | html | md | txt | backup
-/// file_path 为用户选定的导出路径（不改写原文）；file_size 为用户可见规格。
-/// 只存元数据、不持有源文件（原生导出写盘即完成）；删除记录不删除源文件。
-/// id / created_at 由前端生成后整对象落库（INSERT OR REPLACE），后端不做构造。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CompletedWork {
-    pub id: String,
-    pub book_id: String,
-    pub book_title: String,
-    /// epub | pdf | docx | html | md | txt | backup
-    #[serde(default)]
-    pub format: String,
-    /// 导出产物绝对路径
-    #[serde(default)]
-    pub file_path: String,
-    /// 产物字节数（导出成功后由命令层 stat 回填，前端不负责计算）
-    #[serde(default)]
-    pub file_size: i64,
-    /// 源文件是否存在（列表加载时由命令层顺带检测磁盘后回写）。true = 用户已移动/删除源文件。
-    #[serde(default)]
-    pub is_file_missing: bool,
-    #[serde(default)]
-    pub word_count: i64,
-    #[serde(default)]
-    pub chapter_count: i64,
-    /// 导出完成时间（Unix 秒）
-    pub created_at: i64,
-}
-
 // ═════════════════════════════════════════════════════════════════
 // 外部素材采集（Phase 1）：从真实世界摄取素材并 AI 分析
 // ═════════════════════════════════════════════════════════════════

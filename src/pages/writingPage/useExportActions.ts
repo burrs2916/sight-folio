@@ -8,13 +8,10 @@ import {
   saveWritingPdf,
   backupWritingBook,
   restoreWritingBook,
-  completedWorksApi,
-  type CompletedWorkFormat,
   type WritingChapter,
 } from '../../services/tauri';
 import { assetApi } from '../../services/asset';
 import { projectScanApi } from '../../services/projectScan';
-import { newCompletedWorkId } from '../../services/writing';
 import { parseChapterCover } from '../../utils/writingOutline';
 import { useToastStore } from '../../store/toastStore';
 import { useWritingStore } from '../../store/writingStore';
@@ -139,28 +136,8 @@ export function useExportActions(
     [navigate],
   );
 
-  /** 导出/备份成功后落一条「完结作品」记录（Phase 2）。增益能力：失败只 warn，绝不连累导出主流程。 */
-  const recordCompletedWork = useCallback(
-    async (format: CompletedWorkFormat, path: string, chapters: WritingChapter[]) => {
-      if (!activeBook) return;
-      try {
-        await completedWorksApi.save({
-          id: newCompletedWorkId(),
-          bookId: activeBook.id,
-          bookTitle: activeBook.title,
-          format,
-          filePath: path,
-          fileSize: 0, // 后端 stat file_path 回填
-          wordCount: chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0),
-          chapterCount: chapters.length,
-          createdAt: Math.floor(Date.now() / 1000),
-        });
-      } catch (e) {
-        logger.warn('WritingPage', 'record completed work failed', { error: e, format });
-      }
-    },
-    [activeBook],
-  );
+  // B6（需求 §6）：旧「完结作品登记表」退役。写作台的「另存为」式临时导出不再落任何登记，
+  // 正式产物统一由成品页版本导出流水线生成（export_artifacts，快照渲染落作品库）。
 
   const handleExportMarkdown = useCallback(async () => {
     if (!activeBook) return;
@@ -181,14 +158,13 @@ export function useExportActions(
       });
       if (!path) return;
       await saveTextFile(path, md);
-      await recordCompletedWork('md', path, freshChapters);
       showExportToast(t('writing.exported', { path }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.warn('WritingPage', 'export markdown failed', { error: e });
       useToastStore.getState().error(t('writing.exportFailed', { msg }));
     }
-  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, recordCompletedWork, showExportToast]);
+  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, showExportToast]);
 
   const handleExportEpub = useCallback(async () => {
     if (!activeBook) return;
@@ -210,14 +186,13 @@ export function useExportActions(
         })),
         path,
       );
-      await recordCompletedWork('epub', path, freshChapters);
       showExportToast(t('writing.epubExported', { path }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.warn('WritingPage', 'export epub failed', { error: e });
       useToastStore.getState().error(t('writing.epubExportFailed', { msg }));
     }
-  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, recordCompletedWork, showExportToast]);
+  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, showExportToast]);
 
   const handleExportHtml = useCallback(async () => {
     if (!activeBook) return;
@@ -261,14 +236,13 @@ ${body}
       });
       if (!path) return;
       await saveTextFile(path, html);
-      await recordCompletedWork('html', path, freshChapters);
       showExportToast(t('writing.htmlExported', { path }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.warn('WritingPage', 'export html failed', { error: e });
       useToastStore.getState().error(t('writing.htmlExportFailed', { msg }));
     }
-  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, recordCompletedWork, showExportToast]);
+  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, showExportToast]);
 
   const handleExportText = useCallback(async () => {
     if (!activeBook) return;
@@ -294,14 +268,13 @@ ${body}
       });
       if (!path) return;
       await saveTextFile(path, parts.join('\n'));
-      await recordCompletedWork('txt', path, freshChapters);
       showExportToast(t('writing.exported', { path }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.warn('WritingPage', 'export text failed', { error: e });
       useToastStore.getState().error(t('writing.exportFailed', { msg }));
     }
-  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, recordCompletedWork, showExportToast]);
+  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, showExportToast]);
 
   const handleExportDocx = useCallback(async () => {
     if (!activeBook) return;
@@ -323,14 +296,13 @@ ${body}
         })),
         path,
       );
-      await recordCompletedWork('docx', path, freshChapters);
       showExportToast(t('writing.docxExported', { path }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.warn('WritingPage', 'export docx failed', { error: e });
       useToastStore.getState().error(t('writing.docxExportFailed', { msg }));
     }
-  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, recordCompletedWork, showExportToast]);
+  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, showExportToast]);
 
   const handleExportPdf = useCallback(async () => {
     if (!activeBook) return;
@@ -352,14 +324,13 @@ ${body}
         })),
         path,
       );
-      await recordCompletedWork('pdf', path, freshChapters);
       showExportToast(t('writing.pdfExported', { path }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.warn('WritingPage', 'export pdf failed', { error: e });
       useToastStore.getState().error(t('writing.pdfExportFailed', { msg }));
     }
-  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, recordCompletedWork, showExportToast]);
+  }, [activeBook, getFreshChapters, flushSave, flushSettingSave, showExportToast]);
 
   const handleBackupBook = useCallback(async () => {
     if (!activeBook) return;
@@ -370,15 +341,15 @@ ${body}
       });
       if (!path) return;
       await backupWritingBook(path);
-      // 备份是整库快照非作品形态：字数/章数记 0（页面按备份格式展示文件信息）
-      await recordCompletedWork('backup', path, []);
-      showExportToast(t('writing.backupExported', { path }));
+      // B6（需求 §2）：备份移出作品格式体系——不落任何作品登记；成功回执也不挂
+      // 「查看完结作品」跳转：成品页里没有备份文件，UI 不撒谎。
+      useToastStore.getState().info(t('writing.backupExported', { path }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.warn('WritingPage', 'backup failed', { error: e });
       useToastStore.getState().error(t('writing.backupExportFailed', { msg }));
     }
-  }, [activeBook, recordCompletedWork, showExportToast]);
+  }, [activeBook]);
 
   const handleRestoreBook = useCallback(async () => {
     try {
