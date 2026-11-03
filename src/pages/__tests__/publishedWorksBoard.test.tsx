@@ -37,7 +37,7 @@ vi.mock('../../services/workVersion', () => ({
   workVersionApi: {
     list: (bookId: string) => listMock(bookId),
     setFinal: (bookId: string, versionId: string) => setFinalMock(bookId, versionId),
-    delete: (versionId: string) => deleteMock(versionId),
+    delete: (versionId: string, deleteFiles: boolean) => deleteMock(versionId, deleteFiles),
     snapshot: (versionId: string) => snapshotMock(versionId),
     getLibraryRoot: () => getRootMock(),
     enqueueExport: (versionId: string, formats: string[]) => enqueueMock(versionId, formats),
@@ -172,16 +172,48 @@ describe('二级：版本时间线', () => {
     expect(showToastMock).toHaveBeenCalledWith(expect.stringContaining('published.setFinalDone'), 'success');
   });
 
-  it('删除版本必须经二次确认弹窗，确认后走后端并刷新', async () => {
+  it('删除版本必须经二次确认弹窗；无 ready 产物时不给删文件勾选，deleteFiles 恒为 false', async () => {
     await renderPage();
     fireEvent.click(screen.getByTestId('published-book-card-b2'));
     await flush();
     fireEvent.click(screen.getByTestId('published-version-delete-3'));
     expect(deleteMock).not.toHaveBeenCalled();
+    // §9-12/§5.3：没有可删的物理产物就不该给勾（默认只断记录不动文件）
+    expect(screen.queryByTestId('published-delete-files-checkbox')).toBeNull();
     fireEvent.click(screen.getByTestId('published-delete-confirm'));
     await flush();
-    expect(deleteMock).toHaveBeenCalledWith('ver3');
+    expect(deleteMock).toHaveBeenCalledWith('ver3', false);
     expect(showToastMock).toHaveBeenCalledWith(expect.stringContaining('published.versionDeleted'), 'success');
+  });
+
+  it('版本有 ready 产物时给「同时删除产物文件」勾选：默认不勾传 false，勾上才传 true（§9-12）', async () => {
+    listArtifactsMock.mockResolvedValue([
+      {
+        id: 'art_1', versionId: 'ver3', bookId: 'b2', format: 'epub', specId: 'default',
+        fileRelPath: 'b2/v3/书-v3.epub', fileSize: 2048, status: 'ready', error: '', origin: 'export', createdAt: 1,
+        bookTitle: '连载中已锁版的书',
+      },
+    ]);
+    await renderPage();
+    fireEvent.click(screen.getByTestId('published-book-card-b2'));
+    await flush();
+    fireEvent.click(screen.getByTestId('published-version-delete-3'));
+    const checkbox = screen.getByTestId('published-delete-files-checkbox');
+    expect(checkbox.textContent).toContain('published.deleteFilesWithVersion:1');
+    // 默认不勾 —— 「显式勾选」是本条验收的全部重量，默认值必须落在只断记录一侧
+    fireEvent.click(screen.getByTestId('published-delete-confirm'));
+    await flush();
+    expect(deleteMock).toHaveBeenCalledWith('ver3', false);
+
+    // 二次打开重新归零后勾选 → deleteFiles=true 上送
+    fireEvent.click(screen.getByTestId('published-version-delete-3'));
+    const box = screen.getByTestId('published-delete-files-checkbox').querySelector('input') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    expect(box.checked).toBe(true);
+    fireEvent.click(screen.getByTestId('published-delete-confirm'));
+    await flush();
+    expect(deleteMock).toHaveBeenLastCalledWith('ver3', true);
   });
 
   it('展开详情按需拉快照并渲染章节标题与字数', async () => {

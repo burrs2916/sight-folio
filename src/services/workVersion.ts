@@ -95,9 +95,13 @@ export const workVersionApi = {
   setFinal(bookId: string, versionId: string): Promise<void> {
     return invoke<void>('set_final_version', { bookId, versionId });
   },
-  /** 删版本，返回被连带抹掉的产物相对路径 */
-  delete(versionId: string): Promise<string[]> {
-    return invoke<string[]>('delete_work_version', { versionId });
+  /**
+   * 删版本（§5.3 / §9-12）：记录必删；deleteFiles=true 仅当用户在二次确认里
+   * 显式勾选「同时删除作品库中的产物文件」。返回操作后磁盘上仍存在的产物相对路径
+   * （未勾选时全部保留）—— UI 按它如实提示，不假装删干净。
+   */
+  delete(versionId: string, deleteFiles: boolean): Promise<string[]> {
+    return invoke<string[]>('delete_work_version', { versionId, deleteFiles });
   },
   /** 读作品库根（不存在则后端创建；失败 reject，调用方如实上报） */
   getLibraryRoot(): Promise<WorksLibraryRootInfo> {

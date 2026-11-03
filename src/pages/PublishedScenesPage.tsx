@@ -30,6 +30,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Skeleton from '@mui/material/Skeleton';
 import CircularProgress from '@mui/material/CircularProgress';
 import SearchIcon from '@mui/icons-material/Search';
@@ -121,6 +123,8 @@ export default function PublishedScenesPage() {
   const [snapshots, setSnapshots] = useState<Record<string, WorkVersionChapter[]>>({});
   const [snapshotLoadingId, setSnapshotLoadingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkVersion | null>(null);
+  // §5.3：删版本默认只断记录；「同时删除作品库中的产物文件」必须显式勾选，每次开弹窗归零
+  const [deleteFilesChecked, setDeleteFilesChecked] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [finalBusyId, setFinalBusyId] = useState<string | null>(null);
   // ── B4b：导出弹窗 / 任务面板 / 产物读数 ──
@@ -292,13 +296,13 @@ export default function PublishedScenesPage() {
     [refreshBookVersions, showToast],
   );
 
-  // ── 删除版本（§5.3：二次确认；本片只断记录，产物文件的勾选删除随 B5b 补）──
+  // ── 删除版本（§5.3 / §9-12：二次确认；默认只断记录，勾「同时删除产物文件」才删磁盘）──
   const confirmDeleteVersion = useCallback(async () => {
     if (!deleteTarget) return;
     const target = deleteTarget;
     setDeleting(true);
     try {
-      const relPaths = await workVersionApi.delete(target.id);
+      const relPaths = await workVersionApi.delete(target.id, deleteFilesChecked);
       await refreshBookVersions(target.bookId);
       // 后端删版本会连带抹产物记录（B1 口径），这边的产物读数也要跟着重取
       if (openBookId === target.bookId) await loadArtifacts(target.bookId);
@@ -309,6 +313,7 @@ export default function PublishedScenesPage() {
         return n;
       });
       setDeleteTarget(null);
+      setDeleteFilesChecked(false);
       setExpandedVersionId((cur) => (cur === target.id ? null : cur));
       showToast(t('published.versionDeleted', { n: target.seq }), 'success');
       if (relPaths.length > 0) {
@@ -321,7 +326,13 @@ export default function PublishedScenesPage() {
     } finally {
       setDeleting(false);
     }
-  }, [deleteTarget, refreshBookVersions, showToast, openBookId, loadArtifacts, loadJobs]);
+  }, [deleteTarget, deleteFilesChecked, refreshBookVersions, showToast, openBookId, loadArtifacts, loadJobs]);
+
+  // §5.3/§9-12：被删版本有 ready 产物时，确认弹窗才提供「同时删除作品库中的产物文件」
+  // 显式勾选（默认不勾 = 只断记录不动文件）；failed/queued/missing 没有可靠可删的物理文件。
+  const deleteReadyArtifactCount = deleteTarget
+    ? artifacts.filter((a) => a.versionId === deleteTarget.id && a.status === 'ready').length
+    : 0;
 
   // ── B4b：任务操作与产物动作 ──
   // 重试/移除走 §5.2 的后端口径（只有 failed 可重试、running 不可移除），前端不另判一套。
@@ -641,7 +652,10 @@ export default function PublishedScenesPage() {
                   jobBusyId={jobBusyId}
                   onToggleDetail={() => void toggleVersionDetail(v.id)}
                   onSetFinal={() => void handleSetFinal(v)}
-                  onDelete={() => setDeleteTarget(v)}
+                  onDelete={() => {
+                    setDeleteFilesChecked(false); // 勾选不跨弹窗残留（§5.3 默认只断记录）
+                    setDeleteTarget(v);
+                  }}
                   onExport={() => setExportTarget(v)}
                   onReveal={(a) => void revealArtifact(a)}
                   onCopy={(a) => void copyArtifact(a)}
@@ -692,6 +706,14 @@ export default function PublishedScenesPage() {
         </DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ fontSize: uiFontSize(12.5) }}>{t('published.confirmDeleteVersionDesc')}</DialogContentText>
+          {deleteReadyArtifactCount > 0 && (
+            <FormControlLabel
+              control={<Checkbox size="small" checked={deleteFilesChecked} onChange={(e) => setDeleteFilesChecked(e.target.checked)} />}
+              label={t('published.deleteFilesWithVersion', { n: deleteReadyArtifactCount })}
+              data-testid="published-delete-files-checkbox"
+              sx={{ mt: 1, alignItems: 'center' }}
+            />
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2 }}>
           <Button size="small" onClick={() => setDeleteTarget(null)} disabled={deleting}>

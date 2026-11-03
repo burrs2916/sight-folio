@@ -18,7 +18,9 @@ use crate::domain::work_version::{WorkVersion, WorkVersionChapter};
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::work_version_repository::WorkVersionRepository;
 use crate::infrastructure::database::writing_repository::WritingRepository;
-use crate::infrastructure::database::{SqliteWorkVersionRepository, SqliteWritingRepository};
+use crate::infrastructure::database::{
+    SqliteSettingsRepository, SqliteWorkVersionRepository, SqliteWritingRepository,
+};
 use std::sync::Arc;
 
 /// 快照内部结构版本。将来正文档格式（TipTap HTML 约定）演进时，读取侧按此分支兼容渲染。
@@ -155,29 +157,67 @@ pub fn set_final_version(
     version_repo.set_final_version(book_id, version_id)
 }
 
-/// 删版本，返回被连带抹掉的产物相对路径（磁盘文件删不删由上层按用户勾选决定）。
+/// 删版本（§5.3）。**默认只断记录**：版本头、章节快照、产物记录同事务抹掉，
+/// 磁盘文件原样保留；`delete_files = true` 是用户在二次确认里显式勾选了
+/// 「同时删除作品库中的产物文件」，才去作品库根下删文件（§9-12）。
+///
+/// 返回**操作后磁盘上仍存在**的产物相对路径 —— UI 按它如实提示，不假装删干净。
+/// （B1 时只回传路径不删文件，因为当时还没有作品库根；B3 落地后本片补齐。）
 pub fn delete_work_version(
     version_id: &str,
+    delete_files: bool,
     version_repo: &Arc<SqliteWorkVersionRepository>,
+    settings: &SqliteSettingsRepository,
 ) -> AppResult<Vec<String>> {
-    version_repo.delete_version(version_id)
+    let rel_paths = version_repo.delete_version(version_id)?;
+    if !delete_files {
+        return Ok(rel_paths);
+    }
+    Ok(export_jobs::delete_exported_files(settings, &rel_paths))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::work_version::library_root::WORKS_LIBRARY_ROOT_KEY;
     use crate::domain::writing::WritingBook;
     use crate::infrastructure::database::{init_tables, migrate, Database};
     use rusqlite::Connection;
+    use std::path::PathBuf;
     use std::sync::Mutex;
+
+    /// 每测一个独立临时作品库根，结束即删（不碰 data/，不依赖 $HOME）。同 B4 口径。
+    struct TempRoot(PathBuf);
+
+    impl TempRoot {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "sf_b7_{}_{}_{}",
+                tag,
+                std::process::id(),
+                uuid::Uuid::new_v4().simple()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for TempRoot {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
 
     struct Harness {
         db: Arc<Database>,
         writing: Arc<SqliteWritingRepository>,
         versions: Arc<SqliteWorkVersionRepository>,
+        settings: Arc<SqliteSettingsRepository>,
+        root: TempRoot,
     }
 
     /// 建库走**生产同一套** init_tables + migrate：测试里手抄 schema 会得到假的绿。
+    /// 作品库根预置为临时目录 —— 删文件的分支与生产同一个 get_works_library_root。
     fn harness() -> Harness {
         let db = Arc::new(Database(Mutex::new(Connection::open_in_memory().unwrap())));
         {
@@ -185,9 +225,16 @@ mod tests {
             init_tables(&conn).unwrap();
             migrate(&conn).unwrap();
         }
+        let settings = Arc::new(SqliteSettingsRepository::new(db.clone()));
+        let root = TempRoot::new("harness");
+        settings
+            .set(WORKS_LIBRARY_ROOT_KEY, &root.0.to_string_lossy())
+            .unwrap();
         Harness {
             writing: Arc::new(SqliteWritingRepository::new(db.clone())),
             versions: Arc::new(SqliteWorkVersionRepository::new(db.clone())),
+            settings,
+            root,
             db,
         }
     }
@@ -349,7 +396,7 @@ mod tests {
             .unwrap();
         }
 
-        let rel_paths = delete_work_version(&v.id, &h.versions).unwrap();
+        let rel_paths = delete_work_version(&v.id, false, &h.versions, &h.settings).unwrap();
 
         assert_eq!(rel_paths, vec!["b1/v1/测试长篇-v1.epub".to_string()]);
         assert!(h.versions.list_version_chapters(&v.id).unwrap().is_empty());
@@ -359,6 +406,109 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM export_artifacts WHERE version_id = ?1", [&v.id], |r| r.get(0))
             .unwrap();
         assert_eq!(left, 0, "版本没了还留着产物记录，成品页就会出现指向空气的幽灵条目");
+    }
+
+    /// 在临时作品库根下摆一个真实的 ready 产物（记录 + 磁盘文件都齐），返回绝对路径。
+    fn seed_ready_artifact(h: &Harness, version_id: &str, rel: &str) -> PathBuf {
+        let abs = h.root.0.join(rel);
+        std::fs::create_dir_all(abs.parent().unwrap()).unwrap();
+        std::fs::write(&abs, b"fake-artifact-bytes").unwrap();
+        let conn = h.db.0.lock().unwrap();
+        conn.execute(
+            "INSERT INTO export_artifacts (id, version_id, book_id, format, status, file_rel_path, file_size, created_at)
+             VALUES ('art_1', ?1, 'b1', 'epub', 'ready', ?2, 17, 1)",
+            rusqlite::params![version_id, rel],
+        )
+        .unwrap();
+        abs
+    }
+
+    #[test]
+    fn 删版本未勾选删文件_记录消失但磁盘文件仍在() {
+        // §9-12 前半 / §5.3 默认口径：只断记录不动文件
+        let h = harness();
+        seed_book(&h, "b1");
+        h.writing
+            .save_chapter(&chapter("b1", "c1", "第一章", "a", 1, "{}"))
+            .unwrap();
+        let v = lock_version("b1", "", "", false, false, &h.writing, &h.versions).unwrap();
+        let file = seed_ready_artifact(&h, &v.id, "b1/v1/测试长篇-v1.epub");
+
+        let remaining = delete_work_version(&v.id, false, &h.versions, &h.settings).unwrap();
+
+        assert_eq!(
+            remaining,
+            vec!["b1/v1/测试长篇-v1.epub".to_string()],
+            "未勾选时文件全部保留，返回清单供 UI 如实提示"
+        );
+        assert!(file.exists(), "§9-12：未勾选 → 磁盘文件必须还在");
+        assert!(h.versions.find_version(&v.id).unwrap().is_none(), "记录本体要消失");
+    }
+
+    #[test]
+    fn 删版本勾选删文件_记录与磁盘文件都消失() {
+        // §9-12 后半：显式勾选「同时删除作品库中的产物文件」→ 两者都消失
+        let h = harness();
+        seed_book(&h, "b1");
+        h.writing
+            .save_chapter(&chapter("b1", "c1", "第一章", "a", 1, "{}"))
+            .unwrap();
+        let v = lock_version("b1", "", "", false, false, &h.writing, &h.versions).unwrap();
+        let file = seed_ready_artifact(&h, &v.id, "b1/v1/测试长篇-v1.epub");
+
+        let remaining = delete_work_version(&v.id, true, &h.versions, &h.settings).unwrap();
+
+        assert!(remaining.is_empty(), "勾选即承诺删净，有残留必须回传，实际 {remaining:?}");
+        assert!(!file.exists(), "§9-12：勾选 → 磁盘文件与记录一起消失");
+        assert!(h.versions.find_version(&v.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn 勾选删文件但产物早被挪走_记录照删不报错且不谎报残留() {
+        // 文件本就不在（missing 态/用户手动清理过）→ NotFound 视为已消失，不该拦住删版本
+        let h = harness();
+        seed_book(&h, "b1");
+        h.writing
+            .save_chapter(&chapter("b1", "c1", "第一章", "a", 1, "{}"))
+            .unwrap();
+        let v = lock_version("b1", "", "", false, false, &h.writing, &h.versions).unwrap();
+        {
+            let conn = h.db.0.lock().unwrap();
+            conn.execute(
+                "INSERT INTO export_artifacts (id, version_id, book_id, format, status, file_rel_path, created_at)
+                 VALUES ('art_1', ?1, 'b1', 'epub', 'missing', 'b1/v1/测试长篇-v1.epub', 1)",
+                [&v.id],
+            )
+            .unwrap(); // 只留记录不摆文件
+        }
+
+        let remaining = delete_work_version(&v.id, true, &h.versions, &h.settings).unwrap();
+
+        assert!(remaining.is_empty(), "NotFound 视为已消失，不该冒充删不掉的残留，实际 {remaining:?}");
+        assert!(h.versions.find_version(&v.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn delete_exported_files_拒绝穿越绝对与空路径_绝不碰库根外的文件() {
+        // 库里存的是相对路径，但库不是可信边界：`..`/绝对/空路径一律拒拼并计入仍存在
+        let h = harness();
+        let victim = TempRoot::new("victim");
+        std::fs::create_dir_all(victim.0.join("sub")).unwrap();
+        let victim_file = victim.0.join("sub/v.txt");
+        std::fs::write(&victim_file, b"do-not-touch").unwrap();
+
+        let traversal = format!("../{}/sub/v.txt", victim.0.file_name().unwrap().to_string_lossy());
+        let remaining = export_jobs::delete_exported_files(
+            &h.settings,
+            &[traversal.clone(), String::new(), "/etc/passwd".to_string()],
+        );
+
+        assert_eq!(
+            remaining,
+            vec![traversal, String::new(), "/etc/passwd".to_string()],
+            "三类危险路径都必须原样回传为「仍存在」，不许静默吞掉"
+        );
+        assert!(victim_file.exists(), "拒拼即碰不到库外文件");
     }
 
     #[test]

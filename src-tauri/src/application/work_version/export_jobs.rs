@@ -315,6 +315,45 @@ pub fn copy_artifact_to(
         })
 }
 
+/// §5.3 / §9-12：删版本勾选「同时删除作品库中的产物文件」时，把相对路径对应的
+/// 磁盘文件在作品库根下删掉。返回**操作后磁盘上仍存在**的相对路径清单。
+///
+/// 三条诚实口径：
+/// - 文件本就不在（NotFound，用户早已挪走）视为「已消失」，不报错 —— §9-12 的
+///   「两者都消失」不要求文件必须由本次操作亲手删掉；
+/// - 删除失败（权限/只读卷）把该路径原样计入「仍存在」返回，绝不假装删干净；
+/// - 空串、绝对路径、含 `..` 段的路径一律拒拼并计入「仍存在」。正常写入口
+///   `plan_file_rel_path` 产不出这类路径，这里只防异常数据借删文件逃出库根。
+///
+/// 根目录读取失败同样返回「全部仍存在」：记录已在上层事务里删掉，文件确实还在
+/// 盘上 —— 把真实情况交还给 UI 提示，而不是吞掉或报错阻断删版本。
+pub fn delete_exported_files(settings: &SqliteSettingsRepository, rel_paths: &[String]) -> Vec<String> {
+    let root = match library_root::get_works_library_root(settings) {
+        Ok(info) => info.path,
+        Err(_) => return rel_paths.to_vec(),
+    };
+    let mut remaining = Vec::new();
+    for rel in rel_paths {
+        let as_path = Path::new(rel);
+        let unsafe_rel = rel.is_empty()
+            || as_path.is_absolute()
+            || as_path
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir));
+        if unsafe_rel {
+            remaining.push(rel.clone());
+            continue;
+        }
+        let abs = PathBuf::from(&root).join(rel);
+        match std::fs::remove_file(&abs) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => remaining.push(rel.clone()),
+        }
+    }
+    remaining
+}
+
 // ─── 并发闸 ───────────────────────────────────────────────────────────────
 
 /// 并发额度（Q5 默认 2）。领到 [ExportSlot] 才能开新任务，槽随任务线程结束自动归还。

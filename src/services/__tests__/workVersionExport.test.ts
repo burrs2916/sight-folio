@@ -85,4 +85,14 @@ describe('workVersionApi 导出队列封装（§5.2 / §6 命令面）', () => {
     expect(invokeMock).toHaveBeenCalledWith('query_completed_work_count', { bookId: 'b1', format: '' });
     expect(n).toBe(0);
   });
+
+  // B7（§9-12）：删版本必须把「是否删产物文件」显式上送，命令面 delete_work_version(version_id, delete_files)
+  it('delete 把 deleteFiles 布尔原样随 versionId 上送（勾选语义不许在前端吞）', async () => {
+    invokeMock.mockResolvedValue([]);
+    const remaining = await workVersionApi.delete('ver_1', true);
+    expect(invokeMock).toHaveBeenLastCalledWith('delete_work_version', { versionId: 'ver_1', deleteFiles: true });
+    await workVersionApi.delete('ver_1', false);
+    expect(invokeMock).toHaveBeenLastCalledWith('delete_work_version', { versionId: 'ver_1', deleteFiles: false });
+    expect(remaining).toEqual([]);
+  });
 });

@@ -66,16 +66,24 @@ pub fn set_final_version(
     work_version::set_final_version(&book_id, &version_id, &version_repo.inner().clone())
 }
 
-/// 删版本（连带抹掉章节快照与产物记录）。
+/// 删版本（连带抹掉章节快照与产物记录，§5.3）。
 ///
-/// 返回被抹掉的产物**相对路径**，磁盘文件删不删由上层按用户勾选决定 —— 而"删文件"需要
-/// 作品库根目录，那是 B3 的产物。所以本片先只回传路径，不假装已经会删文件。
+/// 返回**操作后磁盘上仍存在**的产物相对路径：未勾选删文件时它们全部保留，
+/// UI 按数量如实提示「已保留 n 个」；`delete_files = true` 是用户在二次确认里
+/// 显式勾选「同时删除作品库中的产物文件」（§9-12：勾选 → 记录与磁盘文件都消失）。
 #[tauri::command]
 pub fn delete_work_version(
     version_id: String,
+    delete_files: bool,
     version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
+    settings: State<'_, SettingsState>,
 ) -> AppResult<Vec<String>> {
-    work_version::delete_work_version(&version_id, &version_repo.inner().clone())
+    work_version::delete_work_version(
+        &version_id,
+        delete_files,
+        &version_repo.inner().clone(),
+        &settings.repository,
+    )
 }
 
 /// 读作品库根（B3）。语义是「确保可用」：目录不存在则创建；
