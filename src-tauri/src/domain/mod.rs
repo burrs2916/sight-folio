@@ -21,6 +21,7 @@ pub mod project_tech_debt;
 pub mod review_findings;
 pub mod review_rules;
 pub mod scan_jobs;
+pub mod work_version;
 pub mod writing;
 
 pub use auth::*;

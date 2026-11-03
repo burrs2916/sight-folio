@@ -1627,39 +1627,133 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
          ON writing_notes(book_id, pin DESC, updated_at DESC)",
         [],
     )?;
-    // 完结作品记录（Phase 2）：写作台导出/备份成功后在页面上落一条「完结作品」。
-    // 只存元数据（作品名/格式/路径/规格/时间），不动本源文件——删除记录 ≠ 删除源文件
-    // （页面「仅从列表移除记录，源文件不会被删除」语义由前端确认文案承载）。
-    // created_at 为导出完成时间（Unix 秒）；按 (book_id, created_at DESC) 检索作品时间线。
+
+    // ─── 完结作品重设计（B0 迁移地基）：三表 + 索引 ───
+
+    // ② 成稿版本（不可变快照的头）
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS completed_works (
-            id TEXT PRIMARY KEY,
-            book_id TEXT NOT NULL,
-            book_title TEXT NOT NULL,
-            format TEXT NOT NULL DEFAULT '',
-            file_path TEXT NOT NULL DEFAULT '',
-            file_size INTEGER NOT NULL DEFAULT 0,
-            word_count INTEGER NOT NULL DEFAULT 0,
-            chapter_count INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        "CREATE TABLE IF NOT EXISTS work_versions (
+            id             TEXT    PRIMARY KEY,
+            book_id        TEXT    NOT NULL,
+            seq            INTEGER NOT NULL,
+            label          TEXT    NOT NULL DEFAULT '',
+            note           TEXT    NOT NULL DEFAULT '',
+            is_final       INTEGER NOT NULL DEFAULT 0,
+            chapter_count  INTEGER NOT NULL DEFAULT 0,
+            word_count     INTEGER NOT NULL DEFAULT 0,
+            content_hash   TEXT    NOT NULL,
+            schema_ver     INTEGER NOT NULL DEFAULT 1,
+            locked_at      INTEGER NOT NULL
         )",
         [],
     )?;
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_completed_works_book \
-         ON completed_works(book_id, created_at DESC)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_wv_book_seq ON work_versions(book_id, seq)",
         [],
     )?;
-    // T3：文件存在性标记。源文件被移动/删除后列表显示「找不到文件」而非裸空。
-    // 新库建表即含列，老库幂等 ALTER 补列（migrate 每次启动都会跑，缺列才补）。
-    let cw_cols: Vec<String> = conn
-        .prepare("PRAGMA table_info(completed_works)")?
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_wv_book_final ON work_versions(book_id) WHERE is_final = 1",
+        [],
+    )?;
+
+    // ② 成稿版本的内容副本（D5：真不可变，正文明细表存）
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS work_version_chapters (
+            version_id     TEXT    NOT NULL,
+            sort_order     INTEGER NOT NULL,
+            src_chapter_id TEXT    NOT NULL DEFAULT '',
+            title          TEXT    NOT NULL DEFAULT '',
+            content        TEXT    NOT NULL DEFAULT '',
+            kind           TEXT    NOT NULL DEFAULT '',
+            parent_id      TEXT,
+            status         TEXT    NOT NULL DEFAULT '',
+            word_count     INTEGER NOT NULL DEFAULT 0
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_wvc_version ON work_version_chapters(version_id, sort_order)",
+        [],
+    )?;
+
+    // ③ 导出产物
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS export_artifacts (
+            id            TEXT    PRIMARY KEY,
+            version_id    TEXT    NOT NULL,
+            book_id       TEXT    NOT NULL,
+            format        TEXT    NOT NULL,
+            spec_id       TEXT    NOT NULL DEFAULT 'default',
+            file_rel_path TEXT    NOT NULL,
+            file_size     INTEGER NOT NULL DEFAULT 0,
+            status        TEXT    NOT NULL DEFAULT 'ready',
+            error         TEXT    NOT NULL DEFAULT '',
+            origin        TEXT    NOT NULL DEFAULT 'export',
+            created_at    INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_ea_version ON export_artifacts(version_id)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_ea_book ON export_artifacts(book_id)",
+        [],
+    )?;
+
+    // 旧表 completed_works 改名保留为 legacy_completed_works（开放项 Q1）
+    let has_completed_works: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='completed_works'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    let has_legacy_completed_works: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='legacy_completed_works'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if has_completed_works && !has_legacy_completed_works {
+        conn.execute("ALTER TABLE completed_works RENAME TO legacy_completed_works", [])?;
+    } else if !has_legacy_completed_works {
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS legacy_completed_works (
+                id TEXT PRIMARY KEY,
+                book_id TEXT NOT NULL,
+                book_title TEXT NOT NULL,
+                format TEXT NOT NULL DEFAULT '',
+                file_path TEXT NOT NULL DEFAULT '',
+                file_size INTEGER NOT NULL DEFAULT 0,
+                is_file_missing INTEGER NOT NULL DEFAULT 0,
+                word_count INTEGER NOT NULL DEFAULT 0,
+                chapter_count INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+            )",
+            [],
+        )?;
+    }
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_legacy_completed_works_book \
+         ON legacy_completed_works(book_id, created_at DESC)",
+        [],
+    )?;
+    // 旧库升级：is_file_missing 列补齐
+    let lcw_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(legacy_completed_works)")?
         .query_map([], |row| row.get(1))?
         .filter_map(|r| r.ok())
         .collect();
-    if !cw_cols.is_empty() && !cw_cols.contains(&"is_file_missing".to_string()) {
+    if !lcw_cols.is_empty() && !lcw_cols.contains(&"is_file_missing".to_string()) {
         conn.execute(
-            "ALTER TABLE completed_works ADD COLUMN is_file_missing INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE legacy_completed_works ADD COLUMN is_file_missing INTEGER NOT NULL DEFAULT 0",
             [],
         )?;
     }
@@ -2185,6 +2279,98 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
     if let Err(e) = conn.execute(tl_strip, []) {
         eprintln!("[migration] timeline_events extra strip skipped: {e}");
     }
+
+    // ─── 完结作品重设计（B0 迁移地基）：旧表改名 + 新表结构幂等保证 ───
+    let has_completed_works: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='completed_works'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    let has_legacy_completed_works: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='legacy_completed_works'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if has_completed_works && !has_legacy_completed_works {
+        conn.execute("ALTER TABLE completed_works RENAME TO legacy_completed_works", [])?;
+    }
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS work_versions (
+            id             TEXT    PRIMARY KEY,
+            book_id        TEXT    NOT NULL,
+            seq            INTEGER NOT NULL,
+            label          TEXT    NOT NULL DEFAULT '',
+            note           TEXT    NOT NULL DEFAULT '',
+            is_final       INTEGER NOT NULL DEFAULT 0,
+            chapter_count  INTEGER NOT NULL DEFAULT 0,
+            word_count     INTEGER NOT NULL DEFAULT 0,
+            content_hash   TEXT    NOT NULL,
+            schema_ver     INTEGER NOT NULL DEFAULT 1,
+            locked_at      INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_wv_book_seq ON work_versions(book_id, seq)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_wv_book_final ON work_versions(book_id) WHERE is_final = 1",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS work_version_chapters (
+            version_id     TEXT    NOT NULL,
+            sort_order     INTEGER NOT NULL,
+            src_chapter_id TEXT    NOT NULL DEFAULT '',
+            title          TEXT    NOT NULL DEFAULT '',
+            content        TEXT    NOT NULL DEFAULT '',
+            kind           TEXT    NOT NULL DEFAULT '',
+            parent_id      TEXT,
+            status         TEXT    NOT NULL DEFAULT '',
+            word_count     INTEGER NOT NULL DEFAULT 0
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_wvc_version ON work_version_chapters(version_id, sort_order)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS export_artifacts (
+            id            TEXT    PRIMARY KEY,
+            version_id    TEXT    NOT NULL,
+            book_id       TEXT    NOT NULL,
+            format        TEXT    NOT NULL,
+            spec_id       TEXT    NOT NULL DEFAULT 'default',
+            file_rel_path TEXT    NOT NULL,
+            file_size     INTEGER NOT NULL DEFAULT 0,
+            status        TEXT    NOT NULL DEFAULT 'ready',
+            error         TEXT    NOT NULL DEFAULT '',
+            origin        TEXT    NOT NULL DEFAULT 'export',
+            created_at    INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_ea_version ON export_artifacts(version_id)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_ea_book ON export_artifacts(book_id)",
+        [],
+    )?;
 
     Ok(())
 }
@@ -2933,5 +3119,136 @@ mod tests {
             )
             .unwrap();
         assert_eq!(exists_after, 1);
+    }
+
+    /// B0 迁移地基：work_versions / work_version_chapters / export_artifacts 三表及索引
+    #[test]
+    fn test_b0_work_versions_tables_and_indices_created() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_tables(&conn).unwrap();
+        migrate(&conn).unwrap();
+
+        for table in ["work_versions", "work_version_chapters", "export_artifacts", "legacy_completed_works"] {
+            let exists: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
+                    [table],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(exists, 1, "表 {table} 应已被创建");
+        }
+    }
+
+    /// B0 迁移地基：ux_wv_book_final 部分唯一索引只约束 is_final=1
+    #[test]
+    fn test_b0_work_versions_final_partial_unique_index() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_tables(&conn).unwrap();
+
+        // 同一本书可以有多条 is_final = 0 的记录
+        conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
+             VALUES ('v1', 'book_a', 1, 'hash1', 1000, 0)",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
+             VALUES ('v2', 'book_a', 2, 'hash2', 1001, 0)",
+            [],
+        ).unwrap();
+
+        // 插入第一条 is_final = 1 成功
+        conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
+             VALUES ('v3', 'book_a', 3, 'hash3', 1002, 1)",
+            [],
+        ).unwrap();
+
+        // 尝试插入同一本书第二条 is_final = 1 应因唯一索引 ux_wv_book_final 失败
+        let err = conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
+             VALUES ('v4', 'book_a', 4, 'hash4', 1003, 1)",
+            [],
+        );
+        assert!(err.is_err(), "同一本书不应允许两条 is_final=1 记录");
+
+        // 另一本书可以有自己的 is_final = 1
+        conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
+             VALUES ('v5', 'book_b', 1, 'hash5', 1004, 1)",
+            [],
+        ).unwrap();
+    }
+
+    /// B0 迁移地基：ux_wv_book_seq 约束同一本书的 seq 唯一
+    #[test]
+    fn test_b0_work_versions_seq_unique_index() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_tables(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at)
+             VALUES ('v1', 'book_a', 1, 'hash1', 1000)",
+            [],
+        ).unwrap();
+
+        let err = conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at)
+             VALUES ('v2', 'book_a', 1, 'hash2', 1001)",
+            [],
+        );
+        assert!(err.is_err(), "同一本书不应允许重复的 seq");
+    }
+
+    /// B0 迁移地基：completed_works 迁移为 legacy_completed_works 数据保留
+    #[test]
+    fn test_b0_completed_works_migrated_to_legacy_table() {
+        let conn = Connection::open_in_memory().unwrap();
+        // 模拟已有老库：存在 completed_works 且有数据
+        conn.execute(
+            "CREATE TABLE completed_works (
+                id TEXT PRIMARY KEY,
+                book_id TEXT NOT NULL,
+                book_title TEXT NOT NULL,
+                format TEXT NOT NULL DEFAULT '',
+                file_path TEXT NOT NULL DEFAULT '',
+                file_size INTEGER NOT NULL DEFAULT 0,
+                is_file_missing INTEGER NOT NULL DEFAULT 0,
+                word_count INTEGER NOT NULL DEFAULT 0,
+                chapter_count INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            )",
+            [],
+        ).unwrap();
+
+        conn.execute(
+            "INSERT INTO completed_works (id, book_id, book_title, format, file_path, file_size, created_at)
+             VALUES ('cw1', 'book1', '书名1', 'epub', '/path/to/1.epub', 1024, 123456)",
+            [],
+        ).unwrap();
+
+        // 正常启动流程：先 init_tables，再 migrate
+        init_tables(&conn).unwrap();
+        migrate(&conn).unwrap();
+
+        // 验证 completed_works 表已被重命名为 legacy_completed_works
+        let old_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='completed_works'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(old_exists, 0, "completed_works 表应已被重命名");
+
+        let legacy_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM legacy_completed_works WHERE id='cw1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(legacy_count, 1, "数据应完好保留在 legacy_completed_works 中");
     }
 }

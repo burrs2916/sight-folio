@@ -1347,7 +1347,7 @@ impl WritingRepository for SqliteWritingRepository {
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
-            "SELECT {COMPLETED_WORK_COLS} FROM completed_works ORDER BY created_at DESC, id DESC"
+            "SELECT {COMPLETED_WORK_COLS} FROM legacy_completed_works ORDER BY created_at DESC, id DESC"
         ))?;
         let works = stmt
             .query_map([], row_to_completed_work)?
@@ -1362,7 +1362,7 @@ impl WritingRepository for SqliteWritingRepository {
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
-            "INSERT OR REPLACE INTO completed_works
+            "INSERT OR REPLACE INTO legacy_completed_works
              (id, book_id, book_title, format, file_path, file_size, is_file_missing, word_count, chapter_count, created_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
             rusqlite::params![
@@ -1387,7 +1387,7 @@ impl WritingRepository for SqliteWritingRepository {
             .0
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute("DELETE FROM completed_works WHERE id = ?1", [id])?;
+        conn.execute("DELETE FROM legacy_completed_works WHERE id = ?1", [id])?;
         Ok(())
     }
 
@@ -1398,7 +1398,7 @@ impl WritingRepository for SqliteWritingRepository {
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
-            "SELECT {COMPLETED_WORK_COLS} FROM completed_works WHERE file_path = ?1 LIMIT 1"
+            "SELECT {COMPLETED_WORK_COLS} FROM legacy_completed_works WHERE file_path = ?1 LIMIT 1"
         ))?;
         let mut rows = stmt.query_map([file_path], row_to_completed_work)?;
         match rows.next() {
@@ -1420,7 +1420,7 @@ impl WritingRepository for SqliteWritingRepository {
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
-            "UPDATE completed_works SET file_path = ?2, file_size = ?3 WHERE id = ?1",
+            "UPDATE legacy_completed_works SET file_path = ?2, file_size = ?3 WHERE id = ?1",
             rusqlite::params![id, new_path, file_size],
         )?;
         Ok(())
@@ -1434,13 +1434,13 @@ impl WritingRepository for SqliteWritingRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let count = if format.is_empty() {
             conn.query_row(
-                "SELECT COUNT(*) FROM completed_works WHERE book_id = ?1",
+                "SELECT COUNT(*) FROM legacy_completed_works WHERE book_id = ?1",
                 [book_id],
                 |r| r.get(0),
             )?
         } else {
             conn.query_row(
-                "SELECT COUNT(*) FROM completed_works WHERE book_id = ?1 AND format = ?2",
+                "SELECT COUNT(*) FROM legacy_completed_works WHERE book_id = ?1 AND format = ?2",
                 rusqlite::params![book_id, format],
                 |r| r.get(0),
             )?
@@ -1455,7 +1455,7 @@ impl WritingRepository for SqliteWritingRepository {
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
-            "UPDATE completed_works SET is_file_missing = ?2 WHERE id = ?1",
+            "UPDATE legacy_completed_works SET is_file_missing = ?2 WHERE id = ?1",
             rusqlite::params![id, is_missing as i64],
         )?;
         Ok(())
@@ -1527,7 +1527,7 @@ mod tests {
             ("writing_setting_revisions", SETTING_REVISION_COLS),
             ("writing_annotations", ANNOTATION_COLS),
             ("writing_notes", NOTE_COLS),
-            ("completed_works", COMPLETED_WORK_COLS),
+            ("legacy_completed_works", COMPLETED_WORK_COLS),
         ] {
             let listed: Vec<String> = cols.split(',').map(|c| c.trim().to_string()).collect();
             let real = table_cols(&conn, table);
