@@ -6,6 +6,10 @@
 //! 一个刻意的设计：**锁定从库里的落盘态取数，不接受前端把正文传上来**。
 //! 前端（B2）的职责是先用既有 getFreshChapters 把未保存改动冲干净，再调本命令。
 //! 这样「锁进版本的正文」与「数据库里的正文」恒等，不会出现前端内存态与库态二义性。
+
+/// 作品库根目录（B3）：默认根、读取即建目录、换根校验与落库口径都在子模块。
+pub mod library_root;
+
 use crate::application::writing::is_chapter_soft_deleted;
 use crate::domain::writing::WritingChapter;
 use crate::domain::work_version::{WorkVersion, WorkVersionChapter};

@@ -101,6 +101,7 @@ import {
   presetLabel,
 } from './settingsOptions';
 import SettingsBackupSection from './SettingsBackupSection';
+import SettingsWorksLibrarySection from './SettingsWorksLibrarySection';
 import SettingsHealthNotice from './SettingsHealthNotice';
 import {
   FONT_FAMILY_OPTIONS,
@@ -1815,6 +1816,11 @@ export default function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
             <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
               {t('settings.saveCadenceHint')}
             </Typography>
+          </Section>
+
+          {/* ─── 成品作品库根目录（完结作品重设计 B3）─── */}
+          <Section id="worksLibrary" defaultExpanded={false}>
+            <SettingsWorksLibrarySection />
           </Section>
 
           {/* ─── 设置备份与恢复（第二十一轮新增能力）─── */}

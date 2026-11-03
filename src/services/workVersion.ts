@@ -55,6 +55,17 @@ export interface ExportArtifact {
  */
 export const SAME_CONTENT_ERROR_MARK = 'SAME_CONTENT|';
 
+/**
+ * 作品库根读数（B3）：后端读取时即保证目录可用（不存在则创建）；
+ * 创建失败会原样 reject —— 界面必须把错误如实展示，不许静默降级回「另存为」（需求 §4）。
+ */
+export interface WorksLibraryRootInfo {
+  /** 绝对路径 */
+  path: string;
+  /** true = 当前生效的是默认根（~/Documents/SightFolio 作品库） */
+  isDefault: boolean;
+}
+
 export const workVersionApi = {
   /**
    * 锁定一版。正文由后端从库里的落盘态自取，前端只负责调用前把未保存改动冲干净
@@ -79,5 +90,13 @@ export const workVersionApi = {
   /** 删版本，返回被连带抹掉的产物相对路径 */
   delete(versionId: string): Promise<string[]> {
     return invoke<string[]>('delete_work_version', { versionId });
+  },
+  /** 读作品库根（不存在则后端创建；失败 reject，调用方如实上报） */
+  getLibraryRoot(): Promise<WorksLibraryRootInfo> {
+    return invoke<WorksLibraryRootInfo>('get_works_library_root');
+  },
+  /** 换作品库根：只改配置不搬文件；后端建目录成功后才落库，失败不动旧值 */
+  setLibraryRoot(path: string): Promise<WorksLibraryRootInfo> {
+    return invoke<WorksLibraryRootInfo>('set_works_library_root', { path });
   },
 };

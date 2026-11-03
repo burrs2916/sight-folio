@@ -164,6 +164,7 @@ export type SettingsSectionId =
   | 'layoutDensity'
   | 'bodyTypography'
   | 'writingPrefs'
+  | 'worksLibrary'
   | 'backup';
 
 /**
@@ -309,6 +310,16 @@ export function getSectionIndex(): { id: SettingsSectionId; title: string; keywo
         ...FOCUS_MODE_OPTIONS,
         ...TYPEWRITER_OPTIONS,
         ...SAVE_CADENCE_OPTIONS,
+      ],
+    },
+    {
+      id: 'worksLibrary',
+      title: t('settings.worksLibrary'),
+      keywords: [
+        t('settings.worksLibraryHint'),
+        t('settings.worksLibraryChange'),
+        t('settings.worksLibraryCurrent'),
+        t('settings.worksLibraryDefaultTag'),
       ],
     },
     {

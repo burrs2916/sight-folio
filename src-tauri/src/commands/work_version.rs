@@ -3,6 +3,8 @@
 //! 薄壳：注入仓储 State，规则全在 `application::work_version`。
 //! 刻意不把新职责继续堆进已经很长的 `commands/writing.rs`（需求文档 §12）。
 use crate::application::work_version;
+use crate::application::work_version::library_root::WorksLibraryRootInfo;
+use crate::commands::SettingsState;
 use crate::domain::work_version::{WorkVersion, WorkVersionChapter};
 use crate::error::AppResult;
 use crate::infrastructure::database::work_version_repository::WorkVersionRepository;
@@ -74,4 +76,20 @@ pub fn delete_work_version(
     version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
 ) -> AppResult<Vec<String>> {
     work_version::delete_work_version(&version_id, &version_repo.inner().clone())
+}
+
+/// 读作品库根（B3）。语义是「确保可用」：目录不存在则创建；
+/// **创建失败把错误原样抛给 UI**，不许静默降级回「另存为」（需求 §4）。
+#[tauri::command]
+pub fn get_works_library_root(settings: State<'_, SettingsState>) -> AppResult<WorksLibraryRootInfo> {
+    work_version::library_root::get_works_library_root(&settings.repository)
+}
+
+/// 换作品库根（B3）。只改配置值不搬文件；目录创建成功后才落库。
+#[tauri::command]
+pub fn set_works_library_root(
+    path: String,
+    settings: State<'_, SettingsState>,
+) -> AppResult<WorksLibraryRootInfo> {
+    work_version::library_root::set_works_library_root(&settings.repository, &path)
 }

@@ -533,6 +533,9 @@ pub fn run() {
             commands::get_version_snapshot,
             commands::set_final_version,
             commands::delete_work_version,
+            // ─── 作品库根（B3）：读取即建目录 / 换根（创建失败如实抛错，无静默降级）───
+            commands::get_works_library_root,
+            commands::set_works_library_root,
             commands::list_writing_chapters,
             commands::get_writing_chapter,
             commands::save_writing_chapter,
