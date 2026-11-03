@@ -2253,10 +2253,14 @@ export default function WritingPage() {
       {/* ─── 左栏：书架 + 章节数/设定 双 tab ─── */}
       <Paper
         variant="outlined"
+        // 导航常在（2026-11-03 用户定调）：左栏（书架 + 章节目录树 + 大纲）不再随
+        // focus/zen 档位 display:none。此前切一次档就整栏消失，用户误判为「功能被删了」，
+        // 且档位存进设置库后跨重启保留，重启也回不来。专注档位的价值改由正文列几何
+        // 与留白体现（见下方批③ override），收起左栏的手动入口是拖宽/双击复位。
         sx={{
           width: leftPanelWidth,
           flexShrink: 0,
-          display: focusMode !== 'normal' ? 'none' : 'flex',
+          display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
           overflow: 'hidden',
@@ -2507,7 +2511,8 @@ export default function WritingPage() {
           </Box>
         )}
 
-        {focusMode === 'normal' && activeBook && (
+        {/* 导航常在：章节/设定/笔记三个页签（含目录树与大纲）任何档位都渲染，只跟作品绑定走 */}
+        {activeBook && (
           <>
             <Divider />
             <Tabs
@@ -2880,7 +2885,8 @@ export default function WritingPage() {
           width: 0,
           flexShrink: 0,
           position: 'relative',
-          display: focusMode !== 'normal' ? 'none' : 'block',
+          // 导航常在：左栏任何档位都在，拖宽手柄也就任何档位都得在（否则档位间手柄会凭空消失）
+          display: 'block',
         }}
       >
         <Box
@@ -4896,8 +4902,9 @@ export default function WritingPage() {
                   {t('writing.words', { n: chapterWordCount(editor) })}
                 </Typography>
               </Box>
-              {/* T4 浮动速记 FAB：normal 模式随时采灵感（focus/zen 沉浸时不打扰），锚定编辑区工具栏下方右侧，不遮挡底部字数栏 */}
-              {activeBook && focusMode === 'normal' && (
+              {/* T4 浮动速记 FAB：采灵感的功能入口，导航常在口径下任何档位都在（此前 focus/zen
+                  一并收起，等于沉浸时想记一笔得先退档位）；锚定编辑区工具栏下方右侧，不遮挡底部字数栏 */}
+              {activeBook && (
                 <Fab
                   size="small"
                   color="primary"
@@ -4912,7 +4919,9 @@ export default function WritingPage() {
                 </Fab>
               )}
             </Box>
-            {/* 创作台右抽屉：提醒汇总 + 语料参考 + 章详情入口（normal/focus 显示，zen 沉浸隐藏；提醒区仅 normal） */}
+            {/* 创作台右抽屉：提醒汇总（tips）+ 语料参考 + 章详情入口。导航常在（2026-11-03
+                用户定调）：任何档位都渲染、提醒区任何档位都显示；想要清净用抽屉自身的折叠窄条
+                （36px，用户主动动作），不再由档位代劳把整栏抹掉。 */}
             <WritingDrawer
               corpusQuery={corpusQuery}
               onInsertText={handleCorpusInsert}
@@ -4926,8 +4935,8 @@ export default function WritingPage() {
                 setActiveSetting(null);
                 setRightTab('details');
               }}
-              hidden={focusMode === 'zen'}
-              remindersVisible={focusMode === 'normal'}
+              hidden={false}
+              remindersVisible
               healthCount={healthIssueCount}
               onOpenHealth={() => setHealthOpen(true)}
               aiCorpus={{

@@ -283,15 +283,15 @@ export default function DeskSettingsPanel({ open, onClose }: DeskSettingsPanelPr
 /**
  * 写作台独立窗口的设置宿主：入口按钮 + 面板。
  *
- * 禅模式下连入口按钮一起收起 —— 这一档的全部意义就是「除了字什么都别在屏幕上」，
- * 浮一颗齿轮进去等于把它自己否掉了。⌘, 仍然可用（那是用户主动按键，不是我们塞的浮层）。
+ * 导航常在（2026-11-03 用户定调，覆盖原「禅模式连入口一起收起」的设计）：设置入口是
+ * 独立窗口里唯一的可见出口，此前 zen 下连同它一起 return null，再叠加左右两栏被档位
+ * 抹掉，屏幕上只剩正文 —— 用户实测后判定「这样工作没法展开」。档位从此只管正文几何
+ * 与留白，不管任何功能入口的存亡。⌘, 依旧保留。
  */
 export function WritingDeskSettingsHost() {
   const open = useSettingsPanelStore((s) => s.open);
   const setOpen = useSettingsPanelStore((s) => s.setOpen);
-  const focusMode = useWritingPrefsStore((s) => s.config.focusMode);
   const handleClose = useCallback(() => setOpen(false), [setOpen]);
-  if (focusMode === 'zen' && !open) return null;
   return (
     <>
       <Tooltip title={t('settings.deskOpenSettings', { shortcut: settingsShortcutLabel() })} arrow>

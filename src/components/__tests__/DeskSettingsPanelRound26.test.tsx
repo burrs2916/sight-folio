@@ -120,14 +120,19 @@ describe('写作台设置入口（宿主）', () => {
     expect(useSettingsPanelStore.getState().open).toBe(true);
   });
 
-  it('禅模式下浮层收起（沉浸档不该被一颗齿轮破掉），但面板已打开时不打断用户', () => {
+  // 断言口径变更（2026-11-03）：本条原锁「禅模式下浮层收起」，用户实测后否决了该设计
+  // —— 独立窗口的齿轮是唯一可见出口，zen 下连它一起消失即为「界面没功能了」。
+  // 新契约：档位不得抹掉任何功能入口。此处由「断言不存在」改为「断言在位且可用」。
+  it('禅模式下设置入口仍在位且不静音，点了照样开面板', () => {
     act(() => useWritingPrefsStore.getState().setFocusMode('zen'));
     const { rerender } = render(
       <AppTheme>
         <WritingDeskSettingsHost />
       </AppTheme>,
     );
-    expect(screen.queryByTestId('desk-settings-open')).toBeNull();
+    expect(screen.getByTestId('desk-settings-open')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('desk-settings-open'));
+    expect(useSettingsPanelStore.getState().open).toBe(true);
     useSettingsPanelStore.getState().setOpen(true);
     rerender(
       <AppTheme>
