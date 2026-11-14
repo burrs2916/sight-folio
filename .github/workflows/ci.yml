@@ -198,5 +198,19 @@ jobs:
             ./*_amd64.AppImage
             ```
           releaseDraft: false
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          # 固定发正式 Release（不进 Pre-release 折叠区）；此前按 push/branch 条件
+          # 判定导致 main 构建产物被标成 pre-release，折叠在 Releases 页底部难找。
+          prerelease: false
           args: ${{ matrix.args }}
+
+      # 同步上传一份 workflow Artifacts（Actions 运行页的 Artifacts 栏）。
+      # tauri-action 只把产物传到 Releases，Actions 页那个栏默认是空的；
+      # bundle 目录里只有安装包成品（dmg/exe/msi/AppImage/deb/rpm），
+      # 配合 *-target 通配兼容 macOS 的交叉编译目录（target/<target>/release/bundle）。
+      - name: Upload workflow artifacts (bundle installers)
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.platform }}
+          path: src-tauri/target/**/release/bundle/**
+          if-no-files-found: error
+          retention-days: 30
