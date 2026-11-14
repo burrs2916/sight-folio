@@ -9,23 +9,29 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useWritingStore } from "../../store/writingStore";
 import { buildChapterWordRows, computeWritingKpis, type WritingChapterWordRow } from "../../utils/writingStats";
+import { kpiLabelKeys } from "../../utils/writingSchema";
 import { t } from "../../i18n";
 
 export function StatsOverviewCard({ bookId, onJumpChapter }: { bookId: string; onJumpChapter?: (chId: string, title: string) => void }) {
   const chapters = useWritingStore((s) => s.chapters);
   const settings = useWritingStore((s) => s.settings);
+  const genre = useWritingStore((s) => s.books.find((b) => b.id === bookId)?.genre ?? "");
   const bookChapters = useMemo(() => chapters.filter((c) => c.bookId === bookId), [chapters, bookId]);
   const bookSettings = useMemo(() => settings.filter((s) => s.bookId === bookId), [settings, bookId]);
   const kpis = useMemo(() => computeWritingKpis(bookChapters, bookSettings), [bookChapters, bookSettings]);
-  const chRows = useMemo(() => buildChapterWordRows(bookChapters), [bookChapters]);
+  // genre 传进去，右栏这张卡才与统计页签同一口径：诗集的体量长短悬殊是体裁常态，
+  // 不传就会在小说「章均」尺度下给每首诗贴离群（⑭ 刀C 收口时发现的漏接）。
+  const chRows = useMemo(() => buildChapterWordRows(bookChapters, genre), [bookChapters, genre]);
   const outliers: WritingChapterWordRow[] = chRows.filter((r) => r.outlier !== null);
 
+  // 名词按体裁（小说 = 原键原字，零回归）
+  const kk = kpiLabelKeys(genre);
   const cells: { label: string; value: string }[] = [
     { label: t("writing.totalWords"), value: kpis.totalWords.toLocaleString() },
-    { label: t("writing.chapterCount"), value: String(kpis.chapterCount) },
-    { label: t("editor.writing.stats.kpiVolumes"), value: String(kpis.volumeCount) },
+    { label: t(kk.count), value: String(kpis.chapterCount) },
+    { label: t(kk.group), value: String(kpis.volumeCount) },
     { label: t("editor.writing.stats.kpiSettings"), value: String(kpis.settingCount) },
-    { label: t("editor.writing.stats.kpiAvg"), value: String(kpis.avgWords) },
+    { label: t(kk.avg), value: String(kpis.avgWords) },
   ];
 
   return (

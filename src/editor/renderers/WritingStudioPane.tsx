@@ -22,12 +22,13 @@ import { useWritingStore } from '../../store/writingStore';
 import { t } from '../../i18n';
 import { CV } from './canvasTheme';
 import {
+  accentForGenre,
   CastPane,
-  ESSAY_ACCENT,
+  collectionPaneKeys,
   ForeshadowingsPane,
   IdeasPane,
   InspirationsPane,
-  NOVEL_ACCENT,
+  isCollectionGenre,
   PiecesPane,
   ProofreadPane,
   StatsPane,
@@ -36,6 +37,7 @@ import {
   TimelinePane,
 } from './writingPanes';
 import { BookOverviewPanel } from '../panels/BookOverviewPanel';
+import { studioPaneHintKey, surfaceKeyForGenre, viewKindLabelKey } from '../../utils/writingSchema';
 
 /** 十种可编辑 pane；kind 与 L2 固定功能视图一一对应（含 overview 全书总览） */
 export type StudioPaneKind =
@@ -65,33 +67,29 @@ export function isStudioPaneKind(v: unknown): v is StudioPaneKind {
   );
 }
 
-/** pane → 表头标题（复用 L2 页签文案，让视图自述身份，零新键） */
-const PANE_LABEL_KEY: Record<StudioPaneKind, string> = {
-  storyline: 'writing.viewKind.catalog',
-  characters: 'writing.viewKind.characters',
-  worldview: 'writing.viewKind.worldview',
-  timeline: 'writing.viewKind.timeline',
-  storylines: 'writing.viewKind.storylines',
-  foreshadowings: 'writing.viewKind.foreshadowing',
-  inspirations: 'writing.viewKind.inspiration',
-  proofread: 'writing.viewKind.proofread',
-  stats: 'writing.viewKind.stats',
-  overview: 'writing.viewKind.overview',
+/**
+ * pane → 它对应的那枚 L2 固定视图 kind（㉛ 表头改吃 `viewKindLabelKey`）。
+ *
+ * 为什么留这张表而删掉下面那张：它是** pane 与视图 kind 的对应关系**，不是文案
+ * ——`foreshadowings` 这枚 pane 对应的 kind 叫 `foreshadowing`（单数），拼不出来，只能登记。
+ * 原先它存的是 i18n 键，于是剧本页签已经改叫「角色表」、栏头还顶着「人物设定」，
+ * 同一个概念在同一个屏幕上两张嘴。改成存 kind，词就只有一份（在槽位表里）。
+ */
+const PANE_VIEW_KIND: Record<StudioPaneKind, string> = {
+  storyline: 'catalog',
+  characters: 'characters',
+  worldview: 'worldview',
+  timeline: 'timeline',
+  storylines: 'storylines',
+  foreshadowings: 'foreshadowing',
+  inspirations: 'inspiration',
+  proofread: 'proofread',
+  stats: 'stats',
+  overview: 'overview',
 };
 
-/** pane → 一句话引导（说清「在这里能做什么」） */
-const PANE_HINT_KEY: Record<StudioPaneKind, string> = {
-  storyline: 'editor.writing.studioPane.storylineHint',
-  characters: 'editor.writing.studioPane.charactersHint',
-  worldview: 'editor.writing.studioPane.worldviewHint',
-  timeline: 'editor.writing.studioPane.timelineHint',
-  storylines: 'editor.writing.studioPane.storylinesHint',
-  foreshadowings: 'editor.writing.studioPane.foreshadowingsHint',
-  inspirations: 'editor.writing.studioPane.inspirationsHint',
-  proofread: 'editor.writing.studioPane.proofreadHint',
-  stats: 'editor.writing.studioPane.statsHint',
-  overview: 'editor.writing.studioPane.overviewHint',
-};
+// ㉛ pane → 引导语的表**已删除**：十句全部由 `studioPaneHintKey(genre, pane)` 现算，
+// 回落键就是本表删除前的那十条原键（小说与旧书逐字不变）。留着它 = 留第二份真源。
 
 export function WritingStudioPane({ config }: ComponentRendererProps) {
   const filePath = typeof config.filePath === 'string' ? config.filePath : '';
@@ -122,8 +120,12 @@ export function WritingStudioPane({ config }: ComponentRendererProps) {
   }
 
   const genre = book?.genre ?? '';
-  const isEssay = genre === 'essay';
-  const accent = isEssay ? ESSAY_ACCENT : NOVEL_ACCENT;
+  // 分支判据与设计卡（WritingDesignView）**同一个函数**：以前这里写死 `genre === 'essay'`，
+  // 设计卡那边已经换成 isCollectionGenre，于是诗集 / 日记本在 L2 大纲页领到小说的「主线」pane
+  // —— 节题还写着「写每一章要发生什么」（T-D，2026-11-10）。
+  const isCollection = isCollectionGenre(genre);
+  const accent = accentForGenre(genre);
+  const paneKeys = collectionPaneKeys(genre);
 
   return (
     <div
@@ -161,7 +163,7 @@ export function WritingStudioPane({ config }: ComponentRendererProps) {
         }}
       >
         <span style={{ fontSize: 12.5, fontWeight: 700, color: CV.text, flexShrink: 0 }}>
-          {t(PANE_LABEL_KEY[pane])}
+          {t(pane === 'storyline' ? surfaceKeyForGenre(genre, 'paneLabel') : viewKindLabelKey(genre, PANE_VIEW_KIND[pane]))}
         </span>
         <span
           style={{
@@ -173,7 +175,7 @@ export function WritingStudioPane({ config }: ComponentRendererProps) {
             whiteSpace: 'nowrap',
           }}
         >
-          {t(PANE_HINT_KEY[pane])}
+          {t(studioPaneHintKey(genre, pane))}
         </span>
         {book?.title && (
           <span style={{ fontSize: 10, color: CV.text3, marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap' }}>
@@ -223,14 +225,23 @@ export function WritingStudioPane({ config }: ComponentRendererProps) {
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <BookOverviewPanel bookId={bookId} />
           </div>
-        ) : isEssay ? (
-          // 散文的「大纲」= 篇目 + 立意/素材（与设计视图同一分支口径）
+        ) : isCollection ? (
+          // 合集型的「大纲」= 正文单位 + 素材/要点（与设计视图同一分支口径）。
+          // 措辞必须一起换：只换分支不换键，诗集这一栏会顶着散文的「篇目 / 立意」（⑩ 的旧账）。
           <>
-            <PiecesPane accent={accent} chapters={chapters} />
-            <IdeasPane accent={accent} outlines={outlines} />
+            {/* ㉫ 本卡书逐字递下去：卡内认书只准吃这个 bookId（config.filePath 现解），不吃工作室活跃书 */}
+            <PiecesPane
+              accent={accent}
+              bookId={bookId}
+              chapters={chapters}
+              labelKey={paneKeys.pieces}
+              emptyKey={paneKeys.piecesEmpty}
+            />
+            {/* ㉮ 素材栏同 PiecesPane：认书吃本卡 bookId（轮 27 · AI-10，outlines prop 仍是 store 原样缓存，池内过滤在栏内） */}
+            <IdeasPane accent={accent} bookId={bookId} outlines={outlines} labelKey={paneKeys.ideas} />
           </>
         ) : (
-          <StorylinePane accent={accent} chapters={chapters} outlines={outlines} settings={settings} />
+          <StorylinePane accent={accent} bookId={bookId} chapters={chapters} outlines={outlines} settings={settings} />
         )}
       </div>
     </div>

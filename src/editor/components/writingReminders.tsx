@@ -233,7 +233,9 @@ export function StatsReminder({
   const share = totalWords > 0 ? Math.round((words / totalWords) * 100) : 0;
   const kpis = computeWritingKpis(bookChapters, []);
   void kpis;
-  const row = buildChapterWordRows(bookChapters).find((r) => r.id === chapter.id);
+  // genre 必须传下去：本组件早就拿到 genre（跳转用），但⑨ 之后 buildChapterWordRows 的
+  // 离群判定改吃体裁时漏了这一处 —— 诗集底栏照样被贴「偏长/偏短」，而长短悬殊是诗集常态。
+  const row = buildChapterWordRows(bookChapters, genre).find((r) => r.id === chapter.id);
   const outlier = row?.outlier ?? null;
   const info = T.info;
   // 离群（偏长 / 偏短）一律走 warning 族，靠标签文案区分，不再各配一个近似琥珀

@@ -55,7 +55,9 @@ impl Database {
         let mut last_error: Option<rusqlite::Error> = None;
 
         // 生产老库一次性迁移：必须在候选链打开任何库之前做，避免两边同时被打开。
-        if let Some((from, to)) = legacy_migration_plan(os_data_dir(app_handle).as_deref(), &exe_legacy_db()) {
+        if let Some((from, to)) =
+            legacy_migration_plan(os_data_dir(app_handle).as_deref(), &exe_legacy_db())
+        {
             match migrate_legacy_db(&from, &to) {
                 Ok(copied) => eprintln!(
                     "[sight-folio] 设置库已从老落点迁移到稳定位置：{} → {}（复制 {} 个文件，原件保留）",
@@ -240,7 +242,8 @@ fn migrate_legacy_db(from: &std::path::Path, to: &std::path::Path) -> Result<usi
         let side = sibling(from, suffix);
         if side.exists() {
             let dest = sibling(to, suffix);
-            std::fs::copy(&side, &dest).map_err(|e| format!("复制 {} 失败: {e}", side.display()))?;
+            std::fs::copy(&side, &dest)
+                .map_err(|e| format!("复制 {} 失败: {e}", side.display()))?;
             copied += 1;
         }
     }
@@ -362,7 +365,10 @@ mod tests {
 
         assert!(legacy_migration_plan(Some(&stable_dir), &legacy).is_none());
         // 现库内容一字未动
-        assert_eq!(std::fs::read_to_string(stable_dir.join("config.db")).unwrap(), "current");
+        assert_eq!(
+            std::fs::read_to_string(stable_dir.join("config.db")).unwrap(),
+            "current"
+        );
         std::fs::remove_dir_all(&root).ok();
     }
 
@@ -389,11 +395,18 @@ mod tests {
         std::fs::write(from_dir.join("config.db-wal"), b"wal").unwrap();
         std::fs::write(from_dir.join("config.db-shm"), b"shm").unwrap();
 
-        let copied = migrate_legacy_db(&from_dir.join("config.db"), &to_dir.join("config.db")).unwrap();
+        let copied =
+            migrate_legacy_db(&from_dir.join("config.db"), &to_dir.join("config.db")).unwrap();
         // -shm 刻意不拷：只数主库 + wal
         assert_eq!(copied, 2);
-        assert_eq!(std::fs::read_to_string(to_dir.join("config.db")).unwrap(), "main");
-        assert_eq!(std::fs::read_to_string(to_dir.join("config.db-wal")).unwrap(), "wal");
+        assert_eq!(
+            std::fs::read_to_string(to_dir.join("config.db")).unwrap(),
+            "main"
+        );
+        assert_eq!(
+            std::fs::read_to_string(to_dir.join("config.db-wal")).unwrap(),
+            "wal"
+        );
         assert!(!to_dir.join("config.db-shm").exists());
         // 原件保留：迁移失败可重来，成功也只是自然归档
         assert!(from_dir.join("config.db").exists());
@@ -408,7 +421,8 @@ mod tests {
         std::fs::create_dir_all(&from_dir).unwrap();
         std::fs::write(from_dir.join("config.db-wal"), b"orphan-wal").unwrap();
 
-        let err = migrate_legacy_db(&from_dir.join("config.db"), &to_dir.join("config.db")).unwrap_err();
+        let err =
+            migrate_legacy_db(&from_dir.join("config.db"), &to_dir.join("config.db")).unwrap_err();
         assert!(err.contains("config.db"));
         // 孤儿 WAL 不会被单独搬走
         assert!(!to_dir.join("config.db-wal").exists());

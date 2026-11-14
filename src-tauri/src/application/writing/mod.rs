@@ -7,6 +7,8 @@
 //! 分层对齐：application/auth、application/icons 的既有模式。
 
 pub mod docx_export;
+pub mod format_html;
+pub mod layout;
 pub mod pdf_export;
 
 use crate::domain::analysis::Analysis;
@@ -123,20 +125,86 @@ pub fn restore_setting_revision(
 
 /// EPUB 章节载荷：前端把当前书的章节（标题 + TipTap HTML）传上来，
 /// 后端只负责打包写盘——不在 Rust 侧重复查询与排序逻辑。
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpubChapter {
     pub title: String,
     /// 章节正文（TipTap HTML，插画以 `<img data-asset="...">` 单一事实源存相对引用）。
     pub content: String,
     /// 章头图（批次 2）：相对引用 `assets/writing/illustrations/<name>`，无则 None。
-    /// 创作者主权：有/无等价合法，导出时仅当存在才接入。
+    /// 创作者主权：有/无等价合法，导出时仅当存在才接入。卷节点带的就是卷封面。
     #[serde(default)]
     pub cover: Option<String>,
-    /// 所属卷/部（批次 2 增强）：前端 WritingChapter.volume 透传，'' = 未分卷。
-    /// 有值时导出（PDF 目录卷层级/DOCX 卷标/EPUB nav 分组）以其为卷标题。
+    /// 所属卷名（**遗留扁平口径**）：旧模型书 `WritingChapter.volume` 那个字符串。
+    /// 结构书不许同时喂它 —— 层级由下面的 depth/is_volume 表达，两套一起给会把卷题
+    /// 打两遍（卷页一次 + 章前一次）。
+    ///
+    /// 原注释声称此字段供「PDF 目录卷层级/DOCX 卷标/EPUB nav 分组」用，而
+    /// `docx_export.rs` 里 `volume` 一次都没出现 —— 假注释正是丢卷层的成因，这里改对。
     #[serde(default)]
     pub volume: Option<String>,
+    /// 结构层级名（创作者自填：部/卷/章/节/幕…）。None = 载荷未带结构信息。
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// 结构树深度（根 = 0）。渲染层据此排版层级与目录缩进。
+    #[serde(default)]
+    pub depth: Option<usize>,
+    /// 容器节点（卷/篇/部…）：渲染成**卷页**（卷题 + 卷首语 + 卷封面），不是内容章。
+    #[serde(default)]
+    pub is_volume: Option<bool>,
+}
+
+/// 载荷是否带结构树信息。
+///
+/// 带 → 渲染层按 `depth` / `is_volume` 排层级、目录成真父子；
+/// 不带 → 走遗留 `volume` 字符串口径（写作台历史调用方与既有测试的输出零变化）。
+/// 两条口径由这个判据分流，不许在渲染器里各写一份判据。
+pub fn has_tree_payload(chapters: &[EpubChapter]) -> bool {
+    chapters
+        .iter()
+        .any(|c| c.depth.is_some() || c.is_volume.is_some())
+}
+
+/// nav 目录的一条（先序序列里的一个节点）。
+struct NavEntry {
+    title: String,
+    href: String,
+    depth: usize,
+}
+
+/// 先序序列 → 一层 `<li>` 列表，返回 `(HTML, 下一个未消费条目下标)`。
+///
+/// 为什么递归而不是栈计数器：目录正确性 = 作者看得见的东西，宁可写得一眼能验。
+/// 递归深度 = 树深度（部/卷/章这种个位数），不赌正文规模。
+/// 同层条目按输入顺序（= 先序）排；子层嵌在自己的父 `<li>` 内，
+/// 这就是 EPUB3 目录的父子结构，Apple Books / Kindle 会渲染成可折叠层级。
+fn nav_level(entries: &[NavEntry], from: usize, depth: usize) -> (String, usize) {
+    let mut items = String::new();
+    let mut i = from;
+    while i < entries.len() {
+        let e = &entries[i];
+        if e.depth < depth {
+            break; // 回到上一层，交给调用方收
+        }
+        if e.depth > depth {
+            return (items, i); // 深度跳变（脏数据）：交回上层兜底，绝不吞条目
+        }
+        i += 1;
+        let kids = if i < entries.len() && entries[i].depth > depth {
+            let child_depth = entries[i].depth;
+            let (html, next) = nav_level(entries, i, child_depth);
+            i = next;
+            format!("\n        <ol>{html}\n        </ol>")
+        } else {
+            String::new()
+        };
+        items.push_str(&format!(
+            "\n        <li><a href=\"{}\">{}</a>{kids}</li>",
+            e.href,
+            xml_escape(&e.title)
+        ));
+    }
+    (items, i)
 }
 
 /// XML 转义（属性/文本两用，最保守的五个实体）。
@@ -178,7 +246,7 @@ fn attr_quoted_value(tag: &str, attr: &str) -> Option<String> {
 
 /// 从一段 HTML 里提取所有 `data-asset="..."` 的相对引用（插画单一事实源）。
 /// 只扫 `<img ...>` 标签，不依赖外部解析库，符合本仓库受控的 TipTap 输出。
-fn extract_data_asset_refs(html: &str) -> Vec<String> {
+pub fn extract_data_asset_refs(html: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut start = 0;
     while let Some(pos) = html[start..].find("<img") {
@@ -294,22 +362,164 @@ fn html_to_xhtml(html: &str) -> String {
 
 /// 收集一个插画相对引用：解析磁盘绝对路径、读字节、去重、决定 EPUB 内路径。
 /// 结果写入 `img_entries`（写盘用）与 `rel_to_href`（正文 src 改写用）。
+/// 一个版本定格下来的图片资产表（`rel_path` → 定格件）。类型别名而不是新结构，
+/// 是为了让渲染层把它当**只读查表**用，不产生第二套语义。
+pub type FrozenAssets = std::collections::HashMap<String, FrozenAsset>;
+
+/// 单张定格资产。`missing = true` 是墓碑：锁定当刻该图就已缺失（见 `VersionAsset`）。
+#[derive(Debug, Clone)]
+pub struct FrozenAsset {
+    pub media_type: String,
+    pub bytes: Vec<u8>,
+    pub missing: bool,
+}
+
+/// 读一张图：**定格优先，活盘兜底**，缺图绝不静默。
+///
+/// 四种情形各有各的口径，不许糊成"读不到就跳过"：
+///  1. 定格表里有、非墓碑 → 用定格字节。作者事后删图/换图都不影响这一版。
+///  2. 墓碑 → **报错点名**。宁可不产出，也不出"看着成功但少图"的产物。
+///  3. 定格表**整体为空** → 这一版锁在定格机制之前（历史版本），回退读活盘 —— 保持历史行为，
+///     但这条只在"整表为空"时开，不许在表非空时按条静默回退（那会让口径悄悄漂移）。
+///  4. 表非空却查不到这条引用 → 定格时没收到它，按缺图点名（同上）。
+pub fn read_asset_bytes(rel: &str, frozen: Option<&FrozenAssets>) -> AppResult<(Vec<u8>, String)> {
+    if let Some(map) = frozen {
+        return match map.get(rel) {
+            Some(a) if a.missing => Err(AppError::Validation(format!(
+                "本书缺少图片「{rel}」——锁定当刻该文件就不存在。请补回该图或从正文/封面里去掉它，再重新锁定一版。"
+            ))),
+            Some(a) => Ok((a.bytes.clone(), a.media_type.clone())),
+            None if map.is_empty() => read_live_asset(rel),
+            None => Err(AppError::Validation(format!(
+                "本书缺少图片「{rel}」——它出现在正文里，却没有随本版本定格。请重新锁定一版。"
+            ))),
+        };
+    }
+    read_live_asset(rel)
+}
+
+/// 读活资产（定格机制之前/之外的历史路径）：相对引用经 `resolve_asset_ref`，
+/// 解析不动就按字面路径读 —— 与 `collect_asset` 的历史行为一致。
+pub fn read_live_asset(rel: &str) -> AppResult<(Vec<u8>, String)> {
+    let abs = crate::commands::asset::resolve_asset_ref(rel.to_string())
+        .unwrap_or_else(|_| rel.to_string());
+    let bytes =
+        std::fs::read(&abs).map_err(|e| AppError::Internal(format!("读取图片失败 {abs}：{e}")))?;
+    Ok((bytes, image_media_type(&abs).to_string()))
+}
+
+/// 扉页署名行（PDF / DOCX / HTML / TXT / MD 共用这**一份**判据）。
+///
+/// 只放**作者 + 出版社**两项：完结日期与 ISBN 属编目信息，进 EPUB 的 OPF 与扉页版权行，
+/// 不该混进阅读正文的抬头。两项都缺 → 返回空串，渲染层据此整行不排 ——
+/// 不许留"作者："这种空壳。
+pub fn byline_of(meta: &BookMeta) -> String {
+    let pairs = [("作者", &meta.author), ("出版社", &meta.publisher)];
+    let parts: Vec<String> = pairs
+        .iter()
+        .filter(|(_, v)| !v.trim().is_empty())
+        .map(|(label, v)| format!("{}：{}", label, v.trim()))
+        .collect();
+    parts.join(" ｜ ")
+}
+
+/// 把正文里的 `<img ... data-asset="相对引用">` **内联成 `data:` URI**，让 HTML 产物自包含。
+///
+/// 为什么必须做：快照 HTML 此前把 `data-asset` 原样写进产物 —— 那是一个指向**作者机器**
+/// 应用数据目录的相对路径，产物发给别人、或换台机器打开，图就是碎的。
+/// 内联之后一个 .html 文件本身就是整本书（与写作台「另存为 HTML」的行为对齐）。
+///
+/// 只动带 `data-asset` 的 img；已经是 `data:` / `http(s):` 的 src 原样保留。
+/// 重写时**先删掉标签内原有 `src`，再补一个新 `src`** —— 直接追加会造出重复属性，
+/// 而重复属性在 XHTML 里是非法的，阅读器取哪一个全看运气。
+pub fn inline_images_as_data_uri(html: &str, frozen: Option<&FrozenAssets>) -> AppResult<String> {
+    use base64::Engine;
+    let engine = base64::engine::general_purpose::STANDARD;
+    let mut out = String::with_capacity(html.len() + 1024);
+    let mut rest: &str = html;
+    loop {
+        let Some(pos) = rest.find("<img") else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(&rest[..pos]);
+        let Some(end_rel) = rest[pos..].find('>') else {
+            out.push_str(&rest[pos..]);
+            break;
+        };
+        let tag = &rest[pos..pos + end_rel + 1];
+        out.push_str(&rewrite_img_tag(tag, &engine, frozen)?);
+        rest = &rest[pos + end_rel + 1..];
+    }
+    Ok(out)
+}
+
+/// 重写单个 `<img>` 标签。
+fn rewrite_img_tag(
+    tag: &str,
+    engine: &impl base64::Engine,
+    frozen: Option<&FrozenAssets>,
+) -> AppResult<String> {
+    let Some(rel) = attr_of(tag, "data-asset") else {
+        return Ok(tag.to_string()); // 没有 data-asset：可能已是 data:/http，或纯装饰图 —— 不动
+    };
+    let (bytes, media) = read_asset_bytes(&rel, frozen)?;
+    let data_uri = format!("data:{};base64,{}", media, engine.encode(&bytes));
+    // 逐个摘掉标签内的 src="..."（只可能出现在这个片段里，不会误伤别的标签）
+    let mut stripped = String::with_capacity(tag.len());
+    let mut cursor = 0usize;
+    let bytes_of_tag = tag.as_bytes();
+    while let Some(found) = tag[cursor..].find("src=\"") {
+        let start = cursor + found;
+        let Some(rel_end) = tag[start + 6..].find('"') else {
+            break;
+        };
+        let end = start + 6 + rel_end + 1;
+        stripped.push_str(&tag[cursor..start]);
+        cursor = end;
+    }
+    stripped.push_str(&tag[cursor..]);
+    let _ = bytes_of_tag;
+    // 把新 src 插到标签收尾之前（保住自闭合的 `/>`）
+    let head_len = stripped.rfind('>').unwrap_or(stripped.len());
+    let self_closing = stripped[..head_len].trim_end().ends_with('/');
+    let mut out = String::with_capacity(stripped.len() + data_uri.len() + 16);
+    out.push_str(&stripped[..head_len - usize::from(self_closing)]);
+    out.push_str(&format!(" src=\"{}\" ", data_uri));
+    out.push_str(if self_closing { "/>" } else { ">" });
+    Ok(out)
+}
+
+/// 取标签里某个属性的值（简单扫描，够覆盖编辑器产出的 img 形态）。
+fn attr_of(tag: &str, name: &str) -> Option<String> {
+    let mut cursor = 0usize;
+    let needle = format!("{name}=\"");
+    while let Some(found) = tag[cursor..].find(needle.as_str()) {
+        let start = cursor + found + needle.len();
+        let Some(rel_end) = tag[start..].find('"') else {
+            return None;
+        };
+        let value = &tag[start..start + rel_end];
+        if !value.is_empty() {
+            return Some(value.to_string());
+        }
+        cursor = start;
+    }
+    None
+}
+
 fn collect_asset(
     rel: &str,
     rel_to_href: &mut std::collections::HashMap<String, String>,
     img_entries: &mut Vec<(String, Vec<u8>, String)>,
     used_names: &mut std::collections::HashMap<String, String>,
+    frozen: Option<&FrozenAssets>,
 ) -> AppResult<()> {
     if rel_to_href.contains_key(rel) {
         return Ok(()); // 同一张图在多处引用，只打包一次
     }
-    // 与 DOCX/PDF 导出一致：相对引用优先经 resolve_asset_ref 解析到应用数据目录；
-    // 解析失败（如外部绝对路径 / URL 风格引用）则按字面路径直接读取。
-    let abs = crate::commands::asset::resolve_asset_ref(rel.to_string())
-        .or_else(|_| Ok::<String, String>(rel.to_string()))
-        .map_err(|e| AppError::Internal(format!("resolve asset {rel}: {e}")))?;
-    let bytes =
-        std::fs::read(&abs).map_err(|e| AppError::Internal(format!("read asset {abs}: {e}")))?;
+    // R4：定格优先（版本自包含），无定格件才回退活盘；缺图点名，不静默。
+    let (bytes, media) = read_asset_bytes(rel, frozen)?;
     let base = std::path::Path::new(rel)
         .file_name()
         .map(|f| f.to_string_lossy().to_string())
@@ -328,7 +538,6 @@ fn collect_asset(
     }
     used_names.insert(name.clone(), rel.to_string());
     let href = format!("images/{}", name);
-    let media = image_media_type(&abs).to_string();
     img_entries.push((href.clone(), bytes, media));
     rel_to_href.insert(rel.to_string(), href);
     Ok(())
@@ -343,10 +552,21 @@ fn collect_asset(
 /// 图片接入（批次 3）：正文 `<img data-asset="相对引用">` 与章头图 `cover`
 /// 都经 `resolve_asset_ref` 解析绝对路径 → 读字节写入 OEBPS/images/，正文 src
 /// 改写为 EPUB 内相对路径；章头图作为章节首图前置到该章 `<body>`。无图章节不受影响。
+///
+/// 目录层级（2026-11-06）：载荷带 `depth` / `is_volume` 时，nav.xhtml 生成**嵌套 `<ol>`**，
+/// 卷是章的真父节点；不带时走遗留 `volume` 字符串分组，历史输出零变化。
+///
+/// `book_cover` = 书封相对引用（`assets/writing/covers-<bookId>/` 现取，见
+/// `work_version::export_jobs::resolve_book_cover`）。给了就挂成 EPUB3 的
+/// `properties="cover-image"`，阅读器书架位显示真封面；不给（旧调用方）行为不变。
 pub fn export_epub(
     title: String,
     description: Option<String>,
     chapters: Vec<EpubChapter>,
+    book_cover: Option<String>,
+    layout: layout::BookLayoutSpec,
+    assets: FrozenAssets,
+    meta: BookMeta,
     path: String,
 ) -> AppResult<()> {
     use std::collections::HashMap;
@@ -354,20 +574,50 @@ pub fn export_epub(
     use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
 
-    // 1. 预扫描整书所有插画引用（正文 <img data-asset> + 章头图 cover），去重收集。
+    // 1. 预扫描整书所有插画引用（书封 + 章/卷头图 cover + 正文 <img data-asset>），去重收集。
+    //    书封排在最前收集，确保它与某章头图是同一张文件时仍被认成一张（不重复打包）。
     let mut rel_to_href: HashMap<String, String> = HashMap::new();
     let mut img_entries: Vec<(String, Vec<u8>, String)> = Vec::new();
     let mut used_names: HashMap<String, String> = HashMap::new();
+    if let Some(cover) = book_cover.as_deref().filter(|c| !c.is_empty()) {
+        // 书封**不查定格表**：它是"渲染当时现取"的书目展示属性，与书名/简介同一口径，
+        // 而定格表只覆盖快照范围内的图（正文插图 + 各章/卷自己的封面）。
+        // 传 Some(&assets) 会让"有定格件的版本 + 设过书封"直接报"图没定格" —— 那是把
+        // 现取资源按定格资源判，口径串了。
+        collect_asset(
+            cover,
+            &mut rel_to_href,
+            &mut img_entries,
+            &mut used_names,
+            None,
+        )?;
+    }
     for ch in &chapters {
         if let Some(cover) = &ch.cover {
             if !cover.is_empty() {
-                collect_asset(cover, &mut rel_to_href, &mut img_entries, &mut used_names)?;
+                collect_asset(
+                    cover,
+                    &mut rel_to_href,
+                    &mut img_entries,
+                    &mut used_names,
+                    Some(&assets),
+                )?;
             }
         }
         for rel in extract_data_asset_refs(&ch.content) {
-            collect_asset(&rel, &mut rel_to_href, &mut img_entries, &mut used_names)?;
+            collect_asset(
+                &rel,
+                &mut rel_to_href,
+                &mut img_entries,
+                &mut used_names,
+                Some(&assets),
+            )?;
         }
     }
+    // 书封在 images/ 里的条目号（manifest 要用它挂 cover-image 属性）
+    let book_cover_href = book_cover
+        .as_deref()
+        .and_then(|c| rel_to_href.get(c).cloned());
 
     let file = std::fs::File::create(&path)
         .map_err(|e| AppError::Internal(format!("create {path}: {e}")))?;
@@ -423,19 +673,26 @@ pub fn export_epub(
     }
     for (k, (href, _bytes, media)) in img_entries.iter().enumerate() {
         let id = format!("img_{k}");
+        // 书封那份额外加 properties="cover-image"：这是 EPUB3 认定封面的正规姿势，
+        // 阅读器书架位取不到图就是这个属性没挂（不是"阅读器不支持"）。
+        let props = if book_cover_href.as_deref() == Some(href.as_str()) {
+            " properties=\"cover-image\""
+        } else {
+            ""
+        };
         manifest.push_str(&format!(
-            "\n    <item id=\"{id}\" href=\"{href}\" media-type=\"{media}\"/>"
+            "\n    <item id=\"{id}\" href=\"{href}\" media-type=\"{media}\"{props}/>"
         ));
     }
     let desc = description.as_deref().map(xml_escape).unwrap_or_default();
+    let meta_rows = meta.opf_rows();
     let opf = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="book-id">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="book-id">urn:uuid:{uuid}</dc:identifier>
     <dc:title>{esc_title}</dc:title>
-    <dc:creator>Sight Folio</dc:creator>
-    <dc:language>{lang}</dc:language>
+    {meta_rows}<dc:language>{lang}</dc:language>
     {desc_tag}
   </metadata>
   <manifest>
@@ -455,34 +712,60 @@ pub fn export_epub(
     zip.write_all(opf.as_bytes())
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // 6. nav.xhtml（EPUB3 目录；章节按卷分组：卷名作 <span> 组标题，卷内章节嵌套 <ol>）
+    // 6. nav.xhtml（EPUB3 目录）
+    //    结构口径（快照导出走这条）：先序 + depth → **真嵌套 `<ol>`**，容器（卷/篇/部）
+    //    是自己的可点父条目，阅读器目录里就是父子折叠树 —— 这正是「卷章对应不起来」的解。
+    //    遗留口径（旧调用方只给 volume 字符串）：连续分组，输出与历史逐字节一致。
     let mut nav_lis = String::new();
-    let mut open_volume_li = false;
-    let mut current_volume: Option<String> = None;
-    for (i, ch) in chapters.iter().enumerate() {
-        let volume = ch.volume.as_deref().filter(|v| !v.is_empty());
-        if volume != current_volume.as_deref() {
-            // 上一卷组收尾
-            if open_volume_li {
-                nav_lis.push_str("\n      </ol></li>");
-                open_volume_li = false;
-            }
-            current_volume = volume.map(str::to_string);
-            if let Some(v) = volume {
-                nav_lis.push_str(&format!(
-                    "\n      <li><span class=\"nav-volume\">{}</span>\n      <ol>",
-                    xml_escape(v)
-                ));
-                open_volume_li = true;
-            }
+    if has_tree_payload(&chapters) {
+        let entries: Vec<NavEntry> = chapters
+            .iter()
+            .enumerate()
+            .map(|(i, ch)| NavEntry {
+                title: ch.title.clone(),
+                href: format!("chapter_{i}.xhtml"),
+                depth: ch.depth.unwrap_or(0),
+            })
+            .collect();
+        let base = entries.iter().map(|e| e.depth).min().unwrap_or(0);
+        let (items, consumed) = nav_level(&entries, 0, base);
+        nav_lis.push_str(&items);
+        // 深度跳变等脏数据下没被嵌套收走的条目，补成平铺 <li>：目录一条都不许吞
+        for e in &entries[consumed.min(entries.len())..] {
+            nav_lis.push_str(&format!(
+                "\n        <li><a href=\"{}\">{}</a></li>",
+                e.href,
+                xml_escape(&e.title)
+            ));
         }
-        nav_lis.push_str(&format!(
-            "\n        <li><a href=\"chapter_{i}.xhtml\">{}</a></li>",
-            xml_escape(&ch.title)
-        ));
-    }
-    if open_volume_li {
-        nav_lis.push_str("\n      </ol></li>");
+    } else {
+        let mut open_volume_li = false;
+        let mut current_volume: Option<String> = None;
+        for (i, ch) in chapters.iter().enumerate() {
+            let volume = ch.volume.as_deref().filter(|v| !v.is_empty());
+            if volume != current_volume.as_deref() {
+                // 上一卷组收尾
+                if open_volume_li {
+                    nav_lis.push_str("\n      </ol></li>");
+                    open_volume_li = false;
+                }
+                current_volume = volume.map(str::to_string);
+                if let Some(v) = volume {
+                    nav_lis.push_str(&format!(
+                        "\n      <li><span class=\"nav-volume\">{}</span>\n      <ol>",
+                        xml_escape(v)
+                    ));
+                    open_volume_li = true;
+                }
+            }
+            nav_lis.push_str(&format!(
+                "\n        <li><a href=\"chapter_{i}.xhtml\">{}</a></li>",
+                xml_escape(&ch.title)
+            ));
+        }
+        if open_volume_li {
+            nav_lis.push_str("\n      </ol></li>");
+        }
     }
     let nav = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -568,6 +851,15 @@ h1:first-child + p {
   text-indent: 0;
   margin: 0.4em 0;
 }
+.colophon {
+  margin-top: 2.4em;
+}
+.colophon-item {
+  text-align: center;
+  font-size: 0.95em;
+  color: #555;
+  text-indent: 0;
+}
 .cover-brand {
   color: #999;
   font-size: 0.75em;
@@ -575,14 +867,74 @@ h1:first-child + p {
   text-indent: 0;
   margin-top: 2.5em;
 }
-/* nav 卷组标题 */
+/* nav 卷组标题（遗留扁平口径专用） */
 .nav-volume {
   font-weight: bold;
+}
+/* 卷页标题：容器节点（卷/篇/部）自成一页，层级越深字号越收敛 */
+.volume-title {
+  page-break-before: always;
+  break-before: page;
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 0.12em;
+  margin: 2.2em 0 1.6em;
+}
+.volume-depth-0 { font-size: 1.9em; }
+.volume-depth-1 { font-size: 1.6em; }
+.volume-depth-2 { font-size: 1.35em; }
+.volume-depth-3 { font-size: 1.2em; }
+/* 卷首语（卷节点自带正文）：正文排版本走 p 的常规口径，只补一条分隔留白 */
+.volume-title + p {
+  text-indent: 2em;
+}
+/* 嵌套目录：EPUB3 真父子，逐层缩进（结构口径专用） */
+nav ol ol {
+  margin-left: 1.4em;
+  padding-left: 0;
+}
+/* 书封图（有书封时才有这一块）：整宽居中，下方压书名 */
+.cover-image {
+  text-align: center;
+  margin: 0 0 1.4em;
+  text-indent: 0;
+}
+.cover-image img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
 }
 "#;
     zip.start_file("OEBPS/style.css", deflated)
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    zip.write_all(STYLE_CSS.as_bytes())
+    // R1（2026-11-06）：把**作者的排版设置**盖到基础版式上。此前这里是纯常量 ——
+    // 用户在写作台/设置抽屉调的字号、行距、字体、段距、首行缩进对产物一个字都不生效。
+    // 基础表保留历史值当回落（`css_font_family_or`：「跟随系统」≠「产物没有字体声明」）。
+    const HIST_FONT_STACK: &str =
+        "\"Noto Serif CJK SC\", \"Source Han Serif SC\", \"Songti SC\", \"SimSun\", serif";
+    let ind = layout.indent_css();
+    let para_gap_px = (layout.para_spacing_em * layout.font_size_px).round() as i64;
+    let style_css = STYLE_CSS
+        .replace(
+            "  font-family: \"Noto Serif CJK SC\", \"Source Han Serif SC\", \"Songti SC\", \"SimSun\", serif;\n  line-height: 1.8;",
+            &format!(
+                "  font-family: {};\n  font-size: {}px;\n  line-height: {};",
+                layout.css_font_family_or(HIST_FONT_STACK),
+                layout.font_size_px_rounded(),
+                layout.line_height
+            ),
+        )
+        .replace("  text-indent: 2em;", &format!("  text-indent: {ind};"))
+        .replace(
+            "p:first-of-type {\n  text-indent: 0;\n}",
+            &format!("p:first-of-type {{\n  text-indent: {ind};\n}}"),
+        )
+        .replace(
+            "p {\n  text-indent: 2em;\n  margin: 0;\n}",
+            &format!("p {{\n  text-indent: {ind};\n  margin: 0 0 {para_gap_px}px;\n}}"),
+        );
+    zip.write_all(style_css.as_bytes())
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     // 6.75 cover.xhtml：书封面页（书名 + 简介 + 出品署名，居中卡片式封面）
@@ -590,6 +942,15 @@ h1:first-child + p {
         .as_deref()
         .map(|d| format!("<p class=\"cover-desc\">{}</p>\n", xml_escape(d)))
         .unwrap_or_default();
+    // 书封图：有就上真图，无则整块缺席（不留空 <img>，也不拿 coverColor 假装有图）
+    let cover_img_html = match &book_cover_href {
+        Some(href) => format!(
+            "<div class=\"cover-image\"><img alt=\"{alt}\" src=\"{href}\"/></div>\n",
+            alt = xml_escape(&title)
+        ),
+        None => String::new(),
+    };
+    let colophon = meta.colophon_lines();
     let cover_xhtml = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -600,9 +961,9 @@ h1:first-child + p {
 </head>
 <body class="cover-page">
 <div class="cover-box">
-<h1 class="cover-title">{esc_title}</h1>
+{cover_img_html}<h1 class="cover-title">{esc_title}</h1>
 {cover_desc}
-<p class="cover-brand">Sight Folio 出品</p>
+{colophon}<p class="cover-brand">Sight Folio 出品</p>
 </div>
 </body>
 </html>"#
@@ -622,9 +983,18 @@ h1:first-child + p {
             }),
             _ => None,
         };
-        // 章标题注入：正文自身已含 <h1>（章节正文结构完整）时不重复注入。
+        // 标题注入：
+        //  · 正文自身已含 <h1>（章节正文结构完整）→ 不重复注入（历史口径不变）；
+        //  · 容器节点（卷/篇/部）→ 走 .volume-title：它是**卷页**，自带正文就是卷首语，
+        //    照常排在卷题下方，一个字都不丢（历史上卷被当普通章，产物里只剩一个光杆标题）。
         let title_tag = if ch.content.trim_start().starts_with("<h1") {
             String::new()
+        } else if ch.is_volume == Some(true) {
+            format!(
+                "<h1 class=\"volume-title volume-depth-{}\">{}</h1>\n",
+                ch.depth.unwrap_or(0).min(3),
+                xml_escape(&ch.title)
+            )
         } else {
             format!(
                 "<h1 class=\"chapter-title\">{}</h1>\n",
@@ -753,6 +1123,109 @@ pub fn is_chapter_soft_deleted(extra: &str) -> bool {
         .and_then(|v| v.get("deletedAt").and_then(|d| d.as_i64()))
         .map(|t| t > 0)
         .unwrap_or(false)
+}
+
+/// 章/卷封面（`extra.coverImage`）：宽容解析，坏数据 / 非字符串 / 空串一律 `None`。
+///
+/// 与前端 `utils/writingOutline.ts::parseChapterCover` **同一口径**（改一边必须改另一边）：
+/// 引用是相对路径 `assets/writing/illustrations/<name>`，渲染时经 `resolve_asset_ref`
+/// 解析到磁盘。封面各自独立、**绝不沿 parent_id 上溯借图**（借图 = 同卷章节千篇一律，
+/// 该做法已于 2026-09-29 废弃），所以本函数只看传进来的这一行 extra。
+/// 书目元数据（渲染层视角）。**空串 = 作者没录**，一律留白。
+///
+/// 这一条是 R2 的起点：`dc:creator` 曾硬编码成 `Sight Folio`，等于产物里写着
+/// "作者是本软件" —— 那是**事实错误**，不是缺功能。同理不许拿锁定日冒充完结日期。
+#[derive(Debug, Clone, Default)]
+pub struct BookMeta {
+    pub author: String,
+    pub publisher: String,
+    /// 完结/交稿日期（作者手填的展示串）
+    pub completed_at: String,
+    pub isbn: String,
+    /// 题材（现取自 `writing_books.genre`）。与书名/简介同口径：书目级展示属性，**不随版本定格**——
+    /// 作者改了题材，重导就该是新题材，这跟"书名改了要跟着改"是同一个道理。
+    pub subject: String,
+}
+
+impl BookMeta {
+    /// 扉页版权行：只排真有的那几项；一项都没录就不排，不留"作者："这种空壳。
+    fn colophon_lines(&self) -> String {
+        let pairs = [
+            ("作者", &self.author),
+            ("出版社", &self.publisher),
+            ("完结日期", &self.completed_at),
+            ("ISBN", &self.isbn),
+        ];
+        let rows: Vec<String> = pairs
+            .iter()
+            .filter(|(_, v)| !v.trim().is_empty())
+            .map(|(label, v)| {
+                format!(
+                    "<p class=\"colophon-item\">{label}：{v}</p>",
+                    label = xml_escape(label),
+                    v = xml_escape(v.trim())
+                )
+            })
+            .collect();
+        if rows.is_empty() {
+            return String::new();
+        }
+        format!("<div class=\"colophon\">\n{}\n</div>\n", rows.join("\n"))
+    }
+
+    /// OPF 元数据：缺项整条不写（EPUB3 里 creator / publisher / date 都是可选元素）。
+    fn opf_rows(&self) -> String {
+        // 四项逐个条件拼装。写成闭包反而要为可变捕获操心，这里四条并列最省事也最好读。
+        let mut out = String::new();
+        for (tag, value) in [
+            ("creator", self.author.trim()),
+            ("publisher", self.publisher.trim()),
+            ("date", self.completed_at.trim()),
+            ("subject", self.subject.trim()),
+        ] {
+            if !value.is_empty() {
+                out.push_str(&format!(
+                    "<dc:{tag}>{value}</dc:{tag}>\n    ",
+                    tag = tag,
+                    value = xml_escape(value)
+                ));
+            }
+        }
+        let isbn = self.isbn.trim();
+        if !isbn.is_empty() {
+            // ISBN 用 urn:ISBN 形式，另给 id 免得和书籍自身的 uuid 标识符抢 unique-identifier
+            out.push_str(&format!(
+                "<dc:identifier id=\"isbn\">urn:ISBN:{isbn}</dc:identifier>\n    ",
+                isbn = xml_escape(isbn)
+            ));
+        }
+        out
+    }
+}
+
+pub fn chapter_cover_ref(extra: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(extra)
+        .ok()
+        .and_then(|v| {
+            v.get("coverImage")
+                .and_then(|c| c.as_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        })
+}
+
+/// 日记条目日期（`extra.entryDate`，形如 'YYYY-MM-DD'）：与 `chapter_cover_ref` 完全同口径
+/// 的宽容解析——坏 JSON / 非字符串 / 空串一律 `None`。只负责取出原始值，不校验日期格式
+///（前端 `diaryEntry.ts::isDiaryDateKey` 才是写入口的格式守门，快照定格不重定义这套口径）。
+pub fn chapter_entry_date(extra: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(extra)
+        .ok()
+        .and_then(|v| {
+            v.get("entryDate")
+                .and_then(|d| d.as_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        })
 }
 
 pub fn scan_book(
@@ -1137,6 +1610,9 @@ mod export_smoke_tests {
         }
         vec![
             EpubChapter {
+                kind: None,
+                depth: None,
+                is_volume: None,
                 volume: None,
                 title: "第一章 缘起".into(),
                 content: format!(
@@ -1146,6 +1622,9 @@ mod export_smoke_tests {
                 cover: None,
             },
             EpubChapter {
+                kind: None,
+                depth: None,
+                is_volume: None,
                 volume: None,
                 title: "第二章 发展".into(),
                 content: r#"<p>English text with some words to wrap across lines correctly as well.</p><ul><li>要点一</li><li>要点二</li></ul><table><tr><td>甲</td><td>乙</td></tr><tr><td>1</td><td>2</td></tr></table>"#.into(),
@@ -1201,6 +1680,13 @@ mod export_smoke_tests {
             "测试之书".into(),
             Some("一本验证导出的书".into()),
             sample_chapters(true),
+            // 这条测的是「首行缩进这条代码路」，所以显式打开；默认版式是不缩进的
+            layout::BookLayoutSpec {
+                indent: true,
+                ..Default::default()
+            },
+            crate::application::writing::FrozenAssets::default(),
+            crate::application::writing::BookMeta::default(),
             out.to_string_lossy().to_string(),
         );
         assert!(r.is_ok(), "export failed: {:?}", r.err());
@@ -1238,10 +1724,12 @@ mod export_smoke_tests {
             !st.contains("td甲") && !st.contains("td乙"),
             "table cell tag residue leaked into pdf text"
         );
-        // T3 正文首行缩进 2 字符：首行 x = MARGIN(50) + BODY_FONT_SIZE(11)*2 = 72
+        // T3 正文首行缩进 2 字符。R1 之后 x 不再是死的 72：
+        //   x = MARGIN(50) + 正文 pt × 2，本例传 indent=true 的默认版式（16px = 12pt）→ 50 + 24 = 74。
+        // 断的是「缩进随正文字号走」这个口径，不是那个历史常数。
         assert!(
-            st.contains("1 0 0 1 72 "),
-            "first-line indent missing in content stream"
+            st.contains("1 0 0 1 74 "),
+            "首行缩进应按当前正文字号落位（50 + 12×2 = 74）"
         );
         // T3 页脚页码居中（正文页 "页码 / 总页数" 关于页面水平居中，x≈288.74）
         assert!(
@@ -1282,6 +1770,9 @@ mod export_smoke_tests {
             "测试之书".into(),
             None,
             sample_chapters(true),
+            layout::BookLayoutSpec::default(),
+            crate::application::writing::FrozenAssets::default(),
+            crate::application::writing::BookMeta::default(),
             out.to_string_lossy().to_string(),
         );
         assert!(r.is_ok(), "export failed: {:?}", r.err());
@@ -1366,6 +1857,9 @@ mod epub_export_smoke_tests {
         );
         vec![
             EpubChapter {
+                kind: None,
+                depth: None,
+                is_volume: None,
                 volume: None,
                 title: "第一章 风起".into(),
                 content: format!(r#"<h1>第一章 风起</h1><p>长夜漫漫，雨敲窗棂。</p>{img_tag}"#),
@@ -1376,6 +1870,9 @@ mod epub_export_smoke_tests {
                 },
             },
             EpubChapter {
+                kind: None,
+                depth: None,
+                is_volume: None,
                 volume: None,
                 title: "第二章 灯下".into(),
                 content: r#"<p>她翻开了旧信。</p>"#.into(),
@@ -1396,6 +1893,10 @@ mod epub_export_smoke_tests {
             "测试之书".into(),
             Some("端到端校验用书".into()),
             smoke_chapters(true),
+            None, // 书封：本例不给封面图，走无封面分支
+            crate::application::writing::layout::BookLayoutSpec::default(), // 版式：内置默认
+            crate::application::writing::FrozenAssets::default(),
+            crate::application::writing::BookMeta::default(), // 元数据：本例作者留空
             out.to_string_lossy().to_string(),
         );
         assert!(r.is_ok(), "export failed: {:?}", r.err());
@@ -1432,9 +1933,16 @@ mod epub_export_smoke_tests {
             "missing description"
         );
         // T7 元数据与封面：dc:creator、cover manifest、spine 首位为封面
+        // T7 元数据与封面：**作者没录就不该有 dc:creator**。
+        // 旧断言写的是 `dc:creator == "Sight Folio"` —— 那等于产物宣称"作者是本软件"，
+        // 是事实错误被测试锁住了（R2，2026-11-06）。真作者进元数据另有专项用例。
         assert!(
-            obuf.contains("<dc:creator>Sight Folio</dc:creator>"),
-            "missing dc:creator"
+            !obuf.contains("<dc:creator>"),
+            "作者为空时不许伪造 dc:creator"
+        );
+        assert!(
+            !obuf.contains("Sight Folio"),
+            "OPF 元数据里不该出现软件名冒充作者"
         );
         assert!(
             obuf.contains("id=\"cover\" href=\"cover.xhtml\""),
@@ -1506,10 +2014,30 @@ mod epub_export_smoke_tests {
             sbuf.contains("page-break-before: always"),
             "style.css missing chapter page-break"
         );
+        // R1（2026-11-06）口径改定的地方：首行缩进**跟随作者排版设置**，不再写死 2em。
+        // 应用默认（DEFAULT_TYPOGRAPHY.indent）是「不缩进」，所以默认版式的产物就该 0；
+        // 作者打开缩进才出 2em —— 「作者看得见什么，产物就是什么」。
+        // 本例传的是 BookLayoutSpec::default()（indent=false），因此断 0；开了缩进的情况
+        // 由下面的 style_css 直测覆盖，别把这条改回 2em 当作"回归修复"。
         assert!(
-            sbuf.contains("text-indent: 2em"),
-            "style.css missing first-line indent"
+            sbuf.contains("text-indent: 0") && !sbuf.contains("text-indent: 2em"),
+            "默认版式（不缩进）不该在产物里偷偷缩进：{sbuf}"
         );
+        assert!(
+            sbuf.contains("line-height: 1.9") && sbuf.contains("font-size: 16px"),
+            "版式要真从 BookLayoutSpec 生成（默认 16px / 1.9）：{sbuf}"
+        );
+        let indented = layout::BookLayoutSpec {
+            indent: true,
+            font_size_px: 20.0,
+            line_height: 2.2,
+            para_spacing_em: 1.0,
+            font_family: "'Songti SC', serif".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(indented.indent_css(), "2em");
+        assert_eq!(indented.font_size_px_rounded(), 20);
+        assert_eq!(indented.css_font_family_or("HIST"), "'Songti SC', serif");
         assert!(
             x0.contains("href=\"style.css\""),
             "chapter xhtml missing stylesheet link"
@@ -1550,24 +2078,37 @@ mod epub_export_smoke_tests {
             None,
             vec![
                 EpubChapter {
+                    kind: None,
+                    depth: None,
+                    is_volume: None,
                     volume: Some("第一卷 风起".into()),
                     title: "第一章 起势".into(),
                     content: r#"<h1>第一章 起势</h1><p>雨落。</p>"#.into(),
                     cover: None,
                 },
                 EpubChapter {
+                    kind: None,
+                    depth: None,
+                    is_volume: None,
                     volume: Some("第一卷 风起".into()),
                     title: "第二章 破竹".into(),
                     content: r#"<h1>第二章 破竹</h1><p>风起。</p>"#.into(),
                     cover: None,
                 },
                 EpubChapter {
+                    kind: None,
+                    depth: None,
+                    is_volume: None,
                     volume: Some("第二卷 云涌".into()),
                     title: "第三章 合龙".into(),
                     content: r#"<h1>第三章 合龙</h1><p>云聚。</p>"#.into(),
                     cover: None,
                 },
             ],
+            None, // 书封：本例不给封面图，走无封面分支
+            crate::application::writing::layout::BookLayoutSpec::default(), // 版式：内置默认
+            crate::application::writing::FrozenAssets::default(),
+            crate::application::writing::BookMeta::default(),
             out.to_string_lossy().to_string(),
         );
         assert!(r.is_ok(), "export failed: {:?}", r.err());
@@ -1619,18 +2160,28 @@ mod epub_export_smoke_tests {
             None,
             vec![
                 EpubChapter {
+                    kind: None,
+                    depth: None,
+                    is_volume: None,
                     volume: None,
                     title: "第一章".into(),
                     content: "<p>无图章节一。</p>".into(),
                     cover: None,
                 },
                 EpubChapter {
+                    kind: None,
+                    depth: None,
+                    is_volume: None,
                     volume: None,
                     title: "第二章".into(),
                     content: "<p>无图章节二。</p>".into(),
                     cover: None,
                 },
             ],
+            None, // 书封：本例不给封面图，走无封面分支
+            crate::application::writing::layout::BookLayoutSpec::default(), // 版式：内置默认
+            crate::application::writing::FrozenAssets::default(),
+            crate::application::writing::BookMeta::default(),
             out.to_string_lossy().to_string(),
         );
         assert!(r.is_ok(), "export failed: {:?}", r.err());
@@ -1660,11 +2211,18 @@ mod epub_export_smoke_tests {
             "A & B <book>".into(),
             None,
             vec![EpubChapter {
+                kind: None,
+                depth: None,
+                is_volume: None,
                 volume: None,
                 title: "第1章 <序> & 后记".into(),
                 content: "<p>x</p>".into(),
                 cover: None,
             }],
+            None, // 书封：本例不给封面图，走无封面分支
+            crate::application::writing::layout::BookLayoutSpec::default(), // 版式：内置默认
+            crate::application::writing::FrozenAssets::default(),
+            crate::application::writing::BookMeta::default(), // 元数据：本例作者留空
             out.to_string_lossy().to_string(),
         );
         assert!(r.is_ok(), "export failed: {:?}", r.err());
@@ -1824,6 +2382,71 @@ mod import_tests {
 }
 
 #[cfg(test)]
+// ─── R2 书目元数据：拼装规则（缺项不写、不伪造）───────
+#[test]
+fn opf_元数据_缺项整条不写_有项才出且转义到位() {
+    let empty = BookMeta::default();
+    let rows = empty.opf_rows();
+    assert!(
+        rows.is_empty(),
+        "全空就不该产生任何元数据行，更不许出现 dc:creator：{rows}"
+    );
+
+    let full = BookMeta {
+        author: "张三 & 李四".to_string(),
+        publisher: "星海文艺社".to_string(),
+        completed_at: "2026-11-06".to_string(),
+        isbn: "978-7-000-12345-6".to_string(),
+        subject: "武侠".to_string(),
+    };
+    let rows = full.opf_rows();
+    for want in [
+        "<dc:creator>",
+        "星海文艺社</dc:publisher>",
+        "<dc:date>2026-11-06</dc:date>",
+        "urn:ISBN:978-7-000-12345-6",
+        "<dc:subject>武侠</dc:subject>",
+    ] {
+        assert!(rows.contains(want), "缺 {want}：{rows}");
+    }
+    assert!(
+        rows.contains("张三 &amp; 李四"),
+        "作者名里的 & 必须转义，否则 OPF 直接坏掉：{rows}"
+    );
+    assert!(!rows.contains("张三 & 李四<"), "不许出现未转义的裸 &");
+}
+
+#[test]
+fn 署名行只放作者与出版社_两项全空就是空串() {
+    assert_eq!(
+        byline_of(&BookMeta {
+            author: " 张三丰 ".to_string(),
+            publisher: "星海文艺社".to_string(),
+            ..Default::default()
+        }),
+        "作者：张三丰 ｜ 出版社：星海文艺社"
+    );
+    // 只有作者也要出，且不带悬空的分隔符
+    assert_eq!(
+        byline_of(&BookMeta {
+            author: "张三丰".to_string(),
+            ..Default::default()
+        }),
+        "作者：张三丰"
+    );
+    assert_eq!(
+        byline_of(&BookMeta::default()),
+        "",
+        "都没录就是空串，渲染层据此整行不排"
+    );
+    // 完结日期/ISBN 属编目信息，不许混进阅读抬头
+    assert!(byline_of(&BookMeta {
+        completed_at: "2026-11-06".to_string(),
+        isbn: "978".to_string(),
+        ..Default::default()
+    })
+    .is_empty());
+}
 mod setting_revision_restore_tests {
     use super::*;
     use crate::domain::writing::{WritingBook, WritingSetting, WritingSettingRevision};

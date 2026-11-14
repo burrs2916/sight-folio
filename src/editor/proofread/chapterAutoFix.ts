@@ -8,6 +8,7 @@
 // 实现：在 DOM 文本节点级别的原地替换（runProofread 的跨段检测如引号配对无 fix，不受段边界影响；
 // 需要 fix 的规则全部为段内局部词/标点，逐节点检测偏移天然有效），保留全部标签与内联格式。
 import { runProofread } from './proofreadEngine';
+import { normalizeFormat, specForText } from '../../utils/writingFormat';
 import { stripHtmlText } from '../../utils/writingProofread';
 
 /** 纯文本（stripHtmlText 口径）中是否存在可一键自动修复项 */
@@ -30,7 +31,17 @@ export function wordCountOfHtml(html: string): number {
  * 返回修复后 HTML 与替换条数；无可修复项时原样返回（fixedCount=0）。
  * 一次通过、不做二次重扫：自动修复不引入新错误（fix 均为规范文本）。
  */
-export function applyAutoFixesHtml(html: string): { html: string; fixedCount: number } {
+export function applyAutoFixesHtml(html: string): {
+  html: string;
+  fixedCount: number;
+  /** 结构层是否动过（回执要能说清"改了排版"还是"改了字"） */
+  structFixed: boolean;
+} {
+  // 结构层先走一遍（幂等）：段首手工缩进、空段、<br> 冒充分段、中西间隔。
+  // 顺序要紧：先修结构再跑引擎，否则引擎按纯文本算出的偏移会被我们改动的空白打偏。
+  const normalized = normalizeFormat(html, specForText(stripHtmlText(html)));
+  const structFixed = normalized !== html;
+  html = normalized;
   if (typeof DOMParser === 'undefined') {
     throw new Error('applyAutoFixesHtml requires DOMParser (browser/jsdom)');
   }
@@ -42,7 +53,9 @@ export function applyAutoFixesHtml(html: string): { html: string; fixedCount: nu
     const n = walker.currentNode;
     if (n.nodeType === Node.TEXT_NODE && n.textContent) textNodes.push(n as Text);
   }
-  let fixedCount = 0;
+  // 结构层修过就计 1 条：调用方普遍用 `fixedCount === 0` 提前返回并跳过落库，
+  // 不计这一条会让"只改了排版"的章节被静默丢弃 —— 修了等于没修。
+  let fixedCount = structFixed ? 1 : 0;
   for (const node of textNodes) {
     const text = node.data;
     if (!text) continue;
@@ -57,5 +70,5 @@ export function applyAutoFixesHtml(html: string): { html: string; fixedCount: nu
     node.data = out;
     fixedCount += sorted.length;
   }
-  return { html: doc.body.innerHTML, fixedCount };
+  return { html: doc.body.innerHTML, fixedCount, structFixed };
 }

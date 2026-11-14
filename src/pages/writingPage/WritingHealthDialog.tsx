@@ -1,6 +1,6 @@
-// 全书体检（批次② 增-1）：写作台内的七组体检发现清单。
+// 全书体检（批次② 增-1）：写作台内的六组体检发现清单。
 //
-// 为什么要有这个面板：七组全书体检此前**只存在于场景画布**（校对页签 + 右栏要素卡），
+// 为什么要有这个面板：六组全书体检此前**只存在于场景画布**（校对页签 + 右栏要素卡），
 // 而作者绝大多数时间在写作台。更糟的是写作台工具栏上那个「校对」按钮打开的是
 // **当前章**的错字/重复/敏感词面板（ProofreadPanel），同名不同物，作者以为全书体检就是它。
 //
@@ -98,9 +98,12 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
   const [severity, setSeverity] = useState<ProofreadSeverityFilter>('all');
   const [sort, setSort] = useState<ProofreadSortMode>('severity');
 
+  // ㉚ 提上来一份：既是跳转协议入参（页签按载体类型定位），也是 ㉬ N-21 体检报告的体裁闸输入。
+  // 只留这一个声明 —— 原来它在下面第 130 行，两处各判一次就是第二个真源。
+  const genre = books.find((b) => b.id === activeBookId)?.genre ?? '';
   const report = useMemo(
-    () => buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings),
-    [chapters, outlines, timelineEvents, foreshadowings, storylines, settings],
+    () => buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings, genre),
+    [chapters, outlines, timelineEvents, foreshadowings, storylines, settings, genre],
   );
 
   const chapterOrder = useMemo(
@@ -126,8 +129,7 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
     return sortProofreadIssues(filterProofreadIssues(byGroup, severity), sort, chapterOrder);
   }, [report.issues, group, severity, sort, chapterOrder]);
 
-  // 跳转协议的入参：页签按载体类型（genre）定位，缺它就只能落到别的书上
-  const genre = books.find((b) => b.id === activeBookId)?.genre ?? '';
+  // 跳转协议的入参 genre 复用上面第 103 行那一份声明（页签按载体类型定位，缺它就只能落到别的书上）
 
   const act = (issue: ProofreadFinding) => {
     const tg = issue.target;
@@ -238,7 +240,7 @@ export function WritingHealthDialog({ open, onClose, onJumpChapter, onOpenSettin
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-            {/* 左：七组维度 + 计数（与画布校对页签同一分组口径） */}
+            {/* 左：六组维度 + 计数（与画布校对页签同一分组口径） */}
             <Box sx={{ width: 150, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
               {(['all', ...PROOFREAD_GROUPS] as const).map((g) => {
                 const n = g === 'all' ? report.issues.length : (report.counts[g] ?? 0);

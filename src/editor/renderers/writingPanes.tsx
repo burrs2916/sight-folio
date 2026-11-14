@@ -13,6 +13,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { openWritingDesk } from '../../utils/writingDeskWindow';
 import { useWritingStore } from '../../store/writingStore';
+// ㉣ N-22：日记「谁在写」的唯一口径住 services/writing（解析 / 人称清单 / 文案键），界面只消费。
+import { DIARY_PERSONS, diaryPersonLabelKey, parseBookNarrator } from '../../services/writing';
+// 字号铁律：新增界面文字一律走 uiFontSize()（本文件 135 处裸 fontSize 是历史欠账，不在本刀范围）
+import { uiFontSize } from '../../theme/appearanceScales';
 import { useEditorStore } from '../../store/editorStore';
 import { WB_TYPE_COLORS } from '../panels/WritingInspectorPanel';
 import {
@@ -25,7 +29,7 @@ import {
   type WritingSetting,
   type WritingTimelineEvent,
 } from '../../services/tauri';
-import { openChapterCarrierView, openTypedCarrierView } from '../../utils/studioBook';
+import { ensureWritingBookWired, openChapterCarrierView, openTypedCarrierView } from '../../utils/studioBook';
 import { logger } from '../../utils/logger';
 import { chaptersOfSetting, toggleSettingOnChapter, settingCompleteness } from '../../utils/writingOutline';
 import {
@@ -38,7 +42,9 @@ import {
   suggestedChildKind,
   type TreeNode,
 } from '../../utils/writingTree';
-import { t } from '../../i18n';
+import { getLang, t } from '../../i18n';
+// ㉭ M1a：日记「今天这一条」的既有工具（日期键 / 按日期找条目 / 条目标题 / 写日期进 extra）
+import { diaryEntryTitle, findEntryByDate, todayDateKey, writeDiaryDate } from '../../utils/diaryEntry';
 import { clipSummary } from '../../utils/writingSearch';
 import { CV } from './canvasTheme';
 import {
@@ -102,9 +108,67 @@ import { InspirationDetail } from '../panels/InspirationPanels';
 import { ChapterStatusDot } from '../components/ChapterStatusDot';
 import { DraftInput } from '../components/DraftInput';
 import { currentScrollBehavior } from '../../utils/reducedMotion';
+import { confirmDestructive } from '../../store/confirmStore';
+import { genreDef, isCollectionGenre, kpiLabelKeys, unitNameKey, canCreateEntityForGenre } from '../../utils/writingSchema';
+// ㉥ M1a：记录条的体裁判据用「这个载体是一条一天吗」的现成唯一口径，不抄体裁清单
+import { surfaceKeyForGenre, hasTodayEntryMode } from '../../utils/writingSchema';
+
+// 判定住 writingSchema（体裁决定有什么），这里只**转出**给原 import 路径用，免得同一条判据出现第二份
+//（2026-11-09 搬它的时候漏拆原件，这条是补账）。
+export { isCollectionGenre };
 
 export const NOVEL_ACCENT = '#4A338F';
 export const ESSAY_ACCENT = '#0ea5e9';
+/** 诗歌主色**不在这里造新色值**，直接取 writingSchema 里该体裁申报的颜色（体裁色只有一份）。 */
+export const POETRY_ACCENT = genreDef('poetry')?.color ?? ESSAY_ACCENT;
+
+/**
+ * 体裁 → 编辑面主色。**色值只准取自 `WRITING_GENRES` 的申报色**（体裁色只有一份），
+ * 不再逐支 if —— 2026-11-09 诗歌那一刀就是靠这条回落侥幸拿到色，剧本/日记开闸时没人回来补，
+ * 于是两本体裁在卡上顶着一样的墨紫（T-D 收的账）。
+ *
+ * 两处例外都是**历史事实**，写出来而不是默默保留：
+ *  - essay 用的是 #0ea5e9，与 schema 申报的 #2563eb 不同。换色是视觉改动，不在本刀范围；
+ *  - 空串 / 未登记值 = 小说口径 = 墨紫，与改造前逐字相同。
+ */
+export function accentForGenre(genre: string): string {
+  if (genre === 'essay') return ESSAY_ACCENT;
+  const def = genreDef(genre);
+  if (def && def.id !== 'novel') return def.color;
+  return NOVEL_ACCENT;
+}
+
+/**
+ * 合集型两栏的措辞 key。两张卡（设计视图 / L2 大纲 pane）都从这里取，
+ * 免得"设计卡叫诗作、大纲页签叫篇目"这种半改状态再出现一次。
+ * 散文用历史键（篇目 / 立意·素材），诗歌用新键（诗作 / 意象素材）。
+ */
+const COLLECTION_PANE_KEYS: Record<string, { pieces: string; piecesEmpty: string; ideas: string }> = {
+  poetry: {
+    pieces: 'writingLeft.tplPoem',
+    piecesEmpty: 'writingDesign.emptyPoems',
+    ideas: 'writingLeft.tplPoemImagery',
+  },
+  // 日记也是合集型（isCollectionGenre 已含 diary）：不补这一支，它会拿到散文的「篇目 / 立意」措辞。
+  diary: {
+    pieces: 'writingLeft.tplDiaryDay',
+    piecesEmpty: 'writingDesign.emptyDays',
+    ideas: 'writingLeft.tplDiaryMatter',
+  },
+};
+const COLLECTION_PANE_KEYS_DEFAULT = {
+  pieces: 'writingDesign.pane.pieces',
+  piecesEmpty: 'writingDesign.emptyPieces',
+  ideas: 'writingDesign.pane.ideas',
+};
+
+export function collectionPaneKeys(genre: string): { pieces: string; piecesEmpty: string; ideas: string } {
+  return COLLECTION_PANE_KEYS[genre] ?? COLLECTION_PANE_KEYS_DEFAULT;
+}
+
+// ㉭（轮 26 · AI-9）写侧扳正助手 ensureWritingBookWired 整段上收 utils/studioBook.ts ——
+// 右栏灵感总览卡也要同一道闸，留在本文件会让 panels 反向 import renderers 成循环引用。
+// 本文件三处消费点（StorylinePane 加节点 / StorylineSection 新建线 / PiecesPane 新增）不变。
 
 // 节点拖拽 reparent 的专用 MIME（拖动行首手柄把任意节点挂到另一节点下，串成树）。
 export const NODE_DND_MIME = 'application/x-outline-node';
@@ -277,6 +341,76 @@ function WbFilterChip({
 /** 已绑定章节显示上限（折叠态），防止单条卡片撑爆面板 */
 const MAX_VISIBLE_CHAPTERS = 7;
 
+/**
+ * ㉣ N-22（2026-11-11 轮 72 续 · 李先生真人原话「日记的人物有主角，是吧？这个人物是谁？我或者是
+ * 其他的人？第一人称、第二人称、第三人称，这个都是可以调整的」）：日记书人物栏顶部的「谁在写」条。
+ * 人称三档 + 主角称谓**就地可改**，落 `book.extra.diaryNarrator`（零迁移）；另一张嘴在
+ * `writingContextProvider`（AI 全书概览）——没有它，模型会自己替创作者挑人称。
+ * 只在 `genre === 'diary'` 出现：其余四体裁的人物栏一个像素都不动（零回归线）。
+ */
+export function DiaryNarratorBar({ bookId, accent }: { bookId?: string; accent: string }) {
+  const book = useWritingStore((s) => s.books.find((b) => b.id === bookId));
+  const setBookNarrator = useWritingStore((s) => s.setBookNarrator);
+  const narrator = parseBookNarrator(book?.extra);
+  // 受控但**不镜像**：只在打字期间持草稿，失焦即交还给 extra ⇒ 别处（另一窗口 / AI / 撤销）改过
+  // 这行会自然回流，也不在 effect 里同步 setState（那会造级联重渲染，是 lint 警告源）
+  const [draft, setDraft] = useState<string | null>(null);
+  const name = draft ?? narrator.name;
+  if (!book || book.genre !== 'diary') return null;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        flexWrap: 'wrap',
+        padding: '2px 0 6px',
+        borderBottom: `1px solid ${CV.divider}`,
+        marginBottom: 6,
+      }}
+    >
+      <span style={{ fontSize: uiFontSize(10), fontWeight: 700, color: CV.text2 }}>
+        {t('writing.diary.narratorTitle')}
+      </span>
+      {DIARY_PERSONS.map((p) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => void setBookNarrator(book.id, { person: p, name })}
+          style={{
+            ...(narrator.person === p ? miniBtn(accent) : { ...miniBtn('#64748b'), background: 'transparent', color: CV.text2 }),
+            fontSize: uiFontSize(10),
+            padding: '2px 8px',
+          }}
+        >
+          {t(diaryPersonLabelKey(p))}
+        </button>
+      ))}
+      <input
+        value={name}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft !== null && draft !== narrator.name) {
+            void setBookNarrator(book.id, { person: narrator.person, name: draft });
+          }
+          setDraft(null);
+        }}
+        placeholder={t('writing.diary.narratorNamePh')}
+        aria-label={t('writing.diary.narratorNamePh')}
+        style={{
+          width: 112,
+          fontSize: uiFontSize(10),
+          padding: '2px 6px',
+          border: `1px solid ${CV.divider}`,
+          borderRadius: 6,
+          background: 'transparent',
+          color: CV.text,
+        }}
+      />
+    </div>
+  );
+}
+
 export function CastPane({
   kind,
   accent,
@@ -387,7 +521,7 @@ export function CastPane({
       chapterId,
       key,
       settingId,
-      chapter?.title || t('editor.writing.inspector.beat'),
+      chapter?.title || t(surfaceKeyForGenre(genre, 'unitOutline')),
     );
   };
 
@@ -398,6 +532,8 @@ export function CastPane({
 
   return (
     <div style={paneStyle}>
+      {/* ㉣ N-22：只有日记书的「人物」栏挂这条；世界观栏与其余四体裁逐字不变 */}
+      {kind === 'character' && <DiaryNarratorBar bookId={bookId} accent={accent} />}
       <div style={paneHeaderStyle}>
         <span style={{ fontSize: 11, fontWeight: 700, color: CV.text }}>{paneLabel}</span>
         <span style={{ fontSize: 9.5, color: CV.text3 }}>{list.length}</span>
@@ -525,8 +661,8 @@ export function CastPane({
             {filteredList.map((x) => {
               const appearLabel =
                 kind === 'character'
-                  ? t('editor.writing.inspector.appearChapters')
-                  : t('editor.writing.inspector.relatedChapters');
+                  ? t(surfaceKeyForGenre(genre, 'appearUnits'))
+                  : t(surfaceKeyForGenre(genre, 'relatedUnits'));
               const related = chaptersOfSetting(
                 outlines,
                 bookChapters,
@@ -581,7 +717,7 @@ export function CastPane({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap', paddingLeft: 12 }}>
                     <span style={{ fontSize: 8.5, color: CV.text3, flexShrink: 0 }}>{appearLabel}</span>
                     {related.length === 0 && (
-                      <span style={{ fontSize: 9, color: CV.text3 }}>{t('editor.writing.inspector.notAttached')}</span>
+                      <span style={{ fontSize: 9, color: CV.text3 }}>{t(surfaceKeyForGenre(genre, 'unitUnattached'))}</span>
                     )}
                     {related.slice(0, isExpanded(x.id) ? related.length : MAX_VISIBLE_CHAPTERS).map((c) => {
                       const ts = tagStyle(accent, true);
@@ -819,7 +955,7 @@ function NodeRow({
   const firstPendingFs = fsPending[0];
   const firstFs = chapterForeshadows[0];
   const foreshadowTooltip =
-    pendingCount > 0 ? `${pendingCount} ${t('writing.foreshadowPayableTitle')}` : t('writing.foreshadowPlantedHere');
+    pendingCount > 0 ? `${pendingCount} ${t('writing.foreshadowPayableTitle')}` : t(surfaceKeyForGenre(genre, 'plantedHere'));
 
   // 大纲行灵感微型标识（2026-10-04）：本章有关联念头时显色点，点击跳灵感页签选中该念头
   const selectInspiration = useEditorStore((s) => s.selectInspiration);
@@ -959,7 +1095,7 @@ function NodeRow({
           ⠿
         </span>
         {/* 单点：色=层级（父级墨紫 / 子级天蓝），填充=进度（空心待写 / 半透草稿 / 实心已完）；点击循环状态 */}
-        <ChapterStatusDot status={node.node.status} depth={node.depth} onClick={cycleStatus} />
+
         {/* 层级名徽章：点击行内改名（部/卷/章/节/幕/场…，创作者自填） */}
         {editingKind ? (
           <input
@@ -1022,7 +1158,7 @@ function NodeRow({
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') openChapterLine(e);
             }}
-            title={`${t('writing.storylineMainTitle')} · ${chapterLine.name}`}
+            title={`${t(surfaceKeyForGenre(genre, 'mainStorylineTitle'))} · ${chapterLine.name}`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1210,9 +1346,17 @@ function NodeRow({
 // 剧情线管理面（「剧情线」L2 页签的编辑面）：线实体一览 + 新建/删线/跳时间线剧情线轴。
 // 此前 storylines 页签不在 STUDIO_PANE_BY_KIND 表内 → 点开是空画布（真实缺陷，2026-09-18 修）。
 export function StorylinesPane({ accent, bookId }: { accent: string; bookId: string }) {
-  const bookTitle = useWritingStore((s) => s.books.find((b) => b.id === s.activeBookId)?.title) ?? '';
+  // ㉬ 认书第四例：卡头书名按「本卡 bookId」反查全局书目（父卡 WritingStudioPane 从 config.filePath
+  // 现解递进来），与 ㉫ 三处、BookMetaPanel:140-141 同一张嘴。本卡所属的书与工作室当前书分叉可达
+  // （写作台书切换器只翻后者）⇒ 旧口径会在诗集的剧情线卡上印小说的名字。
+  // 零回归：活跃书 == 本卡书时两个表达式取自同一份 books、命中同一条目，取值逐字相同。
+  const bookTitle = useWritingStore((s) => s.books.find((b) => b.id === bookId)?.title) ?? '';
   const storylines = useWritingStore((s) => s.storylines);
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
+  // AI-12 ②（轮 30）：卡头书名与行表都认了本卡书，**只有栏头计数**还在吃活跃书缓存 ⇒ 诗集卡上印
+  // 「剧情线 5」、下面只列 2 行。计数与行表必须同源。（selected 按 id 全局查那一眼属选态族，
+  // 本轮按台账口径只记录不动手。）
+  const bookStorylines = useMemo(() => storylines.filter((l) => l.bookId === bookId), [storylines, bookId]);
   const selectedStorylineId = useEditorStore((s) => s.selectedStorylineId);
   const selected = selectedStorylineId ? (storylines.find((sl) => sl.id === selectedStorylineId) ?? null) : null;
   // P2 视角切换（2026-09-19 / 2026-09-21）：manage=管理卡（编辑面）；narrative=线-事件叙事视角
@@ -1246,7 +1390,7 @@ export function StorylinesPane({ accent, bookId }: { accent: string; bookId: str
     }) as const;
   return (
     <div style={{ ...paneStyle, borderColor: 'transparent' }}>
-      <PaneHeader label={t('writing.viewKind.storylines')} count={storylines.length} />
+      <PaneHeader label={t('writing.viewKind.storylines')} count={bookStorylines.length} />
       <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
         <button type="button" style={pillSx(paneMode === 'manage')} onClick={() => setPaneMode('manage')}>
           {t('writing.storylineViewManage')}
@@ -1323,6 +1467,11 @@ export function StorylinesPane({ accent, bookId }: { accent: string; bookId: str
 export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId: string }) {
   const foreshadowings = useWritingStore((s) => s.foreshadowings);
   const chapters = useWritingStore((s) => s.chapters);
+  // AI-12 ③（轮 30）：本卡三张嘴同病 —— 行表（sorted 全表）、栏头/小节计数、「新建伏笔」默认名，
+  // 外加写侧 createForeshadowing 按工作室活跃书落库。统一按本卡书收源。
+  // **chapters 那一眼不动**：本 pane 没有「按本卡书装载章节」的 loader，滤了会把回收章名读空
+  //（装载 guard 族本轮不许顺手 = 轮 27 取证 (b)：强载会抽走活跃书缓存）。
+  const bookForeshadowings = useMemo(() => foreshadowings.filter((f) => f.bookId === bookId), [foreshadowings, bookId]);
   const loadForeshadowings = useWritingStore((s) => s.loadForeshadowings);
   const createForeshadowing = useWritingStore((s) => s.createForeshadowing);
   const selectedForeshadowingId = useEditorStore((s) => s.selectedForeshadowingId);
@@ -1338,13 +1487,16 @@ export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId:
   const sorted = useMemo(
     () =>
       sortMode === 'status'
-        ? sortForeshadowings(foreshadowings, chapters)
-        : sortForeshadowingsByPayoff(foreshadowings, chapters),
-    [sortMode, foreshadowings, chapters],
+        ? sortForeshadowings(bookForeshadowings, chapters)
+        : sortForeshadowingsByPayoff(bookForeshadowings, chapters),
+    [sortMode, bookForeshadowings, chapters],
   );
 
   const handleCreate = async () => {
-    const item = await createForeshadowing(t('writing.foreshadowDefaultName', { n: foreshadowings.length + 1 }));
+    // AI-12 ③ 写侧：先扳正本卡书再落（认书族同一道闸），扳不动宁可不建 —— 不扳正就是把伏笔静默
+    // 建进工作室当前书；默认名也不再数整份缓存。
+    if (!(await ensureWritingBookWired(bookId))) return;
+    const item = await createForeshadowing(t('writing.foreshadowDefaultName', { n: bookForeshadowings.length + 1 }));
     if (item) useEditorStore.getState().selectForeshadowing(item.id);
   };
 
@@ -1438,7 +1590,7 @@ export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId:
 
   return (
     <div style={{ ...paneStyle, borderColor: 'transparent' }}>
-      <PaneHeader label={t('writing.viewKind.foreshadowing')} count={foreshadowings.length} />
+      <PaneHeader label={t('writing.viewKind.foreshadowing')} count={bookForeshadowings.length} />
       <div style={{ display: 'flex', gap: 8, flex: 1, minHeight: 0, alignItems: 'stretch' }}>
         {/* 左：状态分组行表 */}
         <div style={{ width: 232, flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1452,12 +1604,17 @@ export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId:
             }}
           >
             <div
-              style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: foreshadowings.length > 0 ? 5 : 0 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: bookForeshadowings.length > 0 ? 5 : 0,
+              }}
             >
               <span style={{ fontSize: 10, fontWeight: 700, color: CV.text3 }}>
                 {t('writing.viewKind.foreshadowing')}
               </span>
-              <span style={{ fontSize: 9, color: CV.text3 }}>{foreshadowings.length}</span>
+              <span style={{ fontSize: 9, color: CV.text3 }}>{bookForeshadowings.length}</span>
               <button
                 type="button"
                 onClick={() => void handleCreate()}
@@ -1467,7 +1624,7 @@ export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId:
                 ＋ {t('writing.foreshadowCreate')}
               </button>
             </div>
-            {foreshadowings.length > 0 && (
+            {bookForeshadowings.length > 0 && (
               <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
                 {(
                   [
@@ -1499,7 +1656,7 @@ export function ForeshadowingsPane({ accent, bookId }: { accent: string; bookId:
                 ))}
               </div>
             )}
-            {foreshadowings.length === 0 ? (
+            {bookForeshadowings.length === 0 ? (
               <EmptyHint text={t('writing.foreshadowEmptyHint')} />
             ) : sortMode === 'status' ? (
               FORESHADOW_STATUSES.map((st) => {
@@ -1583,7 +1740,12 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
   const chapters = useWritingStore((s) => s.chapters);
   const createOutline = useWritingStore((s) => s.createOutline);
   const selectedInspirationId = useEditorStore((s) => s.selectedInspirationId);
-  const selected = selectedInspirationId ? (outlines.find((o) => o.id === selectedInspirationId) ?? null) : null;
+  // ㉮ 认书第六例（轮 27 · AI-10）：本 pane 的 bookId 早就是必填 prop（WritingStudioPane:214 递），
+  // 改造前只用在栏尾书名一行（:1807），**池子、计数、选中态、落书四张嘴全吃工作室活跃书**——
+  // 与 ㉫ 修过的 StorylinePane/PiecesPane 同族同形状。现在统一按本卡书：同书 = 装载器本就
+  // list(bookId) 的 no-op（逐字 = 改造前）；分叉 = 行表宁缺不错、选中卡不隔书开、新增先扳正再落。
+  const bookOutlines = useMemo(() => outlines.filter((o) => o.bookId === bookId), [outlines, bookId]);
+  const selected = selectedInspirationId ? (bookOutlines.find((o) => o.id === selectedInspirationId) ?? null) : null;
   // 念头树 = 章节树（与大纲页签同构、同源）：念头本身无 parentId，树形只能来自
   // chapterId → buildTree 的章节树。与大纲一致的两件事：① 顺序按「绑定章节在章节树
   // 先序遍历中的位次」（forestPreorderIndex），不再按 outline 的 sortOrder 平铺；
@@ -1594,14 +1756,14 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
   const sortedOutlines = useMemo(() => {
     const free: WritingOutline[] = [];
     const bound: WritingOutline[] = [];
-    for (const o of outlines) {
+    for (const o of bookOutlines) {
       const meta = o.chapterId ? preorder.get(o.chapterId) : undefined;
       if (meta) bound.push(o);
       else free.push(o);
     }
     bound.sort((a, b) => preorder.get(a.chapterId!)!.index - preorder.get(b.chapterId!)!.index);
     return [...free, ...bound];
-  }, [outlines, preorder]);
+  }, [bookOutlines, preorder]);
   // 零阻力速记：进页签光标即在输入框（capture-first）；回车落池后焦点回到输入框，
   // 连续记多条不断流（右卡标题 autoFocus 会抢焦点，这里显式抢回来）。
   const [capture, setCapture] = useState('');
@@ -1611,6 +1773,9 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
   const handleCapture = async () => {
     const text = capture.trim();
     if (!text) return;
+    // ㉮ 写侧先扳正再落（㉫/㉭ 同一道闸）：createOutline 落在点回车那一刻的活跃书，
+    // 不扳正就会把 B 卡上的速记静默建进 A；扳不动（无卡书/接线失败）宁可不建。
+    if (!(await ensureWritingBookWired(bookId))) return;
     const item = await createOutline(text);
     setCapture('');
     if (item) useEditorStore.getState().selectInspiration(item.id);
@@ -1619,7 +1784,7 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
 
   return (
     <div style={{ ...paneStyle, borderColor: 'transparent' }}>
-      <PaneHeader label={t('writing.viewKind.inspiration')} count={outlines.length} />
+      <PaneHeader label={t('writing.viewKind.inspiration')} count={bookOutlines.length} />
       <div style={{ display: 'flex', gap: 8, flex: 1, minHeight: 0, alignItems: 'stretch' }}>
         {/* 左：速记输入 + 念头行表 */}
         <div style={{ width: 232, flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1656,7 +1821,7 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
               <span style={{ fontSize: 9, color: CV.text3 }}>{t('writing.inspirationPoolLabel')}</span>
-              <span style={{ fontSize: 9, color: CV.text3 }}>{outlines.length}</span>
+              <span style={{ fontSize: 9, color: CV.text3 }}>{bookOutlines.length}</span>
             </div>
             {sortedOutlines.length === 0 ? (
               <EmptyHint text={t('writing.inspirationEmptyHint')} />
@@ -1758,7 +1923,7 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
           }}
         >
           {selected ? (
-            <InspirationDetail key={selected.id} beat={selected} />
+            <InspirationDetail key={selected.id} beat={selected} bookId={bookId} />
           ) : (
             <div
               style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
@@ -1773,7 +1938,7 @@ export function InspirationsPane({ accent, bookId }: { accent: string; bookId: s
 }
 
 // ─── 校对 pane（校对页签编辑面）：全书体检发现清单（纯本地派生，零新表） ───
-// 七组维度（章文本/章账/伏笔/时间线/剧情线/念头池/一致性），算法收拢 utils/writingProofread
+// 六组维度（章文本/伏笔/时间线/剧情线/念头池/一致性），算法收拢 utils/writingProofread
 // （与右栏总览卡同一份）。发现**即点即跳**：章→开章写作视图、伏笔→伏笔页签选中、
 // 时间线事件→时间线选中、念头→灵感选中、设定→人物页签、汇总行→对应页签。
 export function ProofreadPane({ accent, bookId }: { accent: string; bookId: string }) {
@@ -1785,9 +1950,25 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
   const settings = useWritingStore((s) => s.settings);
   const books = useWritingStore((s) => s.books);
   const genre = books.find((b) => b.id === bookId)?.genre ?? '';
+  // ㉯ 认书第七例（轮 28 · AI-11）：六组体检输入**全走本卡书**。这六份是「按工作室活跃书装载」的整份缓存，
+  // 分叉可达且持久（写作台书切换器只翻 activeBookId，卡片挂载接线不重跑）⇒ 旧口径会在诗集 B 的校对 pane
+  // 里报小说 A 的发现。它与右栏 ProofreadOverviewCard 是同名两张嘴，㉫ 已把那张的六组输入按本卡过滤
+  // （形状同源，禁止第二份），这张补齐。**硬纪律（AI-11 在册）：六扇门必须同轮关**——半接会造出
+  // 「A 的章病 + B 的念头」这类半真报告（AU-7 ⑨ 的 pane 版）。store 本就按书装载（loaders 全部 list(bookId)），
+  // 同书过滤 no-op；分叉时宁可报空，不把别本书的体检数报在这本书的卡上（宁缺不错）。
   const report = useMemo(
-    () => buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings),
-    [chapters, outlines, timelineEvents, foreshadowings, storylines, settings],
+    () =>
+      buildProofreadReport(
+        chapters.filter((c) => c.bookId === bookId),
+        outlines.filter((o) => o.bookId === bookId),
+        timelineEvents.filter((e) => e.bookId === bookId),
+        foreshadowings.filter((f) => f.bookId === bookId),
+        storylines.filter((l) => l.bookId === bookId),
+        settings.filter((s) => s.bookId === bookId),
+        // ㉬ N-21：体裁进报告。本 pane 的 genre 已按本卡书判好（上面第 1949 行），直接递
+        genre,
+      ),
+    [chapters, outlines, timelineEvents, foreshadowings, storylines, settings, bookId, genre],
   );
   // T3 ③：挂载时从返回上下文取浏览态初值（正文容器「返回校对」切回时恢复；无则默认）。
   // 消费语义：返回上下文由跳转前写入、本 pane 挂载读取，恢复后立即清空防重复。
@@ -1852,8 +2033,10 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
   const autoFixableChapterIds = useMemo(() => {
     const set = new Set<string>();
     for (const i of report.issues) {
-      if (i.group !== 'chapter-text' || !i.textHits) continue;
-      if (i.target?.type === 'chapter' && i.textHits.some((h) => h.fix)) set.add(i.target.id);
+      if (i.group !== 'chapter-text' || i.target?.type !== 'chapter') continue;
+      // 文本层：命中带 fix 才可修；结构层（Struct* 前缀）由 applyAutoFixesHtml 一并规范化，同样可修
+      const structFixable = i.messageKey.startsWith('Struct') && i.messageKey !== 'StructHeadingInBody';
+      if (structFixable || i.textHits?.some((h) => h.fix)) set.add(i.target.id);
     }
     return set;
   }, [report]);
@@ -1870,6 +2053,59 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
     } catch (e) {
       logger.warn('ProofreadPane', 'fixChapter failed', { chapterId, error: String(e) });
     }
+  };
+
+  /** 全书一键修复的结果回执（就地显示，不弹 toast：toast 会自己消失，
+   *  用户来不及看清"改了哪些章、其中几章动的是排版"）。 */
+  const [fixAllReceipt, setFixAllReceipt] = useState<string | null>(null);
+  const [fixingAll, setFixingAll] = useState(false);
+
+  const runFixAllChapters = async (ids: string[]) => {
+    setFixingAll(true);
+    let chaptersFixed = 0;
+    let hits = 0;
+    let structChapters = 0;
+    try {
+      for (const id of ids) {
+        const c = chapters.find((x) => x.id === id);
+        if (!c?.content) continue;
+        // 与单章修复**同一个函数**：结构层规范化 + 文本层带 fix 的替换
+        const r = applyAutoFixesHtml(c.content);
+        if (r.fixedCount === 0) continue;
+        await useWritingStore
+          .getState()
+          .saveChapterContent(id, r.html, wordCountOfHtml(r.html));
+        chaptersFixed += 1;
+        hits += r.fixedCount;
+        if (r.structFixed) structChapters += 1;
+      }
+      setFixAllReceipt(t('writing.proofreadFixAllDone', { c: chaptersFixed, n: hits, s: structChapters }));
+      logger.info('ProofreadPane', 'fix all chapters applied', { chaptersFixed, hits, structChapters });
+    } catch (e) {
+      logger.warn('ProofreadPane', 'fixAllChapters failed', { error: String(e) });
+      setFixAllReceipt(t('writing.proofreadFixAllFailed'));
+    } finally {
+      setFixingAll(false);
+    }
+  };
+
+  /** 动手前先说清后果（全局确认出口，禁 window.confirm）：改的是正文、能不能撤回 */
+  const fixAllChapters = () => {
+    const ids = [...autoFixableChapterIds];
+    if (ids.length === 0) return;
+    confirmDestructive({
+      title: t('writing.proofreadFixAllTitle', { n: ids.length }),
+      impact: [
+        t('writing.proofreadFixAllImpactScope', { n: ids.length }),
+        t('writing.proofreadFixAllImpactKind'),
+        t('writing.proofreadFixAllImpactUndo'),
+      ],
+      confirmLabel: t('writing.proofreadFixAllConfirm'),
+      cancelLabel: t('ui.cancel'),
+      onConfirm: () => {
+        void runFixAllChapters(ids);
+      },
+    });
   };
 
   /** 发现即点即跳（renderable ≠ useful：每条发现都必须可行动） */
@@ -2068,6 +2304,21 @@ export function ProofreadPane({ accent, bookId }: { accent: string; bookId: stri
           <span style={{ fontSize: 9.5, color: CV.text3 }}>
             {useWritingStore.getState().books.find((b) => b.id === bookId)?.title ?? ''}
           </span>
+          {/* 全书一键修复：与单章修复同一套判据与同一个函数，只是把范围拉满整本 */}
+          {autoFixableChapterIds.size > 0 && (
+            <button
+              type="button"
+              onClick={fixAllChapters}
+              disabled={fixingAll}
+              aria-label={t('writing.proofreadFixAll')}
+              style={{ ...miniBtn(accent), fontSize: 9.5, padding: '2px 8px', width: 'fit-content' }}
+            >
+              {fixingAll ? t('writing.proofreadFixAllRunning') : t('writing.proofreadFixAll')}
+            </button>
+          )}
+          {fixAllReceipt && (
+            <span style={{ fontSize: 9.5, color: CV.text3 }}>{fixAllReceipt}</span>
+          )}
           {/* 骨架互联（P1-B）：校对 ←→ 统计双向打通——此处跳统计视角看体量分布 */}
           <button
             type="button"
@@ -2249,12 +2500,16 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
   const bookChapters = useMemo(() => chapters.filter((c) => c.bookId === bookId), [chapters, bookId]);
   const bookSettings = useMemo(() => settings.filter((s) => s.bookId === bookId), [settings, bookId]);
   const kpis = useMemo(() => computeWritingKpis(bookChapters, bookSettings), [bookChapters, bookSettings]);
+  // 三格读数按体裁（⑭ 刀C）：诗集不该出现「章节数 / 卷数 / 平均章长」；小说取原键原字
+  const kk = kpiLabelKeys(book?.genre ?? '');
   const volRows = useMemo(() => buildVolumeRows(bookChapters), [bookChapters]);
   const [chFilter, setChFilter] = useState<StatsChapterFilter>('all');
   const [chSort, setChSort] = useState<StatsChapterSort>('default');
   const chRows = useMemo(
-    () => sortChapterRows(filterChapterRows(buildChapterWordRows(bookChapters), chFilter), chSort),
-    [bookChapters, chFilter, chSort],
+    // genre 也要传给行构造：本页签的三格读数已按体裁（⑭ 刀C），但离群列若不吃体裁，
+    // 诗集仍会在「章均」口径下被标成一堆偏短/偏长的章（长短悬殊是诗集常态）。
+    () => sortChapterRows(filterChapterRows(buildChapterWordRows(bookChapters, book?.genre ?? ''), chFilter), chSort),
+    [bookChapters, book?.genre, chFilter, chSort],
   );
 
   // S4：章检视器 → 统计页签定位联动。消费 statsFocusChapterId：
@@ -2369,7 +2624,7 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
       />
       {bookChapters.length === 0 ? (
         <div style={paneBodyStyle}>
-          <EmptyHint text={t('writing.statsPaneEmpty')} />
+          <EmptyHint text={t(surfaceKeyForGenre(book?.genre ?? '', 'statsEmpty'))} />
         </div>
       ) : (
         <div style={{ ...paneBodyStyle, gap: 10 }}>
@@ -2382,14 +2637,14 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
                 sub: t('editor.writing.stats.kpiWordsSub'),
               },
               {
-                label: t('writing.chapterCount'),
+                label: t(kk.count),
                 value: String(kpis.chapterCount),
-                sub: t('editor.writing.stats.kpiChaptersSub'),
+                sub: t(kk.countSub),
               },
               {
-                label: t('editor.writing.stats.kpiVolumes'),
+                label: t(kk.group),
                 value: String(kpis.volumeCount),
-                sub: t('editor.writing.stats.kpiVolumesSub'),
+                sub: t(kk.groupSub),
               },
               {
                 label: t('editor.writing.stats.kpiSettings'),
@@ -2397,9 +2652,9 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
                 sub: t('editor.writing.stats.kpiSettingsSub'),
               },
               {
-                label: t('editor.writing.stats.kpiAvg'),
+                label: t(kk.avg),
                 value: String(kpis.avgWords),
-                sub: t('editor.writing.stats.kpiAvgSub'),
+                sub: t(kk.avgSub),
               },
             ].map((k) => (
               <div
@@ -2509,9 +2764,10 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
             )}
           </div>
 
-          {/* 卷分布：点卷行展开该卷章节明细（明细行可点跳章） */}
+          {/* 分组分布：点分组行展开明细（明细行可点跳章）。㉓-1 标题按体裁——日记说「年月分布」；
+              ㉜ T-F′：三张嘴一起收 —— 段标题改了、兜底组名还顶着「未分卷」就是半截话 */}
           <div style={sectionStyle}>
-            <div style={sectionTitleStyle}>{t('writing.statsBandVolume')}</div>
+            <div style={sectionTitleStyle}>{t(surfaceKeyForGenre(book?.genre ?? '', 'bandGroup'))}</div>
             {volRows.map((v) => (
               <div key={v.volume || '__uncat__'}>
                 <button
@@ -2544,7 +2800,7 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {v.volume || t('writing.statsUncategorized')}
+                    {v.volume || t(surfaceKeyForGenre(book?.genre ?? '', 'bandUncategorized'))}
                   </span>
                   <span
                     style={{
@@ -2625,7 +2881,7 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
           {/* 章节体量：离群标注（advisory 软提示），点行跳章 */}
           <div style={sectionStyle}>
             <div style={{ ...sectionTitleStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>{t('writing.statsBandChapterSize')}</span>
+              <span>{t(surfaceKeyForGenre(book?.genre ?? '', 'bandUnitSize'))}</span>
               <span style={{ fontSize: 9, fontWeight: 400, color: CV.text3 }}>{t('writing.statsOutlierLegend')}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -2766,7 +3022,7 @@ export function StatsPane({ accent, bookId }: { accent: string; bookId: string }
 // 新建动线闭环：建线后自动选中新线（编辑卡直入改名），不留「剧情线 1」死端。
 function StorylineSection({
   accent,
-  bookId: _bookId,
+  bookId,
   embed,
 }: {
   accent: string;
@@ -2779,14 +3035,21 @@ function StorylineSection({
   const createStoryline = useWritingStore((s) => s.createStoryline);
   const deleteStoryline = useWritingStore((s) => s.deleteStoryline);
   const selectedStorylineId = useEditorStore((s) => s.selectedStorylineId);
+  // ㉫ bookId 曾是「传了不用」的孤儿 prop（本仓为这个形状付过四次钱）：实体区既然端在这张卡里，
+  // 线清单就只准列本卡书的（store 按活跃书装载，正常路径 no-op；分叉时宁缺不错）。
+  const lines = useMemo(() => storylines.filter((l) => l.bookId === bookId), [storylines, bookId]);
+  // AI-12 ①（轮 30）：认书第三例把「算好的 lines」只接到了计数与新增命名，**行表本体仍渲染未过滤的
+  // storylines**（AU-7 ⑨「算好了没接到行上」的残余）。行尾那个事件数属于同一行，照旧数整份缓存 ⇒
+  // 跨书脏事件能被计进本卡线的行。同书装载下两处 filter 都是 no-op（逐字 = 改造前）。
+  const bookEvents = useMemo(() => timelineEvents.filter((e) => e.bookId === bookId), [timelineEvents, bookId]);
   // 线-事件数一次性分组（避免每行 filter O(线×事件)）
   const eventCountByLine = useMemo(() => {
     const m = new Map<string, number>();
-    for (const e of timelineEvents) {
+    for (const e of bookEvents) {
       if (e.storylineId) m.set(e.storylineId, (m.get(e.storylineId) ?? 0) + 1);
     }
     return m;
-  }, [timelineEvents]);
+  }, [bookEvents]);
   // 装载补齐：本 pane 可能先于时间线 pane 挂载（用户直接点「剧情线」tab）。
   useEffect(() => {
     const ws = useWritingStore.getState();
@@ -2816,7 +3079,9 @@ function StorylineSection({
   };
 
   const handleCreate = async () => {
-    const sl = await createStoryline(t('writing.storylineDefaultName', { n: storylines.length + 1 }));
+    // ㉫ 先扳正再落：线要长在**本卡书**上，不是工作室当前书上。
+    if (!(await ensureWritingBookWired(bookId))) return;
+    const sl = await createStoryline(t('writing.storylineDefaultName', { n: lines.length + 1 }));
     if (sl) {
       const es = useEditorStore.getState();
       es.selectStoryline(sl.id);
@@ -2835,9 +3100,9 @@ function StorylineSection({
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: storylines.length > 0 ? 5 : 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: lines.length > 0 ? 5 : 0 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: CV.text3 }}>{t('writing.timelineViewStoryline')}</span>
-        <span style={{ fontSize: 9, color: CV.text3 }}>{storylines.length}</span>
+        <span style={{ fontSize: 9, color: CV.text3 }}>{lines.length}</span>
         <button
           type="button"
           onClick={() => void handleCreate()}
@@ -2847,11 +3112,11 @@ function StorylineSection({
           ＋ {t('writing.storylineCreate')}
         </button>
       </div>
-      {storylines.length === 0 ? (
+      {lines.length === 0 ? (
         <EmptyHint text={t('writing.storylineEmptyHint')} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {storylines.map((sl) => {
+          {lines.map((sl) => {
             const color = sl.color || LANE_COLORS[hashStr(sl.id) % LANE_COLORS.length];
             const n = eventCountByLine.get(sl.id) ?? 0;
             const active = selectedStorylineId === sl.id;
@@ -2920,11 +3185,14 @@ function StorylineSection({
 
 export function StorylinePane({
   accent,
+  bookId,
   chapters,
   outlines,
   settings,
 }: {
   accent: string;
+  /** ㉫ 本卡所属的书（父卡从 config.filePath 现解）——认书唯一来源，不再吃工作室活跃书。 */
+  bookId: string;
   chapters: WritingChapter[];
   outlines: WritingOutline[];
   settings: WritingSetting[];
@@ -2933,27 +3201,36 @@ export function StorylinePane({
   const createOutline = useWritingStore((s) => s.createOutline);
   const updateOutline = useWritingStore((s) => s.updateOutline);
   // 注意：章节列表只在**编辑区（设计视图，页面本体）**呈现，绝不进左栏（铁律 #9）。
-  const bookId = useWritingStore((s) => s.activeBookId) ?? '';
-  const bookTitle = useWritingStore((s) => s.books.find((b) => b.id === s.activeBookId)?.title) ?? '';
-  const genre = useWritingStore((s) => s.books.find((b) => b.id === s.activeBookId)?.genre) ?? '';
+  // ㉫ 书名与体裁按「本卡 bookId」反查全局书目，与 BookMetaPanel:140-141 / ArchitectureLayersPanel:651
+  // 同一条在册口径；卡片所属的书与工作室当前书分叉可达（写作台书切换器只翻后者）。
+  const books = useWritingStore((s) => s.books);
+  const bookTitle = books.find((b) => b.id === bookId)?.title ?? '';
+  const genre = books.find((b) => b.id === bookId)?.genre ?? '';
 
-  const characters = useMemo(() => settings.filter((s) => s.kind === 'character'), [settings]);
-  const scenes = useMemo(() => settings.filter((s) => s.kind === 'worldbuilding'), [settings]);
+  // ㉫ 渲染清单按本卡书过滤：store 各集合按活跃书装载，正常路径（活跃书==本卡书）下是 no-op；
+  // 分叉时宁可空，不把别本书的行挂在本卡上（与 StatsPanels.tsx:19 / BookOverviewPanel.tsx:74 同一张嘴）。
+  const bookChapters = useMemo(() => chapters.filter((c) => c.bookId === bookId), [chapters, bookId]);
+  const bookSettings = useMemo(() => settings.filter((x) => x.bookId === bookId), [settings, bookId]);
+  const characters = useMemo(() => bookSettings.filter((s) => s.kind === 'character'), [bookSettings]);
+  const scenes = useMemo(() => bookSettings.filter((s) => s.kind === 'worldbuilding'), [bookSettings]);
   // 默认层级（卷›章 / 篇›节）只用于「加子级」的默认建议，零配置起步。
   const levels = useMemo(() => defaultLevels(genre), [genre]);
   // 扁平章节 → 结构树（任意深），递归渲染。
-  const forest = useMemo(() => buildTree(chapters), [chapters]);
+  const forest = useMemo(() => buildTree(bookChapters), [bookChapters]);
 
   const addRoot = () => {
-    const rootKind = levels[0] ?? '章';
-    void createChapter(`${rootKind} ${forest.length + 1}`);
+    void (async () => {
+      if (!(await ensureWritingBookWired(bookId))) return;
+      const rootKind = levels[0] ?? '章';
+      void createChapter(`${rootKind} ${forest.length + 1}`);
+    })();
   };
 
   return (
     <div style={paneStyle}>
       <PaneHeader
         label={t('writingDesign.pane.storyline')}
-        count={chapters.length}
+        count={bookChapters.length}
         action={t('writingDesign.addNode')}
         onAction={addRoot}
       />
@@ -2982,24 +3259,50 @@ export function StorylinePane({
   );
 }
 
-// ─── 散文：篇目栏（可增） ───
-export function PiecesPane({ accent, chapters }: { accent: string; chapters: WritingChapter[] }) {
+// ─── 合集型体裁：正文单位一览（散文=篇目 / 诗歌=诗作；可增） ───
+export function PiecesPane({
+  accent,
+  bookId,
+  chapters,
+  labelKey = 'writingDesign.pane.pieces',
+  emptyKey = 'writingDesign.emptyPieces',
+}: {
+  accent: string;
+  /** ㉫ 本卡所属的书（父卡从 config.filePath 现解）——认书唯一来源，不再吃工作室活跃书。 */
+  bookId: string;
+  chapters: WritingChapter[];
+  /**
+   * 单位名随体裁（诗书这一栏叫「诗作」）。传 **i18n key** 而不是成品文案：
+   * 默认值也在渲染期才求值，模块级调 t() 会固化语言（本仓事故先例 ×2，见 writingSchema 头注释）。
+   */
+  labelKey?: string;
+  emptyKey?: string;
+}) {
   const createChapter = useWritingStore((s) => s.createChapter);
   // 篇目拖出同协议（页面本体内操作，不进左栏）：拖到画布即开该篇写作视图。
-  const bookId = useWritingStore((s) => s.activeBookId) ?? '';
-  const bookTitle = useWritingStore((s) => s.books.find((b) => b.id === s.activeBookId)?.title) ?? '';
-  const genre = useWritingStore((s) => s.books.find((b) => b.id === s.activeBookId)?.genre) ?? '';
+  // ㉫ 书名与体裁按本卡 bookId 反查（口径同 StorylinePane / BookMetaPanel:140-141）。
+  const books = useWritingStore((s) => s.books);
+  const bookTitle = books.find((b) => b.id === bookId)?.title ?? '';
+  const genre = books.find((b) => b.id === bookId)?.genre ?? '';
+  // ㉫ 只列本卡书的篇目：正常路径（活跃书==本卡书）no-op；分叉时宁缺不错。
+  const bookChapters = useMemo(() => chapters.filter((c) => c.bookId === bookId), [chapters, bookId]);
   return (
     <div style={paneStyle}>
       <PaneHeader
-        label={t('writingDesign.pane.pieces')}
-        count={chapters.length}
+        label={t(labelKey)}
+        count={bookChapters.length}
         action={t('writingDesign.add')}
-        onAction={() => void createChapter(t('writing.newChapterName', { n: chapters.length + 1 }))}
+        onAction={() => {
+          void (async () => {
+            // ㉫ 先扳正再建：新篇目要长在**本卡书**上，单位词（首/篇/天）也才与它同源。
+            if (!(await ensureWritingBookWired(bookId))) return;
+            void createChapter(t(unitNameKey(genre), { n: bookChapters.length + 1 }));
+          })();
+        }}
       />
       <div style={paneBodyStyle}>
-        {chapters.length === 0 && <EmptyHint text={t('writingDesign.emptyPieces')} />}
-        {chapters.map((c) => (
+        {bookChapters.length === 0 && <EmptyHint text={t(emptyKey)} />}
+        {bookChapters.map((c) => (
           <div key={c.id} style={rowStyle()}>
             <span style={{ fontSize: 8, color: accent, flexShrink: 0 }}>◆</span>
             <span
@@ -3040,19 +3343,42 @@ export function PiecesPane({ accent, chapters }: { accent: string; chapters: Wri
   );
 }
 
-// ─── 散文：立意 / 素材栏（可增删改） ───
-export function IdeasPane({ accent, outlines }: { accent: string; outlines: WritingOutline[] }) {
+// ─── 合集型体裁：立意 / 素材栏（散文=立意素材，诗歌=意象素材；可增删改） ───
+export function IdeasPane({
+  accent,
+  bookId,
+  outlines,
+  labelKey = 'writingDesign.pane.ideas',
+}: {
+  accent: string;
+  /** ㉮ 认书第六例（轮 27 · AI-10）：必填、无默认值（轮 21 签名翻面先例）。改造前本栏只吃
+   *  outlines prop（两个宿主都递 store 原样清单 = 工作室活跃书缓存），与 ㉫ 栏头注释
+   *  「卡内认书只准吃这个 bookId」对不上——素材栏这一整列正是念头池的另一张嘴。 */
+  bookId: string;
+  outlines: WritingOutline[];
+  /** 同 PiecesPane：传 key，渲染期才 t()。诗歌这一栏换成「意象素材」 */
+  labelKey?: string;
+}) {
   const createOutline = useWritingStore((s) => s.createOutline);
   const updateOutline = useWritingStore((s) => s.updateOutline);
   const deleteOutline = useWritingStore((s) => s.deleteOutline);
-  const ideas = useMemo(() => outlines.filter((o) => !o.chapterId), [outlines]);
+  const ideas = useMemo(
+    () => outlines.filter((o) => o.bookId === bookId && !o.chapterId),
+    [outlines, bookId],
+  );
   return (
     <div style={paneStyle}>
       <PaneHeader
-        label={t('writingDesign.pane.ideas')}
+        label={t(labelKey)}
         count={ideas.length}
         action={t('writingDesign.addIdea')}
-        onAction={() => void createOutline(t('writingDesign.ideaN', { n: ideas.length + 1 }))}
+        onAction={() => {
+          void (async () => {
+            // ㉮ 与 PiecesPane 新增（㉫）同闸：素材也要长在本卡书上，扳不动宁可不建。
+            if (!(await ensureWritingBookWired(bookId))) return;
+            void createOutline(t('writingDesign.ideaN', { n: ideas.length + 1 }));
+          })();
+        }}
       />
       <div style={paneBodyStyle}>
         {ideas.length === 0 && <EmptyHint text={t('writingDesign.emptyIdeas')} />}
@@ -3069,7 +3395,25 @@ export function IdeasPane({ accent, outlines }: { accent: string; outlines: Writ
               <button
                 type="button"
                 title={t('writingDesign.deleteIdea')}
-                onClick={() => void deleteOutline(o.id)}
+                onClick={() => {
+                  // 删除铁律（③e）：工作室画布的念头 × 此前一点即删。
+                  // 两个后果必须写在脸上：① 它只解除章节绑定，**章节本身不动**（不说用户会以为连章节一起删）；
+                  // ② 写作域**没有撤销栈**（writingStore 里查无 undo），删掉就没了。
+                  // 仓里另有一个 delete-outline 确认弹窗，但长在写作台的弹窗状态机里、工作室根本调不到，
+                  // 已随本片一并拆除（见 useDialogActions）。
+                  confirmDestructive({
+                    title: t('writingDesign.deleteIdeaConfirmTitle', { title: o.title }),
+                                        impact: [
+                      t('writingDesign.deleteIdeaConfirmImpactBindings'),
+                      t('writingDesign.deleteIdeaConfirmImpactUndo'),
+                    ],
+                    confirmLabel: t('nav.delete'),
+                    cancelLabel: t('ui.cancel'),
+                    onConfirm: () => {
+                      void deleteOutline(o.id);
+                    },
+                  });
+                }}
                 style={delBtnStyle}
               >
                 ×
@@ -3093,6 +3437,204 @@ export function IdeasPane({ accent, outlines }: { accent: string; outlines: Writ
 // Direction A 重做：不再走 buildTimelineBoard 只读板（那是「通用卡片板 + 网格背景」，
 // "时间线"只是卡片上的刻度），而是铺满画布的目的构建编辑面，直接订阅 writingStore。
 // 轴 = 忠实秩轴：每条 lane 内事件按可排序键排序，刻度=作者原文 at，混合尺度天然安全。
+/**
+ * ㉭ M1a 记录条的小工具（2026-11-11 轮 72 续七班）。
+ *
+ * 真人定的方向原话：「日记的主要目的是记录：什么事情、几点钟发生的、按时间线走、跟什么人物
+ * 见过面说过话、心里的感想。完了以后通过 AI 直接给它润色……有些人不愿意花太多时间润色它，
+ * 我们就抓住这个痛点。」⇒ 日记的主入口不该是"写"，是"记"，一条录入必须三秒钟完成。
+ *
+ * 时刻为什么要单独一小函数：日记的 `at` 现成字段是**自由文本**，全站其他地方写的是
+ * 「第三日」「第3章」这类散文时点；日记侧统一写 `HH:mm` 才能在一天的竖排里排得出先后。
+ * 这里不改 `at` 的类型、不加新列（第 8 条铁律：不新增表/不改快照指纹），只约定格式。
+ */
+function diaryClockNow(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * 星期名走 Intl locale（它是**语言数据**，不是界面文案）。
+ * 塞进 i18n 反而会造出第二个真源：i18n 里那份「星期三」不会跟着系统历法走。
+ */
+function diaryWeekdayShort(): string {
+  // `Lang` 目前只有 zh-CN / en-US 两值（在这里手写第三枚会被 TS 判成"永假比较"），
+  // 所以直接把界面语言交给映射表，将来开新语言只改这一处。
+  const loc = getLang() === 'zh-CN' ? 'zh-CN' : 'en-US';
+  try {
+    return new Intl.DateTimeFormat(loc, { weekday: 'short' }).format(new Date());
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * ㉥ M1a：日记书时间线栏顶部的「此刻记一笔」。
+ *
+ * 四个控件 = 真人列的记录要素里可结构化的那几个：**几点**（默认此刻，可改）/ **什么事**
+ * （一句话，回车即入库）/ **跟谁**（可空，从本卡人物里选）/ **哪一天**（自动落今天那个条目，
+ * 今天还没开条目就当场建一条，走 `diaryEntry` 现成工具，不新增表不新增字段）。
+ *
+ * 落库 = 现成 `WritingTimelineEvent`（`at`=HH:mm、`event`=那句话、`settingId`=谁、
+ * `chapterId`=今天条目）⇒ 当天竖排、按天统计、AI 全书语料、以及上一把刚接的**校对体裁闸**
+ * 全部自动吃到这条记录，不需要任何新消费点（本仓「定义了没人消费 = 孤儿定义」的头号病灶）。
+ *
+ * 认书口径与同栏「＋新建事件」一字不差：先过写侧扳正助手（见 studioBook 的 ensureWritingBookWired），
+ * 扳不动宁可不记 —— 否则会出现「在 B 卡上记的日记静默进了 A 书」（AI-12 ④-e 在册同族）。
+ *
+ * 感想（他列的第五样）本片**不另立控件**：先由这一句话承载，进念头池是 M1c 的事，
+ * 别一次铺四张脸。
+ */
+export function DiaryCaptureBar({ accent, bookId, genre }: { accent: string; bookId: string; genre: string }) {
+  const chapters = useWritingStore((s) => s.chapters);
+  const settings = useWritingStore((s) => s.settings);
+  const timelineEvents = useWritingStore((s) => s.timelineEvents);
+  const createTimelineEvent = useWritingStore((s) => s.createTimelineEvent);
+  const createChapter = useWritingStore((s) => s.createChapter);
+  const [clock, setClock] = useState(diaryClockNow);
+  const [what, setWhat] = useState('');
+  const [who, setWho] = useState('');
+  const [busy, setBusy] = useState(false);
+  const dayKey = todayDateKey();
+  const todayEntry = useMemo(
+    () => findEntryByDate(chapters.filter((c) => c.bookId === bookId), dayKey),
+    [chapters, bookId, dayKey],
+  );
+  const people = useMemo(
+    () => settings.filter((s) => s.bookId === bookId && (s.kind ?? 'character') === 'character'),
+    [settings, bookId],
+  );
+  const todayCount = useMemo(
+    () => (todayEntry ? timelineEvents.filter((e) => e.chapterId === todayEntry.id).length : 0),
+    [timelineEvents, todayEntry],
+  );
+
+  // 判据 = 「这个载体是一条一天吗」的既有唯一口径（写作台那颗「今天」用的就是它），
+  // 不在这里抄一份体裁清单。
+  if (!hasTodayEntryMode(genre)) return null;
+
+  const submit = async () => {
+    const text = what.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    try {
+      if (!(await ensureWritingBookWired(bookId))) return;
+      let entry = findEntryByDate(
+        useWritingStore.getState().chapters.filter((c) => c.bookId === bookId),
+        dayKey,
+      );
+      // createChapter 返回 `WritingChapter | null`（扳正失败给 null），条目变量是 `| undefined`
+      // ⇒ 显式收一次，别把 null 混进"有没有今天条目"这套判据
+      if (!entry) entry = (await createChapter(diaryEntryTitle(dayKey), writeDiaryDate(undefined, dayKey))) ?? undefined;
+      await createTimelineEvent({
+        chapterId: entry?.id ?? null,
+        settingId: who || null,
+        storylineId: null,
+        at: clock,
+        event: text,
+      });
+      // 记完清空那句话、时刻跟着走：下一条就是"此刻"的下一件事
+      setWhat('');
+      setClock(diaryClockNow());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        flexWrap: 'wrap',
+        padding: '4px 8px',
+        borderBottom: `1px solid ${CV.divider}`,
+        background: 'transparent',
+      }}
+    >
+      <input
+        type="time"
+        value={clock}
+        onChange={(e) => setClock(e.target.value)}
+        aria-label={t('writing.diary.captureWhenLabel')}
+        style={{
+          fontSize: uiFontSize(10),
+          padding: '2px 4px',
+          border: `1px solid ${CV.divider}`,
+          borderRadius: 6,
+          background: 'transparent',
+          color: CV.text,
+          width: 76,
+        }}
+      />
+      <input
+        value={what}
+        onChange={(e) => setWhat(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            void submit();
+          }
+        }}
+        placeholder={t('writing.diary.captureWhatPh')}
+        aria-label={t('writing.diary.captureWhatPh')}
+        style={{
+          flex: '1 1 120px',
+          minWidth: 120,
+          fontSize: uiFontSize(11),
+          padding: '3px 6px',
+          border: `1px solid ${CV.divider}`,
+          borderRadius: 6,
+          background: 'transparent',
+          color: CV.text,
+        }}
+      />
+      <select
+        value={who}
+        onChange={(e) => setWho(e.target.value)}
+        aria-label={t('writing.diary.captureWhoLabel')}
+        style={{
+          fontSize: uiFontSize(10),
+          padding: '2px 4px',
+          border: `1px solid ${CV.divider}`,
+          borderRadius: 6,
+          background: 'transparent',
+          color: CV.text2,
+          maxWidth: 110,
+        }}
+      >
+        <option value="">{t('writing.diary.captureWhoNone')}</option>
+        {people.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={busy || !what.trim()}
+        onClick={() => void submit()}
+        style={{
+          ...miniBtn(accent),
+          fontSize: uiFontSize(10),
+          padding: '2px 8px',
+          opacity: busy || !what.trim() ? 0.45 : 1,
+        }}
+      >
+        {t('writing.diary.captureSubmit')}
+      </button>
+      <span style={{ fontSize: uiFontSize(9.5), color: CV.text3, width: '100%' }}>
+        {t('writing.diary.captureCount', {
+          date: todayEntry?.title || diaryEntryTitle(dayKey),
+          weekday: diaryWeekdayShort(),
+          n: todayCount,
+        })}
+      </span>
+    </div>
+  );
+}
+
 export function TimelinePane({ accent, bookId }: { accent: string; bookId: string }) {
   const settings = useWritingStore((s) => s.settings);
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
@@ -3107,6 +3649,10 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
   const loadTimelineEvents = useWritingStore((s) => s.loadTimelineEvents);
   const loadSettings = useWritingStore((s) => s.loadSettings);
   const chapters = useWritingStore((s) => s.chapters);
+  // ⑲ 体裁闸口：这条轴上有「＋ 新建剧情线」，所以它必须知道这本书是什么体裁。
+  // ⑨ 只裁了 storylines 页签，结果诗集作者能在**没被裁的时间线页签**里造出一条
+  // 再也看不见的剧情线 —— 视图藏了、入口没关，等于化妆。
+  const tlGenre = useWritingStore((s) => s.books.find((b) => b.id === bookId)?.genre ?? '');
   const loadChapters = useWritingStore((s) => s.loadChapters);
   const selectedTimelineEventId = useEditorStore((s) => s.selectedTimelineEventId);
   const bookScopedSettings = useMemo(
@@ -3134,6 +3680,11 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
     () => (bookId ? chapters.filter((c) => c.bookId === bookId).sort((a, b) => a.sortOrder - b.sortOrder) : []),
     [chapters, bookId],
   );
+  // AI-12 ④（轮 30）：这张卡是「半张换源」的形状——settings/chapters 两嘴早已按本卡书滤，事件与线
+  // 四嘴照旧吃活跃书缓存 ⇒ 诗集的轴上排着小说的事件、给小说的线挂线。与 InspirationPanels 当时的
+  // 灵感卡同形。装载 guard（下方 useEffect）按 activeBookId，本轮不许顺手。
+  const bookEvents = useMemo(() => timelineEvents.filter((e) => e.bookId === bookId), [timelineEvents, bookId]);
+  const bookStorylines = useMemo(() => storylines.filter((l) => l.bookId === bookId), [storylines, bookId]);
 
   // 时间线数据可能尚未 load（本视图不再走 seed 异步加载）：挂载时按书补齐。
   useEffect(() => {
@@ -3149,9 +3700,9 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
   const { completeEvents, incompleteEvents } = useMemo(() => {
     const comp: WritingTimelineEvent[] = [];
     const inc: WritingTimelineEvent[] = [];
-    for (const ev of timelineEvents) (isComplete(ev) ? comp : inc).push(ev);
+    for (const ev of bookEvents) (isComplete(ev) ? comp : inc).push(ev);
     return { completeEvents: comp, incompleteEvents: inc };
-  }, [timelineEvents]);
+  }, [bookEvents]);
 
   // 事件 at 排序统一走 utils 唯一口径 compareByAt（空 at 排后），不再本地 new Collator（禁止第二份）。
   const sortEventsByAt = (a: WritingTimelineEvent, b: WritingTimelineEvent) => compareByAt(a.at, b.at);
@@ -3216,7 +3767,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
         bookChapters,
         completeEvents,
         {
-          unbound: t('writing.timelineUnbound'),
+          unbound: t(surfaceKeyForGenre(tlGenre, 'tlUnbound')),
           untitled: t('writingWorkbench.untitled'),
         },
         { groupByVolume: true },
@@ -3227,7 +3778,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
   // 剧情线 lane（P0）：每条线一轨（color=线配色），末尾「未挂线」组收纳 storylineId 为空的事件。
   // 空线也列出（规划空缺提示，与章轴未锚定同语义）。
   const storylineLanes = useMemo<Lane[]>(() => {
-    const lanes: Lane[] = storylines.map((sl) => ({
+    const lanes: Lane[] = bookStorylines.map((sl) => ({
       id: sl.id,
       name: sl.name,
       isBook: false,
@@ -3242,7 +3793,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
       events: completeEvents.filter((e) => !e.storylineId).sort(sortEventsByAt),
     });
     return lanes;
-  }, [storylines, completeEvents, t]);
+  }, [bookStorylines, completeEvents, t]);
 
   // 视图切换：全书轴（按设定分轨）/ 按章轴（按章分轨）/ 剧情线轴（按线分轨）
   const lanes = timelineView === 'book' ? settingLanes : timelineView === 'chapter' ? chapterLanes : storylineLanes;
@@ -3250,8 +3801,8 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
   // P2 冲突检测（派生视图 / 软提示，琥珀色不强制）：同轨 at 碰撞 + 跨章时间倒挂。
   // 直接基于 events 计算（与右栏总览共用同一算法，避免 lane 构建口径分裂）。
   const conflictIds = useMemo<Set<string>>(
-    () => computeTimelineConflicts(timelineEvents, { view: timelineView, chapters: bookChapters }),
-    [timelineView, timelineEvents, bookChapters],
+    () => computeTimelineConflicts(bookEvents, { view: timelineView, chapters: bookChapters }),
+    [timelineView, bookEvents, bookChapters],
   );
 
   // P2 覆盖率：已锚定章 / 总章；未绑章事件数（章节视图用）
@@ -3293,6 +3844,9 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
     chapterId?: string | null;
     storylineId?: string | null;
   }) => {
+    // AI-12 ④-e（落刀普查并入，同卡同形状）：事件按 store 活跃书落库 ⇒ 在 B 卡上「＋新建事件」
+    // 会静默建进 A。与建线同一道闸，扳不动宁可不建。
+    if (!(await ensureWritingBookWired(bookId))) return;
     const ev = await createTimelineEvent({
       settingId: opts.settingId ?? null,
       chapterId: opts.chapterId ?? null,
@@ -3316,6 +3870,13 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
     return () => cancelAnimationFrame(raf);
   }, [justCreatedId]);
 
+  // AI-12 ④-d（轮 30）：建线按活跃书落库 + 默认名数整份缓存，两处同病 ⇒ 与 StorylineSection 建线
+  // 同一口径：先扳正本卡书，扳不动宁可不建。
+  const handleCreateStoryline = async () => {
+    if (!(await ensureWritingBookWired(bookId))) return;
+    await createStoryline(t('writing.storylineDefaultName', { n: bookStorylines.length + 1 }));
+  };
+
   const totalEvents = useMemo(() => filteredLanes.reduce((n, l) => n + l.events.length, 0), [filteredLanes]);
 
   const laneColor = (lane: { id: string; isBook: boolean; settingId: string | null }): string => {
@@ -3337,12 +3898,17 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
   return (
     <div style={paneStyle}>
       <PaneHeader label={t('writing.viewKind.timeline')} count={totalEvents} />
+      {/* ㉭ M1a：只有「一条一天」的载体挂记录条；其余四体裁这一栏逐字不变（零回归线） */}
+      <DiaryCaptureBar accent={accent} bookId={bookId} genre={tlGenre} />
       {/* 视图口径（全书轴/按章轴/剧情线轴）+ 剧情线管理 + 全局新建；行首小节标签让「口径/创建」与下方「筛选」语义分层 */}
       <div
         style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px 0', flexShrink: 0, flexWrap: 'wrap' }}
       >
         <span style={{ fontSize: 9.5, color: CV.text3, flexShrink: 0 }}>{t('writing.timelineGroupView')}</span>
-        {(['book', 'chapter', 'storyline'] as const).map((v) => (
+        {(['book', 'chapter', 'storyline'] as const)
+          // ⑲ 体裁不允许造剧情线时，这条轴本身就不出现（不是只禁按钮 —— 禁了按钮留着空轴更困惑）
+          .filter((v) => v !== 'storyline' || canCreateEntityForGenre(tlGenre, 'storyline'))
+          .map((v) => (
           <button
             key={v}
             type="button"
@@ -3361,16 +3927,16 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
               v === 'book'
                 ? 'writing.timelineViewBook'
                 : v === 'chapter'
-                  ? 'writing.timelineViewChapter'
+                  ? surfaceKeyForGenre(tlGenre, 'tlAxisUnit')
                   : 'writing.timelineViewStoryline',
             )}
           </button>
         ))}
         {/* 剧情线管理：仅剧情线口径显示——建线动作发生在挂线语境里，不混进其他轴 */}
-        {timelineView === 'storyline' && (
+        {timelineView === 'storyline' && canCreateEntityForGenre(tlGenre, 'storyline') && (
           <button
             type="button"
-            onClick={() => void createStoryline(t('writing.storylineDefaultName', { n: storylines.length + 1 }))}
+            onClick={() => void handleCreateStoryline()}
             style={{ ...miniBtn(accent), fontSize: 10, padding: '2px 8px' }}
           >
             ＋ {t('writing.storylineCreate')}
@@ -3494,13 +4060,13 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
               />
             </div>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {t('writing.timelineUnbound')} {coverage.unboundEventCount}
+              {t(surfaceKeyForGenre(tlGenre, 'tlUnbound'))} {coverage.unboundEventCount}
             </span>
           </div>
         )}
         {timelineView === 'chapter' && conflictIds.size > 0 && (
           <div style={{ fontSize: 9.5, color: CV.warning, padding: '0 2px 4px' }}>
-            ⚠ {t('writing.timelineConflict')}：{t('writing.timelineConflictHint')}
+            ⚠ {t('writing.timelineConflict')}：{t(surfaceKeyForGenre(tlGenre, 'tlConflictHint'))}
           </div>
         )}
         {/* 待补全：空 at / 空 event 的草稿归此处，不污染主时间轴（零阻力捕获，可暂留） */}
@@ -3534,7 +4100,21 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
               <button
                 type="button"
                 onClick={() => {
-                  void Promise.all(incompleteEvents.map((ev) => deleteTimelineEvent(ev.id)));
+                  // 删除铁律（2026-11-04 全仓删除账 ③c）：批量 + 不可撤销的动作不许一点即删。
+                  // 后果走全局确认出口，条数写进标题（旧实现一个按钮直接 Promise.all 掉全部草稿，
+                  // 既不说几条、也不说能不能反悔）。
+                  confirmDestructive({
+                    title: t('writing.timelineClearIncompleteConfirmTitle', { n: incompleteEvents.length }),
+                    impact: [
+                      t('writing.timelineClearIncompleteImpactCanvas'),
+                      t('writing.timelineClearIncompleteImpactUndo'),
+                    ],
+                    confirmLabel: t('writing.timelineClearIncomplete'),
+                    cancelLabel: t('ui.cancel'),
+                    onConfirm: () => {
+                      void Promise.all(incompleteEvents.map((ev) => deleteTimelineEvent(ev.id)));
+                    },
+                  });
                 }}
                 style={{ ...miniBtn(CV.error), fontSize: 9.5, padding: '1px 8px', flexShrink: 0 }}
               >
@@ -3552,7 +4132,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
                   color={CV.text2}
                   sourceLabel={laneNameOf(ev.settingId)}
                   chapters={bookChapters}
-                  storylines={storylines}
+                  storylines={bookStorylines}
                   warn={conflictIds.has(ev.id)}
                   onJump={() => jumpForEvent(ev)}
                   onDelete={() => void deleteTimelineEvent(ev.id)}
@@ -3640,7 +4220,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
                     })}
                     sourceLabel={laneNameOf(ev.settingId)}
                     chapters={bookChapters}
-                    storylines={storylines}
+                    storylines={bookStorylines}
                     warn={conflictIds.has(ev.id)}
                     onJump={() => jumpForEvent(ev)}
                     onDelete={() => void deleteTimelineEvent(ev.id)}
@@ -3654,7 +4234,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
           </div>
         </div>
         {filteredLanes.length === 0 && incompleteEvents.length === 0 && (
-          <EmptyHint text={t('writing.timelineEmptyHint')} />
+          <EmptyHint text={t(surfaceKeyForGenre(tlGenre, 'tlEmptyHint'))} />
         )}
         {filteredLanes.map((lane) => {
           // storyline 视图：轨道色 = 线自定义色（空则 id 哈希兜底）；「未挂线」组恒灰
@@ -3696,11 +4276,12 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
                 >
                   <span style={{ fontSize: 10, color: CV.text3 }}>{'▸'}</span>
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: CV.text }}>
-                    {lane.name || t('writing.statsUncategorized')}
+                    {/* ㉞ T-F″：无组那一组的名字按体裁（chapter 视图的组 = 卷 / 分组 / 幕 / 年月） */}
+                    {lane.name || t(surfaceKeyForGenre(tlGenre, 'bandUncategorized'))}
                   </span>
                   <span style={{ fontSize: 9.5, color: CV.text3 }}>
                     {t('editor.writing.timelineEventCount', { n: lane.events.length })} ·{' '}
-                    {t('writing.statsChapters', { n: lane.group.chapters.length })}
+                    {t(surfaceKeyForGenre(tlGenre, 'childCount'), { n: lane.group.chapters.length })}
                   </span>
                   {lane.events.length === 0 &&
                     lane.group.chapters.some((l) => l.chapterId && l.events.length === 0) && (
@@ -3743,11 +4324,12 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
                 >
                   <span style={{ fontSize: 10, color: CV.text3 }}>{'▾'}</span>
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: CV.text }}>
-                    {lane.name || t('writing.statsUncategorized')}
+                    {/* ㉞ T-F″：无组那一组的名字按体裁（chapter 视图的组 = 卷 / 分组 / 幕 / 年月） */}
+                    {lane.name || t(surfaceKeyForGenre(tlGenre, 'bandUncategorized'))}
                   </span>
                   <span style={{ fontSize: 9.5, color: CV.text3 }}>
                     {t('editor.writing.timelineEventCount', { n: lane.events.length })} ·{' '}
-                    {t('writing.statsChapters', { n: lane.group.chapters.length })}
+                    {t(surfaceKeyForGenre(tlGenre, 'childCount'), { n: lane.group.chapters.length })}
                   </span>
                 </button>
                 {lane.group.chapters.map((chLane) => {
@@ -3779,7 +4361,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
                             const b = useWritingStore.getState().books.find((x) => x.id === bookId);
                             openChapterCarrierView(chLane.chapterId!, chLane.name, b?.genre ?? '', bookId);
                           }}
-                          title={t('writing.timelineJumpChapter')}
+                          title={t(surfaceKeyForGenre(tlGenre, 'tlJumpUnit'))}
                           style={{
                             ...miniBtn(chColor),
                             border: 'none',
@@ -3859,7 +4441,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
                                 ev={ev}
                                 color={chColor}
                                 chapters={bookChapters}
-                                storylines={storylines}
+                                storylines={bookStorylines}
                                 warn={conflictIds.has(ev.id)}
                                 onJump={() => jumpForEvent(ev)}
                                 onDelete={() => void deleteTimelineEvent(ev.id)}
@@ -3983,7 +4565,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
                         const b = useWritingStore.getState().books.find((x) => x.id === bookId);
                         openChapterCarrierView(lane.chapterId!, lane.name, b?.genre ?? '', bookId);
                       }}
-                      title={t('writing.timelineJumpChapter')}
+                      title={t(surfaceKeyForGenre(tlGenre, 'tlJumpUnit'))}
                       style={{
                         ...miniBtn(color),
                         border: 'none',
@@ -4089,7 +4671,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
                         ev={ev}
                         color={color}
                         chapters={bookChapters}
-                        storylines={storylines}
+                        storylines={bookStorylines}
                         warn={conflictIds.has(ev.id)}
                         onJump={() => jumpForEvent(ev)}
                         onDelete={() => void deleteTimelineEvent(ev.id)}
@@ -4147,6 +4729,7 @@ function EventChip({
   /** 纵向网格容器（待补全区）撑满单元格；横向 flex 轨道默认内容自适应宽度 */
   fill?: boolean;
 }) {
+  const tlChipGenre = useWritingStore((s) => s.books.find((b) => b.id === ev.bookId)?.genre ?? '');
   // 颜色拼接安全：仅 #RRGGBB 可拼 8 位 alpha；CSS 变量（CV.text2 等 var() 引用）拼后缀
   // 是无效 CSS（浏览器整条丢弃 border/background），此处回退中性灰半透明，保证边框/底色始终可见。
   const isHex = /^#[\da-fA-F]{6}$/.test(color);
@@ -4197,7 +4780,7 @@ function EventChip({
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         {warn && (
           <span
-            title={t('writing.timelineConflictHint')}
+            title={t(surfaceKeyForGenre(tlChipGenre, 'tlConflictHint'))}
             style={{ fontSize: 10, lineHeight: 1, color: CV.warning, fontWeight: 700, flexShrink: 0 }}
           >
             ⚠
@@ -4207,7 +4790,7 @@ function EventChip({
           entityKey={ev.id}
           value={ev.at ?? ''}
           onCommit={(v) => onUpdate({ at: v })}
-          placeholder={t('writing.timelineAtPh')}
+          placeholder={t(surfaceKeyForGenre(tlChipGenre, 'tlAtPlaceholder'))}
           style={{ ...inputStyle, flex: 1, minWidth: 0, fontSize: 10, color, fontWeight: 600 }}
         />
         {/* 可排序时点：填了才参与「跨章时间往回走」检查（口径见 eventSortKey）。
@@ -4228,10 +4811,10 @@ function EventChip({
         <button
           type="button"
           onClick={onJump}
-          title={ev.chapterId ? t('writing.timelineJumpChapter') : t('writingDesign.editProfile')}
+          title={ev.chapterId ? t(surfaceKeyForGenre(tlChipGenre, 'tlJumpUnit')) : t('writingDesign.editProfile')}
           style={{ ...miniBtn(color), fontSize: 9.5, padding: '1px 6px', flexShrink: 0 }}
         >
-          {ev.chapterId ? t('writing.timelineJumpChapter') : t('writingDesign.editProfile')}
+          {ev.chapterId ? t(surfaceKeyForGenre(tlChipGenre, 'tlJumpUnit')) : t('writingDesign.editProfile')}
         </button>
         <button
           type="button"

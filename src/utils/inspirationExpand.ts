@@ -2,18 +2,36 @@
 //
 // 职责边界：
 // - 与 agent 会话/流式、UI、store 无耦合，单测直跑（不 mock 任何模块）。
-// - INSPIRATION_EXPAND_SYSTEM_HINT：首轮注入的「灵感扩写」人设 + 版本输出约定
+// - inspirationExpandSystemHintFor：首轮注入的「灵感扩写」人设（按体裁，㉟ AI-5）+ 版本输出约定
 //   （约定与 extractInspirationVersions 的解析规则必须同步维护，改一边必须改另一边）。
-// - buildInspirationExpandPrompt：构造扩写指令（念头条目信息 + 版本数，双语）。
+// - buildInspirationExpandPrompt：构造扩写指令（念头条目信息 + 版本数 + 体裁，双语）。
 // - extractInspirationVersions：从 AI 回复中切出候选版本（`>>> 标题` 行 + 段落正文），
 //   供前端逐版本预览并一键插入正文。
 import { L } from '../ai/aiLang';
+import { workbenchCommandSet } from './writingSchema';
 
 /** 扩写版本数上限（防一次生成过长，前端滑块范围 1–3） */
 export const INSPIRATION_EXPAND_MAX_VERSIONS = 3;
 
-/** 首轮注入的灵感扩写系统提示（双语；复用语料参谋的人味约束 5 条） */
-export const INSPIRATION_EXPAND_SYSTEM_HINT = `你现在的身份是「本书灵感扩写师」。用户会给你一条尚未成文的灵感念头（标题 + 摘要 + 可能挂载的角色/场景），你把它扩写成可直接放进小说正文的段落或场景。
+/**
+ * 灵感扩写人设尾句（㉟ AI-5，2026-11-10 轮 12）：扩写成品是什么形状，本体裁说了算。
+ *
+ * 病灶（状态文件 §队列 AI-5）：这句写死「可直接放进**小说正文**的段落或场景」——
+ * 给诗集扩写会产出散文段落（与 ㉑ 诗歌开闸拦下的同一类越界），给日记扩写则天然 invite
+ * 编记忆。novel 一格 = 改造前逐字（零回归线）；**输出格式约定与人味约束全载体共用**
+ * （与 `extractInspirationVersions` 的解析规则锁死，不许随体裁漂移）。
+ */
+const EXPAND_TARGET: Record<'novel' | 'essay' | 'poetry' | 'script' | 'diary', string> = {
+  novel: '可直接放进小说正文的段落或场景',
+  essay: '可直接放进散文正文的段落',
+  poetry: '可直接放进诗作的片段（按分行写，不要排成散文段落）',
+  script: '可直接放进剧本的场次片段（角色名起行、台词另起一行、舞台指示用括注）',
+  diary: '可直接放进当天条目的补充内容（只围绕念头里已写明的事展开，不得替作者补写没记的经过）',
+};
+
+/** 首轮注入的灵感扩写系统提示（人设按体裁；输出约定与人味约束复用语料参谋那五条） */
+export function inspirationExpandSystemHintFor(genre: string): string {
+  return `你现在的身份是「本书灵感扩写师」。用户会给你一条尚未成文的灵感念头（标题 + 摘要 + 可能挂载的角色/场景），你把它扩写成${EXPAND_TARGET[workbenchCommandSet(genre)]}。
 
 输出格式约定（非常重要）：
 1. 每个候选版本以仅含 ">>> " 的一行开始，行内紧跟该版本的一句话标题（例如：>>> 版本一：雨巷重逢）；标题行会被前端解析为版本切分标记。
@@ -27,6 +45,7 @@ export const INSPIRATION_EXPAND_SYSTEM_HINT = `你现在的身份是「本书灵
 3. 具体优先：用可感细节（动作、感官、具体物件）代替抽象评价，不得用空泛形容词堆叠情感；
 4. 情节大于铺陈：关键情节要有实质推进，不得靠堆砌心理与环境描写凑篇幅；
 5. 给立场：明确倾向与判断，不回避表态，不用含糊词语填充。`;
+}
 
 export interface InspirationExpandInput {
   /** 念头标题（必填；空则用摘要首句兜底） */
@@ -39,7 +58,27 @@ export interface InspirationExpandInput {
   sceneNames?: string[];
   /** 期望候选版本数（1–3，越界自动收敛） */
   count?: number;
+  /** 作品体裁（㉟ AI-5：空/未设/脏值 = 小说口径，改造前逐字零回归） */
+  genre?: string;
 }
+
+/** 扩写指令里「N 个 ___」那一格（与 `EXPAND_TARGET` 同域，形状换成「候选…」；novel = 原句逐字） */
+const EXPAND_CANDIDATE: Record<'novel' | 'essay' | 'poetry' | 'script' | 'diary', [string, string]> = {
+  novel: ['可直接放进小说正文的候选段落/场景', 'candidate passages/scenes directly usable in the novel body'],
+  essay: ['可直接放进散文正文的候选段落', 'candidate passages directly usable in the prose piece'],
+  poetry: [
+    '可直接放进诗作的候选片段（按分行写，不要排成散文段落）',
+    'candidate poem fragments (written in lines, never as prose paragraphs)',
+  ],
+  script: [
+    '可直接放进剧本的候选场次片段（角色名起行、台词另起一行）',
+    'candidate scene fragments for the play (character name on its own line, dialogue beneath it)',
+  ],
+  diary: [
+    '可直接放进当天条目的候选补充内容（只写念头里已写明的事，不替作者补记忆）',
+    "candidate addenda for today's entry (only what the note already states - never supplied memory)",
+  ],
+};
 
 export interface InspirationExpandVersion {
   /** 版本标题（`>>> ` 行去除前缀后的内容；异常输出回退为序号标题） */
@@ -62,10 +101,11 @@ export function buildInspirationExpandPrompt(input: InspirationExpandInput): str
     parts.push(L(`【角色】${input.castNames.join('、')}`, `[Characters] ${input.castNames.join(', ')}`));
   if (input.sceneNames?.length)
     parts.push(L(`【场景】${input.sceneNames.join('、')}`, `[Scenes] ${input.sceneNames.join(', ')}`));
+  const [candZh, candEn] = EXPAND_CANDIDATE[workbenchCommandSet(input.genre)];
   parts.push(
     L(
-      `\n请基于以上灵感扩写 ${count} 个可直接放进小说正文的候选段落/场景（每个版本以 ">>> " 标题行开头，正文可多段，版本间风格有差异），不要输出其他内容。`,
-      `\nPlease expand the inspiration into ${count} candidate passages/scenes directly usable in the novel body (each version starts with a ">>> " title line, body may span multiple paragraphs, versions should differ in approach), and output nothing else.`,
+      `\n请基于以上灵感扩写 ${count} 个${candZh}（每个版本以 ">>> " 标题行开头，正文可多段，版本间风格有差异），不要输出其他内容。`,
+      `\nPlease expand the inspiration into ${count} ${candEn} (each version starts with a ">>> " title line, body may span multiple paragraphs, versions should differ in approach), and output nothing else.`,
     ),
   );
   return parts.join('\n');

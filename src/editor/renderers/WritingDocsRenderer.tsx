@@ -23,6 +23,7 @@ import { openTypedCarrierView } from '../../utils/studioBook';
 import { stripHtmlText } from '../../utils/writingProofread';
 import type { ProofreadIssue } from '../proofread/proofreadEngine';
 import { logger } from '../../utils/logger';
+import { unitNameKey } from '../../utils/writingSchema';
 
 const ACCENT = COLOR_CHAPTER;
 
@@ -132,7 +133,8 @@ export function WritingDocsRenderer({ config, componentId, mode }: ComponentRend
     resolveFragments(chapterById.get(chapterId)?.title ?? fallback);
 
   const handleAddChapter = () => {
-    void createChapter(t('writing.newChapterName', { n: chapters.length + 1 })).then((c) => {
+    // 默认名随体裁（散文「第 N 篇」）；genre 本组件已有（见 :42）
+    void createChapter(t(unitNameKey(genre), { n: chapters.length + 1 })).then((c) => {
       if (c) openTab(componentId, c.id, resolveFragments(c.title));
     });
   };
@@ -635,7 +637,7 @@ export function WritingDocsRenderer({ config, componentId, mode }: ComponentRend
               ⧉
             </span>
             <span
-              title={t('writing.newChapterName', { n: chapters.length + 1 })}
+              title={t(unitNameKey(genre), { n: chapters.length + 1 })}
               onClick={handleAddChapter}
               style={{
                 fontSize: 14,

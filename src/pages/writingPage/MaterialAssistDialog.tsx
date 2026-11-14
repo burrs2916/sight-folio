@@ -30,6 +30,7 @@ import type { AiAgent } from '../../services/agent';
 import { useToastStore } from '../../store/toastStore';
 import { logger } from '../../utils/logger';
 import { uiFontSize } from '../../theme/appearanceScales';
+import { surfaceKeyForGenre } from '../../utils/writingSchema';
 
 /** 单个文件读取预算：超过即截断（控制 prompt 体积） */
 const MAX_FILE_CHARS = 2500;
@@ -214,7 +215,10 @@ export function MaterialAssistDialog({
       const res = await runMaterialTask({
         agentId,
         title: L('资料分析', 'Material Analysis'),
-        message: buildMaterialAnalysisMessage(files),
+        // ㉑：分析步也要知道体裁 —— 原来这个函数根本不收 genre，
+        // 于是给诗集/剧本提炼素材时，prompt 硬写着「供后续**小说**创作使用 / usable in fiction」。
+        // 目标作品还没选 = 未指定体裁，落回小说口径（与改造前逐字相同）。
+        message: buildMaterialAnalysisMessage(files, books.find((b) => b.id === targetBookId)?.genre),
         onDelta: (full) => setAnalysisText(full),
       });
       if (res.interrupted) {
@@ -229,7 +233,7 @@ export function MaterialAssistDialog({
     } finally {
       setAnalyzing(false);
     }
-  }, [agentId, files, t]);
+  }, [agentId, files, books, targetBookId, t]);
 
   // ─── AI 生成正文草稿：分析结果 + 目标章已有正文（衔接） ───
   const handleGenerate = useCallback(async () => {
@@ -418,7 +422,7 @@ export function MaterialAssistDialog({
             select
             size="small"
             fullWidth
-            label={t('writing.materialTargetChapter')}
+            label={t(surfaceKeyForGenre(books.find((b) => b.id === targetBookId)?.genre ?? '', 'materialTarget'))}
             value={targetChapterId}
             disabled={!targetBookId || chaptersLoading}
             onChange={(e) => setTargetChapterId(e.target.value)}
@@ -475,7 +479,7 @@ export function MaterialAssistDialog({
             onClose();
           }}
         >
-          {t('writing.materialInsert')}
+          {t(surfaceKeyForGenre(books.find((b) => b.id === targetBookId)?.genre ?? '', 'materialInsert'))}
         </Button>
       </DialogActions>
     </Dialog>

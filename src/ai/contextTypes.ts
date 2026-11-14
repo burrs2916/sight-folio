@@ -673,6 +673,17 @@ export interface AiContextProvider {
   collectEntitySnapshot?: (scopeId: string, previousIds?: string[]) => AiEntitySnapshot | null;
   /** 可选的分析预设 */
   presets?: AiAnalysisPreset[];
+  /**
+   * ㉴（轮 35 · AU-1）可选：该作用域下**不该自动执行**的分析项（值 = presets 的 key）。
+   *
+   * 写作域用它申报体裁白名单（表在 `genrePromptPack.automation`）：诗集不该被自动编排
+   * 派去审「人设一致性」——那张卡的对照物（人设卡）在本体裁连入口都没有。
+   * 与 describeQuality / describeFocus 同构：同步、低开销；**未实现 = 全部可跑**
+   * （代码扫描域没有体裁概念，一行不改即零回归；读取抛错也按「不拦」处理——宁多跑不静默少跑）。
+   * 不跑的项必须说话：编排写 reason=genre-irrelevant 的 skipped 轨迹，
+   * 覆盖台账把该维度标成「体裁不适用」——静默少跑在本仓等于坏掉（v3 §6-A 口径）。
+   */
+  automationBlocklist?: (scopeId: string) => string[];
 }
 
 /**

@@ -12,7 +12,7 @@ import InputLabel from "@mui/material/InputLabel";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import { t } from "../i18n";
-import { WRITING_GENRES, WRITING_MEDIUMS, defaultMediumForGenre } from "../utils/writingSchema";
+import { WRITING_GENRES, WRITING_MEDIUMS, defaultMediumForGenre, carrierTermKeys } from "../utils/writingSchema";
 
 interface GenreMediumFieldsProps {
   genre: string;
@@ -62,16 +62,20 @@ export function GenreMediumFields({
           value={medium}
           onChange={(e) => onMediumChange(e.target.value)}
         >
-          {mediumOptions.map((m) => (
-            <MenuItem key={m.id} value={m.id}>
-              <Box sx={{ display: "flex", flexDirection: "column", py: 0.25 }}>
-                <Typography sx={{ fontSize: 13 }}>{t(`writing.medium.${m.id}`)}</Typography>
-                <Typography sx={{ fontSize: 11, color: "text.disabled" }}>
-                  {t(`writing.medium.${m.id}Desc`)}
-                </Typography>
-              </Box>
-            </MenuItem>
-          ))}
+          {mediumOptions.map((m) => {
+            // 载体名与说明按「体裁 × 载体」取（⑮-1）：诗集要显示「诗集」，不是散文的「篇目集」
+            const ct = carrierTermKeys(genre, m.id);
+            return (
+              <MenuItem key={m.id} value={m.id}>
+                <Box sx={{ display: "flex", flexDirection: "column", py: 0.25 }}>
+                  <Typography sx={{ fontSize: 13 }}>{t(ct.labelKey)}</Typography>
+                  <Typography sx={{ fontSize: 11, color: "text.disabled" }}>
+                    {t(ct.descKey)}
+                  </Typography>
+                </Box>
+              </MenuItem>
+            );
+          })}
         </Select>
       </FormControl>
 

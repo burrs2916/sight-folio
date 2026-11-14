@@ -1,7 +1,7 @@
 // sight-folio: AI 语料参谋 · 推荐句解析/提示词约定（P1 对话模式 · 纯函数回归锁）
 import { describe, it, expect } from 'vitest';
 import {
-  AI_CORPUS_SYSTEM_HINT,
+  corpusSystemHintFor,
   buildCorpusGeneratePrompt,
   buildCorpusEvidenceBlock,
   detectExampleRequest,
@@ -11,6 +11,11 @@ import {
   type CorpusGeneratePurpose,
 } from '../aiCorpusChat';
 import type { CorpusSearchHit } from '../../services/corpus';
+
+// ㉟ AI-5（轮 12）：常量改函数后，本文件原有断言全部跑**小说口径**（未设/空 genre 值）——
+// 它们因此同时是 novel 零回归锁（渲染结果与改造前常量逐字同源）。非小说支的锁在
+// `src/ai/__tests__/genreFourMouths.test.ts`。
+const AI_CORPUS_SYSTEM_HINT = corpusSystemHintFor('');
 
 describe('extractAiCorpusPicks（AI 回复 → 推荐句）', () => {
   it('提取每条 ">>> " 开头的行（去前缀、去首尾空白）', () => {

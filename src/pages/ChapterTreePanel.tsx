@@ -38,6 +38,28 @@
 // 全部命中，即可跳过整棵树的重新渲染。
 
 import { Fragment, memo, useEffect, useMemo, useState } from 'react';
+import {
+  POETRY_FORMS,
+  POETRY_TRADITION_KEYS,
+  poetryGroupsForLang,
+  poemFormView,
+  readPoemForm,
+} from '../utils/poetryForms';
+import { structureInspectorForGenre } from '../utils/writingSchema';
+import { surfaceKeyForGenre } from '../utils/writingSchema';
+import { diaryDateShort, parseDiaryDate } from '../utils/diaryEntry';
+import { unitTermParams } from '../utils/unitTerms';
+import {
+  analyzeScriptStructure,
+  scriptStructureBadge,
+  scriptStructureTone,
+  scriptStructureCorpusLines,
+} from '../utils/scriptStructure';
+import { useWritingStore } from '../store/writingStore';
+import ListSubheader from '@mui/material/ListSubheader';
+import Chip from '@mui/material/Chip';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import type { Dispatch, MutableRefObject, ReactNode, SetStateAction } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -62,7 +84,7 @@ import {
 } from '../utils/writingTree';
 import { ChapterStatusDot } from '../editor/components/ChapterStatusDot';
 import { TreeIndentGuides, TreeChevron, TreeKindBadge, TreeMetaText } from '../editor/components/TreeRowShared';
-import { t } from '../i18n';
+import { getLang, t } from '../i18n';
 import { logger } from '../utils/logger';
 import { useToastStore } from '../store/toastStore';
 import type { ChapterListDialog } from './ChapterListPanel';
@@ -88,8 +110,12 @@ export interface ChapterTreePanelProps {
   setSelectedChapterIds: Dispatch<SetStateAction<string[]>>;
   setActiveSetting: (id: string | null) => void;
   setActiveChapter: (id: string) => void;
-  /** 非多选期点击章行后追加的动作（写作台用它切右栏「章详情」tab，点章即打开该章专有详情） */
-  onOpenChapterDetails?: (id: string) => void;
+  /**
+   * 非多选期点击章行后追加的动作。写作台用它把右栏落到**正文**：作者是点章来写作的，
+   * 不是来读元信息的（2026-11-07 李先生定口径；改前默认落章详情）。
+   * 章详情没有被删掉——它仍在右栏页签与抽屉按钮两个常驻入口里，只是不再抢默认位。
+   */
+  onChapterOpened?: (id: string) => void;
   dragChapterIdRef: MutableRefObject<string | null>;
   flushSave: () => Promise<boolean>;
   setDropIndex: (i: number | null) => void;
@@ -122,6 +148,8 @@ function TreeRow({
   onClick,
   onOpenDialog,
   onAddChild,
+  structureKind,
+  genre,
   onMoveUp,
   onMoveDown,
   onNestDrop,
@@ -148,6 +176,11 @@ function TreeRow({
   onClick: () => void;
   onOpenDialog: (d: ChapterListDialog, initialText?: string) => void;
   onAddChild: () => void;
+  /** 体裁专属的行尾结构读数（⑯-1 由 writingSchema.structureInspectorForGenre 判）：
+   *  poem = 形式徽标 + 选择器；script = 幕场/对白读数；'' = 小说与散文，行 DOM 一字不改 */
+  structureKind: '' | 'poem' | 'script';
+  /** 本书体裁（行尾动作的叫法按它插值：新建篇目 / 重命名诗作 / 删除场次） */
+  genre: string;
   /** 同级上移（存在前兄弟时才有值）：移到前兄弟之前 */
   onMoveUp?: () => void;
   /** 同级下移（存在后兄弟时才有值）：移到后兄弟之后 */
@@ -279,7 +312,7 @@ function TreeRow({
         )}
         {/* 折叠尖角固定占位（共享基元）：保证同层标题左缘对齐 */}
         <TreeChevron expandable={expandable} expanded={expanded} onToggleExpand={onToggleExpand} />
-        <ChapterStatusDot status={chapter.status} depth={depth} />
+
         {chapter.kind && <TreeKindBadge kind={chapter.kind} />}
         <Typography
           variant="caption"
@@ -350,6 +383,8 @@ function TreeRow({
               </IconButton>
             </Tooltip>
           )}
+          {structureKind === 'poem' && <PoemFormChip chapter={chapter} />}
+          {structureKind === 'script' && <ScriptStructChip chapter={chapter} />}
           <Tooltip title={t('writingDesign.addChild')}>
             <IconButton
               size="small"
@@ -380,7 +415,7 @@ function TreeRow({
               e.stopPropagation();
               onOpenDialog({ kind: 'rename-chapter', chapterId: chapter.id }, chapter.title);
             }}
-            aria-label={t('writing.renameChapterTitle')}
+            aria-label={t('writing.renameChapterTitle', unitTermParams(genre))}
           >
             <EditRoundedIcon sx={{ fontSize: 13 }} />
           </IconButton>
@@ -390,7 +425,7 @@ function TreeRow({
               e.stopPropagation();
               onOpenDialog({ kind: 'delete-chapter', chapterId: chapter.id });
             }}
-            aria-label={t('writing.deleteChapterTitle')}
+            aria-label={t('writing.deleteChapterTitle', unitTermParams(genre))}
           >
             <DeleteOutlineRoundedIcon sx={{ fontSize: 13 }} />
           </IconButton>
@@ -413,7 +448,7 @@ function ChapterTreePanelInner(props: ChapterTreePanelProps) {
     setSelectedChapterIds,
     setActiveSetting,
     setActiveChapter,
-    onOpenChapterDetails,
+    onChapterOpened,
     dragChapterIdRef,
     flushSave,
     setDropIndex,
@@ -569,13 +604,19 @@ function ChapterTreePanelInner(props: ChapterTreePanelProps) {
           idx={chapterIndexById.get(ch.id) ?? 0}
           active={selected}
           boundBeatTitle={beatByChapter.get(ch.id) ?? null}
-          // 容器给「N 章」，叶章给自身字数——各自最能说明规模的那个数（与作品目录树同口径）
+          // 容器给「N 章」，叶章给自身字数——各自最能说明规模的那个数（与作品目录树同口径）。
+          // ㉓-1：量词按体裁取，日记的年/月节点该说「12 天」而不是「12 章」。
           meta={
             hasKids
-              ? t('writingTree.chapterCount', { n: kids })
-              : ch.wordCount > 0
-                ? t('writing.words', { n: ch.wordCount })
-                : ''
+              ? t(surfaceKeyForGenre(genre, 'childCount'), { n: kids })
+              : // ㉕ 日记条目把「哪天」排在字数前面。旧数据没有日期、别的体裁也没有，
+                // 空串被 filter 掉之后再 join，所以非日记体裁的输出与改造前**逐字相同**（不多一个分隔符）。
+                [
+                  diaryDateShort(parseDiaryDate(ch.extra)),
+                  ch.wordCount > 0 ? t('writing.words', { n: ch.wordCount }) : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
           }
           expandable={hasKids}
           expanded={expanded}
@@ -588,10 +629,13 @@ function ChapterTreePanelInner(props: ChapterTreePanelProps) {
           onClick={() => {
             setActiveSetting(null);
             setActiveChapter(ch.id);
-            // 点章 = 打开该章专有详情（右栏切「章详情」tab；写作台 2026-09-29 定稿语义）
-            onOpenChapterDetails?.(ch.id);
+            // 点章 = 打开这一章来写（右栏落正文）。2026-09-29 那版「点章即开章详情」已废：
+            // 它让作者每次点章都先翻过一页说明书，再点一次才摸到正文。
+            onChapterOpened?.(ch.id);
           }}
           onOpenDialog={openDialog}
+          structureKind={structureInspectorForGenre(genre)}
+          genre={genre}
           onAddChild={() => {
             // 新子级藏在收起的分支里就没反馈：先展开本节点
             if (collapsed.has(ch.id)) toggleNodeCollapse(ch.id);
@@ -654,3 +698,110 @@ function ChapterTreePanelInner(props: ChapterTreePanelProps) {
 }
 
 export const ChapterTreePanel = memo(ChapterTreePanelInner);
+
+/**
+ * 「诗歌形式」行内控件（2026-11-09 ⑫）：一枚窄徽标 + 锚点浮层。
+ *
+ * 为什么不把 20 个形式摊在行里：这行本来就有 引导线 + 折叠尖角 + 状态点 + 层级徽章 +
+ * 封面缩略 + 标题 + 尾注 + 4 枚动作按钮，再塞一个 Select 必然把标题挤成省略号 ——
+ * 李先生为"体量一大布局就乱"报修过一回，不再犯第二次。清单在浮层里，行上只留一枚
+ * `maxWidth: 96` 的徽标，颜色就是判定结果（合式 / 出格 / 未判定）。
+ *
+ * 动作走 `useWritingStore.getState()`：只在点击回调里取一次，**不建订阅**，
+ * 所以本文件顶部那套「props 全为稳定引用 → memo 浅比较命中」的约定一点没破。
+ */
+/**
+ * 剧本行尾的「幕场 / 对白」读数（⑯-1）。
+ * 三条边界：① 只读不算账 —— 不改正文、不碰排版（排版是承载层，未批）；
+ * ② 色调只挂**硬事实**（有没有幕场标题、是不是整段叙述），长台词那种经验阈值不进色调；
+ * ③ 没正文就说没正文，不谎报「没结构」。
+ */
+function ScriptStructChip({ chapter }: { chapter: WritingChapter }) {
+  const s = useMemo(() => analyzeScriptStructure(chapter.content ?? ''), [chapter.content]);
+  const badge = scriptStructureBadge(s);
+  const tone = scriptStructureTone(s);
+  const lines = scriptStructureCorpusLines(s).zh;
+  const toneSx =
+    tone === 'ok'
+      ? { color: 'success.main', borderColor: 'success.main' }
+      : tone === 'empty'
+        ? { color: 'text.disabled' }
+        : { color: 'warning.main', borderColor: 'warning.main' };
+  return (
+    <Tooltip
+      title={
+        <Box sx={{ maxWidth: 300 }}>
+          {lines.length > 0
+            ? lines.map((l, i) => (
+                <Box key={i} sx={{ fontSize: 11 }}>
+                  {l}
+                </Box>
+              ))
+            : t('writing.scriptStructUI.empty')}
+        </Box>
+      }
+    >
+      <Chip
+        size="small"
+        label={t(badge.key, badge.params)}
+        onClick={(e) => e.stopPropagation()}
+        sx={{ height: 18, fontSize: 10.5, maxWidth: 138, ...toneSx }}
+      />
+    </Tooltip>
+  );
+}
+
+function PoemFormChip({ chapter }: { chapter: WritingChapter }) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const groups = useMemo(() => poetryGroupsForLang(getLang()), []);
+  const view = poemFormView(chapter.content ?? '', chapter.extra);
+  const formId = readPoemForm(chapter.extra);
+  const label = view ? t(view.labelKey) : t('writing.poemFormUI.formNone');
+  const toneSx =
+    view?.tone === 'ok'
+      ? { color: 'success.main', borderColor: 'success.main' }
+      : view?.tone === 'bad'
+        ? { color: 'warning.main', borderColor: 'warning.main' }
+        : view?.tone === 'skip'
+          ? { color: 'text.disabled' }
+          : {};
+  const tip = !view
+    ? t('writing.poemFormUI.formNone')
+    : view.notMeasured
+      ? `${t(view.labelKey)} · ${t('writing.poemFormUI.formNone')}`
+      : t(view.messageKey, view.messageParams as never);
+
+  const pick = (id: string) => {
+    setAnchorEl(null);
+    void useWritingStore.getState().setChapterPoemForm(chapter.id, id);
+  };
+
+  return (
+    <>
+      <Tooltip title={tip}>
+        <Chip
+          size="small"
+          clickable
+          label={label}
+          onClick={(e) => setAnchorEl(e.currentTarget as HTMLElement)}
+          sx={{ height: 17, fontSize: 9.5, maxWidth: 96, flexShrink: 0, ...toneSx }}
+        />
+      </Tooltip>
+      <Menu anchorEl={anchorEl} open={!!anchorEl} onClose={() => setAnchorEl(null)}>
+        <MenuItem onClick={() => pick('')} sx={{ fontSize: 12, fontStyle: 'italic' }}>
+          {t('writing.poemFormUI.formClear')}
+        </MenuItem>
+        {groups.map((g) => (
+          <Fragment key={g.tradition}>
+            <ListSubheader sx={{ fontSize: 10.5, lineHeight: '20px', mt: 0.5 }}>{t(POETRY_TRADITION_KEYS[g.tradition])}</ListSubheader>
+            {g.forms.map((f) => (
+              <MenuItem key={f.id} selected={f.id === formId} onClick={() => pick(f.id)} sx={{ fontSize: 12, py: 0.25 }}>
+                {t(f.labelKey)}
+              </MenuItem>
+            ))}
+          </Fragment>
+        ))}
+      </Menu>
+    </>
+  );
+}

@@ -12,6 +12,7 @@ import { openWritingDesk } from '../../utils/writingDeskWindow';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useWritingStore } from '../../store/writingStore';
+import { canCreateEntityForGenre, surfaceKeyForGenre } from '../../utils/writingSchema';
 import { useEditorStore } from '../../store/editorStore';
 import type { WritingChapter, WritingStoryline, WritingTimelineEvent } from '../../services/tauri';
 import { openChapterCarrierView, openTypedCarrierView } from '../../utils/studioBook';
@@ -160,8 +161,13 @@ function StorylineUnlinedList({
 }
 
 // ─── 要素 tab · 剧情线卡（P1 右栏）：线实体一览 + 挂线率，点行进线详情 ───
-function StorylineOverviewCard() {
+function StorylineOverviewCard({ bookId }: { bookId: string | null }) {
   const storylines = useWritingStore((s) => s.storylines);
+  // ⑲ 体裁闸口：这张卡在**未被裁剪**的视图右栏里，诗集能在这儿造出看不见的剧情线
+  // ㉬ 认书第四例：体裁按调用端递来的本卡/场景书反查（父 TimelineOverviewPanel 本就接着一份 bookId，
+  // 与同屏 TimelineEventDetail / StorylineDetail 同一张嘴），不再吃工作室当前书。同书时取值逐字相同；
+  // 认不出书 → '' → 沿用「未设体裁 = 小说口径」既有回落。
+  const tlSideGenre = useWritingStore((s) => s.books.find((b) => b.id === bookId)?.genre ?? '');
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
   const loadStorylines = useWritingStore((s) => s.loadStorylines);
   const createStoryline = useWritingStore((s) => s.createStoryline);
@@ -189,14 +195,16 @@ function StorylineOverviewCard() {
         <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.secondary">
           {t('writing.timelineViewStoryline')} · {storylines.length}
         </Typography>
-        <Typography
-          variant="caption"
-          onClick={() => void createStoryline(t('writing.storylineDefaultName', { n: storylines.length + 1 }))}
-          title={t('writing.storylineCreate')}
-          sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 700, '&:hover': { textDecoration: 'underline' } }}
-        >
-          ＋ {t('writing.storylineCreate')}
-        </Typography>
+        {canCreateEntityForGenre(tlSideGenre, "storyline") && (
+          <Typography
+            variant="caption"
+            onClick={() => void createStoryline(t('writing.storylineDefaultName', { n: storylines.length + 1 }))}
+            title={t('writing.storylineCreate')}
+            sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 700, '&:hover': { textDecoration: 'underline' } }}
+          >
+            ＋ {t('writing.storylineCreate')}
+          </Typography>
+        )}
       </Box>
       {storylines.length === 0 ? (
         <Typography variant="caption" color="text.disabled">
@@ -266,6 +274,7 @@ function StorylineOverviewCard() {
 
 // ─── 要素 tab · 时间线总览卡 ───
 export function TimelineOverviewPanel({ bookId }: { bookId: string | null }) {
+  const tlOverviewGenre = useWritingStore((s) => s.books.find((b) => b.id === bookId)?.genre ?? '');
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
   const chapters = useWritingStore((s) => s.chapters);
   const loadTimelineEvents = useWritingStore((s) => s.loadTimelineEvents);
@@ -357,7 +366,7 @@ export function TimelineOverviewPanel({ bookId }: { bookId: string | null }) {
         <StatRow label={t('writing.timelineStatConflict')} value={conflictIds.size} warn={conflictIds.size > 0} />
         {conflictIds.size > 0 && (
           <Typography variant="caption" sx={{ color: WARN }}>
-            ⚠ {t('writing.timelineConflictHint')}
+            ⚠ {t(surfaceKeyForGenre(tlOverviewGenre, 'tlConflictHint'))}
           </Typography>
         )}
       </Box>
@@ -365,7 +374,7 @@ export function TimelineOverviewPanel({ bookId }: { bookId: string | null }) {
         {t('writing.timelineOverviewHint')}
       </Typography>
       {/* 剧情线卡（P1 右栏）：线数/挂线率/未挂线 + 每线一行点选进详情 */}
-      <StorylineOverviewCard />
+      <StorylineOverviewCard bookId={bookId} />
       {conflictIds.size > 0 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Typography variant="caption" sx={{ fontWeight: 700, color: WARN }}>
@@ -429,6 +438,7 @@ export function TimelineOverviewPanel({ bookId }: { bookId: string | null }) {
 
 // ─── 详情 tab · 选中事件编辑器 ───
 export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineEvent; bookId: string | null }) {
+  const tlDetailGenre = useWritingStore((s) => s.books.find((b) => b.id === bookId)?.genre ?? '');
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
   const storylines = useWritingStore((s) => s.storylines);
   const chapters = useWritingStore((s) => s.chapters);
@@ -473,7 +483,7 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
           {t('writing.timelineDetailTitle')}
         </Typography>
         {isConflict && (
-          <Typography variant="caption" title={t('writing.timelineConflictHint')} sx={{ color: WARN, fontWeight: 700 }}>
+          <Typography variant="caption" title={t(surfaceKeyForGenre(tlDetailGenre, 'tlConflictHint'))} sx={{ color: WARN, fontWeight: 700 }}>
             ⚠ {t('writing.timelineConflict')}
           </Typography>
         )}
@@ -486,7 +496,7 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
           entityKey={event.id}
           value={event.at ?? ''}
           onCommit={(v) => updateTimelineEvent(event.id, { at: v })}
-          placeholder={t('writing.timelineAtPh')}
+          placeholder={t(surfaceKeyForGenre(tlDetailGenre, 'tlAtPlaceholder'))}
           style={fieldStyle}
         />
       </Box>
@@ -513,7 +523,7 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
       {bookChapters.length > 0 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Typography variant="caption" color="text.secondary">
-            {t('writing.timelineChapter')}
+            {t(surfaceKeyForGenre(tlDetailGenre, 'tlBindUnit'))}
           </Typography>
           <ChapterPicker
             uniqueKey={event.id}
@@ -577,7 +587,7 @@ export function TimelineEventDetail({ event, bookId }: { event: WritingTimelineE
           }}
         >
           {event.chapterId
-            ? t('writing.timelineJumpChapter')
+            ? t(surfaceKeyForGenre(tlDetailGenre, 'tlJumpUnit'))
             : event.settingId
               ? t('writingDesign.editProfile')
               : t('writing.timelineJump')}
@@ -851,8 +861,8 @@ export function StorylineDetail({
                   onClick={() => openLineChapter(ch.id)}
                   title={
                     isDirect
-                      ? `${t('writing.storylineLineMark')} · ${t('writing.timelineJumpChapter')}`
-                      : t('writing.timelineJumpChapter')
+                      ? `${t('writing.storylineLineMark')} · ${t(surfaceKeyForGenre(genre, 'tlJumpUnit'))}`
+                      : t(surfaceKeyForGenre(genre, 'tlJumpUnit'))
                   }
                   sx={{
                     cursor: 'pointer',
@@ -1157,7 +1167,7 @@ export function StorylineNarrativeView({ storyline, bookId }: { storyline: Writi
                       e.stopPropagation();
                       jumpChapter(row.ev.chapterId!);
                     }}
-                    title={t('writing.timelineJumpChapter')}
+                    title={t(surfaceKeyForGenre(genre, 'tlJumpUnit'))}
                     sx={{
                       fontSize: 9.5,
                       color: 'primary.main',

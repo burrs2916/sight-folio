@@ -59,6 +59,7 @@ import type { EditorSelectionInfo, MonacoEditorHandle } from './MonacoCodeEditor
 import {
   buildUserMessage,
   extractUserMessageView,
+  resolveBookGenre,
   type WorkbenchMode,
   type WorkbenchContext,
   type WorkbenchContextFacts,
@@ -71,6 +72,8 @@ import { parseBlocks, type CodeBlockMeta } from './aiMarkdown';
 import { parseSlashCommand } from './workbenchSlashCommands';
 import { AI_SCOPE_EVENT, type AiScopePayload } from '../utils/canvasWorkbenchLink';
 import { fuzzyScore, snapshotFileFacts, factsSig, type FileFacts, type VerifyEntry } from './workbenchComponents';
+// ㉕（轮 32 AI-1-1 + P14）：书场景五支快捷动作的**话**按体裁取（入口亮不亮归 ㉝ 的页签闸）。
+import { genrePromptPack } from '../../ai/genrePromptPack';
 
 /** AI 面板当前打开的文件（与 WorkbenchAiPanelProps.activeFile 同形） */
 export interface WorkbenchActiveFile {
@@ -671,6 +674,9 @@ export function resolveConvTitle(args: {
 
 export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
   const { activeFile, selection, isBookScene = false, bookTopic, bookTitle, focusSetting } = deps;
+  // W-0a（2026-11-10 轮 2）：体裁现读现用，与 buildUserMessage 走同一个 resolveBookGenre
+  // （不新建订阅、不新建第二份判据）。菜单与 send 共用这一个值，保证「列得出来就解得开」。
+  const bookGenre = isBookScene ? resolveBookGenre({ bookTitle }) : '';
 
   // 模型选择器（对标 VS Code 的模型下拉）：独立于 Agent 维度的「本会话用哪个模型」覆盖。
   const agents = useAgentStore((s) => s.agents);
@@ -1067,7 +1073,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
     async (userText: string, opts?: { suppressSelection?: boolean; mode?: WorkbenchMode }) => {
       const trimmed = userText.trim().replace(/^@(workspace|work)\s*/i, '');
       if (!trimmed || isStreaming) return;
-      const slash = parseSlashCommand(trimmed, isBookScene);
+      const slash = parseSlashCommand(trimmed, isBookScene, bookGenre);
       if (slash) setSlashAnchor(null);
       const effectiveMode = slash ? slash.def.mode : (opts?.mode ?? mode);
       const text = slash
@@ -1103,7 +1109,8 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
         const ws = useWritingStore.getState();
         const bookId = ws.activeBookId;
         if (!bookId) return null;
-        const goal = parseBookGoal(ws.books.find((b) => b.id === bookId)?.extra);
+        const goalBook = ws.books.find((b) => b.id === bookId);
+        const goal = parseBookGoal(goalBook?.extra);
         const live = ws.chapters.filter((c) => c.bookId === bookId);
         const chapterSum = live.reduce((sum, c) => sum + (c.wordCount || 0), 0);
         const latest = ws.dailyStats.length > 0 ? ws.dailyStats[ws.dailyStats.length - 1] : null;
@@ -1111,7 +1118,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
         // 窗口每日新增（同 BookMetaPanel：快照明细 diffDailyStats 差分），喂节奏预测。
         // ws.dailyStats 已由 loadDailyStats 按 WINDOW_DAYS+1 装载；为空则不传、退回原口径。
         const deltas = ws.dailyStats.length > 0 ? diffDailyStats(ws.dailyStats, new Date()) : undefined;
-        return formatBookGoalCorpus(goal, actualWords, live.length, new Date(), deltas);
+        return formatBookGoalCorpus(goal, actualWords, live.length, new Date(), deltas, goalBook?.genre);
       })();
 
       // 题材语料：发消息前实时聚合当前书数据注入 ctx，让 AI 每轮带真实数据作答。
@@ -1130,7 +1137,9 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
                 const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
                 const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
                 const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
-                return buildTimelineCorpus(bookId, ws.timelineEvents, chapters, settings, lines);
+                // ㉧ AI-5c：这份档案要说「骨架 / 绑X」得先知道这本书是什么载体（与下方 catalog 语料同一取法）
+                const genre = ws.books.find((b) => b.id === bookId)?.genre ?? '';
+                return buildTimelineCorpus(bookId, ws.timelineEvents, chapters, settings, lines, { genre });
               })()
             : isBookScene && bookTopic === 'foreshadowing'
               ? (() => {
@@ -1147,7 +1156,9 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
                     const outlines = bookId ? ws.outlines.filter((o) => o.bookId === bookId) : ws.outlines;
                     const events = bookId ? ws.timelineEvents.filter((e) => e.bookId === bookId) : ws.timelineEvents;
                     const shadows = bookId ? ws.foreshadowings.filter((f) => f.bookId === bookId) : ws.foreshadowings;
-                    return buildInspirationCorpus(bookId, outlines, events, shadows);
+                    // ㉧ AI-5c：念头池的「未落X / 挂X」按载体换词（与时间线语料同一取法）
+                    const genre = ws.books.find((b) => b.id === bookId)?.genre ?? '';
+                    return buildInspirationCorpus(bookId, outlines, events, shadows, genre);
                   })()
                 : isBookScene && bookTopic === 'proofread'
                   ? (() => {
@@ -1159,7 +1170,9 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
                       const shadows = bookId ? ws.foreshadowings.filter((f) => f.bookId === bookId) : ws.foreshadowings;
                       const lines = bookId ? ws.storylines.filter((l) => l.bookId === bookId) : ws.storylines;
                       const cards = bookId ? ws.settings.filter((x) => x.bookId === bookId) : ws.settings;
-                      return buildProofreadCorpus(bookId, chapters, outlines, events, shadows, lines, cards);
+                      // ㉬ N-21：与本文件其余 corpus 同一口径（上面 1141/1160 行同款一行判体裁）
+                      const genre = ws.books.find((b) => b.id === bookId)?.genre ?? '';
+                      return buildProofreadCorpus(bookId, chapters, outlines, events, shadows, lines, cards, genre);
                     })()
                   : isBookScene && bookTopic === 'stats'
                     ? (() => {
@@ -1167,7 +1180,14 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
                         const bookId = ws.activeBookId;
                         const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
                         const settings = bookId ? ws.settings.filter((s) => s.bookId === bookId) : ws.settings;
-                        return buildStatsCorpus(bookTitle ?? null, chapters, settings, bookGoalLine);
+                        // 体裁随语料一起注入（⑭ 刀C）：诗集不该再被告知自己有「卷」
+                        return buildStatsCorpus(
+                          bookTitle ?? null,
+                          chapters,
+                          settings,
+                          bookGoalLine,
+                          ws.books.find((b) => b.id === (bookId ?? ws.activeBookId))?.genre ?? '',
+                        );
                       })()
                     : isBookScene && bookTopic === 'writing'
                       ? (() => {
@@ -1191,7 +1211,9 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
                               const bookId = ws.activeBookId;
                               const chapters = bookId ? ws.chapters.filter((c) => c.bookId === bookId) : ws.chapters;
                               const outlines = bookId ? ws.outlines.filter((o) => o.bookId === bookId) : ws.outlines;
-                              return buildCatalogCorpus(chapters, outlines);
+                              // ㉞ T-F″：体裁递进语料层，「无组那一组」才不会被诗集/剧本/日记本叫成小说的词
+                              const genre = ws.books.find((b) => b.id === bookId)?.genre ?? '';
+                              return buildCatalogCorpus(chapters, outlines, { genre });
                             })()
                           : null;
       // 全书总览语料：发消息前实时聚合当前书跨维度数据，注入 ctx。
@@ -1217,8 +1239,12 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
             timelineEvents: events,
             storylines: lines,
             foreshadowings: shadows,
+            // ㉬ N-21：总览语料也带体裁闸（与上面体检 corpus 同一判据）
+            genre: ws.books.find((b) => b.id === bookId)?.genre ?? '',
           }),
           bookGoalLine,
+          // W-4：与 buildBookOverview 同一体裁取值，使总览语料的「剧情线/伏笔」行按体裁裁（同 N-21）。
+          ws.books.find((b) => b.id === bookId)?.genre ?? '',
         );
       })();
       // 聚焦设定语料：右栏选中某个具体人物/世界观设定（钻入详情）时，
@@ -1284,6 +1310,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       hasRunCommand,
       selectedModelId,
       isBookScene,
+      bookGenre,
       bookTopic,
       bookTitle,
       focusSetting,
@@ -1342,32 +1369,27 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       const ref = selection ? `${activeFile.relPath}:${selection.startLine}-${selection.endLine}` : activeFile.relPath;
       let text: string;
       if (isBookScene) {
-        // 书场景：写作向快捷动作，不出现「代码 / 单元测试 / 审查」等术语
+        // 书场景：写作向快捷动作，不出现「代码 / 单元测试 / 审查」等术语。
+        // ㉕（轮 32 AI-1-1 + P14）：五支的**话**按当前书体裁取 `genrePromptPack.workbench` ——
+        // 诗集不再领「请读懂章节…情节功能」、剧本的一致性不再对照「世界观设定」（那栏已裁）。
+        // novel 五格 = 改造前逐字（零回归线，测试独立对锁）；explain/polish 的选区围栏留在
+        // 调用侧拼接，拼出的整串与改造前逐字节一致。
+        const { activeBookId: wbBookId, books: wbBooks } = useWritingStore.getState();
+        const wbGenre = wbBookId ? (wbBooks.find((b) => b.id === wbBookId)?.genre ?? '') : '';
+        const wb = genrePromptPack(wbGenre).workbench;
+        const fence = `\n\n【${ref}】\n\`\`\`${activeFile.language ?? ''}\n${selection?.text ?? ''}\n\`\`\``;
         if (kind === 'book-explain-sel' && selection) {
-          text = L(
-            `请解释下面这段正文在情节推进、人设塑造与主题上的作用，并指出可改进处：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
-            `Explain what this passage does for plot progression, character and theme, and point out improvements:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
-          );
+          text = L(wb.explainSel.zh, wb.explainSel.en) + fence;
         } else if (kind === 'book-polish' && selection) {
-          text = L(
-            `请润色下面这段正文：提升文笔、节奏与可读性，保持人设口吻与全文风格一致，只改必要处：\n\n【${ref}】\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
-            `Polish this passage: improve prose, pacing and readability while keeping the character's voice and overall style consistent; change only what's needed:\n\n[${ref}]\n\`\`\`${activeFile.language ?? ''}\n${selection.text}\n\`\`\``,
-          );
+          text = L(wb.polishSel.zh, wb.polishSel.en) + fence;
         } else if (kind === 'book-consistency') {
-          text = L(
-            `请对照人设卡与世界观设定，审查章节 ${activeFile.relPath} 是否出现人设 / 设定矛盾，逐条列出并给出修改建议。没有人设卡覆盖的角色请明确声明「设定缺失」。`,
-            `Against the character cards and worldbuilding, review ${activeFile.relPath} for character / setting contradictions; list them with revision suggestions. For characters without a card, explicitly say the setting is missing.`,
-          );
+          const pair = wb.consistency(activeFile.relPath);
+          text = L(pair.zh, pair.en);
         } else if (kind === 'book-plot') {
-          text = L(
-            `请基于作品概览（全书章节结构与字数分布）、当前章节正文与世界观设定，审视情节连贯性、伏笔回收与叙事节奏，给出具体到章节的修改建议。`,
-            `Based on the book overview (chapter structure and word distribution), the current chapter text and the worldbuilding, review plot coherence, foreshadowing payoff and pacing, with chapter-specific revision suggestions.`,
-          );
+          text = L(wb.plot.zh, wb.plot.en);
         } else {
-          text = L(
-            `请读懂章节 ${activeFile.relPath}：它在全书里承担什么情节功能、与前后章怎么衔接、写得好的地方与可改进点分别是什么。`,
-            `Help me understand chapter ${activeFile.relPath}: what plot function it serves in the book, how it connects to the surrounding chapters, and what works versus what could improve.`,
-          );
+          const pair = wb.understand(activeFile.relPath);
+          text = L(pair.zh, pair.en);
         }
         void send(text, { suppressSelection: kind === 'book-explain-sel' || kind === 'book-polish' });
         return;
@@ -1592,6 +1614,8 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
     armVerify,
     facts,
     isBookScene,
+    /** 当前书体裁（代码场景恒 ''）：WorkbenchInputBar 的斜杠菜单靠它换命令集，见 WorkbenchInputBarCtx.genre */
+    genre: bookGenre,
     bookTopic,
     bookTitle,
     focusSetting,
@@ -1844,14 +1868,31 @@ export function useWorkbenchChat(deps: {
   // 旧实现是纯内存 useState，重载或切会话后丢失 → composersByMsg 从持久化消息正文重新派生全部卡
   // → 已应用/已跳过的卡复位为待应用 → 再次点「应用」会用原始行号在已改动的文件上二次插入/错位。
   // 修复：每个 conversationId 维护一份已处理 key 集合，切会话时载入、变更时落盘。
+  // 键名必须落在 utils/cacheWhitelist 的保护前缀里（这里是 `ps.`）。
+  // 旧实现写作 `ps-workbench-composer-skip:`——**`ps-` 不是 `ps.`**，不在保护清单，
+  // 于是每次启动都被认证清扫删掉：R69 说的「重载后已处理卡复位」就算落了盘也照样复现。
+  // 2026-11-04 全仓删除账 N1 的第四个同族（回归锁 storageKeyNamespaceRound46 当场抓出）。
   const composerSkipKey = (convId: string | null): string | null =>
+    convId ? `ps.workbench.composerSkip:${convId}` : null;
+  const legacyComposerSkipKey = (convId: string | null): string | null =>
     convId ? `ps-workbench-composer-skip:${convId}` : null;
 
   const loadComposerSkip = (convId: string | null): Set<string> => {
     const key = composerSkipKey(convId);
     if (!key) return new Set();
     try {
-      const raw = localStorage.getItem(key);
+      let raw = localStorage.getItem(key);
+      if (!raw) {
+        // 一次性搬家：旧键读到就写进受保护命名空间并删掉旧键，不让用户已处理状态归零
+        const oldKey = legacyComposerSkipKey(convId);
+        if (oldKey) {
+          raw = localStorage.getItem(oldKey);
+          if (raw) {
+            localStorage.setItem(key, raw);
+            localStorage.removeItem(oldKey);
+          }
+        }
+      }
       if (!raw) return new Set();
       const arr = JSON.parse(raw);
       return new Set(Array.isArray(arr) ? (arr as string[]) : []);

@@ -1,7 +1,7 @@
 // 校对右侧栏面板（对标 InspirationPanels 范式，2026-09-18）：
 //
 // ProofreadOverviewCard —— 右栏「要素」tab · 校对激活时的体检统计卡：
-//   七组维度计数（章文本/章账/伏笔/时间线/剧情线/念头池/一致性），
+//   六组维度计数（章文本/伏笔/时间线/剧情线/念头池/一致性），
 //   有页签去向的组行可点直达（伏笔→伏笔页签、时间线→时间线、剧情线→剧情线、念头→灵感）。
 // 口径 = utils/writingProofread.buildProofreadReport（与校对页签编辑面同一份，禁止第二份）。
 // 校对的发现**即点即跳**（无编辑器语义），故详情 tab 无选中态需求（SceneEditor tab1 给空态说明）。
@@ -23,7 +23,7 @@ import { t } from '../../i18n';
 // 同源口径，禁止第二份）；此处 import 复用。
 
 // ─── 要素 tab · 校对体检统计卡 ───
-export function ProofreadOverviewCard() {
+export function ProofreadOverviewCard({ bookId }: { bookId: string }) {
   const chapters = useWritingStore((s) => s.chapters);
   const outlines = useWritingStore((s) => s.outlines);
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
@@ -31,13 +31,26 @@ export function ProofreadOverviewCard() {
   const storylines = useWritingStore((s) => s.storylines);
   const settings = useWritingStore((s) => s.settings);
   const books = useWritingStore((s) => s.books);
-  const activeBookId = useWritingStore((s) => s.activeBookId);
 
+  // ㉫ 认书 = 调用端递来的**场景书**（SceneEditor 由 projectRoot 现解，与同屏 TimelineOverviewPanel /
+  // StatsOverviewCard 同一张嘴），不再吃工作室当前书：写作台切书不会重跑画布场景的接线，两者分叉可达。
+  // 六组输入按 bookId 过滤：store 本就按书装载（loaders 全部 list(bookId)），同书时是 no-op；
+  // 分叉时宁可报空，不把别本书的体检数报在这本书的卡上（宁缺不错）。
   const report = useMemo(
-    () => buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings),
-    [chapters, outlines, timelineEvents, foreshadowings, storylines, settings],
+    () =>
+      buildProofreadReport(
+        chapters.filter((c) => c.bookId === bookId),
+        outlines.filter((o) => o.bookId === bookId),
+        timelineEvents.filter((e) => e.bookId === bookId),
+        foreshadowings.filter((f) => f.bookId === bookId),
+        storylines.filter((l) => l.bookId === bookId),
+        settings.filter((s) => s.bookId === bookId),
+        // ㉬ N-21：体裁进报告（日记没有剧情线/伏笔两栏 ⇒ 那两组发现不该出现在这本日记上）
+        books.find((b) => b.id === bookId)?.genre ?? '',
+      ),
+    [chapters, outlines, timelineEvents, foreshadowings, storylines, settings, bookId, books],
   );
-  const genre = books.find((b) => b.id === activeBookId)?.genre ?? '';
+  const genre = books.find((b) => b.id === bookId)?.genre ?? '';
   const total = PROOFREAD_GROUPS.reduce((n, g) => n + report.counts[g], 0);
 
   const jump = (g: ProofreadGroup) => {

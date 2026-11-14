@@ -38,7 +38,7 @@ import type { WritingOutline, WritingSetting } from '../../services/writing';
 import { parseBeatExtra } from '../../utils/writingOutline';
 import {
   INSPIRATION_EXPAND_MAX_VERSIONS,
-  INSPIRATION_EXPAND_SYSTEM_HINT,
+  inspirationExpandSystemHintFor,
   buildInspirationExpandPrompt,
   extractInspirationVersions,
   type InspirationExpandVersion,
@@ -58,8 +58,10 @@ export interface InspirationExpandPanelProps {
   settings: WritingSetting[];
   /** 会话标题（per 书唯一：「灵感扩写 · 书名」） */
   chatTitle: string;
-  /** 每次扩写自动注入的写作上下文（整篇 + 当前章节，L() 双语） */
+  /** 每次扩写自动注入的写作上下文（整篇 + 当前正文单位，L() 双语） */
   buildContextBlock: () => string;
+  /** 作品体裁（㉟ AI-5，轮 12：扩写成品形状按体裁；空/未设 = 小说口径逐字零回归） */
+  genre?: string;
   /** 插入正文回调（复用 handleCorpusInsert，闭环与语料库/AI 语料一致） */
   onInsertText: (text: string) => void;
   /** 打开时预选的念头 id（跨视图从 L2 灵感卡发起扩写时传入）；未指定则沿用默认第一条 */
@@ -82,6 +84,7 @@ export function InspirationExpandPanel({
   settings,
   chatTitle,
   buildContextBlock,
+  genre = '',
   onInsertText,
   initialBeatId,
   onInitialBeatConsumed,
@@ -191,10 +194,11 @@ export function InspirationExpandPanel({
       castNames,
       sceneNames,
       count,
+      genre,
     });
     // 扩写请求自包含：每次带最新 HINT + 上下文 + 指令，不依赖会话历史——
     // 换念头/换参数立即生效，扩写批次之间互不污染
-    const content = `${INSPIRATION_EXPAND_SYSTEM_HINT}\n\n${buildContextBlock()}\n\n---\n\n${instruction}`;
+    const content = `${inspirationExpandSystemHintFor(genre)}\n\n${buildContextBlock()}\n\n---\n\n${instruction}`;
     lastSendRef.current = { input: instruction };
     try {
       // 直读 API 建会话不进 store.conversations、写作台窗口不设置 selectedAgentId——
@@ -210,7 +214,7 @@ export function InspirationExpandPanel({
       logger.warn('InspirationExpandPanel', 'expand failed', { error: e });
       useToastStore.getState().error(String(e));
     }
-  }, [convId, isStreaming, selectedBeat, resolvedNames, count, buildContextBlock, agentId]);
+  }, [convId, isStreaming, selectedBeat, resolvedNames, count, buildContextBlock, genre, agentId]);
 
   /** 换一批：相同参数重跑一次扩写 */
   const handleRegenerate = useCallback(() => {

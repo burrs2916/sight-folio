@@ -1109,6 +1109,12 @@ fn extract_docx_text(bytes: &[u8]) -> AppResult<String> {
             Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
                 if e.name().as_ref() == b"w:t" {
                     in_t = true;
+                } else if matches!(local_name(e.name().as_ref()), b"br" | b"cr") {
+                    // 【E-F · 轮 54】`<w:br/>` / `<w:cr/>` 是**段内**硬换行。改前这一支落到
+                    // `_ => {}`，只在 `</w:p>` 换行 ⇒ Word 手打的 Shift+Enter、以及本仓
+                    // 自己新导出的诗（`docx_export::text_to_run_children` 写的 `<w:br/>`），
+                    // 读回来一律并成一行。写侧与读侧必须共用同一条判据（`r54甲` 钉）。
+                    out.push('\n');
                 }
             }
             Ok(Event::End(e)) => match e.name().as_ref() {
@@ -3227,5 +3233,111 @@ mod tests {
             sanitize_corpus_display("莲步微移，名为萧薰儿的少女行到魔石碑之前"),
             "莲步微移，名为萧薰儿的少女行到魔石碑之前"
         );
+    }
+}
+
+// ─── 测试 · E-F 回环（轮 54 新建）：写侧与读侧共用同一条硬换行判据 ───
+
+#[cfg(test)]
+mod tests_ef_r54 {
+    use super::*;
+    use crate::application::writing::EpubChapter;
+
+    /// 打包成 document.xml 一个 `<w:p>`、内含 12 行（11 枚硬换行）的诗。
+    fn poem_html() -> String {
+        let poem = (1..=12)
+            .map(|i| format!("第{i}行"))
+            .collect::<Vec<String>>()
+            .join("<br>");
+        format!("<p>{poem}</p>")
+    }
+
+    /// **读侧独立判据**（合成 fixture，不走导出）：`<w:br/>` / `<w:cr/>` 是段内换行。
+    /// 改前解析只在 `</w:p>` 换行，`w:br` 落到 `_ => {}` ⇒ Word 手打的 Shift+Enter
+    /// 与我们新写进去的分行，导入时一律并形。这一枚改前必须红。
+    #[test]
+    fn r54甲_docx读取器必须认wbr为段内换行() {
+        let xml = r#"<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>一行</w:t><w:br/><w:t>二行</w:t><w:cr/><w:t>三行</w:t></w:r></w:p></w:body></w:document>"#;
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut zw = zip::ZipWriter::new(&mut buf);
+            let opt = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            zw.start_file("word/document.xml", opt).unwrap();
+            std::io::Write::write_all(&mut zw, xml.as_bytes()).unwrap();
+            zw.finish().unwrap();
+        }
+        let text = extract_docx_text(buf.get_ref()).expect("docx 读取失败");
+        let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+        assert_eq!(
+            lines,
+            vec!["一行", "二行", "三行"],
+            "`<w:br/>` 被吞掉了：{text:?}"
+        );
+    }
+
+    /// **产物结构判据 + 写读闭环**。这里刻意不只断言"读回来几行"：改前 `run_to_xml`
+    /// 把 `\n` 原样写进 `<w:t>`，`quick-xml` 读文本节点时又把裸 `\n` 原样还回来，
+    /// 于是"行数 = 源"在**改前也成立**（轮 54 实测：本文件这枚改前是绿的），而 Word
+    /// 打开是一整段 —— 那是枚无牙判据。真判据只能落在产物结构上：段内换行必须由
+    /// `<w:br/>` 表达，`<w:t>` 里不许残留裸 `\n`。
+    #[test]
+    fn r54乙_诗硬换行必须写成wbr且回环行数等于源() {
+        let dir = std::env::temp_dir().join(format!("sf_r54_{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let out = dir.join("book.docx");
+        let ch = EpubChapter {
+            title: "章一".to_string(),
+            content: poem_html(),
+            cover: None,
+            volume: None,
+            kind: None,
+            depth: None,
+            is_volume: None,
+        };
+        let r = crate::application::writing::docx_export::export_docx(
+            "诗集".to_string(),
+            None,
+            vec![ch],
+            crate::application::writing::layout::BookLayoutSpec::default(),
+            crate::application::writing::FrozenAssets::default(),
+            crate::application::writing::BookMeta::default(),
+            out.to_string_lossy().into_owned(),
+        );
+        let bytes = match r {
+            Ok(()) => std::fs::read(&out).unwrap(),
+            Err(e) => panic!("docx 导出失败：{e}"),
+        };
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut zip = ZipArchive::new(Cursor::new(&bytes)).unwrap();
+        let doc = read_zip_str(&mut zip, "word/document.xml", MAX_ZIP_ENTRY_BYTES)
+            .unwrap()
+            .expect("缺 word/document.xml");
+        assert_eq!(
+            doc.matches("<w:br/>").count(),
+            11,
+            "12 行诗只写出 {} 枚 <w:br/>",
+            doc.matches("<w:br/>").count()
+        );
+        let inside_t: Vec<&str> = doc
+            .split("<w:t")
+            .skip(1)
+            .filter_map(|seg| seg.split('>').nth(1))
+            .filter_map(|body| body.split("</w:t>").next())
+            .filter(|seg| seg.contains('\n'))
+            .collect();
+        assert!(
+            inside_t.is_empty(),
+            "`<w:t>` 里残留 {} 段裸换行（Word 会规范化成空格）",
+            inside_t.len()
+        );
+        let text = extract_docx_text(&bytes).expect("docx 读取失败");
+        let got: Vec<&str> = text
+            .lines()
+            .filter(|l| l.starts_with('第') && l.ends_with('行'))
+            .collect();
+        assert_eq!(got.len(), 12, "回环读回来的行数 != 源 12 行：{text:?}");
+        assert_eq!(got[0], "第1行");
+        assert_eq!(got[11], "第12行");
     }
 }

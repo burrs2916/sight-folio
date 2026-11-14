@@ -32,6 +32,7 @@ import { buildProofreadReport, PROOFREAD_GROUPS } from "./writingProofread";
 import { computeTimelineConflicts, computeCoverage, isComplete } from "./writingTimeline";
 import { looseBeats, settingUsage } from "./writingOutline";
 import { isOverdue } from "./writingForeshadowing";
+import { viewKindVisibleForGenre } from "./writingSchema";
 
 /** 全书总览所需的最小数据切片（取 writingStore 当前书过滤后的数组）。 */
 export interface BookOverviewInput {
@@ -44,9 +45,20 @@ export interface BookOverviewInput {
   foreshadowings: WritingForeshadowing[];
   /** 当前书的日更快照（Rust 落库当日全书总字数）。差分出每日新增，喂给 AI 全书语料的日更趋势行。 */
   dailyStats?: WritingDailyStat[];
+  /**
+   * ㉬ N-21（2026-11-11 轮 72 续五班）：这本书的体裁。**可选**，缺省 '' = 六组全跑（旧调用点
+   * 与单测逐字等价）。总览的 `byGroup` 直接来自体检报告，不裁就会在日记总览上列出
+   * 「伏笔 3 / 剧情线 5」——而这两栏在日记里被 `hiddenViewKindsForGenre` 藏了、创建入口也被闸死。
+   */
+  genre?: string;
 }
 
 export interface OverviewVolumeRow {
+  /**
+   * 卷/分组的**原始名**（'' = 无组那一组）。兜底名不在这里生成：
+   * ㉞ T-F″ 之前此处硬编码了一枚中文成品文案，于是英文界面照样印汉字、诗集顶着「卷」，
+   * 而全仓的体裁措辞口径在 i18n（`bandUncategorized` 槽位）—— 成品文案一律由渲染层取。
+   */
   volume: string;
   chapters: number;
   words: number;
@@ -108,11 +120,12 @@ export interface BookOverview {
  * 全部读真实 writingStore 数据，纯派生，零副作用。
  */
 export function buildBookOverview(input: BookOverviewInput): BookOverview {
-  const { bookTitle, chapters, settings, outlines, timelineEvents, storylines, foreshadowings } = input;
+  const { bookTitle, chapters, settings, outlines, timelineEvents, storylines, foreshadowings, genre = '' } = input;
 
   const kpis = computeWritingKpis(chapters, settings);
   const volumeRows = buildVolumeRows(chapters).map((v) => ({
-    volume: v.volume || "未分卷",
+    // 原样透传（'' = 无组）：兜底名由渲染层按体裁取 bandUncategorized 槽位，见 OverviewVolumeRow 注释
+    volume: v.volume,
     chapters: v.chapters,
     words: v.words,
     finished: v.finished,
@@ -148,7 +161,8 @@ export function buildBookOverview(input: BookOverviewInput): BookOverview {
     overdue: foreshadowings.filter((f) => isOverdue(f, chapters)).length,
   };
 
-  const report = buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings);
+  // ㉬ N-21：体裁进体检（总览 byGroup 直接吃 counts，不裁就会在日记总览上列「伏笔 3 / 剧情线 5」）
+  const report = buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings, genre);
   const proofread = {
     issues: report.issues.length,
     byGroup: PROOFREAD_GROUPS.map((g) => ({ group: g, count: report.counts[g] ?? 0 })).filter((x) => x.count > 0),
@@ -194,6 +208,14 @@ export function buildBookOverview(input: BookOverviewInput): BookOverview {
 export function buildBookOverviewCorpus(
   o: BookOverview,
   goalLine?: { zh: string; en: string } | null,
+  /**
+   * W-4（N-21 同口径）：这本书的体裁。**缺省 '' = 全部行都输出**，与改造前逐字等价（novel 零回归）。
+   * 传了就会抹掉这本书**结构上不可能有**的那两行（剧情线 / 伏笔）——判据复用页签可见性真源
+   * `viewKindVisibleForGenre`，与 `buildProofreadReport` 的组级裁剪（N-21）**同一口径**：既然体检已
+   * 按体裁裁掉这两组，总览语料再对诗集无条件印「剧情线：0 / 伏笔：共0」就是让模型对着这本书
+   * 根本没有的维度发言（与创建闸口、页签、hidden 表一张嘴）。
+   */
+  genre = '',
 ): { zh: string; en: string } {
   const zh = [
     "【全书总览】",
@@ -202,8 +224,8 @@ export function buildBookOverviewCorpus(
     `- 人物 ${o.characters} · 世界观设定 ${o.worldviews} · 已挂要素设定 ${o.settingAttached} · 孤立设定 ${o.settingOrphan}`,
     `- 未落章节拍（念头池）：${o.looseBeats}`,
     `- 时间线：事件 ${o.timeline.events}（完整 ${o.timeline.complete} / 待补全 ${o.timeline.incomplete}）· 同轨冲突 ${o.timeline.conflicts} · 已锚定章 ${o.timeline.chaptersAnchored}/${o.kpis.chapterCount}`,
-    `- 剧情线：${o.storylines}`,
-    `- 伏笔：共 ${o.foreshadowings.total}（待回收 ${o.foreshadowings.pending} / 已回收 ${o.foreshadowings.paidoff} / 已弃置 ${o.foreshadowings.abandoned}）· 跨章预警 ${o.foreshadowings.overdue}`,
+    ...(viewKindVisibleForGenre(genre, 'storylines') ? [`- 剧情线：${o.storylines}`] : []),
+    ...(viewKindVisibleForGenre(genre, 'foreshadowing') ? [`- 伏笔：共 ${o.foreshadowings.total}（待回收 ${o.foreshadowings.pending} / 已回收 ${o.foreshadowings.paidoff} / 已弃置 ${o.foreshadowings.abandoned}）· 跨章预警 ${o.foreshadowings.overdue}`] : []),
     `- 校对体检：发现问题 ${o.proofread.issues}`
       + (o.proofread.byGroup.length > 0
         ? `（${o.proofread.byGroup.map((g) => `${g.group} ${g.count}`).join("、")}）`
@@ -224,8 +246,8 @@ export function buildBookOverviewCorpus(
     `- Characters ${o.characters} · Worldbuilding ${o.worldviews} · Settings attached to beats ${o.settingAttached} · Orphan settings ${o.settingOrphan}`,
     `- Unanchored beats (idea pool): ${o.looseBeats}`,
     `- Timeline: ${o.timeline.events} events (complete ${o.timeline.complete} / drafts ${o.timeline.incomplete}) · same-track conflicts ${o.timeline.conflicts} · chapters anchored ${o.timeline.chaptersAnchored}/${o.kpis.chapterCount}`,
-    `- Storylines: ${o.storylines}`,
-    `- Foreshadowing: ${o.foreshadowings.total} total (pending ${o.foreshadowings.pending} / paid off ${o.foreshadowings.paidoff} / abandoned ${o.foreshadowings.abandoned}) · overdue warnings ${o.foreshadowings.overdue}`,
+    ...(viewKindVisibleForGenre(genre, 'storylines') ? [`- Storylines: ${o.storylines}`] : []),
+    ...(viewKindVisibleForGenre(genre, 'foreshadowing') ? [`- Foreshadowing: ${o.foreshadowings.total} total (pending ${o.foreshadowings.pending} / paid off ${o.foreshadowings.paidoff} / abandoned ${o.foreshadowings.abandoned}) · overdue warnings ${o.foreshadowings.overdue}`] : []),
     `- Proofread: ${o.proofread.issues} findings`
       + (o.proofread.byGroup.length > 0
         ? ` (${o.proofread.byGroup.map((g) => `${g.group} ${g.count}`).join(", ")})`

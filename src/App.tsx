@@ -10,6 +10,7 @@ import SettingsDrawer from './components/layout/SettingsDrawer';
 // 写作台独立窗口的精简设置面板（第二十六轮）：与主抽屉共用同一批 store
 import { WritingDeskSettingsHost } from './components/layout/DeskSettingsPanel';
 import GlobalToast from './components/ui/GlobalToast';
+import GlobalConfirmDialog from './components/ui/GlobalConfirmDialog';
 import ToolApprovalDialog from './components/ui/ToolApprovalDialog';
 import {
   BookshelfPage,
@@ -60,7 +61,13 @@ import {
   type WritingBookMetaChangedPayload,
   type WritingChapterStructChangedPayload,
 } from './store/writingStore';
-import { DESK_GOTO_VIEW_EVENT, applyDeskGotoView, type ChapterJumpPayload } from './utils/writingDeskJump';
+import {
+  DESK_GOTO_PUBLISHED_EVENT,
+  DESK_GOTO_VIEW_EVENT,
+  PUBLISHED_ROUTE,
+  applyDeskGotoView,
+  type ChapterJumpPayload,
+} from './utils/writingDeskJump';
 import { CodeWorkbenchStandalone } from './editor/panels/CodeWorkbenchStandalone';
 import { useCanvasWorkbenchLink, useWorkbenchFocusCanvasListener } from './editor/utils/canvasWorkbenchLink';
 import { startAnalysisScheduler, stopAnalysisScheduler } from './ai/analysisScheduler';
@@ -232,6 +239,21 @@ function AppLayout() {
     return () => un?.();
   }, [location.pathname]);
 
+  // 页面级跳转（2026-11-04 审计缺陷 A）：写作台窗口的「查看完结作品」由**本窗口**执行导航。
+  // 判据与上面章级跳转完全同源（写作台自身不消费），差别只在落点是整页路由而不是 L2 页签。
+  // 为什么不能由发起方自己 navigate：写作台窗口形态判据含 `?desk=1`，裸 navigate 会同时改掉
+  // pathname 与 search，沉浸窗口长侧栏、该书 label 被占却无人消费 focus 事件（写作台回不去）、
+  // desk-goto-view 多出一个消费者。详见 utils/writingDeskJump.ts「页面级跳转分发」注释。
+  useEffect(() => {
+    if (isWritingDeskWindow(location.pathname)) return;
+    let un: (() => void) | undefined;
+    listen(DESK_GOTO_PUBLISHED_EVENT, () => {
+      navigate(PUBLISHED_ROUTE);
+      void getCurrentWindow().setFocus();
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, [location.pathname, navigate]);
+
   // 内容留白档位 → 主内容区 padding（档位定义见 theme/appearanceScales.ts，与设置面板同源）
   const contentPad = CONTENT_PADDING_PX[layoutConfig?.contentPadding] ?? CONTENT_PADDING_PX.medium;
   // 内容区宽度上限档位（第二十一轮）：此前这里是硬编码 1700px，宽屏用户只能改代码
@@ -288,6 +310,9 @@ function AppLayout() {
             「即时生效 + 即时落盘」。此前 GlobalToast 只挂在带侧栏的常规分支，这边写库失败
             零提示，用户要等重启才发现没记住。 */}
         <GlobalToast />
+        {/* 危险动作确认同理三处壳都要挂（2026-11-04 删除铁律）：独立窗口里也有删除入口，
+            少挂一处就是「点了删除什么都没弹，直接没了」。 */}
+        <GlobalConfirmDialog />
       </>
     );
   }
@@ -347,6 +372,8 @@ function AppLayout() {
 
       {/* 全局 Toast 通知 */}
       <GlobalToast />
+      {/* 全局危险动作确认（删除铁律的唯一出口） */}
+      <GlobalConfirmDialog />
 
       {/* 高危工具审批：主窗口与写作台独立窗口都走这里（AppLayout 覆盖两者）。
           绝不能只挂在某个 AI 面板里，否则那条路径的写入会静默超时被拒。 */}
@@ -532,6 +559,7 @@ export default function App() {
               缺后者的话，这边改任何设置遇到写库失败都是静默的（第二十一轮补） */}
           <ToolApprovalDialog />
           <GlobalToast />
+          <GlobalConfirmDialog />
         </AppTheme>
       </BrowserRouter>
     );

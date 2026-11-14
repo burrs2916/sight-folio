@@ -47,8 +47,8 @@ function issueText(issue: ProofreadFinding): string {
  * 一行发现拆成三段（严重性 / 正文 / 落点章名），Markdown 与 HTML **共用同一拆法**。
  * 两个序列化器各定一套规则的话，同一份报告在两种导出里会长得不一样。
  *
- * 章账/一致性这类发现的文案本身已带《标题》，再补一次章名就成了
- * 「《谎报完稿章》标记完稿但 0 字 · 谎报完稿章」这种重复，所以已含则不加。
+ * 一致性这类发现的文案本身已带《卡名》，再补一次落点名就成了
+ * 「《陈默》设定全书未提及 · 陈默」这种重复，所以已含则不加。
  */
 interface IssueParts {
   severity: string;
@@ -76,7 +76,7 @@ export function formatReportTime(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-/** 按七组归堆（组内按严重性升序 = 必须处理的在前），空组不出现在文档里 */
+/** 按六组归堆（组内按严重性升序 = 必须处理的在前），空组不出现在文档里 */
 function grouped(report: ProofreadReport): { group: (typeof PROOFREAD_GROUPS)[number]; items: ProofreadFinding[] }[] {
   return PROOFREAD_GROUPS.map((g) => ({
     group: g,

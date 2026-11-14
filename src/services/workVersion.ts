@@ -4,6 +4,14 @@
  */
 import { invoke } from './core';
 
+/** 锁定时可一并定格的书目元数据（全空 = 没录，导出侧留白） */
+export interface VersionMetaInput {
+  author?: string;
+  publisher?: string;
+  completedAt?: string;
+  isbn?: string;
+}
+
 export interface WorkVersion {
   id: string;
   bookId: string;
@@ -16,6 +24,15 @@ export interface WorkVersion {
   contentHash: string;
   schemaVer: number;
   lockedAt: number;
+  /**
+   * 书目元数据（R2，2026-11-06）：**随版本定格**。
+   * 空串 = 当年没录。导出侧遇空一律留白，后端不会代填作者名、也不会拿锁定日冒充完结日期。
+   */
+  author?: string;
+  publisher?: string;
+  /** 完结/交稿日期（作者手填的展示串，如 2026-11-06） */
+  completedAt?: string;
+  isbn?: string;
 }
 
 export interface WorkVersionChapter {
@@ -80,8 +97,29 @@ export const workVersionApi = {
    * （B1 决策：否则「锁进版本的字」与「库里的字」有二义性）。
    * force=true 是同指纹拦截后的「仍然锁定」出口（需求 §5.1 第 3 步）。
    */
-  lock(bookId: string, label: string, note: string, isFinal: boolean, force = false): Promise<WorkVersion> {
-    return invoke<WorkVersion>('lock_work_version', { bookId, label, note, isFinal, force });
+  /**
+   * 锁定一版。`meta` 是书目元数据（作者/出版社/完结日期/ISBN），**留空就是空**，
+   * 后端不会替你编一个 —— 产物里写着错误的作者名比不写更糟。
+   */
+  lock(
+    bookId: string,
+    label: string,
+    note: string,
+    isFinal: boolean,
+    force = false,
+    meta?: VersionMetaInput,
+  ): Promise<WorkVersion> {
+    return invoke<WorkVersion>('lock_work_version', {
+      bookId,
+      label,
+      note,
+      isFinal,
+      force,
+      author: meta?.author ?? null,
+      publisher: meta?.publisher ?? null,
+      completedAt: meta?.completedAt ?? null,
+      isbn: meta?.isbn ?? null,
+    });
   },
   /** 某书全部版本（seq 倒序） */
   list(bookId: string): Promise<WorkVersion[]> {

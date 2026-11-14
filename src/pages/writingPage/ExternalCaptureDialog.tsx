@@ -52,6 +52,7 @@ import {
   tryParseCaptureJson,
 } from '../../ai/writingCapture';
 import { useToastStore } from '../../store/toastStore';
+import { useWritingStore } from '../../store/writingStore';
 import { logger } from '../../utils/logger';
 import { uiFontSize } from '../../theme/appearanceScales';
 
@@ -299,6 +300,8 @@ export function ExternalCaptureDialog({
           title: title || defaultTitle(kind, extractedText, sourceRaw),
           sourceRaw,
           extractedText,
+          // ㉟ AI-5（轮 12）：素材「被谁使用」按体裁（'' = 全局素材/未设 = 小说口径逐字零回归）
+          genre: bookId ? (useWritingStore.getState().books.find((b) => b.id === bookId)?.genre ?? '') : '',
         }),
         onDelta: () => undefined, // 分析结果以最终 JSON 落库，不做流式逐字预览
       });
@@ -320,7 +323,7 @@ export function ExternalCaptureDialog({
     } finally {
       setAnalyzing(false);
     }
-  }, [canAnalyze, agentId, kind, title, extractedText, sourceRaw, t]);
+  }, [canAnalyze, agentId, kind, title, extractedText, sourceRaw, bookId, t]);
 
   // ─── 保存：构造 ExternalCapture 落库 → 父级刷新素材库 ───
   const tagsArr = useMemo(

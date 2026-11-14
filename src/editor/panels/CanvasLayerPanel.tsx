@@ -28,6 +28,7 @@ import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import OpacityIcon from "@mui/icons-material/Opacity";
 import { useEditorStore } from "../../store/editorStore";
+import { confirmDestructive } from "../../store/confirmStore";
 import type { LayerNode, SceneComponent } from "../../types/editor";
 import { getLayerDescendants } from "../../types/editor";
 import { t, resolveFragments } from "../../i18n";
@@ -229,7 +230,31 @@ function LayerRow({
             <ArrowDownwardIcon sx={{ fontSize: 12 }} />
           </IconButton>
           {!layer.isDefault && (
-            <IconButton size="small" onClick={() => onDelete(layer.id)} sx={{ width: 18, height: 18 }} title={t("layerPanel.delete")} aria-label={t("layerPanel.delete")}>
+            <IconButton
+              size="small"
+              onClick={() => {
+                // 删除铁律③c：这一层带走多少组件、能不能反悔，必须在点之前讲清（旧实现零提示）。
+                // 组件数用面板同一个 getLayerDescendants 现算，不读 counts 表 ——
+                // 那张表只给 type==="layer" 的节点计数，分组行会读成 0，等于谎报。
+                const ids = new Set(getLayerDescendants(layers, layer.id));
+                const affected = useEditorStore
+                  .getState()
+                  .components.filter((c) => c.layerId && ids.has(c.layerId)).length;
+                confirmDestructive({
+                  title: t("layerPanel.deleteConfirmTitle", { name: layer.name }),
+                  impact: [
+                    t("layerPanel.deleteConfirmImpact", { n: affected }),
+                    t("layerPanel.deleteConfirmUndo"),
+                  ],
+                  confirmLabel: t("layerPanel.delete"),
+                  cancelLabel: t("ui.cancel"),
+                  onConfirm: () => onDelete(layer.id),
+                });
+              }}
+              sx={{ width: 18, height: 18 }}
+              title={t("layerPanel.delete")}
+              aria-label={t("layerPanel.delete")}
+            >
               <DeleteOutlineRoundedIcon sx={{ fontSize: 12, color: "error.main" }} />
             </IconButton>
           )}

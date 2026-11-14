@@ -8,11 +8,12 @@ import {
   saveWritingPdf,
   backupWritingBook,
   restoreWritingBook,
-  type WritingChapter,
 } from '../../services/tauri';
 import { assetApi } from '../../services/asset';
+import { goWorksLibrary } from '../../utils/writingDeskJump';
 import { projectScanApi } from '../../services/projectScan';
-import { parseChapterCover } from '../../utils/writingOutline';
+// 导出取数口径唯一入口：目录树先序 + 层级 + 各自封面（与后端快照渲染同一判据）
+import { flattenForExport, volumeRuleForText, type ExportNode } from '../../utils/writingExport';
 import { useToastStore } from '../../store/toastStore';
 import { useWritingStore } from '../../store/writingStore';
 import { logger } from '../../utils/logger';
@@ -129,12 +130,23 @@ export function useExportActions(
   /** 导出成功 toast：带「查看完结作品」快捷跳转。走 info 而非 success——GlobalToast 全局过滤了 success 类型。 */
   const showExportToast = useCallback(
     (message: string) => {
-      useToastStore
-        .getState()
-        .showToast(message, 'info', 6000, { label: t('published.viewWorks'), onClick: () => navigate('/published') });
+      useToastStore.getState().showToast(message, 'info', 6000, {
+        label: t('published.viewWorks'),
+        // 窗口形态分发：写作台独立窗口不许就地 navigate（会破坏一书一窗，见 goWorksLibrary 注释）
+        onClick: () => {
+          goWorksLibrary(navigate);
+        },
+      });
     },
     [navigate],
   );
+
+  /**
+   * 标题层级：结构书 level = 2 + 树深度（卷 ## / 章 ###，与后端 render_markdown_book、
+   * render_html_book 同一个式子）；旧模型书无 depth → 恒为 2，与改动前一致。
+   */
+  const headingLevel = (n: ExportNode): number =>
+    typeof n.depth === 'number' ? Math.min(6, 2 + n.depth) : 2;
 
   // B6（需求 §6）：旧「完结作品登记表」退役。写作台的「另存为」式临时导出不再落任何登记，
   // 正式产物统一由成品页版本导出流水线生成（export_artifacts，快照渲染落作品库）。
@@ -147,9 +159,10 @@ export function useExportActions(
       if (activeBook.description) {
         mdParts.push('', `> ${activeBook.description}`);
       }
-      for (const ch of freshChapters) {
-        const content = await inlineImagesInHtml(ch.content || '');
-        mdParts.push('', `## ${ch.title}`, '', turndown.turndown(content));
+      // 先序 + 层级：卷与它的章在 md 大纲里也是父子（旧实现平铺 ## 看不出层级）
+      for (const node of flattenForExport(freshChapters)) {
+        const content = await inlineImagesInHtml(node.content || '');
+        mdParts.push('', `${'#'.repeat(headingLevel(node))} ${node.title}`, '', turndown.turndown(content));
       }
       const md = mdParts.join('\n');
       const path = await saveDialog({
@@ -178,13 +191,9 @@ export function useExportActions(
       await saveWritingEpub(
         activeBook.title,
         activeBook.description ?? '',
-        freshChapters.map((c: WritingChapter) => ({
-          title: c.title,
-          content: c.content || '',
-          cover: parseChapterCover(c.extra) ?? null,
-          volume: c.volume || '',
-        })),
+        flattenForExport(freshChapters),
         path,
+        activeBook.id,
       );
       showExportToast(t('writing.epubExported', { path }));
     } catch (e) {
@@ -202,10 +211,18 @@ export function useExportActions(
         s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const body = (
         await Promise.all(
-          freshChapters.map(async (c: WritingChapter) => {
-            const content = await inlineImagesInHtml(c.content || '');
-            const vol = c.volume ? `<p class="volume">${esc(c.volume)}</p>` : '';
-            return `${vol}<h2>${esc(c.title)}</h2>\n${content}`;
+          flattenForExport(freshChapters).map(async (node) => {
+            const content = await inlineImagesInHtml(node.content || '');
+            const level = headingLevel(node);
+            const tag = `h${Math.min(6, level)}`;
+            // 结构书：卷自己就是标题节点（class="volume"），章降一级 → 层级看得见；
+            // 旧模型书：仍按遗留 volume 字符串打一行卷标 + <h2>，与改动前一致。
+            if (typeof node.depth === 'number') {
+              const cls = node.isVolume ? ' class="volume"' : '';
+              return `<${tag}${cls}>${esc(node.title)}</${tag}>\n${content}`;
+            }
+            const vol = node.volume ? `<p class="volume">${esc(node.volume)}</p>` : '';
+            return `${vol}<${tag}>${esc(node.title)}</${tag}>\n${content}`;
           }),
         )
       ).join('\n<hr/>\n');
@@ -255,12 +272,18 @@ ${body}
       const parts: string[] = [activeBook.title];
       if (activeBook.description) parts.push(activeBook.description);
       let lastVolume: string | null = null;
-      for (const c of freshChapters) {
-        if (c.volume && c.volume !== lastVolume) {
-          parts.push('', `════ ${c.volume} ════`);
-          lastVolume = c.volume;
+      for (const node of flattenForExport(freshChapters)) {
+        if (typeof node.depth === 'number') {
+          // 结构书：容器自己出卷题行，章按深度缩进 → 纯文本里父子连着
+          if (node.isVolume) parts.push('', volumeRuleForText(node.title, node.depth));
+          parts.push('', `${'  '.repeat(node.depth)}${node.title}`, '', stripHtml(node.content || ''));
+          continue;
         }
-        parts.push('', c.title, '', stripHtml(c.content || ''));
+        if (node.volume && node.volume !== lastVolume) {
+          parts.push('', `════ ${node.volume} ════`);
+          lastVolume = node.volume;
+        }
+        parts.push('', node.title, '', stripHtml(node.content || ''));
       }
       const path = await saveDialog({
         defaultPath: `${activeBook.title}.txt`,
@@ -288,13 +311,9 @@ ${body}
       await saveWritingDocx(
         activeBook.title,
         activeBook.description ?? '',
-        freshChapters.map((c: WritingChapter) => ({
-          title: c.title,
-          content: c.content || '',
-          cover: parseChapterCover(c.extra) ?? null,
-          volume: c.volume || '',
-        })),
+        flattenForExport(freshChapters),
         path,
+        activeBook.id,
       );
       showExportToast(t('writing.docxExported', { path }));
     } catch (e) {
@@ -316,13 +335,9 @@ ${body}
       await saveWritingPdf(
         activeBook.title,
         activeBook.description ?? '',
-        freshChapters.map((c: WritingChapter) => ({
-          title: c.title,
-          content: c.content || '',
-          cover: parseChapterCover(c.extra) ?? null,
-          volume: c.volume || '',
-        })),
+        flattenForExport(freshChapters),
         path,
+        activeBook.id,
       );
       showExportToast(t('writing.pdfExported', { path }));
     } catch (e) {

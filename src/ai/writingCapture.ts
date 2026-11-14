@@ -13,6 +13,7 @@
 import { useAgentStore } from '../store/agentStore';
 import { agentApi } from '../services/tauri';
 import { L } from './aiLang';
+import { workbenchCommandSet } from '../utils/writingSchema';
 import { getLang, t } from '../i18n';
 import { runAgentTextTask } from './writingAssistant';
 import type { ExternalCaptureAnalysis, ExternalCaptureKind } from '../services/writing';
@@ -29,7 +30,18 @@ export interface CaptureAnalysisContext {
   extractedText: string;
   /** 用户补充说明（可选）：想要这段素材以什么方式进入作品 */
   directive?: string;
+  /** 作品体裁（㉟ AI-5，轮 12：空/未设/脏值 = 小说口径，改造前逐字零回归） */
+  genre?: string;
 }
+
+/** 素材分析的落点名词（㉟ AI-5；与 `writingMaterial.genreNounsFor` 同族词，novel = 原句逐字） */
+const CAPTURE_NOUN: Record<'novel' | 'essay' | 'poetry' | 'script' | 'diary', { zh: string; en: string }> = {
+  novel: { zh: '小说', en: 'fiction' },
+  essay: { zh: '散文', en: 'a prose essay' },
+  poetry: { zh: '诗歌', en: 'poetry' },
+  script: { zh: '剧本', en: 'a play' },
+  diary: { zh: '日记', en: 'a journal' },
+};
 
 const KIND_LABEL_ZH: Record<ExternalCaptureKind, string> = {
   image: '图片',
@@ -48,6 +60,8 @@ const KIND_LABEL_EN: Record<ExternalCaptureKind, string> = {
 /** 组装「外部素材分析」消息：素材文本内嵌进 prompt，AI 输出结构化 JSON */
 export function buildCaptureAnalysisMessage(ctx: CaptureAnalysisContext): string {
   const kindLabel = L(KIND_LABEL_ZH[ctx.kind], KIND_LABEL_EN[ctx.kind]);
+  // ㉟ AI-5（轮 12）：素材「被谁使用」按体裁说（诗集不再收到「可以被小说直接使用的信息」）
+  const noun = CAPTURE_NOUN[workbenchCommandSet(ctx.genre)];
   const srcBlock = ctx.sourceRaw.trim() ? `${L('【原始素材】\n', '[Raw source]\n')}${ctx.sourceRaw.trim()}` : '';
   const textBlock = `${L('【待分析文本】\n', '[Text to analyze]\n')}${ctx.extractedText.trim()}`;
   const directiveLine = ctx.directive?.trim() ? `\n${L('【用户补充要求】', '')}${ctx.directive.trim()}` : '';
@@ -72,7 +86,7 @@ export function buildCaptureAnalysisMessage(ctx: CaptureAnalysisContext): string
         '1. timeline 用 2-5 条概括素材的时间脉络，若素材本身无时间跨度，列出「现状 → 发展」即可；\n' +
         '2. profile 只写素材里真正出现的，不要虚构；\n' +
         '3. suggestions 给 2-4 条具体、可执行的做法；\n' +
-        '4. 不要复述原文，聚焦可以被小说直接使用的信息。',
+        '4. 不要复述原文，聚焦可以被' + noun.zh + '直接使用的信息。',
       'You are a senior story editor. Below is an external source collected by a creator (type: ' +
         kindLabel +
         '). Analyze it and output a strict JSON object (no text outside the JSON, no markdown code fences), with this shape:\n' +
@@ -92,7 +106,7 @@ export function buildCaptureAnalysisMessage(ctx: CaptureAnalysisContext): string
         '1. timeline: 2-5 entries summarizing the time arc; if there is no time span, list "current state -> development";\n' +
         '2. profile: only what truly appears in the source, do not fabricate;\n' +
         '3. suggestions: 2-4 concrete, actionable ideas;\n' +
-        '4. Do not restate the source; focus on information directly usable in fiction.',
+         '4. Do not restate the source; focus on information directly usable in ' + noun.en + '.',
     ) + `\n\n${srcBlock ? `${srcBlock}\n\n` : ''}${textBlock}${directiveLine}\n\n${langNote()}`
   );
 }

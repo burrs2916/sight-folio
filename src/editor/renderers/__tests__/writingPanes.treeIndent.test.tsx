@@ -113,21 +113,21 @@ describe('大纲树 · 卷→子级 按树形缩进（回归锁）', () => {
   });
 
   it('章（depth 1）内层行 padding-left = 28px —— 缩进的本体就是这条 padding', () => {
-    mount(<StorylinePane accent="#4A338F" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
+    mount(<StorylinePane accent="#4A338F" bookId="b1" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
     const row = rowOf('章 1');
     expect(row, '章 1 行没渲染出来').toBeTruthy();
     expect(row!.style.padding, `章 1 行没有缩进 padding（实际="${row!.style.padding}"）`).toBe('3px 4px 3px 28px');
   });
 
   it('卷（depth 0）内层行 padding-left = 8px（根节点保持基准位）', () => {
-    mount(<StorylinePane accent="#4A338F" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
+    mount(<StorylinePane accent="#4A338F" bookId="b1" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
     const row = rowOf('卷 1');
     expect(row, '卷 1 行没渲染出来').toBeTruthy();
     expect(row!.style.padding).toBe('3px 4px 3px 8px');
   });
 
   it('章 行的包裹层有竖向引导线 + elbow 横钩（从属关系画成可见分支）', () => {
-    mount(<StorylinePane accent="#4A338F" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
+    mount(<StorylinePane accent="#4A338F" bookId="b1" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
     const row = rowOf('章 1')!;
     const wrapper = row.parentElement!;
     const guides = Array.from(wrapper.children).filter((el) => (el as HTMLElement).style.position === 'absolute');
@@ -135,7 +135,7 @@ describe('大纲树 · 卷→子级 按树形缩进（回归锁）', () => {
   });
 
   it('点卷行的「+ 子级」→ createChildNode 第一参数是卷 id（parentId 链路 = 缩进的数据源头）', async () => {
-    mount(<StorylinePane accent="#4A338F" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
+    mount(<StorylinePane accent="#4A338F" bookId="b1" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
     const row = rowOf('卷 1')!;
     const addBtn = Array.from(row.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === '+ 子级');
     expect(addBtn, '卷行缺「+ 子级」按钮').toBeTruthy();
@@ -148,7 +148,7 @@ describe('大纲树 · 卷→子级 按树形缩进（回归锁）', () => {
 
   it('根上的章（parent_id=NULL）不缩进 —— 数据是平的就不该假装有层级', () => {
     h.writing.chapters = [chapter('c9', '章 9', '章', null)];
-    mount(<StorylinePane accent="#4A338F" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
+    mount(<StorylinePane accent="#4A338F" bookId="b1" chapters={h.writing.chapters} outlines={[]} settings={[]} />);
     const row = rowOf('章 9');
     expect(row!.style.padding).toBe('3px 4px 3px 8px');
   });

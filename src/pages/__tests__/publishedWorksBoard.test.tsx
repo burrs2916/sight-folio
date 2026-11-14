@@ -284,3 +284,51 @@ describe('作品库根指示（B3 读数进成品页，失败如实上屏）', (
     expect(screen.queryByTestId('published-root-chip')).toBeNull();
   });
 });
+
+describe('版本卡的元数据与定格说明（R2，2026-11-06）', () => {
+  it('录了作者/出版社/日期/ISBN 就挂在版本行上（用户能在成品页看到自己填的书目信息）', async () => {
+    Object.assign(V3, {
+      author: '张三丰',
+      publisher: '星海文艺社',
+      completedAt: '2026-11-06',
+      isbn: '978-7-000-12345-6',
+      schemaVer: 3,
+    });
+    try {
+      await renderPage();
+      fireEvent.click(screen.getByTestId('published-book-card-b2'));
+      const meta = await screen.findByTestId('published-version-meta-3');
+      expect(meta.textContent).toContain('张三丰');
+      expect(meta.textContent).toContain('星海文艺社');
+      expect(meta.textContent).toContain('978-7-000-12345-6');
+      // 有元数据就不该再出现"未录"提示与定格告警（schemaVer 3）
+      expect(screen.queryByTestId('published-version-meta-empty-3')).toBeNull();
+      expect(screen.queryByTestId('published-version-frozen-note-3')).toBeNull();
+    } finally {
+      Object.assign(V3, { author: '', publisher: '', completedAt: '', isbn: '', schemaVer: 1 });
+    }
+  });
+
+  it('老版本如实说明：没录元数据 + 定格能力还没上线（避免被当成"功能坏了"）', async () => {
+    // 夹具默认就是 schemaVer 1、无元数据 —— 正是定格机制上线前锁的那些版
+    await renderPage();
+    fireEvent.click(screen.getByTestId('published-book-card-b2'));
+    const empty = await screen.findByTestId('published-version-meta-empty-3');
+    expect(empty.textContent).toContain('published.metaNotRecorded');
+    const note = await screen.findByTestId('published-version-frozen-note-3');
+    expect(note.textContent).toContain('published.frozenNoteV1');
+  });
+
+  it('v2 版本单独一句：有封面定格、但插图字节没定格', async () => {
+    Object.assign(V3, { schemaVer: 2, author: '张三丰' });
+    try {
+      await renderPage();
+      fireEvent.click(screen.getByTestId('published-book-card-b2'));
+      const note = await screen.findByTestId('published-version-frozen-note-3');
+      expect(note.textContent).toContain('published.frozenNoteV2');
+      expect(screen.queryByTestId('published-version-meta-empty-3')).toBeNull();
+    } finally {
+      Object.assign(V3, { schemaVer: 1, author: '' });
+    }
+  });
+});

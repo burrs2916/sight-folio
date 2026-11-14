@@ -28,11 +28,13 @@ import {
   type WritingTimelineEvent,
 } from '../services/tauri';
 import { isChapterDeleted, chapterDeletedAt, withChapterDeletedAt } from '../services/tauri';
-import { parseSettingExtra, serializeBookGoal, type WritingBookGoal } from '../services/writing';
+import { parseSettingExtra, serializeBookGoal, serializeBookNarrator, type DiaryNarrator, type WritingBookGoal } from '../services/writing';
 import { parseBeatExtra } from '../utils/writingOutline';
 import { useEditorStore } from './editorStore';
 import { logger } from '../utils/logger';
-import { buildTree, defaultLevels, findNodeInForest } from '../utils/writingTree';
+import { buildTree, defaultRootKind, findNodeInForest } from '../utils/writingTree';
+import { withPoemForm } from '../utils/poetryForms';
+import { writeDiaryDate } from '../utils/diaryEntry';
 import { WINDOW_DAYS } from '../utils/writingStats';
 
 /**
@@ -201,7 +203,11 @@ interface WritingState {
   setActiveBook: (bookId: string | null) => Promise<void>;
 
   loadChapters: (bookId: string) => Promise<void>;
-  createChapter: (title: string) => Promise<WritingChapter | null>;
+  /**
+   * 新建顶层正文单位。`extra` 只在需要落扩展字段时传（㉕：日记把 entryDate 落在这里，零迁移）。
+   * 不传 = `'{}'`，与改造前逐字相同 —— 其余体裁一条都不受影响。
+   */
+  createChapter: (title: string, extra?: string) => Promise<WritingChapter | null>;
   /** 结构树：在 parentId 下建一个子节点（kind 由调用方按默认层级给）。 */
   createChildNode: (parentId: string, kind: string, title: string) => Promise<WritingChapter | null>;
   /** 结构树：把 nodeId 重新挂到 newParentId 下（newParentId=null 提回根）。防环：不能挂进自己的子树。 */
@@ -329,6 +335,22 @@ interface WritingState {
    * 只改 extra 一字段，其余（content/title/结构）原样保留——与 saveChapterContent 互斥不互相覆盖。
    */
   setChapterCover: (chapterId: string, assetRef: string | null) => Promise<void>;
+  /**
+   * 诗歌形式（2026-11-09 ⑫）：把「这首是五言绝句 / 莎翁体十四行」写进该章 extra.poemForm。
+   * formId 为 '' = 清除标注（删 key，不写空串）。
+   * 与 setChapterCover 同一族口径：**只动 extra 一字段**，正文/标题/结构原样保留，
+   * 与 saveChapterContent 互不覆盖；extra 合并走 poetryForms.withPoemForm（脏 extra 不崩、
+   * 章头图与 deletedAt 等既有键一个不丢）。
+   */
+  setChapterPoemForm: (chapterId: string, formId: string) => Promise<void>;
+  /**
+   * 日记条目「记的是哪一天」（㉘ = 欠账 S22）：把 'YYYY-MM-DD' 写进该章 extra.entryDate。
+   * date 传空串 = 取消标记（删 key，不写空串）。
+   * 与 setChapterPoemForm / setChapterCover **同一族口径**：只借 `diaryEntry.writeDiaryDate`
+   * 合并 extra 一个字段，正文/标题/结构原样保留，章头图与 deletedAt 等既有键一个不丢。
+   * 整行 saveChapter 的并发取舍（D3）也沿用那一族，本刀不另造写路径。
+   */
+  setChapterEntryDate: (chapterId: string, date: string) => Promise<void>;
   /** 结构树折叠：收起/展开节点的子级。纯内存浏览态（不落库，重启回全展开）；
       放 store 而非组件态，是为了载体卡与 L2 题材编辑面共用同一份折叠状态。 */
   collapsedNodeIds: string[];
@@ -362,6 +384,8 @@ interface WritingState {
   setDailyGoal: (bookId: string, dailyGoal: number) => Promise<void>;
   /** 全书写作目标（T2）：合并进 book.extra JSON 透传（保留未知字段）。 */
   setBookGoal: (bookId: string, goal: WritingBookGoal) => Promise<void>;
+  /** ㉣ N-22：日记「谁在写」（叙述人称 + 主角称谓）合并进 `book.extra.diaryNarrator`，零迁移。 */
+  setBookNarrator: (bookId: string, narrator: DiaryNarrator) => Promise<void>;
   /** 日更快照（P6）：Rust 落库的「当日全书总字数」，差分出每日新增。总览/AI 语料共用。 */
   loadDailyStats: (bookId: string) => Promise<void>;
 }
@@ -599,15 +623,17 @@ export const useWritingStore = create<WritingState>()(
       }
     },
 
-    createChapter: async (title: string) => {
+    createChapter: async (title: string, extra?: string) => {
       const { activeBookId, chapters, books } = get();
       if (!activeBookId) return null;
       const now = Math.floor(Date.now() / 1000);
       const nextOrder = chapters.reduce((max, c) => Math.max(max, c.sortOrder), 0) + 1;
-      // 顶层节点：kind 取该体裁的默认根层级（novel→卷，essay/poetry/script→篇）。
+      // 顶层节点：kind 取该体裁的**顶层**层级名（判据在 writingTree.defaultRootKind）。
       // 这是「零配置起步」：作者点一下就得到合理命名的顶层，随后可任意改名/越级。
+      // 2026-11-09 诗歌实装时从 `defaultLevels(genre)[0]` 换成显式 root：诗歌的下钻链是
+      // 辑 › 首，取 [0] 会把新建的**一首诗**标成容器层「辑」（小说/散文取到的值不变）。
       const genre = books.find((b) => b.id === activeBookId)?.genre ?? '';
-      const rootKind = defaultLevels(genre)[0] ?? '章';
+      const rootKind = defaultRootKind(genre);
       const chapter: WritingChapter = {
         id: `chap_${crypto.randomUUID().replace(/-/g, '')}`,
         bookId: activeBookId,
@@ -619,7 +645,7 @@ export const useWritingStore = create<WritingState>()(
         volume: '',
         parentId: null,
         kind: rootKind,
-        extra: '{}',
+        extra: extra ?? '{}',
         createdAt: now,
         updatedAt: now,
       };
@@ -1632,6 +1658,36 @@ export const useWritingStore = create<WritingState>()(
       broadcastChapterStruct(chapter.bookId);
     },
 
+    setChapterPoemForm: async (chapterId: string, formId: string) => {
+      const chapter = get().chapters.find((c) => c.id === chapterId);
+      if (!chapter) return;
+      const updated: WritingChapter = {
+        ...chapter,
+        extra: withPoemForm(chapter.extra, formId),
+        updatedAt: Math.floor(Date.now() / 1000),
+      };
+      await writingApi.saveChapter(updated);
+      set((st) => {
+        const i = st.chapters.findIndex((c) => c.id === chapterId);
+        if (i >= 0) st.chapters[i] = updated;
+      });
+    },
+
+    setChapterEntryDate: async (chapterId: string, date: string) => {
+      const chapter = get().chapters.find((c) => c.id === chapterId);
+      if (!chapter) return;
+      const updated: WritingChapter = {
+        ...chapter,
+        extra: writeDiaryDate(chapter.extra, date),
+        updatedAt: Math.floor(Date.now() / 1000),
+      };
+      await writingApi.saveChapter(updated);
+      set((st) => {
+        const i = st.chapters.findIndex((c) => c.id === chapterId);
+        if (i >= 0) st.chapters[i] = updated;
+      });
+    },
+
     setDailyGoal: async (bookId: string, dailyGoal: number) => {
       const book = get().books.find((b) => b.id === bookId);
       if (!book) return;
@@ -1653,6 +1709,25 @@ export const useWritingStore = create<WritingState>()(
       const updated: WritingBook = {
         ...book,
         extra: serializeBookGoal(book.extra, goal),
+        updatedAt: Math.floor(Date.now() / 1000),
+      };
+      await writingApi.saveBook(updated);
+      set((s) => {
+        const row = s.books.find((b) => b.id === bookId);
+        if (row) {
+          row.extra = updated.extra;
+          row.updatedAt = updated.updatedAt;
+        }
+      });
+      broadcastBookMeta(bookId);
+    },
+
+    setBookNarrator: async (bookId: string, narrator: DiaryNarrator) => {
+      const book = get().books.find((b) => b.id === bookId);
+      if (!book) return;
+      const updated: WritingBook = {
+        ...book,
+        extra: serializeBookNarrator(book.extra, narrator),
         updatedAt: Math.floor(Date.now() / 1000),
       };
       await writingApi.saveBook(updated);

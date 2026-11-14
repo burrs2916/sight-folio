@@ -7,6 +7,8 @@
 // 铁律（沿用项目扫描台账规矩）：路径一律取自 files 表的 relPath，否则后端守门拒收。
 
 import { L } from "../../ai/aiLang";
+import { genrePromptPack } from "../../ai/genrePromptPack";
+import { useWritingStore } from "../../store/writingStore";
 import type { EditorSelectionInfo } from "./MonacoCodeEditor";
 import type { WritingSetting } from "../../services/tauri";
 
@@ -29,13 +31,32 @@ export const WORKBENCH_MODES: WorkbenchMode[] = ["ask", "edit", "agent"];
  * 注意：工具名必须与后端 `create_project_sight_tools` 注册的 id 逐字一致（大小写不敏感匹配）。
  */
 export const WORKBENCH_MODE_TOOLS: Record<WorkbenchMode, string[] | null> = {
-  ask: ["file_read", "code_search", "symbol_lookup", "project_context", "scan_records"],
+  ask: [
+    "file_read",
+    "code_search",
+    "symbol_lookup",
+    "project_context",
+    "scan_records",
+    // W-1：书场景的只读正文/语料工具。file_read 读的是代码 files 表、不是章节正文，
+    // 故 ask/edit 必须放开这些只读写作工具，命令里「用 read_chapter 对照真实正文」才不空转。
+    // 与 Agent 配置取交集：非书场景未授权这些工具时自动过滤，零副作用。
+    "list_chapters",
+    "read_chapter",
+    "read_character_card",
+    "search_corpus",
+  ],
   edit: [
     "file_read",
     "code_search",
     "symbol_lookup",
     "project_context",
     "scan_records",
+    // W-1：同 ask，放开只读正文/语料工具供编辑前对照真实正文。
+    // 但只读——write_chapter 是整章覆盖、绕过 apply_change 台账守门，绝不进 edit。
+    "list_chapters",
+    "read_chapter",
+    "read_character_card",
+    "search_corpus",
     "review_explain",
     "impact_assess",
     // 工具驱动的改动：本模式的「改动」走 apply_change 锚点补丁（登记进 ai_code_changes 台账，
@@ -166,15 +187,54 @@ export function bookTopicRoleInstruction(mode: WorkbenchMode, bookTopic: "charac
 /** 各模式的系统/指令前缀（双语，随 UI 语言切换）。
  *  isBookScene=true 时切换为「小说写作助手」人设，不出现代码分析/构建/lint 等术语；
  *  进一步：bookTopic 命中（人物/世界观/大纲）时切换为对应题材的「设计助手」人设，随左栏 tab 切换。 */
-export function modeInstruction(mode: WorkbenchMode, isBookScene = false, bookTopic?: "characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview" | null): string {
+/**
+ * 体裁 → 工作台 ask 人设用词：**判据与措辞真源已并入 `src/ai/genrePromptPack.ts` 的 `persona` 槽**
+ * （AI-1-3，轮 32 ㉕ 续；此处原有四支 `if (g === "...")` + 小说兜底，整条逐字搬表，文案零改动）。
+ *
+ * 这段历史留着，因为它记着两个还活着的约束：
+ *  ① 本函数原先修的是一个很难看见的错误——书场景 ask 人设写死「你是一个**小说**写作助手」、
+ *     查资料写死「人设卡、世界观设定与全书结构」，对诗集一字不改地套用，于是模型每次都以
+ *     小说家身份读诗，还会主动建议「先补人设卡」。表里 `persona.refs` 就是这个错误的病灶位，
+ *     挪进 `Record` 之后漏一个体裁直接编译不过（原先是静默掉进小说兜底）。
+ *  ② **欠账未清（在册，不在本刀）**：edit / agent / 题材角色 那三支仍写死「章节」字样，
+ *     本轮没动。原因照旧成立——那几条串里带 ```lang 反引号，改成模板字面量会直接打断字符串；
+ *     且四处引用原文标点各不相同（`人设卡、世界观设定与全书结构` 与
+ *     `（人设卡 / 世界观设定 / 全书结构）`），一张词表套四份必然偷偷改掉小说原文。
+ *     更根本的是那 18 处「章节」里有工具契约语义（`file_path（章节相对路径）`），
+ *     换词等于改模型对 apply_change 参数的理解 = 口径决策，不是措辞优化。
+ *  拼接写法（而不是模板字面量）也是为此：小说侧渲染结果必须与改造前逐字相同。
+ */
+
+/** 组装消息时读一次当前书体裁（`getState()`，**不建订阅**）：先按注入的书名认，认不到退回激活书。 */
+export function resolveBookGenre(ctx: Pick<WorkbenchContext, "bookTitle">): string {
+  const st = useWritingStore.getState();
+  const byTitle = ctx.bookTitle ? st.books.find((b) => b.title === ctx.bookTitle) : undefined;
+  return byTitle?.genre ?? st.books.find((b) => b.id === st.activeBookId)?.genre ?? "";
+}
+
+/**
+ * W-2：解析当前书的**内部 id**（现读现用，不建订阅、不新增 props 传参链，与 `resolveBookGenre` 同模式）。
+ * 先按注入的书名精确认书，认不到退回激活书；都拿不到返回 null。
+ * 用途：注入 `[Current Book]` 上下文，让 read_chapter / list_chapters / write_chapter 等
+ * 工具走 `resolve_book_ref` 的 id 优先分支，**同名 / 改名的书不再靠标题模糊命中而打错书**。
+ */
+export function resolveBookId(ctx: Pick<WorkbenchContext, "bookTitle">): string | null {
+  const st = useWritingStore.getState();
+  const byTitle = ctx.bookTitle ? st.books.find((b) => b.title === ctx.bookTitle) : undefined;
+  return byTitle?.id ?? st.activeBookId ?? null;
+}
+
+export function modeInstruction(mode: WorkbenchMode, isBookScene = false, bookTopic?: "characters" | "worldview" | "catalog" | "timeline" | "storylines" | "foreshadowing" | "inspiration" | "proofread" | "stats" | "writing" | "overview" | null, genre?: string): string {
   if (isBookScene && bookTopic) return bookTopicRoleInstruction(mode, bookTopic);
   if (isBookScene) {
     switch (mode) {
-      case "ask":
+      case "ask": {
+        const pn = genrePromptPack(genre).persona;
         return L(
-          "你是一个小说写作助手。只回答、分析、给写作建议，不要修改任何文件，也不要输出代码补丁。可以对照人设卡、世界观设定与全书结构给出建议。",
-          "You are a fiction-writing assistant. Only answer, analyze and give writing suggestions. Do NOT modify any file and do NOT propose code patches. You may reference character cards, worldbuilding and the book structure.",
+          "你是一个" + pn.noun.zh + "写作助手。只回答、分析、给写作建议，不要修改任何文件，也不要输出代码补丁。可以对照" + pn.refs.zh + "给出建议。",
+          "You are a " + pn.noun.en + "-writing assistant. Only answer, analyze and give writing suggestions. Do NOT modify any file and do NOT propose code patches. You may reference " + pn.refs.en + ".",
         );
+      }
       case "edit":
         return L(
           "你是一个写作编辑助手。优先用 apply_change 工具直接修改正文：给 file_path（章节相对路径）+ old_text（从 file_read 原文逐字复制的待替换片段，必须全文唯一，不唯一就多带几行上下文）+ new_text（替换内容，留空即删除）。改动会登记进「改动」台账，用户在面板里逐条「保留 / 撤销」——改完自查返回的行号与上下文预览，确认改在了预期位置。\n" +
@@ -184,11 +244,16 @@ export function modeInstruction(mode: WorkbenchMode, isBookScene = false, bookTo
             "Edit multiple chapters with one apply_change call each. Never emit the whole chapter (prefer anchored patches).\n" +
             "ONLY if you genuinely cannot call the write tool (no write permission), fall back to presenting the edit as a text block for manual apply: replace with ```lang path:startLine-endLine, insert with ```lang path:line, or for the user's selection use ```lang (no path). path must be the chapter-relative path; give only the changed lines.",
         );
-      case "agent":
+      case "agent": {
+        // A-4：agent 支原写死小说词（人设卡 / 世界观设定 / 全书结构），诗集跑 agent 改稿
+        // 仍被要求先凑「人设卡/世界观」。接表 persona.agentRefs：novel 逐字保持斜杠原文（零回归），
+        // 其余体裁领本体裁对照物。与 ask 支 refs 分开，因两支标点不同（斜杠 vs 顿号）。
+        const pn = genrePromptPack(genre).persona;
         return L(
-          "你是一个写作代理助手，可跨章节分析与修改。优先用 project_context 读取写作台上下文（人设卡 / 世界观设定 / 全书结构），用 file_read 读取真实正文，不要凭空猜测。改动用文本块给出，由用户确认后应用：替换用 ```语言 path:起始行-结束行，插入用 ```语言 path:行号，针对用户选区则 ```语言（无 path）。",
-          "You are an agentic writing assistant that can analyze and edit across chapters. PREFER project_context to read the writing-desk context (character cards / worldbuilding / book structure), and file_read to read the real prose; never guess. Present edits as text blocks for the user to review and apply: replace with ```lang path:startLine-endLine, insert with ```lang path:line, or for the user's selection use ```lang (no path).",
+          "你是一个写作代理助手，可跨章节分析与修改。优先用 project_context 读取写作台上下文（" + pn.agentRefs.zh + "），用 file_read 读取真实正文，不要凭空猜测。改动用文本块给出，由用户确认后应用：替换用 ```语言 path:起始行-结束行，插入用 ```语言 path:行号，针对用户选区则 ```语言（无 path）。",
+          "You are an agentic writing assistant that can analyze and edit across chapters. PREFER project_context to read the writing-desk context (" + pn.agentRefs.en + "), and file_read to read the real prose; never guess. Present edits as text blocks for the user to review and apply: replace with ```lang path:startLine-endLine, insert with ```lang path:line, or for the user's selection use ```lang (no path).",
         );
+      }
     }
   }
   switch (mode) {
@@ -236,7 +301,16 @@ export function buildContextBlock(ctx: WorkbenchContext, isBookScene = false): s
         : ctx.bookTopic === "overview" ? L("全书总览", "whole-book overview")
         : null;
     const parts: string[] = [];
-    if (ctx.bookTitle) parts.push(L(`书《${ctx.bookTitle}》`, `book "${ctx.bookTitle}"`));
+    if (ctx.bookTitle) {
+      // W-2：书名后带上内部 id，让 read_chapter / list_chapters / write_chapter 等工具走 id 优先分支，
+      // 同名 / 改名的书不再靠标题模糊命中而打错书（id 缺失时退回仅书名，不注入脏值）。
+      const bookId = resolveBookId(ctx);
+      parts.push(
+        bookId
+          ? L(`书《${ctx.bookTitle}》(id=${bookId})`, `book "${ctx.bookTitle}" (id=${bookId})`)
+          : L(`书《${ctx.bookTitle}》`, `book "${ctx.bookTitle}"`),
+      );
+    }
     if (topicLabel) parts.push(L(`当前题材：${topicLabel}`, `current topic: ${topicLabel}`));
     if (ctx.focusSetting) {
       parts.push(
@@ -305,7 +379,7 @@ export function buildContextBlock(ctx: WorkbenchContext, isBookScene = false): s
         : ctx.bookTopic === "inspiration"
         ? "上面的[上下文]已包含当前书的「灵感念头池」（未落章节拍 + 分发状态），直接基于它作答；标记〔已入…〕的念头不要重复建议，脑暴时尊重已有念头的语气与题材；如需对照真实正文，用 file_read 读取对应章节，不要凭空猜测。\n"
         : ctx.bookTopic === "proofread"
-        ? "上面的[上下文]已包含当前书的「校对体检报告」（章文本/章账/伏笔/时间线/剧情线/念头池六组发现），直接基于它作答；体检是本地派生软提示，错别字与连贯性等语义层问题请用 file_read 逐章细读后再下结论，不要凭空猜测。\n"
+        ? "上面的[上下文]已包含当前书的「校对体检报告」（章文本/伏笔/时间线/剧情线/念头池/一致性六组发现），直接基于它作答；体检是本地派生软提示，错别字与连贯性等语义层问题请用 file_read 逐章细读后再下结论，不要凭空猜测。\n"
         : ctx.bookTopic === "stats"
         ? "上面的[上下文]已包含当前书的「写作统计」（体量 KPI + 卷分布 + 章节体量离群），直接基于它作答；离群与节奏建议是 advisory 软提示，尊重创作者意图，不要催更施压，不要凭空猜测。\n"
         : ctx.bookTopic === "writing"
@@ -468,7 +542,8 @@ export function buildUserMessage(ctx: WorkbenchContext, userText: string, isBook
   const participantBlock = buildParticipantBlock(ctx.workspace, isBookScene);
   const terminalBlock = buildTerminalParticipantBlock(!!ctx.hasRunCommand && ctx.mode === "agent" && !isBookScene);
   const diagBlock = buildDiagnosticsBlock(ctx.diagnostics, isBookScene);
-  const head = modeInstruction(ctx.mode, isBookScene, ctx.bookTopic);
+  // 体裁现读现用（不新增 props 传参链）：诗集 / 散文集不再领到"小说写作助手"人设
+  const head = modeInstruction(ctx.mode, isBookScene, ctx.bookTopic, resolveBookGenre(ctx));
   return [head, "", participantBlock, terminalBlock, userText, "", ctxBlock, scopeBlock, diagBlock].filter(Boolean).join("\n").trim() + "\n";
 }
 

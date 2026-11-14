@@ -22,10 +22,12 @@ import Divider from '@mui/material/Divider';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useWritingStore } from '../../store/writingStore';
 import { buildBookOverview } from '../../utils/writingOverview';
+import { kpiLabelKeys, viewKindLabelKey } from '../../utils/writingSchema';
 import { openTypedCarrierView, type WritingViewKind } from '../../utils/studioBook';
 import { writingStatsApi, type WritingDailyStat } from '../../services/tauri';
 import { diffDailyStats, WINDOW_DAYS } from '../../utils/writingStats';
 import { t } from '../../i18n';
+import { hiddenViewKindsForGenre } from '../../utils/writingSchema';
 
 /** 九大题材维度导航 chip（点击跳对应 L2 编辑面）。value = 该维度头条计数。 */
 const DIMENSIONS: { kind: WritingViewKind; valueKey: keyof ReturnType<typeof pickValue> }[] = [
@@ -75,13 +77,25 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
         timelineEvents: timelineEvents.filter((e) => e.bookId === bookId),
         storylines: storylines.filter((l) => l.bookId === bookId),
         foreshadowings: foreshadows.filter((f) => f.bookId === bookId),
+        // ㉬ N-21：递**原始**体裁（这里下面那枚 `genre` 带 'novel' 兑底，是给 KPI 名词用的，
+        // 体检闸不能用它：脏体裁宁可落回历史行为六组全跑，不许被误判成小说而裁组）
+        genre: books.find((b) => b.id === bookId)?.genre ?? '',
       }),
-    [bookTitle, chapters, settings, outlines, timelineEvents, storylines, foreshadows, bookId],
+    [bookTitle, chapters, settings, outlines, timelineEvents, storylines, foreshadows, bookId, books],
   );
 
   const genre = useMemo(() => books.find((b) => b.id === bookId)?.genre ?? 'novel', [books, bookId]);
+  // 三格 KPI 的名词按体裁（小说拿到的仍是「章节数 / 卷数」那几个原键，逐字不变）
+  const kk = kpiLabelKeys(genre);
   const jump = (kind: WritingViewKind) => openTypedCarrierView(genre, kind);
   const values = pickValue(overview);
+  // 维度导航按体裁裁剪，判据与 L2 页签同一个函数（见 writingSchema.hiddenViewKindsForGenre）。
+  // 护栏：**计数不为 0 的维度一定留着** —— 数据还在却把导航摘掉，等于让人以为书里没这块内容。
+  const hiddenDims = hiddenViewKindsForGenre(genre);
+  const shownDimensions =
+    hiddenDims.length === 0
+      ? DIMENSIONS
+      : DIMENSIONS.filter((d) => !hiddenDims.includes(d.kind) || Number(values[d.valueKey] ?? 0) !== 0);
 
   // 日更趋势迷你图：复用统计页签口径（Rust 落库快照差分），纯展示、零新表、零 Rust 命令。
   const [trendStats, setTrendStats] = useState<WritingDailyStat[] | null>(null);
@@ -129,8 +143,8 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
 
   const kpiCells: { label: string; value: string }[] = [
     { label: t('writing.totalWords'), value: overview.kpis.totalWords.toLocaleString() },
-    { label: t('writing.chapterCount'), value: String(overview.kpis.chapterCount) },
-    { label: t('editor.writing.stats.kpiVolumes'), value: String(overview.kpis.volumeCount) },
+    { label: t(kk.count), value: String(overview.kpis.chapterCount) },
+    { label: t(kk.group), value: String(overview.kpis.volumeCount) },
     { label: t('editor.writing.stats.kpiSettings'), value: String(overview.kpis.settingCount) },
     { label: t('editor.writing.stats.kpiAvg'), value: String(overview.kpis.avgWords) },
   ];
@@ -195,13 +209,13 @@ export function BookOverviewPanel({ bookId }: { bookId: string }) {
           {t('writing.overviewDimensions')}
         </Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {DIMENSIONS.map((d) => (
+          {shownDimensions.map((d) => (
             <Chip
               key={d.kind}
               size="small"
               clickable
               onClick={() => jump(d.kind)}
-              label={`${t(`writing.viewKind.${d.kind}`)} · ${values[d.valueKey]}`}
+              label={`${t(viewKindLabelKey(genre, d.kind))} · ${values[d.valueKey]}`}
               sx={{ fontSize: 10, height: 22 }}
             />
           ))}

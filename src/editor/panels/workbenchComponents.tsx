@@ -38,6 +38,7 @@ import { useSemanticColors } from '../../theme/useSemanticColors';
 
 import { getLang, t } from '../../i18n';
 import { L } from '../../ai/aiLang';
+import { surfaceKeyForGenre, viewKindVisibleForGenre } from '../../utils/writingSchema';
 import { uiFontSize, BORDER_RADIUS_BASE } from '../../theme/appearanceScales';
 import { useVerifyOverlayStore } from '../../store/verifyOverlayStore';
 import { useProjectStore } from '../../store/projectStore';
@@ -601,6 +602,10 @@ export interface WorkbenchInputBarCtx {
   queued: string[];
   /** 书场景（novel-zh）：快捷动作与占位符切换为写作向文案 */
   isBookScene?: boolean;
+  /** 当前书体裁（novel/essay/poetry/script/diary；'' 或未传 = 按小说口径）。
+   *  斜杠菜单必须按体裁出对应那一支：诗集作者敲 `/` 拿到 6 条小说命令（伏笔/连续性/人物/时间线）
+   *  是 W-0a 修掉的运行时断口（2026-11-10）。判据单一真源 = writingSchema.workbenchCommandSet。 */
+  genre?: string;
   /** 模型覆盖：传统聊天 UI 把模型选择器放在底部、与输入框同区（而非藏在头部菜单），
    *  便于随时切换当前会话模型；affiliation（端点·供应商）在输入栏内从 store 现算，避免选错端点。 */
   /** 助手选择：从头部下沉到底部输入条、与输入框同行对齐（传统聊天/IDE composer 把助手选择器放在输入条一端）。 */
@@ -833,11 +838,13 @@ export function WorkbenchInputBar({
                   />
                 </>
               )}
+              {/* ㉕ P14（轮 32）：标签走 `chipUnderstand` 槽位——诗集叫「读懂这首」、剧本「读懂这场」、
+                  日记「读懂这天」、散文「读懂这篇」；小说与旧书回落原键「读懂本章」逐字不动。 */}
               <Chip
                 size="small"
                 clickable
                 variant="outlined"
-                label={t('workbench.aiUnderstandChapter')}
+                label={t(surfaceKeyForGenre(ctx.genre ?? '', 'chipUnderstand'))}
                 onClick={() => ctx.quickAction('book-understand')}
                 sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
@@ -849,22 +856,30 @@ export function WorkbenchInputBar({
                 onClick={() => ctx.quickAction('book-consistency')}
                 sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
               />
-              <Chip
-                size="small"
-                clickable
-                variant="outlined"
-                label={t('workbench.aiPlotChapter')}
-                onClick={() => ctx.quickAction('book-plot')}
-                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
-              />
-              <Chip
-                size="small"
-                clickable
-                variant="outlined"
-                label={t('workbench.aiConsistencyWorld')}
-                onClick={() => ctx.quickAction('book-consistency-world')}
-                sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
-              />
+              {/* ㊽ 入口族（2026-11-11 轮 29）：这两枚动作的判据分别指向 storylines/foreshadowing
+                  与 worldview，而这两类栏对散文集·诗集·日记（前三枚全裁）与剧本（裁 worldview）
+                  已被 hiddenViewKindsForGenre 收掉。栏都不长，还递一颗「我帮你审它」的chip，
+                  就是 ⑲ 写过的「藏视图不藏入口」。判据只查那一页签表，不另立映射表。 */}
+              {viewKindVisibleForGenre(ctx.genre ?? '', 'storylines') && (
+                <Chip
+                  size="small"
+                  clickable
+                  variant="outlined"
+                  label={t('workbench.aiPlotChapter')}
+                  onClick={() => ctx.quickAction('book-plot')}
+                  sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
+                />
+              )}
+              {viewKindVisibleForGenre(ctx.genre ?? '', 'worldview') && (
+                <Chip
+                  size="small"
+                  clickable
+                  variant="outlined"
+                  label={t('workbench.aiConsistencyWorld')}
+                  onClick={() => ctx.quickAction('book-consistency-world')}
+                  sx={{ fontSize: uiFontSize(10), height: 22, borderRadius: '11px' }}
+                />
+              )}
             </>
           ) : (
             <>
@@ -1176,7 +1191,7 @@ export function WorkbenchInputBar({
       {/* 斜杠命令菜单（VS Code 式：输入 / 唤起，按前缀实时过滤；选中把「/cmd 」回填到对应输入框，
           真正的行为在 send 里由 parseSlashCommand 路由为动作——强制模式 + 折叠正文） */}
       <Menu anchorEl={ctx.slashAnchor} open={!!ctx.slashAnchor} onClose={() => ctx.setSlashAnchor(null)}>
-        {getSlashCommands(ctx.isBookScene)
+        {getSlashCommands(ctx.isBookScene, ctx.genre)
           .filter((s) => s.cmd.startsWith(ctx.slashQuery))
           .map((s) => (
             <MenuItem

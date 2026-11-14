@@ -18,6 +18,9 @@ import {
   deriveBookGoalProgress,
 } from '../utils/writingStats';
 import type { WritingBookGoal } from '../services/writing';
+import { kpiLabelKeys, surfaceKeyForGenre, writesByDateForGenre } from '../utils/writingSchema';
+import { computeDiaryPeopleFrequency, computeDiaryRhythm } from '../utils/diaryMetrics';
+import type { WritingChapter } from '../services/writing';
 import { t } from '../i18n';
 import { logger } from '../utils/logger';
 
@@ -50,6 +53,15 @@ interface WritingStatsDialogProps {
   /** 全书目标（T2）：读自 WritingBook.extra */
   bookGoal: WritingBookGoal;
   onBookGoalChange: (goal: WritingBookGoal) => void;
+  /** 作品体裁（空/未传 = 小说口径，历史文案逐字不变）。只影响读数名词，不影响目标口径文案。 */
+  genre?: string;
+  /**
+   * 这本书的条目（㉖）：日记的「连续 / 空档 / 未标日期」要从 `extra.entryDate` 算。
+   * 只有按日期写的体裁会读它 —— 其它体裁传与不传都不渲染那一段。
+   */
+  chapters?: WritingChapter[];
+  /** 设定卡：人物出场频率用。计数复用 writingProofread 那份权威，本文件不自己数名字。 */
+  settings?: { id: string; name: string; extra: string }[];
 }
 
 /** Unix 秒 → 本地日期 input value（YYYY-MM-DD）；0 → 空串 */
@@ -64,6 +76,9 @@ export default function WritingStatsDialog({
   onGoalChange,
   bookGoal,
   onBookGoalChange,
+  genre = '',
+  chapters = [],
+  settings = [],
 }: WritingStatsDialogProps) {
   const [stats, setStats] = useState<WritingDailyStat[] | null>(null);
   const [goalInput, setGoalInput] = useState('');
@@ -97,6 +112,17 @@ export default function WritingStatsDialog({
   }, [open, bookId]);
 
   const deltas = useMemo(() => (stats ? diffDailyStats(stats, new Date()) : []), [stats]);
+
+  // ㉖ 日记读数：只在**打开时**算 —— 本弹窗是常驻挂载的（open=false 时组件体照样执行），
+  // 不加这道闸等于上层每次渲染都扫一遍全书正文。数字全在 utils/diaryMetrics（纯函数），这里不重算第二遍。
+  const rhythm = useMemo(
+    () => (open && writesByDateForGenre(genre) ? computeDiaryRhythm(chapters) : null),
+    [open, genre, chapters],
+  );
+  const people = useMemo(
+    () => (open && writesByDateForGenre(genre) ? computeDiaryPeopleFrequency(chapters, settings) : []),
+    [open, genre, chapters, settings],
+  );
 
   // 有快照记录时用最近一条快照的总字数（比章节实时和更贴近落库口径）；否则退回章节和
   const totalWords = useMemo(() => {
@@ -148,7 +174,7 @@ export default function WritingStatsDialog({
       <DialogContent>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
           <Chip size="small" label={`${t('writing.totalWords')} ${totalWords.toLocaleString()}`} />
-          <Chip size="small" label={`${t('writing.chapterCount')} ${chapterCount}`} />
+          <Chip size="small" label={`${t(kpiLabelKeys(genre).count)} ${chapterCount}`} />
           <Chip size="small" label={`${t('writing.daysRecorded')} ${recordedDays}`} />
         </Box>
 
@@ -279,7 +305,7 @@ export default function WritingStatsDialog({
                 <>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                     <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                      {t('writing.bookChapterProgress', {
+                      {t(surfaceKeyForGenre(genre, 'unitProgress'), {
                         chapters: chapterCount,
                         target: bookGoal.targetChapters,
                       })}
@@ -303,14 +329,14 @@ export default function WritingStatsDialog({
                 </>
               ) : (
                 <Typography sx={{ fontSize: 12, color: 'text.disabled', py: 1 }}>
-                  {t('writing.bookChapterUnset')}
+                  {t(surfaceKeyForGenre(genre, 'unitTargetUnset'))}
                 </Typography>
               )}
             </Box>
             <TextField
               size="small"
               type="number"
-              label={t('writing.bookTargetChapters')}
+              label={t(surfaceKeyForGenre(genre, 'unitTargetLabel'))}
               value={goalChaptersInput}
               onChange={(e) => setGoalChaptersInput(e.target.value)}
               onBlur={commitBookGoal}
@@ -335,6 +361,77 @@ export default function WritingStatsDialog({
             />
           </Box>
         </Box>
+
+        {/* ─── ㉖ 日记专属读数（连续 / 上次记录 / 空档 / 重复日 / 未标日期 / 提到最多的人）───
+            闸门走 writingSchema.writesByDateForGenre，渲染层不写 `genre === 'diary'`；
+            「未标日期」那一行不许省：用「＋」或拖货架建的条目不带 entryDate，
+            读数覆盖不到它们，藏着说"连续 12 天"就是撒谎。 */}
+        {rhythm && (
+          <Box sx={{ mb: 2, p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 1 }}>
+              {t('writing.diary.rhythmTitle')}
+            </Typography>
+            {rhythm.distinctDates === 0 ? (
+              <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{t('writing.diary.noDates')}</Typography>
+            ) : (
+              <>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 0.5 }}>
+                  <Chip
+                    size="small"
+                    label={t('writing.diary.rhythmStreak', { n: rhythm.currentStreak, max: rhythm.longestStreak })}
+                  />
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={
+                      rhythm.daysSinceLast === 0
+                        ? t('writing.diary.rhythmToday')
+                        : t('writing.diary.rhythmSinceLast', { n: rhythm.daysSinceLast })
+                    }
+                  />
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={
+                      rhythm.gapDays === 0
+                        ? t('writing.diary.rhythmNoGap')
+                        : t('writing.diary.rhythmGaps', { days: rhythm.gapDays })
+                    }
+                  />
+                  {rhythm.duplicates.length > 0 && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={t('writing.diary.duplicates', { n: rhythm.duplicates.length })}
+                    />
+                  )}
+                </Box>
+                {rhythm.gaps.map((g) => (
+                  <Typography key={`${g.from}-${g.to}`} sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>
+                    {t('writing.diary.rhythmGapRange', { from: g.from, to: g.to, days: g.days })}
+                  </Typography>
+                ))}
+                {people.length > 0 && (
+                  <Box sx={{ mt: 0.5 }}>
+                    <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: 'text.secondary' }}>
+                      {t('writing.diary.peopleTitle')}
+                    </Typography>
+                    {people.map((p) => (
+                      <Typography key={p.settingId} sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>
+                        {t('writing.diary.personRow', { name: p.name, mentions: p.mentions, days: p.days })}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+                {rhythm.undatedCount > 0 && (
+                  <Typography sx={{ fontSize: 11, color: 'warning.main', mt: 0.5 }}>
+                    {t('writing.diary.undated', { n: rhythm.undatedCount })}
+                  </Typography>
+                )}
+              </>
+            )}
+          </Box>
+        )}
 
         {stats === null ? null : !chartAvailable ? (
           <Typography sx={{ fontSize: 12.5, color: 'text.disabled', textAlign: 'center', py: 4 }}>

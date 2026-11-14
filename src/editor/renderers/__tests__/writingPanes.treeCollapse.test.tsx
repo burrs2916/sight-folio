@@ -115,7 +115,9 @@ function chevronOf(title: string): HTMLElement | null {
 }
 
 function treePane() {
-  return <StorylinePane accent="#4A338F" chapters={h.writing.chapters} outlines={h.writing.outlines} settings={[]} />;
+  return (
+    <StorylinePane accent="#4A338F" bookId="b1" chapters={h.writing.chapters} outlines={h.writing.outlines} settings={[]} />
+  );
 }
 
 describe('结构树 · 展开/收起（回归锁）', () => {

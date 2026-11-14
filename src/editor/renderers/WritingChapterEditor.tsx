@@ -39,6 +39,7 @@ import { foreshadowingsPayableIn } from '../../utils/writingForeshadowing';
 import { beatEventText, beatImported } from '../../utils/writingTimeline';
 import { beatPlantedAsForeshadowing } from '../../utils/writingInspiration';
 import { chapterTextIssues } from '../../utils/writingProofread';
+import { unitShortKey } from '../../utils/writingSchema';
 import type { WritingChapter } from '../../services/writing';
 import {
   ForeshadowReminder,
@@ -165,13 +166,12 @@ export function WritingChapterEditor({
   const book = books.find((b) => b.id === bookId) ?? null;
   const chapter = chapterId ? (chapters.find((c) => c.id === chapterId) ?? null) : null;
   const genre = book?.genre ?? (typeof config.genre === 'string' ? config.genre : '');
-  const isEssay = genre === 'essay';
 
   // 写作台顶部校对提醒：本章有文本发现（错别字/重复用词/敏感词/长段等）时轻量提示
   const proofreadReminders = useMemo(() => {
     if (!chapter) return [];
-    return chapterTextIssues(chapter);
-  }, [chapter]);
+    return chapterTextIssues(chapter, genre);
+  }, [chapter, genre]);
 
   // ─── 书接线：卡片依赖的书未激活时自动接线（装载章节列表） ───
   useEffect(() => {
@@ -542,7 +542,7 @@ export function WritingChapterEditor({
             flexShrink: 0,
           }}
         >
-          {isEssay ? t('writingDesign.unitEssay') : t('writingDesign.unitChapter')}
+          {t(unitShortKey(genre))}
         </div>
         <span
           style={{

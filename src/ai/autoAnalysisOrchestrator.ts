@@ -27,7 +27,7 @@ import { loadEntityRegression } from "./entityRegression";
 import { buildRegressionFeedback } from "./regressionFocus";
 import type { AiFocusReport } from "./contextTypes";
 import { logger } from "../utils/logger";
-import { t } from "../i18n";
+import { t, pickLang } from "../i18n";
 
 /**
  * 触发种类。
@@ -100,11 +100,22 @@ export interface AutoRuleEvalContext {
    * 让它翻新，本文件继续恶化才会——那本来就是一次新的回归。
    */
   hasRegressedFocus?: boolean;
+  /**
+   * ㉴（轮 35 · AU-1）该作用域按体裁**整卡不适用**的分析项（key + 人读名）。
+   *
+   * 编排器保持模块无关：它不知道「诗集为什么不该审人设」，只消费 provider 申报的名单
+   * （见 AiContextProvider.automationBlocklist；写作域的表在 genrePromptPack.automation）。
+   * 表外项不跑**并且要说**：点名锁到表外项的规则被拦下时写 skipped 轨迹，
+   * 作者能在运行轨迹里读到「按体裁跳过」，而不是猜「它是不是坏了」。
+   */
+  genreBlockedPresets?: Array<{ key: string; label: string }>;
+  /** ㉴ 全部预设都不适用（轮转/老空串规则连可跑的卡都领不到，整轮按体裁不跑） */
+  genreBlockedAll?: boolean;
 }
 
 export interface AutoRuleDecision {
   shouldRun: boolean;
-  /** 机器可读原因（disabled / module-mismatch / scope-mismatch / trigger-mismatch / cooling / unchanged / ok） */
+  /** 机器可读原因（disabled / module-mismatch / scope-mismatch / genre-irrelevant / trigger-mismatch / cooling / unchanged / ok） */
   reason: string;
   /** 人可读说明，直接写进审计 detail */
   detail: string;
@@ -137,6 +148,30 @@ export function evaluateAutoRule(
       reason: "scope-mismatch",
       detail: t("aiPanel.autoDetail.scopeMismatch", { scope: rule.scopeId }),
     };
+  }
+  // ㉴ AU-1 体裁闸：排在触发时机/冷却/指纹之前——「不该跑」不是一种「暂时跑不了」。
+  // 排在 trigger-mismatch 前还有半条理由：增量扫描撞上表外项时，若先过触发闸，
+  // 轨迹会写「触发不符」，真正的病灶（这本书没有这一卡）就被永久盖住。
+  // 轮转/老空串规则没有点名（lockedKey 为空），只有**整池**都不适用时才拦——
+  // 池只裁掉一部分时它们照样领得到能跑的卡，那正是白名单该产生的行为。
+  if (ctx.genreBlockedPresets && ctx.genreBlockedPresets.length > 0) {
+    const lockedKey = isRotatingRule(rule) ? "" : rule.presetKey;
+    if (lockedKey) {
+      const hit = ctx.genreBlockedPresets.find((b) => b.key === lockedKey);
+      if (hit) {
+        return {
+          shouldRun: false,
+          reason: "genre-irrelevant",
+          detail: t("aiPanel.autoDetail.genreIrrelevant", { item: hit.label }),
+        };
+      }
+    } else if (ctx.genreBlockedAll) {
+      return {
+        shouldRun: false,
+        reason: "genre-irrelevant",
+        detail: t("aiPanel.autoDetail.genreIrrelevantAll"),
+      };
+    }
   }
   // 补跑不是一次新的触发，而是把上一次**已经满足触发条件、却被临时状况拦下**的
   // 那一轮接着跑完。所以它天然不该再被「触发时机」二次审查：那一关上次就过了。
@@ -227,6 +262,24 @@ export function isRotatingRule(rule: AiAutoAnalysisRule): boolean {
   return rule.presetKey === PRESET_ROTATE;
 }
 
+/**
+ * ㉴（轮 35 · AU-1）解析该作用域「整卡不适用」的自动分析项名单。
+ *
+ * 编排器与调度心跳**共用这一枚入口**（同一概念一把尺子，禁第二张表）：
+ * 模块侧未实现 = 空名单 = 全部可跑（代码扫描域零回归）；读取抛错同样退回空名单——
+ * 与 planRotation 的故障取向一致：宁多跑一轮，不能把「探针坏了」演成「静默少跑」。
+ */
+export function automationBlocklistFor(moduleId: string, scopeId: string): string[] {
+  const provider = aiContextRegistry.get(moduleId);
+  if (!provider?.automationBlocklist) return [];
+  try {
+    return provider.automationBlocklist(scopeId) ?? [];
+  } catch (err) {
+    logger.warn("autoAnalysis", "automationBlocklist 读取失败，本次按全部可跑处理", { moduleId, error: err });
+    return [];
+  }
+}
+
 /** 一轮的维度决策：跑哪个预设、为什么、是否还有从未分析过的方面 */
 export interface RotationPlan {
   presetKey: string | undefined;
@@ -248,13 +301,27 @@ export interface RotationPlan {
 export async function planRotation(
   rule: AiAutoAnalysisRule,
   ctx: { moduleId: string; scopeId: string; digest: string; nowSec: number },
+  /** ㉴ AU-1：本作用域按体裁整卡不适用的预设键（编排器从 provider 申报解析后传入） */
+  blockedKeys: string[] = [],
 ): Promise<RotationPlan> {
   if (!isRotatingRule(rule)) {
-    // 空串是早于轮转特性的历史规则：保持原语义，交给 runner 取第一个预设
+    // 空串是早于轮转特性的历史规则：保持原语义，交给 runner 取第一个预设。
+    // ㉴ AU-1 补的那一环：「第一个预设」必须是**这本书跑得动的**第一张卡——
+    // 诗集上的第一条老规则不该因为数组顺序就领到「人设一致性」。
+    if (!rule.presetKey && blockedKeys.length > 0) {
+      const firstUsable = (aiContextRegistry.get(ctx.moduleId)?.presets ?? []).find(
+        (p) => !blockedKeys.includes(p.key),
+      );
+      return { presetKey: firstUsable?.key, note: "", hasUncovered: false };
+    }
     return { presetKey: rule.presetKey || undefined, note: "", hasUncovered: false };
   }
 
-  const presets = aiContextRegistry.get(ctx.moduleId)?.presets ?? [];
+  // ㉴ AU-1：轮转池先过体裁白名单再谈覆盖台账——被裁的维度不计「从未分析」，
+  // 否则心跳会永远探到同一个补不上的洞（探针与编排两头各说各的账）。
+  const presets = (aiContextRegistry.get(ctx.moduleId)?.presets ?? []).filter(
+    (p) => !blockedKeys.includes(p.key),
+  );
   if (presets.length === 0) return { presetKey: undefined, note: "", hasUncovered: false };
 
   try {
@@ -485,9 +552,20 @@ async function orchestrate(
   }
   if (!rules.length) return outcome;
 
+  // ㉴ AU-1 体裁白名单：模块+作用域级（与 focusPlan 同层），整轮只解析一次。
+  // label 用预设的本地化名——它直接进审计 detail，作者读到的是卡的名字，不是 key。
+  const blockedKeys = automationBlocklistFor(ctx.moduleId, ctx.scopeId);
+  const allPresets = aiContextRegistry.get(ctx.moduleId)?.presets ?? [];
+  const genreBlockedPresets = allPresets
+    .filter((p) => blockedKeys.includes(p.key))
+    .map((p) => ({ key: p.key, label: pickLang(p.title) }));
+  const genreBlockedAll = allPresets.length > 0 && genreBlockedPresets.length === allPresets.length;
+
   const evalCtx: AutoRuleEvalContext = {
     ...ctx,
     nowSec: Math.floor(Date.now() / 1000),
+    genreBlockedPresets,
+    genreBlockedAll,
   };
 
   // 焦点目标巡查：模块+作用域级，与具体规则无关，整轮只算一次。
@@ -514,7 +592,7 @@ async function orchestrate(
   for (const rule of rules) {
     // 维度决策必须在闸门判定**之前**：轮转规则「还有没被分析过的方面」这件事，
     // 是唯一能压过指纹去重的理由，判定时就得知道。
-    const plan = await planRotation(rule, evalCtx);
+    const plan = await planRotation(rule, evalCtx, blockedKeys);
     const decision = evaluateAutoRule(rule, {
       ...evalCtx,
       hasUncoveredDimension: plan.hasUncovered,

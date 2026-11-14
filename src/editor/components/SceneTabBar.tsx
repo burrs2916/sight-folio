@@ -41,8 +41,9 @@ import { useWritingStore } from '../../store/writingStore';
 import { analyzerRegistry, useActiveAnalyzer, type ViewTemplateRegistration } from '../../editor/analyzer';
 import { portraitForTemplate, runPortrait } from '../utils/portraits';
 import { useToastStore } from '../../store/toastStore';
+import { BookDeletionImpact } from '../../components/ui/BookDeletionImpact';
 import { t, resolveFragments } from '../../i18n';
-import { WRITING_GENRES, genreDef } from '../../utils/writingSchema';
+import { WRITING_GENRES, genreDef, hiddenViewKindsForGenre, sortTabsForGenre, viewKindLabelKey } from '../../utils/writingSchema';
 import {
   createBookAutoNamed,
   deleteBookWithScene,
@@ -64,21 +65,25 @@ import { openWritingDesk as openWritingDeskWindow } from '../../utils/writingDes
  * 尚未建过视图的淡显（点击将新建一个视图）——让「点击会新建」有预期。
  * 有现成 seed 布局器的是 catalog/characters/worldview，其余先落空画布，
  * 按「一个一个优化」节奏补 build*Board。overview 由 BookOverviewPanel 渲染。
- * 标签走 writing.viewKind.*（zh 值唯一）。 */
-const KIND_TABS: { kind: WritingViewKind; Icon: typeof AccountTreeOutlinedIcon; labelKey: string }[] = [
-  { kind: 'catalog', Icon: AccountTreeOutlinedIcon, labelKey: 'writing.viewKind.catalog' },
-  { kind: 'characters', Icon: GroupsOutlinedIcon, labelKey: 'writing.viewKind.characters' },
-  { kind: 'worldview', Icon: PublicOutlinedIcon, labelKey: 'writing.viewKind.worldview' },
-  { kind: 'timeline', Icon: TimelineOutlinedIcon, labelKey: 'writing.viewKind.timeline' },
-  { kind: 'storylines', Icon: MultilineChartOutlinedIcon, labelKey: 'writing.viewKind.storylines' },
-  { kind: 'foreshadowing', Icon: FlagOutlinedIcon, labelKey: 'writing.viewKind.foreshadowing' },
-  { kind: 'inspiration', Icon: LightbulbOutlinedIcon, labelKey: 'writing.viewKind.inspiration' },
-  { kind: 'proofread', Icon: SpellcheckOutlinedIcon, labelKey: 'writing.viewKind.proofread' },
-  { kind: 'stats', Icon: BarChartOutlinedIcon, labelKey: 'writing.viewKind.stats' },
+ * 标签走 `viewKindLabelKey(bookGenre, kind)`（㉚ T-A，2026-11-10）：
+ * 大纲 / 人物设定两枚随体裁换词（诗集叫诗作、剧本叫幕场），其余九枚回落 writing.viewKind.*。
+ * labelKey 字段本轮**删掉**而不是留着不用 —— 留一份没人读的标签表，就是给下一轮留一个真源分身。
+ * 顺序自 ㉳ T-B（2026-11-11 轮 34）起按体裁走 `writingSchema.TAB_ORDER`（此处数组序退为
+ * 「基准序/回落序」：未设置体裁与表里没登记的 kind 按它排）。 */
+const KIND_TABS: { kind: WritingViewKind; Icon: typeof AccountTreeOutlinedIcon }[] = [
+  { kind: 'catalog', Icon: AccountTreeOutlinedIcon },
+  { kind: 'characters', Icon: GroupsOutlinedIcon },
+  { kind: 'worldview', Icon: PublicOutlinedIcon },
+  { kind: 'timeline', Icon: TimelineOutlinedIcon },
+  { kind: 'storylines', Icon: MultilineChartOutlinedIcon },
+  { kind: 'foreshadowing', Icon: FlagOutlinedIcon },
+  { kind: 'inspiration', Icon: LightbulbOutlinedIcon },
+  { kind: 'proofread', Icon: SpellcheckOutlinedIcon },
+  { kind: 'stats', Icon: BarChartOutlinedIcon },
   // 顺序 = 文件头注释：设定群 → 结构群 → 辅助群 → 全书总览 → 正文。
   // 曾把 writing 排在 overview 前（总览被挤到最后），2026-09-28 按注释归位。
-  { kind: 'overview', Icon: DashboardOutlinedIcon, labelKey: 'writing.viewKind.overview' },
-  { kind: 'writing', Icon: EditNoteOutlinedIcon, labelKey: 'writing.viewKind.writing' },
+  { kind: 'overview', Icon: DashboardOutlinedIcon },
+  { kind: 'writing', Icon: EditNoteOutlinedIcon },
 ];
 
 /** 插件视角模板 → 添加视图下拉 */
@@ -234,19 +239,38 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
   // 一个场景 = 一本书 = 一个题材组，所以 L2 的自定义页签就是本场景里所有「无 kind」的视图。
   const customViews = useMemo(() => visibleViews.filter((v) => !v.kind), [visibleViews]);
 
-  // L2 键盘切换序列（2026-09-28）：已建视图按 L2 可视顺序排列 = KIND_TABS 已建项
-  // （固定顺序）+ 自定义页签（出现顺序）。与 previewMode 同一语义——只切**已建**，
-  // 绝不因按键触发「缺省即建」；未建的淡显页签不参与（新建是有副作用的显式操作）。
+  // L2 固定页签的**体裁顺序**（㉳ T-B，2026-11-11 轮 34）：判据在
+  // writingSchema.sortTabsForGenre（顺序表 TAB_ORDER 是唯一真源，目标态卡 §2 定稿）。
+  // 排序吃**完整** KIND_TABS —— 被裁但已建过视图的 kind（护栏放行那批）也要有确定位次，
+  // 否则它们在 shownKindTabs 与 l2Switchable 里会各自漂移（排序对未登记 kind 排尾、保原相对序）。
+  const orderedKindTabs = useMemo(() => sortTabsForGenre(bookGenre, KIND_TABS), [bookGenre]);
+
+  // L2 固定页签按体裁裁剪（判据在 writingSchema.hiddenViewKindsForGenre：散文摘掉 世界观/剧情线/伏笔）。
+  // 护栏：本书**已经建过**该 kind 的视图就照旧显示 —— 页签被裁掉等于把用户已有的数据藏起来，
+  // 那比多挂一个空页签严重得多。下面的 legacy 判定与 l2Switchable 仍吃**完整** orderedKindTabs，
+  // 不跟着裁：裁表会让已存在的 worldview 视图被当成"遗留数据"，那是数据可见性事故。
+  const shownKindTabs = useMemo(() => {
+    const hidden = hiddenViewKindsForGenre(bookGenre);
+    if (hidden.length === 0) return orderedKindTabs;
+    return orderedKindTabs.filter(
+      ({ kind }) => !hidden.includes(kind) || visibleViews.some((v) => v.kind === kind),
+    );
+  }, [bookGenre, orderedKindTabs, visibleViews]);
+
+  // L2 键盘切换序列（2026-09-28；㉳ T-B 起顺序与页签渲染同源）：已建视图按 L2 可视顺序排列
+  // = orderedKindTabs 已建项（体裁顺序表，= 渲染那排页签的顺序）+ 自定义页签（出现顺序）。
+  // 与 previewMode 同一语义——只切**已建**，绝不因按键触发「缺省即建」；未建的淡显页签不参与
+  // （新建是有副作用的显式操作）。⌥1–9 直达与 ←→ 循环共用这一条序列。
   const l2Switchable = useMemo(() => {
     if (!isBookScene) return [];
     const ids: string[] = [];
-    for (const { kind } of KIND_TABS) {
+    for (const { kind } of orderedKindTabs) {
       const v = visibleViews.find((x) => x.kind === kind);
       if (v) ids.push(v.id);
     }
     for (const v of customViews) ids.push(v.id);
     return ids;
-  }, [isBookScene, visibleViews, customViews]);
+  }, [isBookScene, orderedKindTabs, visibleViews, customViews]);
 
   // 激活视图被隐藏（空壳 default）时自动切走，绝不显示无页签的悬空状态
   useEffect(() => {
@@ -523,17 +547,25 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
 
   // 书场景 L2 键盘切换（2026-09-28）：与 previewMode 同一语义，但作用域是 L2 固定功能
   // 视图序列（l2Switchable，含自定义页签）。只在「已建」视图间左右切换，不触发缺省即建。
+  // ㉳ T-B（2026-11-11 轮 34）新增 **⌥1–9 直达**：序号 = l2Switchable 位次 = 渲染页签顺序
+  // （三者同源，判据都在 writingSchema.TAB_ORDER，这里不造第二份序列）。
   // 冲突守卫（输入态不劫持）：
   //   ① 正文章页签的正文编辑是 contentEditable，箭头要移动光标——聚焦可编辑元素时跳过；
   //   ② 改名输入框（书名/视图名）同理，INPUT/TEXTAREA 跳过；
   //   ③ 带修饰键（Ctrl/⌘/Alt/Shift）的箭头组合让位给系统快捷键与编辑器动作；
   //   ④ 弹窗/菜单打开时不切（Dialog/Menu 落 body portal，写操作前应保持当前视图焦点）。
-  // 判定顺序：先守卫后定位，保证「只在不该被劫持的语境外」消费箭头事件。
+  // 判定顺序：先守卫后定位，保证「只在不该被劫持的语境外」消费事件。
   useEffect(() => {
     if (!isBookScene || previewMode || l2Switchable.length <= 1) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      // ⌥+数字：macOS 上 ⌥1 的 e.key 是组合字符「¡」，必须按物理键 e.code 判定
+      // （同仓先例：WorkbenchSearchPanel 的 ⌘⌥ 组合也走 e.code，跨平台一致）。
+      const altDigit =
+        e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code)
+          ? Number(e.code.slice('Digit'.length)) - 1
+          : null;
+      if (altDigit === null && (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey)) return;
       const t = e.target as HTMLElement | null;
       if (!t) return;
       const tag = t.tagName;
@@ -543,6 +575,17 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
         return;
       }
       if (document.querySelector('[role="dialog"], [role="menu"]')) return;
+      if (altDigit !== null) {
+        // 只跳**已建**序列内的位次（越界/未建 = 无事发生，绝不缺省即建）；目标已是当前视图也不扳。
+        const targetId = l2Switchable[altDigit];
+        if (targetId && targetId !== activeViewId) {
+          e.preventDefault();
+          startTransition(() => {
+            switchView(targetId);
+          });
+        }
+        return;
+      }
       const currentIdx = l2Switchable.indexOf(activeViewId);
       if (e.key === 'ArrowLeft' && currentIdx > 0) {
         e.preventDefault();
@@ -580,14 +623,16 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
           display: 'flex',
           alignItems: 'center',
           gap: 0.5,
-          backgroundColor: (theme) =>
-            'rgb(var(--template-palette-background-paperChannel) / 0.85)',
+          backgroundColor: (theme) => 'rgb(var(--template-palette-background-paperChannel) / 0.85)',
           borderRadius: 1.5,
           px: 0.5,
           py: 0.25,
           backdropFilter: 'blur(12px)',
           border: 1,
-          borderColor: (theme) => (theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-text-primaryChannel) / 0.08)' : 'rgb(var(--template-palette-text-primaryChannel) / 0.06)'),
+          borderColor: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'rgb(var(--template-palette-text-primaryChannel) / 0.08)'
+              : 'rgb(var(--template-palette-text-primaryChannel) / 0.06)',
           opacity: 0.4,
           transition: 'opacity 0.2s',
           '&:hover': { opacity: 1 },
@@ -607,15 +652,24 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
               color: activeViewId === view.id ? 'primary.main' : 'text.secondary',
               backgroundColor:
                 activeViewId === view.id
-                  ? (theme) => (theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-primary-mainChannel) / 0.15)' : 'rgb(var(--template-palette-primary-mainChannel) / 0.08)')
+                  ? (theme) =>
+                      theme.palette.mode === 'dark'
+                        ? 'rgb(var(--template-palette-primary-mainChannel) / 0.15)'
+                        : 'rgb(var(--template-palette-primary-mainChannel) / 0.08)'
                   : 'transparent',
               fontWeight: activeViewId === view.id ? 600 : 400,
               transition: 'all 0.15s',
               '&:hover': {
                 backgroundColor:
                   activeViewId === view.id
-                    ? (theme) => (theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-primary-mainChannel) / 0.2)' : 'rgb(var(--template-palette-primary-mainChannel) / 0.12)')
-                    : (theme) => (theme.palette.mode === 'dark' ? 'rgb(var(--template-palette-text-primaryChannel) / 0.06)' : 'rgb(var(--template-palette-text-primaryChannel) / 0.04)'),
+                    ? (theme) =>
+                        theme.palette.mode === 'dark'
+                          ? 'rgb(var(--template-palette-primary-mainChannel) / 0.2)'
+                          : 'rgb(var(--template-palette-primary-mainChannel) / 0.12)'
+                    : (theme) =>
+                        theme.palette.mode === 'dark'
+                          ? 'rgb(var(--template-palette-text-primaryChannel) / 0.06)'
+                          : 'rgb(var(--template-palette-text-primaryChannel) / 0.04)',
               },
             }}
           >
@@ -944,7 +998,7 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
               },
             }}
           >
-            {KIND_TABS.map(({ kind, Icon, labelKey }) => {
+            {shownKindTabs.map(({ kind, Icon }) => {
               const opened = openedKinds.has(kind);
               return (
                 <Tab
@@ -953,7 +1007,7 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
                       <Icon sx={{ fontSize: 14, opacity: opened ? 1 : 0.45 }} />
-                      <span style={{ opacity: opened ? 1 : 0.6 }}>{t(labelKey)}</span>
+                      <span style={{ opacity: opened ? 1 : 0.6 }}>{t(viewKindLabelKey(bookGenre, kind))}</span>
                     </Box>
                   }
                 />
@@ -1015,6 +1069,9 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
                   : t('writing.deleteBookConfirmNoCount', { title: b.title });
               })()}
             </DialogContentText>
+            {/* 删除后果清单（2026-11-04 删除铁律）：与写作台删书弹窗共用同一个出口，
+                两处各写一份文案必然一处改一处漏。 */}
+            <BookDeletionImpact bookId={deleteBookTarget} />
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setDeleteBookTarget(null)} size="small">

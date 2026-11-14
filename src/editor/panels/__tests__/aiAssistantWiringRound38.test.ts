@@ -144,9 +144,14 @@ describe('刀① packWithinBudget 预算透传（requirements-spec 域）', () =
 
 describe('刀① 接线源码锁（防静默改回单参调用）', () => {
   it('两个 provider 的 packWithinBudget 都带 options?.tokenBudget 第二参', () => {
+    // ㉲ 注（轮 33 · AI-3）：writing 侧第一参从字面数组换成先按体裁裁段的 `packSections`（轮 38 锁的是
+    // 「预算必须透传」，不是「数组必须就地摆」——轮 26 换写法先例，牙不减）。
+    // 单参调用回潮（no-budget 分支静默失效）依旧红：第二参缺席 = 不匹配。
     for (const p of ['ai/providers/writingContextProvider.ts', 'ai/providers/requirementsSpecProvider.ts']) {
       const src = stripComments(read(p));
-      expect(src, p).toMatch(/packWithinBudget\(\s*\[[\s\S]*?\]\s*,\s*options\?\.tokenBudget\s*,?\s*\)/);
+      expect(src, p).toMatch(
+        /packWithinBudget\(\s*(\[[\s\S]*?\]|packSections)\s*,\s*options\?\.tokenBudget\s*,?\s*\)/,
+      );
     }
   });
 

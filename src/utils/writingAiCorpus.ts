@@ -9,7 +9,7 @@
 import type { WritingSetting, WritingChapter, WritingOutline } from '../services/tauri';
 import { parseSettingExtra } from '../services/tauri';
 import { looseBeats } from './writingOutline';
-import { CHARACTER_PROFILE_FIELDS, corpusBits, type RefIndex, resolveRefs } from './writingCorpus';
+import { CHARACTER_PROFILE_FIELDS, corpusBits, corpusNounsFor, type RefIndex, resolveRefs } from './writingCorpus';
 import { MAX_LOOSE_BEATS } from './writingCorpusBudget';
 import { contentChapters, resolveVolumeResolver, volumeNameOf } from './writingStats';
 
@@ -39,23 +39,32 @@ export function buildCharactersCorpus(settings: WritingSetting[]): { zh: string;
  * 卷序按章首现顺序；章节按 sortOrder。
  * opts.chapterLimit（可选）：超过该章节数时截断骨架并附「其余省略」提示，
  * 供写作台首轮注入等 token 敏感场景防膨胀；缺省为全量（工作台行为不变）。
+ * 截断句的量词与「整本还空着」那句同样按载体取（㉥ AI-5b）：两处都吃 corpusNounsFor，
+ * 本文件不再自持任何单位字面量 —— 诗集收到的骨架里不该出现「章」这个量词。
+ * opts.genre（可选，㉞ T-F″）：「无组那一组」的兜底名按体裁取（小说说卷、剧本说幕、日记说年月）。
+ *   改造前这里硬编码了一枚中文成品文案，两处后果：① 诗集/剧本/日记本的骨架对它宣布了一个
+ *   它根本没有的「卷」层；② 同一条硬编码同时喂进 zh 与 en 两份语料，**英文语料里夹着汉字**。
  */
 export function buildCatalogCorpus(
   chapters: WritingChapter[],
   outlines: WritingOutline[],
-  opts?: { chapterLimit?: number },
+  opts?: { chapterLimit?: number; genre?: string },
 ): { zh: string; en: string } {
   const limit = opts?.chapterLimit;
+  // 量词表唯一入口在 writingCorpus（与 buildStatsCorpus 同一张 CORPUS_NOUNS，不另造第二份）
+  const nouns = corpusNounsFor(opts?.genre ?? '');
   const r = resolveVolumeResolver(chapters);
   const content = contentChapters(r, chapters);
+  // 归组键保持**原始卷名**（'' = 无组），文案在出行时按语种各取 —— 与 ChapterTreePanel:509
+  // 「派生表只缓存原始串，否则切语言不重算」是同一条取舍。
   const volOrder: string[] = [];
   for (const c of content) {
-    const v = volumeNameOf(r, c) || '未分卷';
+    const v = volumeNameOf(r, c);
     if (!volOrder.includes(v)) volOrder.push(v);
   }
   const byVol = new Map<string, WritingChapter[]>();
   for (const c of content) {
-    const v = volumeNameOf(r, c) || '未分卷';
+    const v = volumeNameOf(r, c);
     if (!byVol.has(v)) byVol.set(v, []);
     byVol.get(v)!.push(c);
   }
@@ -79,13 +88,16 @@ export function buildCatalogCorpus(
       }
       const chsZh = visible.map((c) => `${c.title}（${c.wordCount}字·${c.status || '草稿'}）`).join('、');
       const chsEn = visible.map((c) => `${c.title} (${c.wordCount}w·${c.status || 'draft'})`).join(', ');
-      return { zh: `- ${v}：${chsZh}`, en: `- ${v}: ${chsEn}` };
+      // 组名有则原样（作者起的），无则取本体裁的兜底词，zh/en 各取各的
+      return { zh: `- ${v || nouns.zh.ungrouped}：${chsZh}`, en: `- ${v || nouns.en.ungrouped}: ${chsEn}` };
     })
     .filter((x): x is { zh: string; en: string } => x !== null);
-  const omittedZh = omitted > 0 ? `\n… 其余 ${omitted} 章省略` : '';
-  const omittedEn = omitted > 0 ? `\n… remaining ${omitted} chapters omitted` : '';
-  const volZh = volLines.length ? volLines.map((l) => l.zh).join('\n') + omittedZh : '（暂无章节）';
-  const volEn = volLines.length ? volLines.map((l) => l.en).join('\n') + omittedEn : '(no chapters)';
+  // ㉥ AI-5b：截断提示与「整本还空着」那两句也按载体取词（nouns.line / nouns.unit 现成，改造前写死小说那一支）。
+  // 一部一首都没写的诗集收到的骨架，改造前是「暂无章节」——它既没有章，也就无从判断自己空在哪。
+  const omittedZh = omitted > 0 ? `\n… 其余 ${omitted} ${nouns.zh.line}省略` : '';
+  const omittedEn = omitted > 0 ? `\n… remaining ${omitted} ${nouns.en.unit} omitted` : '';
+  const volZh = volLines.length ? volLines.map((l) => l.zh).join('\n') + omittedZh : `（暂无${nouns.zh.unit}）`;
+  const volEn = volLines.length ? volLines.map((l) => l.en).join('\n') + omittedEn : `(no ${nouns.en.unit})`;
 
   const loose = looseBeats(outlines);
   const looseLines = loose.slice(0, MAX_LOOSE_BEATS).map((b) => {
@@ -97,7 +109,9 @@ export function buildCatalogCorpus(
   const looseEn = looseLines.length ? looseLines.join('\n') : '(idea pool empty)';
 
   return {
-    zh: `【大纲骨架】\n${volZh}\n\n【未落章节拍（念头池）】\n${looseZh}`,
+    // ㉧ AI-5c：节题里那枚「章」换成本体裁的说法（词取 CORPUS_NOUNS.unanchored，novel 逐字不变）。
+    // en 侧改造前就是 `Unanchored beats`，不含单位词 → 无物可换，不加第二格。
+    zh: `【大纲骨架】\n${volZh}\n\n【${nouns.zh.unanchored}（念头池）】\n${looseZh}`,
     en: `[Outline skeleton]\n${volEn}\n\n[Unanchored beats (idea pool)]\n${looseEn}`,
   };
 }

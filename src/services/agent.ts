@@ -39,6 +39,40 @@ export interface AiModel {
   updatedAt: number;
 }
 
+// ─── 本机 Ollama 自动发现（判据与解析都在 Rust 侧，这里只传形状）───
+export interface OllamaDiscoveredModel {
+  /** 传给 API 的模型标识，如 qwen2.5:7b-instruct */
+  refKey: string;
+  name: string;
+  sizeBytes: number;
+  parameterSize: string;
+  quantization: string;
+  /** 服务自报的上下文长度（details.context_length）；0 = 没报，不许当测量值用 */
+  contextLength: number;
+  /** /api/show 的 capabilities（如 ["completion","tools","thinking"]）；空 = 这台服务没报 */
+  capabilities: string[];
+}
+
+export interface OllamaScanResult {
+  found: boolean;
+  baseUrl: string;
+  openaiBaseUrl: string;
+  models: OllamaDiscoveredModel[];
+  /** 逐候选地址的死因；扫不到时靠它说明"扫了哪儿、为什么算没扫到" */
+  attempts: string[];
+}
+
+export interface OllamaAdoptResult {
+  providerId: string;
+  endpointId: string;
+  added: string[];
+  kept: string[];
+  /** 原本挂着占位上下文、这次被补成服务报出的真实值的模型 */
+  refreshed: string[];
+  createdProvider: boolean;
+  createdEndpoint: boolean;
+}
+
 export interface AiAgent {
   id: string;
   name: string;
@@ -164,6 +198,14 @@ export const agentApi = {
   },
   async testModelChat(modelId: string): Promise<string> {
     return invoke('test_model_chat', { modelId });
+  },
+
+  // 本机 Ollama：只读扫描 / 显式接入（幂等、只增不删，判据在 Rust 的 ollama::plan_adopt）
+  async scanOllama(): Promise<OllamaScanResult> {
+    return invoke('scan_ollama');
+  },
+  async importOllamaModels(): Promise<OllamaAdoptResult> {
+    return invoke('import_ollama_models');
   },
 
   // Agent CRUD

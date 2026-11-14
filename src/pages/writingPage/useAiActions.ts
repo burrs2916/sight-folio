@@ -29,6 +29,7 @@ import {
   type SettingCardKind,
 } from '../../ai/writingAssistant';
 import { L } from '../../ai/aiLang';
+import { quickActionTermsFor } from '../../ai/quickActionPrompts';
 import type { Editor } from '@tiptap/react';
 import type {
   WritingBook,
@@ -298,7 +299,11 @@ export function useAiActions(
     const bookOutlines = activeBook ? outlines.filter((o) => o.bookId === activeBook.id) : outlines;
     const catalogCorpus =
       bookChapters.length > 0
-        ? buildCatalogCorpus(bookChapters, bookOutlines, { chapterLimit: CHAT_CONTEXT_PROFILE.catalogChapterLimit })
+        ? buildCatalogCorpus(bookChapters, bookOutlines, {
+            chapterLimit: CHAT_CONTEXT_PROFILE.catalogChapterLimit,
+            // ㉞ T-F″：骨架里「无组那一组」的兜底名按体裁（诗集不再顶着「卷」，英文语料不夹汉字）
+            genre: activeBook?.genre ?? '',
+          })
         : null;
     const chapterMeta = activeChapter
       ? L(
@@ -306,9 +311,14 @@ export function useAiActions(
           `${activeChapter.volume ? `${activeChapter.volume} · ` : ''}${activeChapter.wordCount} words · ${activeChapter.status === 'draft' ? 'Draft' : activeChapter.status || 'Draft'}`,
         )
       : '';
+    // ㉟ AI-5（轮 12）：这块「自动注入的写作背景」同时喂 AI 语料 / 灵感扩写 / 写作 AI 对话三张嘴，
+    // 单位与栏名按体裁取（诗集不再收到【当前章节】+ 全书章节骨架）。novel = 改造前逐字（零回归线）；
+    // 「世界观设定」栏不换词：非小说四支的 worldview 已被 ⑮-2 裁掉（本段对它们恒空），
+    // 对剧本它也是「世界观」本义而非小说专名。
+    const ct = quickActionTermsFor(activeBook?.genre ?? '');
     return L(
-      `【写作上下文】\n作品：《${activeBook?.title ?? ''}》\n当前章节：${activeChapter?.title ?? ''}${chapterMeta ? `（${chapterMeta}）` : ''}${catalogCorpus ? `\n\n全书章节骨架：\n${catalogCorpus.zh}\n` : ''}${charSettings.length ? `\n人物档案（前 ${charSettings.length} 张）：\n${charsCorpus.zh}\n` : ''}${worldSettings.length ? `\n世界观设定（前 ${worldSettings.length} 条）：\n${worldCorpus.zh}\n` : ''}${tail ? `\n当前章正文（末尾）：\n${tail}\n` : ''}——以上为自动注入的写作背景；回答请结合它，但不要复述它。`,
-      `[Writing context]\nBook: "${activeBook?.title ?? ''}"\nCurrent chapter: ${activeChapter?.title ?? ''}${chapterMeta ? ` (${chapterMeta})` : ''}${catalogCorpus ? `\n\nBook chapter skeleton:\n${catalogCorpus.en}\n` : ''}${charSettings.length ? `\nCharacter profiles (first ${charSettings.length}):\n${charsCorpus.en}\n` : ''}${worldSettings.length ? `\nWorldbuilding entries (first ${worldSettings.length}):\n${worldCorpus.en}\n` : ''}${tail ? `\nCurrent chapter text (tail):\n${tail}\n` : ''}— The above is auto-attached background; use it but do not repeat it.`,
+      `【写作上下文】\n作品：《${activeBook?.title ?? ''}》\n${ct.currentUnitLabel}：${activeChapter?.title ?? ''}${chapterMeta ? `（${chapterMeta}）` : ''}${catalogCorpus ? `\n\n${ct.skeletonZh}：\n${catalogCorpus.zh}\n` : ''}${charSettings.length ? `\n${ct.personaBlockZh}（前 ${charSettings.length} 张）：\n${charsCorpus.zh}\n` : ''}${worldSettings.length ? `\n世界观设定（前 ${worldSettings.length} 条）：\n${worldCorpus.zh}\n` : ''}${tail ? `\n${ct.tailBlockZh}（末尾）：\n${tail}\n` : ''}——以上为自动注入的写作背景；回答请结合它，但不要复述它。`,
+      `[Writing context]\nBook: "${activeBook?.title ?? ''}"\n${ct.ctxUnitEn}: ${activeChapter?.title ?? ''}${chapterMeta ? ` (${chapterMeta})` : ''}${catalogCorpus ? `\n\n${ct.skeletonEn}:\n${catalogCorpus.en}\n` : ''}${charSettings.length ? `\n${ct.personaBlockEn} (first ${charSettings.length}):\n${charsCorpus.en}\n` : ''}${worldSettings.length ? `\nWorldbuilding entries (first ${worldSettings.length}):\n${worldCorpus.en}\n` : ''}${tail ? `\n${ct.tailBlockEn} (tail):\n${tail}\n` : ''}— The above is auto-attached background; use it but do not repeat it.`,
     );
   }, [activeBook, activeChapter, chapters, editor, outlines, settings]);
 
@@ -382,6 +392,8 @@ export function useAiActions(
     return {
       bookTitle: activeBook.title,
       bookDescription: activeBook.description,
+      // 体裁必须传下去：散文的 prompt 约束与小说不同（判据在 writingSchema.workbenchCommandSet，措辞在 ai/genrePromptPack）
+      genre: activeBook.genre,
       chapterTitle: activeChapter.title,
       chapterText: editor.getText(),
       characterLines,

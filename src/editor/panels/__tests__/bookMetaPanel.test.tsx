@@ -4,6 +4,8 @@
 // 有文件=有封面，一书一图（新图落盘成功后清旧图）。
 // 这条测试锁死：空态/上传/更换清旧图/清除确认 四条链路。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// 清除封面走全局危险确认出口（③e 全仓禁原生 window.confirm），测试直接驱动这个 store
+import { useConfirmStore } from '../../../store/confirmStore';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ReactElement } from 'react';
@@ -121,9 +123,8 @@ describe('书属性卡 · 封面管理（回归锁）', () => {
     expect(document.body.textContent).toContain('日更目标');
   });
 
-  it('有封面：缩略图渲染 + 「更换/清除」；清除经确认后 remove 并回到空态', async () => {
+  it('有封面：缩略图渲染 + 「更换/清除」；清除须经全局确认出口，取消不删、确认才删', async () => {
     h.assetApi.list.mockResolvedValue([{ name: '1-old.png', path: '/assets/writing/covers-b1/1-old.png' }]);
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     mount(<BookMetaPanel bookId="b1" />);
     await flush();
 
@@ -132,10 +133,23 @@ describe('书属性卡 · 封面管理（回归锁）', () => {
     expect(buttonOf('更换封面')).toBeTruthy();
     expect(buttonOf('清除封面')).toBeTruthy();
 
+    // 一点即删是禁止的：点击只发起确认，不许真删文件
     await act(async () => {
       buttonOf('清除封面')!.click();
     });
-    expect(confirmSpy).toHaveBeenCalled();
+    const pending = useConfirmStore.getState().pending;
+    expect(pending, '清除必须先经 confirmDestructive 出口').toBeTruthy();
+    useConfirmStore.getState().settle(false);
+    expect(h.assetApi.remove, '用户取消就不该删磁盘文件').not.toHaveBeenCalled();
+
+    // 确认后才真的 remove，并回到空态
+    await act(async () => {
+      buttonOf('清除封面')!.click();
+    });
+    expect(useConfirmStore.getState().pending, '第二次点击要重新发起确认').toBeTruthy();
+    await act(async () => {
+      useConfirmStore.getState().settle(true);
+    });
     expect(h.assetApi.remove).toHaveBeenCalledWith('/assets/writing/covers-b1/1-old.png');
     expect(buttonOf('设封面'), '清除后回到空态按钮').toBeTruthy();
   });

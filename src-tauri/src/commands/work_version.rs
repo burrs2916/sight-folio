@@ -24,15 +24,27 @@ pub fn lock_work_version(
     note: String,
     is_final: bool,
     force: bool,
+    // 书目元数据（R2）：可选 —— 作者没填就是空，导出侧留白，后端绝不代填。
+    author: Option<String>,
+    publisher: Option<String>,
+    completed_at: Option<String>,
+    isbn: Option<String>,
     writing_repo: State<'_, Arc<SqliteWritingRepository>>,
     version_repo: State<'_, Arc<SqliteWorkVersionRepository>>,
 ) -> AppResult<WorkVersion> {
+    let meta = work_version::VersionMeta {
+        author: author.unwrap_or_default().trim().to_string(),
+        publisher: publisher.unwrap_or_default().trim().to_string(),
+        completed_at: completed_at.unwrap_or_default().trim().to_string(),
+        isbn: isbn.unwrap_or_default().trim().to_string(),
+    };
     work_version::lock_version(
         &book_id,
         &label,
         &note,
         is_final,
         force,
+        &meta,
         &writing_repo.inner().clone(),
         &version_repo.inner().clone(),
     )
@@ -89,7 +101,9 @@ pub fn delete_work_version(
 /// 读作品库根（B3）。语义是「确保可用」：目录不存在则创建；
 /// **创建失败把错误原样抛给 UI**，不许静默降级回「另存为」（需求 §4）。
 #[tauri::command]
-pub fn get_works_library_root(settings: State<'_, SettingsState>) -> AppResult<WorksLibraryRootInfo> {
+pub fn get_works_library_root(
+    settings: State<'_, SettingsState>,
+) -> AppResult<WorksLibraryRootInfo> {
     work_version::library_root::get_works_library_root(&settings.repository)
 }
 

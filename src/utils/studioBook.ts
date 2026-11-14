@@ -20,7 +20,7 @@ import { useWritingStore } from '../store/writingStore';
 import { useEditorStore } from '../store/editorStore';
 import { useWritingDocsStore } from '../store/writingDocsStore';
 import { writingScanApi, type WritingImportSummary, type WritingScanSummary } from '../services/tauri';
-import { defaultMediumForGenre, genreLabelKey } from './writingSchema';
+import { defaultBookNameKeyForGenre, defaultMediumForGenre, genreLabelKey, hiddenViewKindsForGenre, unitNameKey, viewKindLabelKey } from './writingSchema';
 import { buildStatsBoard } from './writingBoards';
 import {
   duplicateStudioPaneIds,
@@ -46,6 +46,31 @@ const pendingSeeds = new Set<string>();
 /** 书的支撑场景 id（与 Rust 侧 writing_analysis_id 同一规则：wscan_{book_id}） */
 export function bookSceneId(bookId: string): string {
   return `wscan_${bookId}`;
+}
+
+/**
+ * ㉫ 写侧扳正（轮 24 · AI-7，形状沿用卡片挂载时的接线 effect：WritingDesignView.tsx:46-53 /
+ * WritingStudioPane.tsx:105-112，只是把时机从「挂载」延到「点击那一刻」）：
+ * 章节 / 剧情线等实体按 store 活跃书落库，卡片所属的书却住在 config.filePath 里。
+ * 两者分叉可达（写作台书切换器换书不重跑卡片的扳正 effect）⇒ 写动作前先把它扳到本卡书，
+ * 扳不动（无卡书 / 接线失败）就不写——宁可不建，不静默建进别人的书。不是新判据，是既有接线的复用。
+ *
+ * ㉭ 上收本文件（轮 26 · AI-9）：右栏灵感总览卡的「＋记个念头」也需要同一道写侧闸（它的
+ * createOutline 同样按 store 活跃书落库）。本文件是「书 × 工作室接线」的既有归宿，且两侧都早已
+ * import 它 —— 留在 writingPanes 里再跨文件 import 会形成 panels ↔ renderers 循环引用，
+ * 复制一份则是同一概念第二条定义。两种都不要，故整段搬来，函数体一字未改。
+ */
+export async function ensureWritingBookWired(bookId: string): Promise<boolean> {
+  if (!bookId) return false;
+  const ws = useWritingStore.getState();
+  if (ws.activeBookId === bookId) return true;
+  try {
+    await ws.setActiveBook(bookId);
+    return true;
+  } catch (e) {
+    logger.warn('writingPanes', 'ensure card book wired failed', { bookId, error: String(e) });
+    return false;
+  }
 }
 
 /**
@@ -113,9 +138,11 @@ export async function createBookNamed(
   if (ws.books.length === 0) await ws.loadBooks();
   const book = await ws.createBook(name, genre, medium);
   await ws.setActiveBook(book.id);
-  // 首章：工作室画布要有一章可渲染，写作台也直接可写
+  // 首章：工作室画布要有一章可渲染，写作台也直接可写。
+  // 名字必须跟体裁走（散文=第 1 篇）：以前这里无条件用「第 1 章」，拖散文建的书
+  // 第一篇就挂着小说名（库里 `新建作品 3` 的活证据）。小说侧文案与原来逐字相同，零回归。
   await ws.loadChapters(book.id);
-  await ws.createChapter(t('studio.firstChapter'));
+  await ws.createChapter(t(unitNameKey(genre), { n: 1 }));
   await openBookInStudio(book.id, book.title);
   return { id: book.id, title: book.title };
 }
@@ -136,7 +163,8 @@ export async function createBookAutoNamed(
 ): Promise<{ id: string; title: string }> {
   const ws = useWritingStore.getState();
   if (ws.books.length === 0) await ws.loadBooks();
-  return createBookNamed(t('studio.defaultBookName', { n: ws.books.length + 1 }), genre, medium);
+  // N-23（轮 72 续）：自动名**跟载体走**（新日记 1 / 新诗集 2 …），未设或脏体裁仍落历史名
+  return createBookNamed(t(defaultBookNameKeyForGenre(genre), { n: ws.books.length + 1 }), genre, medium);
 }
 
 /**
@@ -294,9 +322,12 @@ export async function createBlankWritingEntity(
     // 体裁术语层（载体线索）：命名跟随**所拖模板的体裁**（散文分区拖出即「第 N 篇」），
     // 未带提示时回落当前书体裁 —— 分区切换与书体裁不一致时以用户选择为准
     const genre = genreHint || state.books.find((b) => b.id === bookId)?.genre || '';
-    const isEssay = genre === 'essay';
+    // ⑲：这里原来只写 `genre === 'essay' ? 第 N 篇 : 第 N 章` —— 于是**诗集与剧本拖出来的节点
+    // 叫「第 N 章」**（术语层在这条路上被整段绕过）。改成走 unitNameKey 单源。
+    // 零回归依据：studio.chapterN 与 writing.newChapterName、studio.pieceN 与 writing.newPieceName
+    // 在 zh/en 两侧**逐字相同**（2026-11-10 对照过），所以小说与散文的名称一个字符都不变。
     const chapter = await state.createChapter(
-      t(isEssay ? 'studio.pieceN' : 'studio.chapterN', { n: state.chapters.length + 1 }),
+      t(unitNameKey(genre), { n: state.chapters.length + 1 }),
     );
     if (!chapter) return null;
     // 后台幂等补扫：project_files 落 wfile_{chapter_id} 行（绑定不依赖它，只为准确定位）
@@ -621,11 +652,26 @@ export function openTypedCarrierView(genre: string, kind: WritingViewKind): void
     reconcileStudioPaneView(hit.id);
     return;
   }
+  // ㉓-2 中心护栏（2026-11-10）：这本书的体裁**不该长出这类实体**时，不许现场新建它的视图。
+  // 位置必须在上面的 hit 分支之后：已经建过的数据仍要能切过去看 —— 折叠的是展示，不是事实。
+  // 这一条替 30+ 处生产入口收口（writingPanes 9 处、TimelineSidePanels 5 处、WritingInspectorPanel 5 处、
+  // BookOverviewPanel/InspirationPanels/ProofreadPanels/writingDeskJump 各若干）。
+  // 判据直接查 hiddenViewKindsForGenre，不另立表：页签该不该出现、这类数据该不该被建，是同一个问题
+  //（⑳ 的原话：藏视图不藏入口就是化妆）。
+  // ㉓-2 中心护栏（2026-11-10）：这本书的体裁**不该长出这类实体**时，不许现场新建它的视图。
+  // 位置必须在上面的 hit 分支之后：已经建过的数据仍要能切过去看 —— 折叠的是展示，不是事实。
+  // 这一条替 30+ 处生产入口收口（writingPanes 9 处、TimelineSidePanels 5 处、WritingInspectorPanel 5 处、
+  // BookOverviewPanel / InspirationPanels / ProofreadPanels / writingDeskJump 各若干）。
+  // 判据直接查 hiddenViewKindsForGenre，不另立一张表：页签该不该出现、这类数据该不该被建，
+  // 本来就是同一个问题的两张脸（⑲ 的原话：藏视图不藏入口就是化妆）。
+  if (hiddenViewKindsForGenre(genre).includes(kind)) return;
   if (kind === 'writing') {
     ensureCarrierContainer(genre, parseBookIdFromScene());
     return;
   }
-  const label = t(`writing.viewKind.${kind}`);
+  // 视图名与 L2 页签同一个解析器（㉚ T-A）：诗集的这一只视图不该在搜索/列表里叫「大纲」，
+  // 而页签已经写着「诗作」。两处各取一次键 = 又一张嘴。
+  const label = t(viewKindLabelKey(genre, kind));
   const taken = new Set(es.views.map((v) => v.name));
   let viewName = label;
   let i = 2;

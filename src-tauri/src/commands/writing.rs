@@ -1,7 +1,7 @@
 use crate::domain::writing::{
-    ExternalCapture, WritingAnnotation, WritingBook, WritingChapter,
-    WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline,
-    WritingSetting, WritingStoryline, WritingTimelineEvent,
+    ExternalCapture, WritingAnnotation, WritingBook, WritingChapter, WritingChapterSnapshot,
+    WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline, WritingSetting,
+    WritingStoryline, WritingTimelineEvent,
 };
 use crate::error::AppResult;
 use crate::infrastructure::database::analysis_repository::{
@@ -434,14 +434,64 @@ pub fn delete_writing_note(
 
 // ─── EPUB 导出（P5）：实现在 application/writing（T4 领域下沉） ───
 
+/// 「另存为」三出口共用的版式裁定（㉱ E-A′，2026-11-11）。
+///
+/// 版式读设置库（书级覆盖 > 全局 > 内置，与完结导出同一函数），**首行缩进**再过一道
+/// 与完结流水线**同一枚**语种×体裁裁定（`layout::finalise_for_book`）。
+/// 此前「另存为」不过这一道：DOCX 靠段落级硬编码维持中文成书缩进、EPUB/PDF 吃编辑器
+/// 预览开关 —— 同一本书两条出口两种排法。判据自此只有一处，入口一律换源。
+fn save_as_layout(
+    db: &Arc<crate::infrastructure::database::connection::Database>,
+    book_id: Option<&str>,
+    chapters: &[crate::application::writing::EpubChapter],
+) -> crate::application::writing::layout::BookLayoutSpec {
+    // `get_book` 来自文件头已 import 的 `WritingRepository` trait（16 行）
+    let base = crate::application::writing::layout::resolve_from_db(db, book_id);
+    // 体裁随书目现取（与完结导出同口径）：没带 bookId 的历史调用方 = 空串 = 小说口径。
+    let genre = book_id
+        .and_then(|id| {
+            SqliteWritingRepository::new(db.clone())
+                .get_book(id)
+                .ok()
+                .flatten()
+        })
+        .map(|b| b.genre)
+        .unwrap_or_default();
+    let all_text: String = chapters
+        .iter()
+        .map(|c| c.content.as_str())
+        .collect::<Vec<&str>>()
+        .join("\n");
+    crate::application::writing::layout::finalise_for_book(&base, &all_text, &genre)
+}
+
 #[tauri::command]
 pub fn save_writing_epub(
     title: String,
     description: Option<String>,
     chapters: Vec<crate::application::writing::EpubChapter>,
+    book_id: Option<String>,
     path: String,
+    db: State<'_, Arc<crate::infrastructure::database::connection::Database>>,
 ) -> AppResult<()> {
-    crate::application::writing::export_epub(title, description, chapters, path)
+    // 书封与成品页流水线同一判据（渲染当时现取素材库 covers-<bookId>/），
+    // 不带 bookId 的历史调用方 = 无封面，行为与改动前一致。
+    let cover = book_id
+        .as_deref()
+        .and_then(|b| crate::application::work_version::export_jobs::resolve_book_cover(b));
+    let layout = save_as_layout(&db, book_id.as_deref(), &chapters);
+    // 定格表传空 = 这条路径按**活资产**导出（写作台「另存为」拿的是当前编辑中的章节，
+    // 不是某个已锁定版本，本就没有"定格"可言）。空表在 read_asset_bytes 里走回退分支。
+    crate::application::writing::export_epub(
+        title,
+        description,
+        chapters,
+        cover,
+        layout,
+        crate::application::writing::FrozenAssets::new(),
+        crate::application::writing::BookMeta::default(),
+        path,
+    )
 }
 
 // ─── 分析器融合（F1）：实现在 application/writing::scan_book（T4 领域下沉） ───
@@ -489,9 +539,23 @@ pub fn save_writing_docx(
     title: String,
     description: Option<String>,
     chapters: Vec<crate::application::writing::EpubChapter>,
+    book_id: Option<String>,
     path: String,
+    db: State<'_, Arc<crate::infrastructure::database::connection::Database>>,
 ) -> AppResult<()> {
-    crate::application::writing::docx_export::export_docx(title, description, chapters, path)
+    // 版式跟作品走：传了 book_id 就用该书覆盖 > 全局默认 > 内置默认（与导出流水线同一函数）
+    // ㉱ E-A′：缩进再过一个裁定（语种×体裁，与完结导出同一枚判据，见 save_as_layout）
+    let layout = save_as_layout(&db, book_id.as_deref(), &chapters);
+    // 写作台「另存为」传的是当前编辑中的章节，没有"定格"可言 → 空表 = 走活资产
+    crate::application::writing::docx_export::export_docx(
+        title,
+        description,
+        chapters,
+        layout,
+        crate::application::writing::FrozenAssets::new(),
+        crate::application::writing::BookMeta::default(),
+        path,
+    )
 }
 
 #[tauri::command]
@@ -499,9 +563,22 @@ pub fn save_writing_pdf(
     title: String,
     description: Option<String>,
     chapters: Vec<crate::application::writing::EpubChapter>,
+    book_id: Option<String>,
     path: String,
+    db: State<'_, Arc<crate::infrastructure::database::connection::Database>>,
 ) -> AppResult<()> {
-    crate::application::writing::pdf_export::export_pdf(title, description, chapters, path)
+    // 版式跟作品走：书级覆盖 > 全局默认 > 内置默认（与导出流水线同一个解析函数）
+    // ㉱ E-A′：缩进再过一个裁定（语种×体裁，与完结导出同一枚判据，见 save_as_layout）
+    let layout = save_as_layout(&db, book_id.as_deref(), &chapters);
+    crate::application::writing::pdf_export::export_pdf(
+        title,
+        description,
+        chapters,
+        layout,
+        crate::application::writing::FrozenAssets::new(),
+        crate::application::writing::BookMeta::default(),
+        path,
+    )
 }
 
 // ─── 全书备份与恢复（T7） ───
@@ -641,5 +718,3 @@ pub fn delete_external_capture(
 ) -> AppResult<()> {
     repo.delete_external_capture(&capture_id)
 }
-
-

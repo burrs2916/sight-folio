@@ -58,6 +58,73 @@ export function serializeBookGoal(base: string | null | undefined, goal: Writing
   return JSON.stringify({ ...prev, ...goal });
 }
 
+/**
+ * ㉣ N-22（2026-11-11 轮 72 续 · 李先生真人原话「日记的人物有主角，是谁？我或者是其他的人？
+ * 第一人称、第二人称、第三人称，这个都是可以调整的」）：日记的「谁在写」= 叙述人称 + 主角称谓。
+ * 落 `WritingBook.extra.diaryNarrator`（JSON 透传，与 `serializeBookGoal` 同族口径：坏 JSON /
+ * 缺字段宽容回落、未知字段原样保留 ⇒ 加字段零迁移）。**默认第一人称**：旧书（extra 无此键）行为逐字不变。
+ * 消费点两条（孤儿定义本仓禁止）：① 人物栏顶部可改条 `DiaryNarratorBar`；② AI 全书概览
+ * `writingContextProvider`（不喂视角，模型会自己替创作者挑人称）。
+ */
+export type DiaryPerson = "first" | "second" | "third";
+
+export interface DiaryNarrator {
+  person: DiaryPerson;
+  /** 主角称谓（'' = 未填，界面占位 + 提示词按人称兜底） */
+  name: string;
+}
+
+export const DIARY_PERSONS: readonly DiaryPerson[] = ["first", "second", "third"];
+
+/** 界面文案键（真源在 i18n；模块级不调 t() = 项目铁律 ②）。 */
+export function diaryPersonLabelKey(person: DiaryPerson): string {
+  return `writing.diary.person_${person}`;
+}
+
+/** 提示词侧成句文案（AI 域走 `L(zh, en)`，与界面短句**有意**分开：提示词要能独立读）。 */
+export function diaryNarratorPromptLine(n: DiaryNarrator): { zh: string; en: string } {
+  const zh = n.person === "first" ? "第一人称" : n.person === "second" ? "第二人称" : "第三人称";
+  const en = n.person === "first" ? "first person" : n.person === "second" ? "second person" : "third person";
+  const who = n.name.trim();
+  return {
+    zh: `叙述视角：${zh}${who ? `，主角＝「${who}」` : ""}。日记正文与续写都按这个视角走，不要替创作者换人称。`,
+    en: `Narrative POV: ${en}${who ? `, protagonist "${who}"` : ""}. Keep diary prose in this POV; do not switch person for the author.`,
+  };
+}
+
+/** 解析 WritingBook.extra → 日记叙述视角（空串 / 坏 JSON / 脏人称一律回落第一人称）。 */
+export function parseBookNarrator(extra: string | null | undefined): DiaryNarrator {
+  if (!extra) return { person: "first", name: "" };
+  try {
+    const raw = JSON.parse(extra) as { diaryNarrator?: Partial<DiaryNarrator> };
+    const n = raw && typeof raw === "object" ? raw.diaryNarrator : undefined;
+    const person =
+      n && typeof n.person === "string" && (DIARY_PERSONS as readonly string[]).includes(n.person)
+        ? (n.person as DiaryPerson)
+        : "first";
+    return { person, name: typeof n?.name === "string" ? n.name.slice(0, 40) : "" };
+  } catch {
+    return { person: "first", name: "" };
+  }
+}
+
+/** 合并日记叙述视角进 extra（保留既有键：全书目标 / 日更 / 关系挂线等）。 */
+export function serializeBookNarrator(base: string | null | undefined, narrator: DiaryNarrator): string {
+  let prev: Record<string, unknown> = {};
+  if (base) {
+    try {
+      const parsed = JSON.parse(base) as Record<string, unknown>;
+      if (parsed && typeof parsed === "object") prev = parsed;
+    } catch {
+      prev = {};
+    }
+  }
+  return JSON.stringify({
+    ...prev,
+    diaryNarrator: { person: narrator.person, name: narrator.name.trim().slice(0, 40) },
+  });
+}
+
 export interface WritingChapter {
   id: string;
   bookId: string;
@@ -534,41 +601,79 @@ export const writingAnnotationsApi = {
   },
 };
 
-/** EPUB 导出载荷（章节顺序 = 传参顺序 = spine 顺序） */
+/**
+ * EPUB / DOCX / PDF 导出载荷（章节顺序 = 传参顺序 = spine 顺序）。
+ *
+ * 顺序与层级由 `utils/writingExport.flattenForExport` 统一产出（目录树先序）：
+ * 结构书带 kind/depth/isVolume → 后端按层级出目录（卷是章的真父节点）与卷页；
+ * 旧模型书只带 volume 字符串 → 后端保持历史扁平渲染。
+ */
 export interface EpubChapterInput {
   title: string;
   content: string;
-  /** 章头图相对引用（批次 2 存于章 extra.coverImage）；无则省略（创作者主权） */
+  /** 章头图相对引用（存于本章/本卷自己的 extra.coverImage）；无则省略（创作者主权） */
   cover?: string | null;
+  /** 遗留扁平口径：卷名字符串（'' = 未分卷）。结构书不要同时给 volume 与 depth。 */
+  volume?: string;
+  /** 层级名（部/卷/章/节…），仅结构书 */
+  kind?: string;
+  /** 树深度（根 = 0），仅结构书 */
+  depth?: number;
+  /** 是否容器节点（卷/篇/部）——容器渲染成卷页，仅结构书 */
+  isVolume?: boolean;
 }
 
 export async function saveWritingEpub(
   title: string,
-  description: string | null,
+  description: string | null | undefined,
   chapters: EpubChapterInput[],
   path: string,
+  /** 传了就现取素材库 covers-<bookId>/ 当书封（阅读器书架位有图）；不传 = 无封面 */
+  bookId?: string,
 ): Promise<void> {
-  return invoke('save_writing_epub', { title, description, chapters, path });
+  return invoke('save_writing_epub', {
+    title,
+    description,
+    chapters,
+    bookId: bookId ?? null,
+    path,
+  });
 }
 
 // ─── DOCX / PDF 导出（T7）：后端原生离线生成 ───
 
 export async function saveWritingDocx(
   title: string,
-  description: string | null,
+  description: string | null | undefined,
   chapters: EpubChapterInput[],
   path: string,
+  /** 传了这本书的 id，后端才能取到「书级排版覆盖」；省略 = 只走全局默认 */
+  bookId?: string,
 ): Promise<void> {
-  return invoke('save_writing_docx', { title, description, chapters, path });
+  return invoke('save_writing_docx', {
+    title,
+    description,
+    chapters,
+    bookId: bookId ?? null,
+    path,
+  });
 }
 
 export async function saveWritingPdf(
   title: string,
-  description: string | null,
+  description: string | null | undefined,
   chapters: EpubChapterInput[],
   path: string,
+  /** 同 docx：bookId 决定能不能吃到书级排版覆盖 */
+  bookId?: string,
 ): Promise<void> {
-  return invoke('save_writing_pdf', { title, description, chapters, path });
+  return invoke('save_writing_pdf', {
+    title,
+    description,
+    chapters,
+    bookId: bookId ?? null,
+    path,
+  });
 }
 
 // ─── 全书备份与恢复（T7） ───

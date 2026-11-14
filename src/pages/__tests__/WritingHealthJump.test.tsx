@@ -31,16 +31,11 @@ const state = {
   activeBookId: 'b1',
   // 槽位先占住，紧接着被下面的替身覆盖；替身会真的改写 state.foreshadowings，
   // 好让「修好后这一行从报告里消失」可被观察
-  updateForeshadowing: null as unknown as (
-    id: string,
-    patch: Record<string, unknown>,
-  ) => Promise<void>,
+  updateForeshadowing: null as unknown as (id: string, patch: Record<string, unknown>) => Promise<void>,
 };
 
 const updateForeshadowing = vi.fn(async (id: string, patch: Record<string, unknown>) => {
-  state.foreshadowings = (state.foreshadowings as { id: string }[]).map((f) =>
-    f.id === id ? { ...f, ...patch } : f,
-  );
+  state.foreshadowings = (state.foreshadowings as { id: string }[]).map((f) => (f.id === id ? { ...f, ...patch } : f));
 });
 state.updateForeshadowing = updateForeshadowing;
 vi.mock('../../store/writingStore', () => ({
@@ -160,7 +155,8 @@ afterEach(() => {
 
 describe('写作台体检报告跳转', () => {
   beforeEach(() => {
-    state.chapters = [ch('c1', { content: '', wordCount: 0 })];
+    // 章号落点用重复标点：2026-11-07「章账」整组撤除后，能指向某一章的发现只剩章文本组
+    state.chapters = [ch('c1', { content: '他好。。然后走了', wordCount: 7 })];
     state.outlines = [];
     state.timelineEvents = [ev('e1', null, 'c1'), ev('e2', 'sl1', null), ev('e3', 'sl1', null)];
     state.foreshadowings = [];
@@ -170,8 +166,8 @@ describe('写作台体检报告跳转', () => {
 
   it('章节类：就地跳章，不走跨窗口协议', async () => {
     render();
-    expect(row('c1:empty')).toBeTruthy();
-    await click('c1:empty');
+    expect(row('c1:RepeatPunct')).toBeTruthy();
+    await click('c1:RepeatPunct');
     expect(jumps).toEqual(['c1']);
     expect(dispatched).toEqual([]);
     expect(closed).toBe(1);
@@ -193,7 +189,7 @@ describe('写作台体检报告跳转', () => {
 
   it('有目标的行一律可点——曾经整行不可点是这次要修的洞', () => {
     render();
-    for (const key of ['c1:empty', 'sl:sl1:unanchored', 'sl:unlined']) {
+    for (const key of ['c1:RepeatPunct', 'sl:sl1:unanchored', 'sl:unlined']) {
       expect(row(key)?.getAttribute('data-jumpable'), key).toBe('1');
     }
   });
@@ -207,6 +203,7 @@ describe('发现行的结构位置（卷 · 章）', () => {
     kind: string,
     parentId: string | null,
     sortOrder: number,
+    over: Record<string, unknown> = {},
   ) =>
     ({
       id,
@@ -220,19 +217,46 @@ describe('发现行的结构位置（卷 · 章）', () => {
       kind,
       parentId,
       timeKey: null,
+      ...over,
     }) as never;
 
+  /** 清单里属于某个节点的行（卷节点一旦长出任何一行，就是「归类节点被当成章」复发） */
+  const rowsOf = (id: string) => document.querySelectorAll(`[data-testid^="health-row-${id}:"]`);
+
+  // 本 describe 只关心「行上的结构位置」与「归类节点不进清单」，别的数据一律清零：
+  // 上一段的 beforeEach 会漏下时间线/剧情线，靠它撑着"清单非空"会让下面的零发现断言假绿。
+  beforeEach(() => {
+    state.outlines = [];
+    state.timelineEvents = [];
+    state.foreshadowings = [];
+    state.storylines = [];
+    state.settings = [];
+  });
+
   it('书分了卷 → 行上带出「卷 1 · 章 1」，标题重名的章也能定位', () => {
-    state.chapters = [node('v1', '第一卷', '卷', null, 0), node('c1', '玄武门', '章', 'v1', 1)];
+    state.chapters = [
+      node('v1', '第一卷', '卷', null, 0),
+      node('c1', '玄武门', '章', 'v1', 1, { content: '他好。。然后走了', wordCount: 7 }),
+    ];
     render();
-    expect(row('c1:empty')).toBeTruthy();
+    expect(row('c1:RepeatPunct')).toBeTruthy();
     expect(document.body.textContent).toContain('卷 1');
+    // 卷是归类节点，天生没正文：它自己不许长出任何一行发现（李先生 2026-11-07 点名的假发现）
+    expect(rowsOf('v1')).toHaveLength(0);
+  });
+
+  it('整卷空着也不报：只有卷、一个章都没挂的书清单为零', () => {
+    state.chapters = [node('v1', '第一卷', '卷', null, 0), node('v2', '第二卷', '卷', null, 1)];
+    render();
+    expect(rowsOf('v1')).toHaveLength(0);
+    expect(rowsOf('v2')).toHaveLength(0);
+    expect(document.body.textContent).toContain('writing.healthEmpty');
   });
 
   it('没分卷的书不显示位置：单层的「章 1」相对标题是纯噪音', () => {
-    state.chapters = [ch('c1', { content: '', wordCount: 0 })];
+    state.chapters = [ch('c1', { content: '他好。。然后走了', wordCount: 7 })];
     render();
-    expect(row('c1:empty')).toBeTruthy();
+    expect(row('c1:RepeatPunct')).toBeTruthy();
     expect(document.body.textContent).not.toContain('章 1');
   });
 });
@@ -255,11 +279,7 @@ describe('报告内就地重排回收章', () => {
 
   /** 逾期 = 回收章排在埋设章同一章或更早（isOverdue 口径）：埋 c2 / 收 c1 */
   const seedOverdue = () => {
-    state.chapters = [
-      ch('c1', { sortOrder: 0 }),
-      ch('c2', { sortOrder: 1 }),
-      ch('c3', { sortOrder: 2 }),
-    ];
+    state.chapters = [ch('c1', { sortOrder: 0 }), ch('c2', { sortOrder: 1 }), ch('c3', { sortOrder: 2 })];
     state.foreshadowings = [fs('f1', 'c2', 'c1')];
   };
 
@@ -381,7 +401,9 @@ describe('体检文案键的词典审计（不经过 mock）', () => {
   const ROOT = process.cwd();
   const src = readFileSync(`${ROOT}/src/utils/writingProofread.ts`, 'utf8');
   const dig = (o: unknown, key: string) =>
-    key.split('.').reduce<unknown>((c, p) => (c && typeof c === 'object' ? (c as Record<string, unknown>)[p] : undefined), o);
+    key
+      .split('.')
+      .reduce<unknown>((c, p) => (c && typeof c === 'object' ? (c as Record<string, unknown>)[p] : undefined), o);
 
   // 另一轮事故的教训：t() 被 mock 成恒等函数时，凭空写的键 6 条 UI 测试全绿，
   // 界面上显示的却是裸 key。所以键的存在性必须绕过 mock 直接查词典。
@@ -400,8 +422,10 @@ describe('体检文案键的词典审计（不经过 mock）', () => {
       const tail = q >= 0 ? afterTernary.slice(q + 1) : afterTernary;
       for (const m of tail.matchAll(/'([A-Za-z0-9_]+)'/g)) keys.add(m[1]);
     }
-    // 门槛只要「正则真的抓到了东西」即可：少于这个数说明写法变了、审计已经空转
-    expect(keys.size).toBeGreaterThanOrEqual(16);
+    // 门槛只要「正则真的抓到了东西」即可：少于这个数说明写法变了、审计已经空转。
+    // 16 → 14：2026-11-07「章账」组整组撤除（层级自定义 → 无从判定谁该有正文），字面量 messageKey 少两条；
+    // 门槛跟着降丩；再撤判据时请一并核对这里，别把它当摆设留着。
+    expect(keys.size).toBeGreaterThanOrEqual(14);
     for (const file of ['zh-CN', 'en-US']) {
       const dict = JSON.parse(readFileSync(`${ROOT}/src/i18n/${file}.json`, 'utf8'));
       for (const k of keys) {
@@ -416,7 +440,9 @@ describe('体检文案键的词典审计（不经过 mock）', () => {
 describe('体检面板自有文案的词典审计（不经过 mock）', () => {
   const ROOT = process.cwd();
   const dig = (o: unknown, key: string) =>
-    key.split('.').reduce<unknown>((c, p) => (c && typeof c === 'object' ? (c as Record<string, unknown>)[p] : undefined), o);
+    key
+      .split('.')
+      .reduce<unknown>((c, p) => (c && typeof c === 'object' ? (c as Record<string, unknown>)[p] : undefined), o);
 
   // 上面那条审计只管引擎 messageKey；面板自己的 t('writing.x') / t('ui.x') 同样会写错，
   // 而本文件的 i18n 是恒等 mock，键写错时组件测试一点反应都没有。

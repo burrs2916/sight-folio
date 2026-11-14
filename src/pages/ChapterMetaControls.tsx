@@ -12,6 +12,7 @@ import Popover from '@mui/material/Popover';
 import TextField from '@mui/material/TextField';
 import type { WritingChapter } from '../services/tauri';
 import { t } from '../i18n';
+import { statusLabelKey } from '../utils/writingSchema';
 
 const STATUS_OPTIONS: Array<{
   value: string;
@@ -23,8 +24,7 @@ const STATUS_OPTIONS: Array<{
 ];
 
 function statusLabel(status: string): string {
-  const opt = STATUS_OPTIONS.find((o) => o.value === status);
-  return opt ? t(opt.labelKey) : t('writingDesign.statusTodo');
+  return t(statusLabelKey(status));
 }
 
 function statusColor(status: string): string {

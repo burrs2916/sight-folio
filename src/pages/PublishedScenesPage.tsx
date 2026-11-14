@@ -59,6 +59,7 @@ import { invoke } from '../services/core';
 import { logger } from '../utils/logger';
 import { uiFontSize } from '../theme/appearanceScales';
 import { isBookFinished } from '../utils/writingSchema';
+import { unitCountKey, unitNameCountKey } from '../utils/writingSchema';
 import { openWritingDesk } from '../utils/writingDeskWindow';
 import type { WritingBook } from '../services/writing';
 
@@ -93,7 +94,12 @@ interface BookCardData {
 type FinalFilter = '' | 'has' | 'none';
 type SortKey = 'recent' | 'oldest' | 'name';
 
-const SEARCH_STORAGE_KEY = 'published-search-query';
+// 搜索词记忆的落点。**必须待在 `sight-folio:` 命名空间里**：原来那条裸键
+// `published-search-query` 不在认证清扫的保护前缀内，每次启动都会被 utils/cacheWhitelist
+// 当成非白名单键删掉（2026-11-04 全仓删除账 N1 的同族：观感是「搜索框记不住我上次打的字」）。
+// 旧键做一次性的读迁移并删掉，不让用户上次输入的关键词凭空消失。
+const SEARCH_STORAGE_KEY = 'sight-folio:published.searchQuery';
+const LEGACY_SEARCH_STORAGE_KEY = 'published-search-query';
 
 // ───────────────────────────────────────────────
 //  主组件
@@ -110,7 +116,12 @@ export default function PublishedScenesPage() {
   const [rootError, setRootError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState(() => {
     try {
-      return localStorage.getItem(SEARCH_STORAGE_KEY) || '';
+      const saved = localStorage.getItem(SEARCH_STORAGE_KEY);
+      if (saved !== null) return saved;
+      // 一次性迁移旧裸键（见 SEARCH_STORAGE_KEY 上方注释）：读到就搬进新键并把旧键删掉
+      const legacy = localStorage.getItem(LEGACY_SEARCH_STORAGE_KEY);
+      if (legacy !== null) localStorage.removeItem(LEGACY_SEARCH_STORAGE_KEY);
+      return legacy ?? '';
     } catch {
       return '';
     }
@@ -644,6 +655,8 @@ export default function PublishedScenesPage() {
                 <VersionRow
                   key={v.id}
                   version={v}
+                  // ㉱ E-A′：版本行/快照标题的单位词跟着书的体裁走；书目读不到 = 空串 = 小说口径（零回归）
+                  genre={openBookData?.genre ?? ''}
                   expanded={expandedVersionId === v.id}
                   snapshot={snapshots[v.id]}
                   snapshotLoading={snapshotLoadingId === v.id}
@@ -846,6 +859,7 @@ function BookWorksCard({
 
 function VersionRow({
   version,
+  genre,
   expanded,
   snapshot,
   snapshotLoading,
@@ -862,6 +876,8 @@ function VersionRow({
   onJobAction,
 }: {
   version: WorkVersion;
+  /** 书的体裁 id（㉱ E-A′）：版本行「N章·N字」与快照标题的单位词跟着它换口；'' = 小说口径 */
+  genre: string;
   expanded: boolean;
   snapshot?: WorkVersionChapter[];
   snapshotLoading: boolean;
@@ -906,11 +922,47 @@ function VersionRow({
           />
         )}
         <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary' }}>
-          {t('published.chaptersWords', { chapters: version.chapterCount, words: formatWordCount(version.wordCount) })}
+          {t('published.chaptersWords', {
+            chapters: version.chapterCount,
+            words: formatWordCount(version.wordCount),
+            // ㉱ E-A′：占位符双语同名（publishedPackDeadKeys ③ 的规矩），语言差在
+            // `writing.unitCount` 的值表里消化（zh=量词 / en=复数单位名）。小说两侧渲染与改造前逐字相同。
+            unit: t(unitCountKey(genre)),
+          })}
         </Typography>
         <Typography sx={{ fontSize: uiFontSize(11.5), color: 'text.disabled' }}>
           {formatDate(version.lockedAt)}
         </Typography>
+        {/* R2 书目元数据：录了才显示。空 = 当年没录，不是"未知"，所以不许拿锁定日凑数。 */}
+        {version.author || version.publisher || version.completedAt || version.isbn ? (
+          <Typography
+            sx={{ fontSize: uiFontSize(11.5), color: 'text.secondary' }}
+            data-testid={`published-version-meta-${version.seq}`}
+          >
+            {[version.author, version.publisher, version.completedAt, version.isbn]
+              .map((v) => (v ?? '').trim())
+              .filter(Boolean)
+              .join(' ｜ ')}
+          </Typography>
+        ) : (
+          <Typography
+            sx={{ fontSize: uiFontSize(11.5), color: 'warning.main' }}
+            data-testid={`published-version-meta-empty-${version.seq}`}
+          >
+            {t('published.metaNotRecorded')}
+          </Typography>
+        )}
+        {/* 定格能力是分批上线的：老版本没有这些是**事实**，不说清楚用户会以为功能坏了 */}
+        {(version.schemaVer ?? 1) < 3 && (
+          <Typography
+            sx={{ fontSize: uiFontSize(11), color: 'warning.main' }}
+            data-testid={`published-version-frozen-note-${version.seq}`}
+          >
+            {(version.schemaVer ?? 1) < 2
+              ? t('published.frozenNoteV1')
+              : t('published.frozenNoteV2')}
+          </Typography>
+        )}
         {/* §7 版式：ready 产物以格式 chip 直接挂在版本行上 */}
         {artifacts
           .filter((a) => a.status === 'ready')
@@ -1025,7 +1077,11 @@ function VersionRow({
           {!snapshotLoading && snapshot && (
             <Box>
               <Typography sx={{ fontSize: uiFontSize(11.5), fontWeight: 650, mb: 0.5 }}>
-                {t('published.snapshotChapters', { n: snapshot.length })}
+                {t('published.snapshotChapters', {
+                  n: snapshot.length,
+                  // ㉱ E-A′：双语占位符同名 {unitName}，中文吃双字单位名（快照诗作），英文吃复数（Snapshot poems）
+                  unitName: t(unitNameCountKey(genre)),
+                })}
               </Typography>
               <Box sx={{ maxHeight: 220, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                 {snapshot.map((c) => (

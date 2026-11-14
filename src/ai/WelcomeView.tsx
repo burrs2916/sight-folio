@@ -15,6 +15,8 @@ import GroupIcon from '@mui/icons-material/Group';
 import PublicIcon from '@mui/icons-material/Public';
 import { t } from '../i18n';
 import { uiFontSize } from '../theme/appearanceScales';
+import { aiCardDescKey, aiQuickActionVisible, aiWelcomeDescKey } from '../utils/writingSchema';
+import type { ReactNode } from 'react';
 import type { AiConversation } from '../services/agent';
 
 export type QuickActionKind = 'continue' | 'polish' | 'analyze' | 'outline' | 'character' | 'world';
@@ -52,6 +54,55 @@ export function WelcomeView({
     .slice()
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 5);
+
+  // ㉜ AI-2（2026-11-10 轮 7）：`currentBook.genre` 从 ⑰-1 起就在 props 里，
+  // 但全文件再无一字读过它 —— 五种载体领到同一排卡、同一句引导语。
+  // 体裁判据一律走 writingSchema 的 *ForGenre，本组件不写体裁字面判断（测试会当场抓）：
+  // 世界观栏在散文集/诗集/剧本/日记本里是被 `hiddenViewKindsForGenre` 裁掉的视图，
+  // 却照旧递一张「帮你建世界观」的卡 = 一边锁门一边发钥匙。
+  const genre = currentBook?.genre ?? '';
+  // ㉝ AI-2b（轮 9）：续写/润色两枚的**卡面一句话**按体裁取词（`aiCardDescKey`），
+  // 与点卡后发出去的那句（`quickActionPrompts`）同一批名词 —— 卡与话分家 = ㉜ 判过的骗法。
+  // analyze/outline 的卡面要连五维模板一起改，划在 AI-2b′；character/world 本句不含单位词，不动。
+  const allCards: Array<{ kind: QuickActionKind; icon: ReactNode; title: string; desc: string }> = [
+    {
+      kind: 'continue',
+      icon: <PsychologyIcon sx={{ fontSize: uiFontSize(28), color: 'primary.main' }} />,
+      title: t('agent.welcome.continue'),
+      desc: t(aiCardDescKey(genre, 'continue')),
+    },
+    {
+      kind: 'polish',
+      icon: <AutoAwesomeIcon sx={{ fontSize: uiFontSize(28), color: 'secondary.main' }} />,
+      title: t('agent.welcome.polish'),
+      desc: t(aiCardDescKey(genre, 'polish')),
+    },
+    {
+      kind: 'analyze',
+      icon: <BuildIcon sx={{ fontSize: uiFontSize(28), color: 'warning.main' }} />,
+      title: t('agent.welcome.impact'),
+      desc: t(aiCardDescKey(genre, 'analyze')),
+    },
+    {
+      kind: 'outline',
+      icon: <AccountTreeIcon sx={{ fontSize: uiFontSize(28), color: 'info.main' }} />,
+      title: t('agent.welcome.outline'),
+      desc: t(aiCardDescKey(genre, 'outline')),
+    },
+    {
+      kind: 'character',
+      icon: <GroupIcon sx={{ fontSize: uiFontSize(28), color: 'success.main' }} />,
+      title: t('agent.welcome.character'),
+      desc: t(aiCardDescKey(genre, 'character')),
+    },
+    {
+      kind: 'world',
+      icon: <PublicIcon sx={{ fontSize: uiFontSize(28), color: 'text.secondary' }} />,
+      title: t('agent.welcome.world'),
+      desc: t(aiCardDescKey(genre, 'world')),
+    },
+  ];
+  const quickActions = allCards.filter((item) => aiQuickActionVisible(genre, item.kind));
 
   return (
     <Box
@@ -118,7 +169,7 @@ export function WelcomeView({
             lineHeight: 1.6,
           }}
         >
-          {t('agent.welcome.desc')}
+          {t(aiWelcomeDescKey(genre))}
         </Typography>
       </Box>
 
@@ -143,7 +194,7 @@ export function WelcomeView({
         </Box>
       )}
 
-      {/* 快捷操作网格 — 6 张写作专属卡片 */}
+      {/* 快捷操作网格 — 按体裁给卡（㉜ AI-2：六枚是小说口径的满配，四支非小说领不到世界观卡） */}
       <Box
         sx={{
           display: 'grid',
@@ -153,48 +204,11 @@ export function WelcomeView({
           width: '100%',
         }}
       >
-        {[
-          {
-            icon: <PsychologyIcon sx={{ fontSize: uiFontSize(28), color: 'primary.main' }} />,
-            title: t('agent.welcome.continue'),
-            desc: t('agent.welcome.continueDesc'),
-            action: () => onQuickAction?.('continue'),
-          },
-          {
-            icon: <AutoAwesomeIcon sx={{ fontSize: uiFontSize(28), color: 'secondary.main' }} />,
-            title: t('agent.welcome.polish'),
-            desc: t('agent.welcome.polishDesc'),
-            action: () => onQuickAction?.('polish'),
-          },
-          {
-            icon: <BuildIcon sx={{ fontSize: uiFontSize(28), color: 'warning.main' }} />,
-            title: t('agent.welcome.impact'),
-            desc: t('agent.welcome.analyzeDesc'),
-            action: () => onQuickAction?.('analyze'),
-          },
-          {
-            icon: <AccountTreeIcon sx={{ fontSize: uiFontSize(28), color: 'info.main' }} />,
-            title: t('agent.welcome.outline'),
-            desc: t('agent.welcome.outlineDesc'),
-            action: () => onQuickAction?.('outline'),
-          },
-          {
-            icon: <GroupIcon sx={{ fontSize: uiFontSize(28), color: 'success.main' }} />,
-            title: t('agent.welcome.character'),
-            desc: t('agent.welcome.characterDesc'),
-            action: () => onQuickAction?.('character'),
-          },
-          {
-            icon: <PublicIcon sx={{ fontSize: uiFontSize(28), color: 'text.secondary' }} />,
-            title: t('agent.welcome.world'),
-            desc: t('agent.welcome.worldDesc'),
-            action: () => onQuickAction?.('world'),
-          },
-        ].map((item, i) => (
+        {quickActions.map((item) => (
           <Paper
-            key={i}
+            key={item.kind}
             elevation={0}
-            onClick={item.action}
+            onClick={() => onQuickAction?.(item.kind)}
             sx={{
               p: 2.5,
               borderRadius: 2,

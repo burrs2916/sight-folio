@@ -11,12 +11,11 @@
 // onClick 可选：大纲树点它循环状态；左栏目录树只读（不传 → 光标保持默认）。
 
 import { t } from '../../i18n';
+import { statusLabelKey } from '../../utils/writingSchema';
 
-// ─── 节点状态：待写 / 草稿 / 已完 的文案（模块私有：目前只有状态点的 title 用）───
-function nodeStatusLabel(status: string): string {
-  if (status === 'finished') return t('writingDesign.statusFinished');
-  if (status === 'draft') return t('writingDesign.statusDraft');
-  return t('writingDesign.statusTodo');
+// ─── 节点状态文案：走 `statusLabelKey` 单一真源（本组件与另外两处共用同一枚，禁第二份）───
+function nodeStatusLabel(status: string, genre: string): string {
+  return t(statusLabelKey(status, genre));
 }
 
 // ─── 层级配色：父级 / 子级 两色区分（用户要求：一个原地、父级一色子级一色，易区分）───
@@ -36,7 +35,7 @@ function withAlpha(hex: string, a: number): string {
   return `#${h}${n}`;
 }
 
-export function ChapterStatusDot({ status, depth, onClick }: { status: string; depth: number; onClick?: () => void }) {
+export function ChapterStatusDot({ status, depth, onClick, genre = '' }: { status: string; depth: number; onClick?: () => void; genre?: string }) {
   const levelC = levelColor(depth);
   const alpha = status === 'finished' ? 1 : status === 'draft' ? 0.45 : 0;
   const bg = alpha === 0 ? 'transparent' : withAlpha(levelC, alpha);
@@ -52,7 +51,7 @@ export function ChapterStatusDot({ status, depth, onClick }: { status: string; d
         flexShrink: 0,
         cursor: onClick ? 'pointer' : 'default',
       }}
-      title={`${depth === 0 ? t('writingTree.parent') : t('writingTree.child')} · ${nodeStatusLabel(status)}`}
+      title={`${depth === 0 ? t('writingTree.parent') : t('writingTree.child')} · ${nodeStatusLabel(status, genre)}`}
     />
   );
 }

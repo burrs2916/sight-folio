@@ -199,14 +199,20 @@ pub fn run() {
                 use crate::application::work_version::export_jobs;
                 match export_jobs::fail_interrupted_exports(&work_version_repo) {
                     Ok(0) => {}
-                    Ok(n) => eprintln!("[sight-folio] 启动：{n} 个残留导出任务已改判失败（上次导出被中断）"),
+                    Ok(n) => eprintln!(
+                        "[sight-folio] 启动：{n} 个残留导出任务已改判失败（上次导出被中断）"
+                    ),
                     Err(e) => eprintln!("[sight-folio] 启动清理残留导出任务失败：{e}"),
                 }
                 let settings_for_queue = Arc::new(SqliteSettingsRepository::new(db_arc.clone()));
                 let versions_for_queue = work_version_repo.clone();
                 let writing_for_queue = writing_repo.clone();
                 std::thread::spawn(move || {
-                    export_jobs::run_queue_loop(versions_for_queue, writing_for_queue, settings_for_queue);
+                    export_jobs::run_queue_loop(
+                        versions_for_queue,
+                        writing_for_queue,
+                        settings_for_queue,
+                    );
                 });
             }
 
@@ -476,6 +482,8 @@ pub fn run() {
             commands::delete_endpoint,
             commands::list_models,
             commands::list_models_by_endpoint,
+            commands::scan_ollama,
+            commands::import_ollama_models,
             commands::save_model,
             commands::delete_model,
             commands::test_endpoint_connection,

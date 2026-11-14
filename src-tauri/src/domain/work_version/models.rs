@@ -21,6 +21,18 @@ pub struct WorkVersion {
     #[serde(default = "default_schema_ver")]
     pub schema_ver: i64,
     pub locked_at: i64,
+    /// 书目元数据（R2，2026-11-06）：**随版本定格** —— 一次锁定就是"一个版次"的存档，
+    /// 作者名 / 出版社 / 交稿日期 / ISBN 都是**那一版**的书目事实（再版换社、改名都可能不同）。
+    /// 空串一律表示"当年没录"，导出侧必须留白，不许编一个作者名或日期出来。
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub publisher: String,
+    /// 完结/交稿日期：作者手填的展示串（如 `2026-11-06`）。不做日期校验、不按锁定日猜。
+    #[serde(default)]
+    pub completed_at: String,
+    #[serde(default)]
+    pub isbn: String,
 }
 
 fn default_schema_ver() -> i64 {
@@ -47,6 +59,22 @@ pub struct WorkVersionChapter {
     pub status: String,
     #[serde(default)]
     pub word_count: i64,
+    /// 章/卷各自的封面相对引用（锁定当刻从 `writing_chapters.extra.coverImage` 定格）。
+    ///
+    /// 为什么进快照而不是导出时现读：导出的取数死口径是「只吃 work_version_chapters」，
+    /// 回读活章节等于允许「产物里的图 ≠ 锁定当版的图」。封面各自独立、绝不向上借用
+    /// （见前端 `utils/writingOutline.ts` 2026-09-29 定稿），故容器（卷/篇）与内容章
+    /// 都只带自己这一张，无则空串。
+    #[serde(default)]
+    pub cover: String,
+    /// 日记条目日期（锁定当刻从 `writing_chapters.extra.entryDate` 定格，形如 'YYYY-MM-DD'）。
+    ///
+    /// 为什么进快照（E-4）：同封面——导出死口径是「只吃 work_version_chapters」，日记的
+    /// `entryDate` 只活在 `writing_chapters.extra` 里，不随锁定定格就永远进不了产物，
+    /// 导出时回读活章节又被明令禁止（脑补）。旧版未定格或本就未标日期的条目 = 空串，
+    /// 导出侧如实无日期行，绝不拿它编一个日期出来（口径同 `author/isbn` 空串）。
+    #[serde(default)]
+    pub entry_date: String,
 }
 
 /// 导出产物记录
@@ -113,6 +141,10 @@ mod tests {
             content_hash: "sha256_hash_abc".to_string(),
             schema_ver: 1,
             locked_at: 1730600000,
+            author: "某某".to_string(),
+            publisher: "某出版社".to_string(),
+            completed_at: "2026-11-06".to_string(),
+            isbn: "978-7-000-00000-0".to_string(),
         };
         let json = serde_json::to_string(&v).unwrap();
         assert!(json.contains("\"isFinal\":true"));
@@ -136,6 +168,8 @@ mod tests {
             parent_id: Some("vol_1".to_string()),
             status: "finished".to_string(),
             word_count: 3500,
+            cover: "assets/writing/illustrations/ch101.png".to_string(),
+            entry_date: String::new(),
         };
         let json = serde_json::to_string(&c).unwrap();
         assert!(json.contains("\"srcChapterId\":\"chap_101\""));
@@ -192,4 +226,25 @@ mod tests {
         assert!(json.contains("\"fileRelPath\":\"book_1/v1/书名-v1.epub\""));
         assert!(!json.contains("\"artifact\":"));
     }
+}
+
+/// 版本定格资产（R4，2026-11-06）：锁定当刻从素材库读到的图片字节。
+///
+/// 为什么需要它：正文与封面存的都是**相对引用**（`assets/writing/illustrations/x.png`），
+/// 作者事后删图或换图，旧版本再导出就会缺图 / 图文错位 —— 那"不可变版本"是假的。
+/// 定格 = 把引用背后的字节一起锁进库，产物只认定格件。
+///
+/// `missing = true` 是墓碑行：锁定当刻该图就不存在。不许静默跳过（那是把缺陷藏进数据），
+/// 也不许因此卡住作者的锁定；缺图在**导出**时以任务失败 + 点名的形式浮出来。
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
+pub struct VersionAsset {
+    pub version_id: String,
+    /// 相对引用（与正文 `data-asset` / `cover` 里那个串逐字相同，是主键的一部分）
+    pub rel_path: String,
+    /// 如 `image/png`（定格当刻按扩展名判定，导出侧不再猜）
+    pub media_type: String,
+    /// 图片字节；`missing` 时为空
+    pub bytes: Vec<u8>,
+    pub missing: bool,
 }

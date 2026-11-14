@@ -26,6 +26,7 @@ import { useToastStore } from '../../store/toastStore';
 import { logger } from '../../utils/logger';
 import { t } from '../../i18n';
 import { useFreshChapters } from './useExportActions';
+import { goWorksLibrary } from '../../utils/writingDeskJump';
 
 export interface LockVersionDialogProps {
   open: boolean;
@@ -40,6 +41,11 @@ export function LockVersionDialog({ open, onClose, bookId, flushSave, flushSetti
   const getFreshChapters = useFreshChapters();
   const [label, setLabel] = useState('');
   const [note, setNote] = useState('');
+  // 书目元数据（R2）：随这一版定格。四个都可留空 —— 空就是空，后端不代填。
+  const [author, setAuthor] = useState('');
+  const [publisher, setPublisher] = useState('');
+  const [completedAt, setCompletedAt] = useState('');
+  const [isbn, setIsbn] = useState('');
   const [isFinal, setIsFinal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   /** 同指纹冲突：展示提示 + 「仍然锁定」出口（需求 §5.1 第 3 步） */
@@ -50,6 +56,11 @@ export function LockVersionDialog({ open, onClose, bookId, flushSave, flushSetti
   const closeAndReset = useCallback(() => {
     setLabel('');
     setNote('');
+    // 元数据也要清：否则关掉再打开还留着上一次填的作者名，很容易误锁进新版本
+    setAuthor('');
+    setPublisher('');
+    setCompletedAt('');
+    setIsbn('');
     setIsFinal(false);
     setConflict(false);
     setError('');
@@ -67,15 +78,19 @@ export function LockVersionDialog({ open, onClose, bookId, flushSave, flushSetti
         // 先把未保存改动冲干净再锁（与整书导出同一 flush 口径）。
         // 章节本身不上传：lock 的正文由后端从库里取，这里只要 flush 的副作用。
         await getFreshChapters(flushSave, flushSettingSave);
-        const version = await workVersionApi.lock(bookId, label.trim(), note.trim(), isFinal, force);
-        useToastStore
-          .getState()
-          .showToast(
-            t('writing.lockVersionDone', { seq: version.seq }),
-            'info',
-            6000,
-            { label: t('published.viewWorks'), onClick: () => navigate('/published') },
-          );
+        const version = await workVersionApi.lock(bookId, label.trim(), note.trim(), isFinal, force, {
+          author: author.trim(),
+          publisher: publisher.trim(),
+          completedAt: completedAt.trim(),
+          isbn: isbn.trim(),
+        });
+        useToastStore.getState().showToast(t('writing.lockVersionDone', { seq: version.seq }), 'info', 6000, {
+          label: t('published.viewWorks'),
+          // 窗口形态分发：写作台独立窗口不许就地 navigate（会破坏一书一窗，见 goWorksLibrary 注释）
+          onClick: () => {
+            goWorksLibrary(navigate);
+          },
+        });
         closeAndReset();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -114,6 +129,34 @@ export function LockVersionDialog({ open, onClose, bookId, flushSave, flushSetti
           value={note}
           onChange={(e) => setNote(e.target.value)}
           slotProps={{ htmlInput: { 'aria-label': 'lock-version-note' } }}
+        />
+        <TextField
+          size="small"
+          label={t('writing.lockMetaAuthor')}
+          value={author}
+          onChange={(e) => setAuthor(e.target.value)}
+          slotProps={{ htmlInput: { 'aria-label': 'lock-version-author' } }}
+        />
+        <TextField
+          size="small"
+          label={t('writing.lockMetaPublisher')}
+          value={publisher}
+          onChange={(e) => setPublisher(e.target.value)}
+          slotProps={{ htmlInput: { 'aria-label': 'lock-version-publisher' } }}
+        />
+        <TextField
+          size="small"
+          label={t('writing.lockMetaDate')}
+          value={completedAt}
+          onChange={(e) => setCompletedAt(e.target.value)}
+          slotProps={{ htmlInput: { 'aria-label': 'lock-version-completed-at' } }}
+        />
+        <TextField
+          size="small"
+          label={t('writing.lockMetaIsbn')}
+          value={isbn}
+          onChange={(e) => setIsbn(e.target.value)}
+          slotProps={{ htmlInput: { 'aria-label': 'lock-version-isbn' } }}
         />
         <FormControlLabel
           control={<Checkbox checked={isFinal} onChange={(e) => setIsFinal(e.target.checked)} size="small" />}

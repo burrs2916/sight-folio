@@ -8,7 +8,7 @@
 // - 会话策略：per (agentId, 书) 复用同名会话「{chatTitle}」——与 WritingAiChatDialog
 //   同一策略（find 同名最新 → 没有才 create；历史消息直读 agentApi.listMessages 存本地，
 //   不碰 store.messages，避免与 AI 页互相污染）。
-// - 上下文注入：首轮自动拼 AI_CORPUS_SYSTEM_HINT（语料参谋人设 + 「>>> 」推荐句输出约定）
+// - 上下文注入：首轮自动拼 corpusSystemHintFor（语料参谋人设按体裁（㉟ AI-5）+ 「>>> 」推荐句输出约定）
 //   + buildContextBlock()（整篇作品 + 当前章节，L() 双语），后续轮次靠对话历史延续；
 //   「新会话」清空句柄，下一条消息重建 + 重新注入。
 // - 推荐句闭环：AI 回复中「>>> 」开头的行由 extractAiCorpusPicks 解析为推荐句，
@@ -46,7 +46,7 @@ import { shiftEditIndexAfterDelete } from './corpusEditIndex';
 import { t } from '../../i18n';
 import { logger } from '../../utils/logger';
 import {
-  AI_CORPUS_SYSTEM_HINT,
+  corpusSystemHintFor,
   buildCorpusGeneratePrompt,
   buildCorpusEvidenceBlock,
   detectExampleRequest,
@@ -60,8 +60,10 @@ import { uiFontSize } from '../../theme/appearanceScales';
 export interface AiCorpusPanelProps {
   /** 会话标题（per 书唯一：「语料参谋 · 书名」），与写作台 AI 会话独立、不互相污染 */
   chatTitle: string;
-  /** 首轮自动注入的写作上下文（整篇作品 + 当前章节，L() 双语） */
+  /** 首轮自动注入的写作上下文（整篇作品 + 当前正文单位，L() 双语） */
   buildContextBlock: () => string;
+  /** 作品体裁（㉟ AI-5，轮 12：语料参谋人设按体裁；空/未设 = 小说口径逐字零回归） */
+  genre?: string;
   /** 插入正文回调（复用 handleCorpusInsert，闭环与语料库 Tab 一致） */
   onInsertText: (text: string) => void;
   agentId: string;
@@ -171,6 +173,7 @@ const PURPOSE_KEYS: Array<{ value: CorpusGeneratePurpose; labelKey: string }> = 
 export function AiCorpusPanel({
   chatTitle,
   buildContextBlock,
+  genre = '',
   onInsertText,
   agentId,
   onAgentChange,
@@ -374,7 +377,9 @@ export function AiCorpusPanel({
       saveDraft('');
       // 首轮（本地无历史）注入人设 + 写作上下文；后续轮次靠对话历史延续
       const base =
-        messages.length === 0 ? `${AI_CORPUS_SYSTEM_HINT}\n\n${buildContextBlock()}\n\n---\n\n${text}` : text;
+        messages.length === 0
+          ? `${corpusSystemHintFor(genre)}\n\n${buildContextBlock()}\n\n---\n\n${text}`
+          : text;
       // C2 找范例：识别「找例句/怎么写/借鉴」类意图 → 先召回库内原文作为证据块附在消息后，
       // 让 AI 优先引用/拆解库内句子并保留出处；检索失败静默降级为普通发送，不阻塞对话。
       let content = base;
@@ -390,7 +395,7 @@ export function AiCorpusPanel({
       }
       await sendAndRefresh(text, content);
     },
-    [input, convId, isStreaming, messages.length, buildContextBlock, sendAndRefresh, saveDraft],
+    [input, convId, isStreaming, messages.length, buildContextBlock, genre, sendAndRefresh, saveDraft],
   );
 
   /** P2 一键生成语料：条数 + 用途轻参数 → 组装指令发送 → 固化推荐句卡片 */
@@ -401,10 +406,10 @@ export function AiCorpusPanel({
     // 生成成功才替换为新结果，请求失败/被停止时旧结果保留，避免「换一批」误触清空上一批
     setEditingIdx(null); // 换一批：正在编辑的卡片随旧结果一起失效
     setGenEditDraft('');
-    const text = buildCorpusGeneratePrompt({ count: genCount, purpose: genPurpose });
+    const text = buildCorpusGeneratePrompt({ count: genCount, purpose: genPurpose, genre });
     // 生成请求自包含：每次都带上最新 HINT + 写作上下文 + 生成指令，不依赖会话历史——
     // 避免二轮起上下文过期（当前章正文/人物变动立即生效），生成批次也不会污染后续生成语义。
-    const content = `${AI_CORPUS_SYSTEM_HINT}\n\n${buildContextBlock()}\n\n---\n\n${text}`;
+    const content = `${corpusSystemHintFor(genre)}\n\n${buildContextBlock()}\n\n---\n\n${text}`;
     const rows = await sendAndRefresh(text, content);
     if (!rows) return;
     // 若本轮被停止（手动 / 超时兜底）：后端只保留半截回复，不固化为卡片（防止把半句推荐复制进正文）
@@ -414,7 +419,7 @@ export function AiCorpusPanel({
     if (lastAssistant) {
       setGenCards(extractAiCorpusPicks(lastAssistant.content));
     }
-  }, [convId, isStreaming, buildContextBlock, genCount, genPurpose, sendAndRefresh]);
+  }, [convId, isStreaming, buildContextBlock, genre, genCount, genPurpose, sendAndRefresh]);
 
   /** 换一批：重新触发一次相同参数的生成请求 */
   const handleRegenerate = useCallback(() => {

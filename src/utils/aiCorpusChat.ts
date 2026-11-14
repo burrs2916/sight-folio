@@ -2,16 +2,34 @@
 //
 // 职责边界：
 // - 与 agent 会话/流式、UI 无耦合，单测直跑（不 mock 任何模块）。
-// - AI_CORPUS_SYSTEM_HINT：首轮注入的「语料参谋」人设 + 推荐句输出格式约定
+// - corpusSystemHintFor：首轮注入的「语料参谋」人设（按体裁，㉟ AI-5）+ 推荐句输出格式约定
 //   （格式约定与 extractAiCorpusPicks 的解析规则必须同步维护，改一边必须改另一边）。
 // - extractAiCorpusPicks：从 AI 回复中提取「>>> 行」作为可直接插入正文的推荐句。
-// - buildCorpusGeneratePrompt：P2 一键生成的指令构造（条数 + 用途轻参数，双语）。
+// - buildCorpusGeneratePrompt：P2 一键生成的指令构造（条数 + 用途 + 体裁轻参数，双语）。
 import { L } from '../ai/aiLang';
+import { workbenchCommandSet } from './writingSchema';
 import type { CorpusSearchHit } from '../services/corpus';
 import type { AiMessage } from '../services/tauri';
 
-/** 首轮注入的语料参谋系统提示（双语；配合 buildChatContext 的整篇+本章素材） */
-export const AI_CORPUS_SYSTEM_HINT = `你现在的身份是「本书语料参谋」。请结合整篇作品（结构/人物/世界观/风格）与当前章节上下文作答，给出明确建议：这句是否可参考、参考哪句、直接引用还是改写、是否建议由你重写一段。
+/**
+ * 语料参谋人设段（㉟ AI-5，2026-11-10 轮 12）：按体裁说各体裁的话。
+ *
+ * 病灶（状态文件 §队列 AI-5）：这段写死「结构/人物/世界观/风格」与「当前章节」——
+ * 诗集没有世界观栏（⑮-2 裁掉的页签），诗的单位也不是章。novel 一格 = 改造前逐字
+ * （零回归线）；其余四支只换「结合什么 + 单位名」，**输出格式契约与人味约束原样共用**
+ * （那两段与 `extractAiCorpusPicks` 的解析规则锁死，改一边必须改另一边，不许随体裁漂移）。
+ */
+const CORPUS_PERSONA: Record<'novel' | 'essay' | 'poetry' | 'script' | 'diary', string> = {
+  novel: '你现在的身份是「本书语料参谋」。请结合整篇作品（结构/人物/世界观/风格）与当前章节上下文作答，给出明确建议：这句是否可参考、参考哪句、直接引用还是改写、是否建议由你重写一段。',
+  essay: '你现在的身份是「本散文集语料参谋」。请结合整部散文集（篇目编排、各篇立意与素材、语感）与当前篇目上下文作答，给出明确建议：这句是否可参考、参考哪句、直接引用还是改写、是否建议由你重写一段。',
+  poetry: '你现在的身份是「本诗集语料参谋」。请结合整部诗集（分行与形式、意象系统、节奏与语感）与当前诗作上下文作答，给出明确建议：这句是否可参考、参考哪句、直接引用还是改写、是否建议由你重写一节（按分行，不要排成散文段落）。',
+  script: '你现在的身份是「本剧本语料参谋」。请结合整部剧本（幕场结构、人物与冲突、台词与舞台指示）与当前场次上下文作答，给出明确建议：这句台词是否可参考、参考哪句、直接引用还是改写、是否建议由你重写一段对白（角色名起行、台词另起一行）。',
+  diary: '你现在的身份是「本日记语料参谋」。请结合这部日记（条目时间线、各天提到的人与事、当天的语气）与当天条目上下文作答，给出明确建议：这句是否可参考、参考哪句、直接引用还是改写；**不得替作者补写那天没记的事**。',
+};
+
+/** 首轮注入的语料参谋系统提示（人设按体裁；配合 buildChatContext 的整篇+本单位素材） */
+export function corpusSystemHintFor(genre: string): string {
+  return `${CORPUS_PERSONA[workbenchCommandSet(genre)]}
 
 本消息后的对话需求都属于语料参考决策。每当你给出「可直接插入正文的句子」时，请将每个句子单独成行，并以 ">>> " 开头（例如：>>> 他攥着信纸的手又紧了几分。）。这些行会被前端解析为可一键插入的推荐句；非推荐句正文一律不要使用 ">>> " 前缀。
 
@@ -21,6 +39,7 @@ export const AI_CORPUS_SYSTEM_HINT = `你现在的身份是「本书语料参谋
 3. 具体优先：用可感细节（动作、感官、具体物件）代替抽象评价，不得用空泛形容词堆叠情感；
 4. 情节大于铺陈：关键情节要有实质推进，不得靠堆砌心理与环境描写凑篇幅；
 5. 给立场：明确倾向与判断，不回避表态，不用含糊词语填充。`;
+}
 
 /** 从 AI 回复中提取推荐句（每条以 ">>> " 开头单独成行）；无推荐句返回空数组 */
 export function extractAiCorpusPicks(text: string): string[] {
@@ -54,15 +73,37 @@ const PURPOSE_EN: Record<CorpusGeneratePurpose, string> = {
   auto: 'pick the best fit for the scene (dialogue/action/scenery)',
 };
 
+/** 一键生成指令里的单位口径（㉟ AI-5：novel = 改造前逐字「当前章节 / current chapter」） */
+const GEN_UNIT_ZH: Record<'novel' | 'essay' | 'poetry' | 'script' | 'diary', string> = {
+  novel: '当前章节',
+  essay: '当前篇目',
+  poetry: '当前诗作',
+  script: '当前场次',
+  diary: '当天条目',
+};
+const GEN_UNIT_EN: Record<'novel' | 'essay' | 'poetry' | 'script' | 'diary', string> = {
+  novel: 'current chapter',
+  essay: 'current piece',
+  poetry: 'current poem',
+  script: 'current scene',
+  diary: "today's entry",
+};
+
 /**
  * 构造「一键生成语料」指令（P2）。
- * 要求 AI 直接输出 count 条「>>> 」推荐句，不做过程解释；配合 AI_CORPUS_SYSTEM_HINT 使用。
+ * 要求 AI 直接输出 count 条「>>> 」推荐句，不做过程解释；配合 corpusSystemHintFor 使用。
  */
-export function buildCorpusGeneratePrompt(opts: { count: number; purpose: CorpusGeneratePurpose }): string {
+export function buildCorpusGeneratePrompt(opts: {
+  count: number;
+  purpose: CorpusGeneratePurpose;
+  /** 作品体裁（空/未设/脏值 = 小说口径，改造前逐字零回归） */
+  genre?: string;
+}): string {
   const count = Math.min(5, Math.max(1, Math.floor(opts.count)));
+  const variant = workbenchCommandSet(opts.genre);
   return L(
-    `请直接生成 ${count} 条可用于当前章节的参考句（${PURPOSE_ZH[opts.purpose]}，风格贴合本书），逐条单独成行并以 ">>> " 开头，不要输出其他内容。`,
-    `Please directly generate ${count} reference sentences usable in the current chapter (${PURPOSE_EN[opts.purpose]}, matching the book style), one per line each starting with ">>> ", and output nothing else.`,
+    `请直接生成 ${count} 条可用于${GEN_UNIT_ZH[variant]}的参考句（${PURPOSE_ZH[opts.purpose]}，风格贴合本书），逐条单独成行并以 ">>> " 开头，不要输出其他内容。`,
+    `Please directly generate ${count} reference sentences usable in the ${GEN_UNIT_EN[variant]} (${PURPOSE_EN[opts.purpose]}, matching the book style), one per line each starting with ">>> ", and output nothing else.`,
   );
 }
 

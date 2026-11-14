@@ -19,9 +19,11 @@ const panelSrc = readFileSync(`${ROOT}/src/pages/ChapterDetailsPanel.tsx`, 'utf8
 
 describe('章详情空态布局接线', () => {
   it('details 分支：九维统筹卡仅在 activeChapterId 存在时渲染（防双空态堆叠）', () => {
-    // 取 details 分支片段（从三态渲染起点到设定卡分支前）
+    // 取 details 分支片段（从渲染链起点到设定卡分支前）。
+    // 2026-11-07 链首多了「归类节点 → 只读卷概览」这一臂（卷不该拿到可编辑正文框），
+    // 锚点因此跟着链首走；下面三条断言一字未改。
     const details = pageSrc.slice(
-      pageSrc.indexOf("{rightTab === 'details' ? ("),
+      pageSrc.indexOf('{activeNodeIsGrouping && activeChapter ? ('),
       pageSrc.indexOf(') : activeSetting ? ('),
     );
     expect(details).toMatch(/\{activeChapterId && \(/);

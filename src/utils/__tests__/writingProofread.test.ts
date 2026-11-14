@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildProofreadReport,
   chapterTextIssues,
+  PROOFREAD_GROUPS,
   filterProofreadIssues,
   sortProofreadIssues,
   stripHtmlText,
@@ -130,14 +131,13 @@ describe('chapterTextIssues —— 五类文本检查', () => {
 });
 
 describe('buildProofreadReport —— 六组分组与跳转', () => {
-  it('空章 / 完稿 0 字 / 预警伏笔 / 冲突事件 / 草稿 / 未挂线 / 未分发念头 各就各组', () => {
+  it('预警伏笔 / 冲突事件 / 草稿 / 未挂线 / 未分发念头 各就各组', () => {
     const chapters = [ch('ch1', '', 0, 'draft'), ch('ch2', '正文', 100, 'finished'), ch('ch3', '', 0, 'finished')];
     const outlines = [beat('b1')]; // 未分发念头（无 extra 挂载、未转时间线/伏笔）
     const events = [ev('e1', '第三日'), ev('e2', '第三日'), ev('e3', ''), ev('e4', '第五日', 'sl1')];
     const foreshadowings = [fs('f1', 'ch2', 'ch1')]; // 回收章(ch1 序 0) ≤ 埋设章(ch2 序 1) → 预警
     const report = buildProofreadReport(chapters, outlines, events, foreshadowings, [{ id: 'sl1' }]);
 
-    expect(report.counts['chapter-account']).toBe(2); // ch1 空章 + ch3 完稿 0 字
     expect(report.counts['foreshadow']).toBe(1);
     expect(report.counts['timeline']).toBe(3); // 冲突 e1/e2 两行 + 草稿 e3 汇总 1 行
     // e1/e2/e3 未挂线汇总 1 行 + sl1 唯一的事件(e4)没落到章节 → 悬空线 1 行（⑤″ 线级体检）
@@ -173,7 +173,7 @@ describe('buildProofreadReport —— 六组分组与跳转', () => {
 describe('filterProofreadIssues / sortProofreadIssues —— 左栏严重性过滤与排序', () => {
   const mkIssue = (
     key: string,
-    group: 'chapter-text' | 'chapter-account' | 'foreshadow' | 'timeline' | 'storyline' | 'idea',
+    group: 'chapter-text' | 'foreshadow' | 'timeline' | 'storyline' | 'idea' | 'consistency',
     messageKey: string,
     severity?: 'block' | 'warning',
     target?: { type: 'chapter'; id: string },
@@ -182,7 +182,7 @@ describe('filterProofreadIssues / sortProofreadIssues —— 左栏严重性过�
   it('过滤：all 原样返回；block/warning 分别命中对应级别；无 severity 行只在 all 出现', () => {
     const issues = [
       mkIssue('a:1', 'chapter-text', 'TypoPhrase', 'warning'),
-      mkIssue('b:1', 'chapter-account', 'FinishedNoWords', 'block'),
+      mkIssue('b:1', 'consistency', 'DuplicateSettingName', 'block'),
       mkIssue('c:1', 'timeline', 'TimelineDraftRow'), // 无 severity（兼容未标注行）
     ] as Parameters<typeof filterProofreadIssues>[0];
     expect(filterProofreadIssues(issues, 'all')).toHaveLength(3);
@@ -194,7 +194,7 @@ describe('filterProofreadIssues / sortProofreadIssues —— 左栏严重性过�
     const issues = [
       mkIssue('c:1', 'timeline', 'TimelineDraftRow'),
       mkIssue('a:1', 'chapter-text', 'TypoPhrase', 'warning'),
-      mkIssue('b:1', 'chapter-account', 'FinishedNoWords', 'block'),
+      mkIssue('b:1', 'consistency', 'DuplicateSettingName', 'block'),
       mkIssue('d:1', 'chapter-text', 'RepeatPunct', 'warning'),
     ] as Parameters<typeof sortProofreadIssues>[0];
     expect(sortProofreadIssues(issues, 'severity').map((i) => i.key)).toEqual(['b:1', 'a:1', 'd:1', 'c:1']);
@@ -223,12 +223,46 @@ describe('filterProofreadIssues / sortProofreadIssues —— 左栏严重性过�
     expect(sortProofreadIssues(issues, 'type').map((i) => i.key)).toEqual(['c:1', 'b:1', 'a:1']);
   });
 
-  it('buildProofreadReport：完稿 0 字为 block、空章为 warning（配合左栏严重性过滤）', () => {
-    const chapters = [ch('ch1', '', 0, 'draft'), ch('ch3', '完稿无字', 0, 'finished')];
-    const report = buildProofreadReport(chapters, [], [], [], []);
-    const empty = report.issues.find((i) => i.key === 'ch1:empty');
-    const fin0 = report.issues.find((i) => i.key === 'ch3:fin0');
-    expect(empty?.severity).toBe('warning');
-    expect(fin0?.severity).toBe('block');
+  it('章账组已整组撤除（2026-11-07 李先生定口径）：空章、标了完稿却 0 字都不再报', () => {
+    // 两条判据都建立在「知道这个节点该有正文」之上，而层级名是创作者自定义的（部/卷/篇/章/节
+    // /幕/回…）→ 无从判定 → 整组撤除。
+    expect(buildProofreadReport([ch('ch1', '', 0, 'draft')], [], [], [], []).issues).toEqual([]);
+    expect(buildProofreadReport([ch('ch3', '', 0, 'finished')], [], [], [], []).issues).toEqual([]);
+    // 组的缺席就是断言本身：分组表少一格，界面上才不会剩一个永远为 0 的「章账」导航项
+    expect(PROOFREAD_GROUPS).toEqual(['chapter-text', 'foreshadow', 'timeline', 'storyline', 'idea', 'consistency']);
+  });
+});
+
+// 层级名由创作者自定义，系统不知道哪个节点「该有正文」。所以体检只对**已经有文字的节点**
+// 开口：归类节点空着不是问题（2026-11-07 李先生在真库上撞到的就是分卷的书每卷一条
+// 「还是空章」，真问题被这批噪音淹没）。
+describe('buildProofreadReport —— 只对已经有文字的节点校验', () => {
+  const node = (id: string, kind: string, parentId: string | null, over: Partial<WritingChapter> = {}) =>
+    ({ ...ch(id), kind, parentId, ...over }) as WritingChapter;
+
+  it('空卷 / 空部 / 谎报完稿的空章：一个都不报', () => {
+    const chapters = [
+      node('v1', '卷', null),
+      node('v2', '卷', null),
+      node('bu', '部', null, { status: 'finished' }),
+      node('c1', '章', 'v1', { status: 'finished' }),
+    ];
+    expect(buildProofreadReport(chapters, [], [], [], []).issues).toEqual([]);
+  });
+
+  it('只剩标签的空壳正文同样算没写：不误报', () => {
+    const chapters = [node('c1', '章', null, { content: '<p></p><p><br></p>', wordCount: 0 })];
+    expect(buildProofreadReport(chapters, [], [], [], []).issues).toEqual([]);
+  });
+
+  it('节点有文字就校验，与它叫什么层级无关（卷导语里的三连同字照样抓）', () => {
+    const chapters = [
+      node('v1', '卷', null, { content: '第一卷：完了了了，都完了', wordCount: 12 }),
+      node('bu', '部', null, { content: '本部的了了了写法', wordCount: 8 }),
+      node('c1', '章', 'v1', { content: '正文', wordCount: 2 }),
+    ];
+    const keys = buildProofreadReport(chapters, [], [], [], []).issues.map((i) => i.key);
+    expect(keys).toContain('v1:RepeatChar');
+    expect(keys).toContain('bu:RepeatChar');
   });
 });

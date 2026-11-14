@@ -32,6 +32,7 @@ import { useWritingStore } from '../../store/writingStore';
 import { useWritingDocsStore } from '../../store/writingDocsStore';
 import { useSceneStore } from '../../store/sceneStore';
 import { buildTree, treeRowIndent, type TreeNode } from '../../utils/writingTree';
+import { surfaceKeyForGenre } from '../../utils/writingSchema';
 import { subtreeAccount } from '../../utils/writingOutline';
 import { openChapterCarrierView } from '../../utils/studioBook';
 import { ChapterStatusDot } from '../components/ChapterStatusDot';
@@ -55,6 +56,7 @@ function TreeRow({
   kind,
   meta,
   status,
+  genre = '',
   active = false,
   expandable = false,
   expanded = true,
@@ -66,6 +68,7 @@ function TreeRow({
   kind?: string;
   meta?: string;
   status: string;
+  genre?: string;
   active?: boolean;
   expandable?: boolean;
   expanded?: boolean;
@@ -95,7 +98,7 @@ function TreeRow({
         }}
       >
         <TreeChevron expandable={expandable} expanded={expanded} onToggleExpand={onToggleExpand} />
-        <ChapterStatusDot status={status} depth={depth} />
+        <ChapterStatusDot status={status} depth={depth} genre={genre} />
         {kind && <TreeKindBadge kind={kind} />}
         <Typography
           variant="caption"
@@ -217,13 +220,15 @@ export function WritingStructureTreeTab() {
           title={ch.title || t('writingTree.untitledChapter')}
           kind={ch.kind || undefined}
           status={ch.status}
+          genre={genre}
           active={activeDocChapterId === ch.id}
           expandable={hasKids}
           expanded={expanded}
           onToggleExpand={() => toggleNodeCollapse(ch.id)}
           onClick={() => locateChapter(ch)}
-          // 容器给「N 章」，叶章给自身字数——各自最能说明规模的那个数
-          meta={hasKids ? t('writingTree.chapterCount', { n: kids }) : t('writing.words', { n: ch.wordCount })}
+          // 容器给「N 章」，叶章给自身字数——各自最能说明规模的那个数。
+          // ㉗ 容器那句走槽位：日记的容器是年/月，里面数出来的是「天」不是「章」。
+          meta={hasKids ? t(surfaceKeyForGenre(genre, 'childCount'), { n: kids }) : t('writing.words', { n: ch.wordCount })}
         />
         {hasKids && expanded && n.children.map(renderNode)}
       </Box>
@@ -264,7 +269,7 @@ export function WritingStructureTreeTab() {
           {bookTitle}
         </Typography>
         <Typography variant="caption" sx={{ fontSize: 9.5, color: 'text.disabled', flexShrink: 0 }}>
-          {`${t('writingTree.chapterCount', { n: totals.count })} · ${t('writing.words', { n: totals.words })}`}
+          {`${t(surfaceKeyForGenre(genre, 'childCount'), { n: totals.count })} · ${t('writing.words', { n: totals.words })}`}
         </Typography>
       </Box>
 

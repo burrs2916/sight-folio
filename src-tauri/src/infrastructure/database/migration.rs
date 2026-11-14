@@ -1643,7 +1643,11 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             word_count     INTEGER NOT NULL DEFAULT 0,
             content_hash   TEXT    NOT NULL,
             schema_ver     INTEGER NOT NULL DEFAULT 1,
-            locked_at      INTEGER NOT NULL
+            locked_at      INTEGER NOT NULL,
+            author         TEXT    NOT NULL DEFAULT '',
+            publisher      TEXT    NOT NULL DEFAULT '',
+            completed_at   TEXT    NOT NULL DEFAULT '',
+            isbn           TEXT    NOT NULL DEFAULT ''
         )",
         [],
     )?;
@@ -1657,6 +1661,31 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
 
     // ② 成稿版本的内容副本（D5：真不可变，正文明细表存）
+    // 定格资产表（R4，2026-11-06）：锁定当刻把正文引用到的图片**字节**存进主库。
+    //
+    // 为什么存 BLOB 而不是拷进作品库版本目录：锁定是纯 DB 操作，而作品库根可能尚未设置、
+    // 之后还可能被搬迁 —— 把文件写入耦合进锁定，会出现「没选作品库就不能锁版」这类
+    // 卡死作者的事。字节随快照同库同事务，版本才真的自包含、可搬迁、可离线重导。
+    //
+    // missing=1 是**墓碑行**：锁定当刻该图就已缺失。不许静默跳过，也不许因此让锁定失败
+    // （作者可能只是随手删了图，锁版这件事不该被卡住）；导出读到墓碑 → 任务 failed 并点名。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS version_assets (
+            version_id   TEXT    NOT NULL,
+            rel_path     TEXT    NOT NULL,
+            media_type   TEXT    NOT NULL DEFAULT '',
+            bytes        BLOB    NOT NULL DEFAULT X'',
+            missing      INTEGER NOT NULL DEFAULT 0,
+            created_at   INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (version_id, rel_path)
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_va_version ON version_assets(version_id)",
+        [],
+    )?;
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS work_version_chapters (
             version_id     TEXT    NOT NULL,
@@ -1667,7 +1696,9 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             kind           TEXT    NOT NULL DEFAULT '',
             parent_id      TEXT,
             status         TEXT    NOT NULL DEFAULT '',
-            word_count     INTEGER NOT NULL DEFAULT 0
+            word_count     INTEGER NOT NULL DEFAULT 0,
+            cover          TEXT    NOT NULL DEFAULT '',
+            entry_date     TEXT    NOT NULL DEFAULT ''
         )",
         [],
     )?;
@@ -1722,7 +1753,10 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         .unwrap_or(false);
 
     if has_completed_works && !has_legacy_completed_works {
-        conn.execute("ALTER TABLE completed_works RENAME TO legacy_completed_works", [])?;
+        conn.execute(
+            "ALTER TABLE completed_works RENAME TO legacy_completed_works",
+            [],
+        )?;
     } else if !has_legacy_completed_works {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS legacy_completed_works (
@@ -1982,6 +2016,53 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
              WHERE book_id = ?1 AND parent_id IS NULL AND (kind = '' OR kind IS NULL)",
             rusqlite::params![book_id],
         )?;
+    }
+
+    // ─── 快照封面列（schema_ver 2）：章/卷各自的 extra.coverImage 随锁定定格 ───
+    // 为什么必须进快照：导出侧的取数死口径是「只吃 work_version_chapters」，
+    // 章头图不进快照就永远进不了产物（回读活章节 = 被禁止的脑补）。
+    // 旧库幂等 ALTER；已锁的 schema_ver=1 版本没有这一列的值，导出如实无图。
+    add_column_if_missing(
+        conn,
+        "work_version_chapters",
+        "cover",
+        "ALTER TABLE work_version_chapters ADD COLUMN cover TEXT NOT NULL DEFAULT ''",
+    )?;
+
+    // ─── 快照日记日期列（E-4，2026-11-13）：条目 extra.entryDate 随锁定定格 ───
+    // 与封面同一动因：导出只吃 work_version_chapters，日记日期不进快照就永远进不了产物。
+    // 旧库幂等 ALTER；已锁的旧版本没有这一列的值，导出如实无日期行（不编造）。
+    add_column_if_missing(
+        conn,
+        "work_version_chapters",
+        "entry_date",
+        "ALTER TABLE work_version_chapters ADD COLUMN entry_date TEXT NOT NULL DEFAULT ''",
+    )?;
+
+    // ─── 书目元数据四列（R2，2026-11-06）：随版本定格，不是随书改 ───
+    // 为什么放 work_versions 而不是 writing_books：一次锁定就是"一个版次"的存档，
+    // 作者名、出版社、交稿日期、ISBN 都是**那一版**的书目事实（换社再版、改名再版都可能不同）。
+    // 旧行留空串即可 —— 空 = "当年没录"，导出侧不许拿它当"作者未知"编一个名字出来。
+    for (col, ddl) in [
+        (
+            "author",
+            "ALTER TABLE work_versions ADD COLUMN author TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "publisher",
+            "ALTER TABLE work_versions ADD COLUMN publisher TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "completed_at",
+            "ALTER TABLE work_versions ADD COLUMN completed_at TEXT NOT NULL DEFAULT ''",
+        ),
+        (
+            "isbn",
+            "ALTER TABLE work_versions ADD COLUMN isbn TEXT NOT NULL DEFAULT ''",
+        ),
+    ] {
+        let _ = col;
+        add_column_if_missing(conn, "work_versions", col, ddl)?;
     }
 
     let ds_columns: Vec<String> = conn
@@ -2300,7 +2381,10 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         .unwrap_or(false);
 
     if has_completed_works && !has_legacy_completed_works {
-        conn.execute("ALTER TABLE completed_works RENAME TO legacy_completed_works", [])?;
+        conn.execute(
+            "ALTER TABLE completed_works RENAME TO legacy_completed_works",
+            [],
+        )?;
     }
 
     conn.execute(
@@ -2315,7 +2399,11 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
             word_count     INTEGER NOT NULL DEFAULT 0,
             content_hash   TEXT    NOT NULL,
             schema_ver     INTEGER NOT NULL DEFAULT 1,
-            locked_at      INTEGER NOT NULL
+            locked_at      INTEGER NOT NULL,
+            author         TEXT    NOT NULL DEFAULT '',
+            publisher      TEXT    NOT NULL DEFAULT '',
+            completed_at   TEXT    NOT NULL DEFAULT '',
+            isbn           TEXT    NOT NULL DEFAULT ''
         )",
         [],
     )?;
@@ -2325,6 +2413,31 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_wv_book_final ON work_versions(book_id) WHERE is_final = 1",
+        [],
+    )?;
+
+    // 定格资产表（R4，2026-11-06）：锁定当刻把正文引用到的图片**字节**存进主库。
+    //
+    // 为什么存 BLOB 而不是拷进作品库版本目录：锁定是纯 DB 操作，而作品库根可能尚未设置、
+    // 之后还可能被搬迁 —— 把文件写入耦合进锁定，会出现「没选作品库就不能锁版」这类
+    // 卡死作者的事。字节随快照同库同事务，版本才真的自包含、可搬迁、可离线重导。
+    //
+    // missing=1 是**墓碑行**：锁定当刻该图就已缺失。不许静默跳过，也不许因此让锁定失败
+    // （作者可能只是随手删了图，锁版这件事不该被卡住）；导出读到墓碑 → 任务 failed 并点名。
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS version_assets (
+            version_id   TEXT    NOT NULL,
+            rel_path     TEXT    NOT NULL,
+            media_type   TEXT    NOT NULL DEFAULT '',
+            bytes        BLOB    NOT NULL DEFAULT X'',
+            missing      INTEGER NOT NULL DEFAULT 0,
+            created_at   INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (version_id, rel_path)
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_va_version ON version_assets(version_id)",
         [],
     )?;
 
@@ -2338,7 +2451,9 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
             kind           TEXT    NOT NULL DEFAULT '',
             parent_id      TEXT,
             status         TEXT    NOT NULL DEFAULT '',
-            word_count     INTEGER NOT NULL DEFAULT 0
+            word_count     INTEGER NOT NULL DEFAULT 0,
+            cover          TEXT    NOT NULL DEFAULT '',
+            entry_date     TEXT    NOT NULL DEFAULT ''
         )",
         [],
     )?;
@@ -2372,7 +2487,67 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // ── 孤儿账清理（2026-11-04 删除铁律：删就要删干净）──
+    purge_orphan_archive_rows(conn)?;
+
     Ok(())
+}
+
+/// 清掉指向「已不存在的作品」的归档侧孤儿行。
+///
+/// 为什么放这里而不是只靠删书事务：
+///  ① 今天之前删过的书留下的孤儿行不会自己消失，只有启动时的幂等清理能补上这一课；
+///  ② 本文件是唯一允许引用已退役旧登记表表名的地方（§9-13 结构锁），所以「哪些账归这里、
+///     哪些账不许碰」必须在这里说清楚 —— 见下面 sweeps 之后那段「故意不清」的注释。
+/// 判据只有一个：书没了。活书的账一行都不碰。每张表先验存在性，免得过老库缺表
+/// 把启动整个带崩（migrate 每次启动都跑，这里绝不允许抛 schema 错）。
+pub fn purge_orphan_archive_rows(conn: &Connection) -> Result<usize, rusqlite::Error> {
+    let books_exist: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='writing_books'",
+        [],
+        |r| r.get(0),
+    )?;
+    if books_exist == 0 {
+        return Ok(0);
+    }
+    let no_book = " WHERE book_id NOT IN (SELECT id FROM writing_books)";
+    // 顺序硬约束：先删版本头，再按「版本头已不在」捞快照与产物记录 —— 反了就会留下一轮孤儿。
+    let mut sweeps: Vec<(&str, String)> = vec![
+        ("work_versions", format!("DELETE FROM work_versions{no_book}")),
+        (
+            "work_version_chapters",
+            "DELETE FROM work_version_chapters WHERE version_id NOT IN (SELECT id FROM work_versions)".to_string(),
+        ),
+        ("export_artifacts", format!("DELETE FROM export_artifacts{no_book}")),
+        (
+            "export_artifacts",
+            "DELETE FROM export_artifacts WHERE version_id NOT IN (SELECT id FROM work_versions)".to_string(),
+        ),
+        ("writing_chapter_snapshots", format!("DELETE FROM writing_chapter_snapshots{no_book}")),
+        ("writing_notes", format!("DELETE FROM writing_notes{no_book}")),
+        ("writing_setting_revisions", format!("DELETE FROM writing_setting_revisions{no_book}")),
+        ("external_captures", format!("DELETE FROM external_captures{no_book}")),
+    ];
+    // 已退役旧登记表（legacy_completed_works）**故意不清**：需求 Q1 明确「改名保留一版可回滚」，
+    // 且 migration.rs:3394 那条测钉着「数据应完好保留」。它是回滚资产，不是脏数据；
+    // 等 Q1 拍板 DROP 整表时一起消失。要动它必须先改那条决策，不许由清理顺手吃掉。
+
+    let mut removed = 0usize;
+    for (table, sql) in sweeps {
+        let exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
+            [table],
+            |r| r.get(0),
+        )?;
+        if exists == 0 {
+            continue;
+        }
+        removed += conn.execute(&sql, [])?;
+    }
+    if removed > 0 {
+        eprintln!("[migration] 清掉 {removed} 行指向已删作品的归档孤儿账");
+    }
+    Ok(removed)
 }
 
 fn seed_component_categories(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -3128,7 +3303,12 @@ mod tests {
         init_tables(&conn).unwrap();
         migrate(&conn).unwrap();
 
-        for table in ["work_versions", "work_version_chapters", "export_artifacts", "legacy_completed_works"] {
+        for table in [
+            "work_versions",
+            "work_version_chapters",
+            "export_artifacts",
+            "legacy_completed_works",
+        ] {
             let exists: i64 = conn
                 .query_row(
                     "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
@@ -3138,6 +3318,110 @@ mod tests {
                 .unwrap();
             assert_eq!(exists, 1, "表 {table} 应已被创建");
         }
+    }
+
+    /// 孤儿账清理（2026-11-04 删除铁律「删就要删干净」）：只清指向已删书的行，
+    /// 活书的成稿版本 / 快照 / 产物记录一行都不许动。含已退役旧登记表 —— 只有本文件能引用它。
+    #[test]
+    fn purge_orphan_archive_rows_clears_dead_book_and_keeps_live_book() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_tables(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO writing_books (id, title) VALUES ('book_live', '活书')",
+            [],
+        )
+        .unwrap();
+        // 活书的账（三张表各一行，彼此挂着合法从属关系）
+        conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at) VALUES ('v_live', 'book_live', 1, 'h1', 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO work_version_chapters (version_id, sort_order, content) VALUES ('v_live', 0, '定稿正文')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO export_artifacts (id, version_id, book_id, format, file_rel_path, created_at) VALUES ('a_live', 'v_live', 'book_live', 'epub', 'live/v1/x.epub', 1)",
+            [],
+        )
+        .unwrap();
+
+        // 书早已被删掉（库里没有这本书）留下的五张表孤儿行
+        conn.execute(
+            "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at) VALUES ('v_gone', 'book_gone', 1, 'h2', 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO work_version_chapters (version_id, sort_order, content) VALUES ('v_gone', 0, '旧稿')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO export_artifacts (id, version_id, book_id, format, file_rel_path, created_at) VALUES ('a_gone', 'v_gone', 'book_gone', 'epub', 'gone/v1/x.epub', 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO writing_notes (id, book_id, content) VALUES ('n_gone', 'book_gone', '笔记')", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO legacy_completed_works (id, book_id, book_title) VALUES ('l_gone', 'book_gone', '旧账')",
+            [],
+        )
+        .unwrap();
+
+        let removed = purge_orphan_archive_rows(&conn).unwrap();
+        assert_eq!(
+            removed, 4,
+            "四笔孤儿账（版本头/快照/产物记录/笔记）都要清掉"
+        );
+
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+        assert_eq!(
+            count("SELECT COUNT(*) FROM work_versions WHERE book_id='book_live'"),
+            1,
+            "活书的版本不许被清"
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM work_version_chapters WHERE version_id='v_live'"),
+            1,
+            "活书的快照正文不许被清"
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM export_artifacts WHERE id='a_live'"),
+            1,
+            "活书的产物记录不许被清"
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM work_versions"),
+            1,
+            "已删书的版本头还残留"
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM work_version_chapters"),
+            1,
+            "已删书的快照残留"
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM export_artifacts"),
+            1,
+            "已删书的产物记录残留"
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM writing_notes WHERE id='n_gone'"),
+            0,
+            "已删书的笔记必须清掉"
+        );
+        // 反向钉住：已退役旧登记表是需求 Q1 保留一版的**回滚账**，清理通道不许碰它。
+        // （migrate 里那条「数据应完好保留」的测与此同源，两条一起才封住来回改。）
+        assert_eq!(
+            count("SELECT COUNT(*) FROM legacy_completed_works"),
+            1,
+            "已退役旧登记表的行不许被孤儿清理吃掉（Q1 回滚资产）"
+        );
     }
 
     /// B0 迁移地基：ux_wv_book_final 部分唯一索引只约束 is_final=1
@@ -3151,19 +3435,22 @@ mod tests {
             "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
              VALUES ('v1', 'book_a', 1, 'hash1', 1000, 0)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
              VALUES ('v2', 'book_a', 2, 'hash2', 1001, 0)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         // 插入第一条 is_final = 1 成功
         conn.execute(
             "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
              VALUES ('v3', 'book_a', 3, 'hash3', 1002, 1)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         // 尝试插入同一本书第二条 is_final = 1 应因唯一索引 ux_wv_book_final 失败
         let err = conn.execute(
@@ -3178,7 +3465,8 @@ mod tests {
             "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at, is_final)
              VALUES ('v5', 'book_b', 1, 'hash5', 1004, 1)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
     }
 
     /// B0 迁移地基：ux_wv_book_seq 约束同一本书的 seq 唯一
@@ -3191,7 +3479,8 @@ mod tests {
             "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at)
              VALUES ('v1', 'book_a', 1, 'hash1', 1000)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         let err = conn.execute(
             "INSERT INTO work_versions (id, book_id, seq, content_hash, locked_at)
@@ -3220,7 +3509,8 @@ mod tests {
                 created_at INTEGER NOT NULL
             )",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         conn.execute(
             "INSERT INTO completed_works (id, book_id, book_title, format, file_path, file_size, created_at)
@@ -3249,6 +3539,9 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(legacy_count, 1, "数据应完好保留在 legacy_completed_works 中");
+        assert_eq!(
+            legacy_count, 1,
+            "数据应完好保留在 legacy_completed_works 中"
+        );
     }
 }

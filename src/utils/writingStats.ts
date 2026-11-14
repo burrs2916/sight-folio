@@ -10,15 +10,23 @@
 // 离群是 advisory 软提示：只标注不强制（创作者主权）。
 import type { WritingChapter, WritingDailyStat, WritingSetting } from '../services/tauri';
 import type { WritingBookGoal } from '../services/writing';
+import { outlierMeaninglessForGenre } from './writingSchema';
 
 // ─── 卷归属解析（2026-09-28 树感知修复） ───
 //
 // 历代模型差异：旧书用 chapter.volume 字符串表卷（'' = 未分卷）；新结构树由
-// parentId + kind 表达（卷 = kind 为结构层「卷/篇」的节点或确有子级的容器，章挂在
-// 卷下）。统计/总览/语料曾全按 volume 归组 → 新树书全部落「未分卷」。
+// parentId + kind 表达（卷 = kind 命中结构层词或确有子级的容器，章挂在卷下）。
+// 统计/总览/语料曾全按 volume 归组 → 新树书全部落「未分卷」。
 // 修复：resolveVolumeNames 按树解析归属，旧模型书（全书无 parentId）零变化。
 
-const STRUCTURE_KINDS = new Set(['卷', '篇']); // 默认根层级：novel→卷，essay/poetry/script→篇
+/**
+ * 容器词汇表。**刻意只有「卷」，不含「篇」**（2026-11-08 李先生：点散文的篇目还是按小说走）：
+ * 散文的「篇」就是正文单位本身，一旦进了这张表，`createChapter` 给散文顶层写的 kind='篇'
+ * 就会被判成归类节点 —— 写作台随即藏掉正文编辑器换成只读「卷概览」，散文根本没法写。
+ * 散文真的想做容器（篇 › 节、或自建 辑/部）走 `hasChildren` 那条兜底，语义照样正确。
+ * 小说侧一个字节没动：卷仍是容器。
+ */
+const STRUCTURE_KINDS = new Set<string>(['卷']);
 
 export interface VolumeResolver {
   /** chapterId → 行（沿 parentId 上溯用） */
@@ -41,8 +49,8 @@ export function resolveVolumeResolver(chapters: WritingChapter[]): VolumeResolve
 
 /**
  * 是否为卷级结构节点（不算内容章）：
- *   kind ∈ {卷, 篇}（默认结构层）直接命中；否则「确有子级」兜底
- *   （创作者自定义结构层如 部/集/幕 等——没有子级的空结构节点按内容章计，
+ *   kind 命中 STRUCTURE_KINDS（现在只有「卷」）直接算；否则「确有子级」兜底
+ *   （自定义结构层 部/集/幕/辑 与散文的 篇›节 都靠这条；没有子级的空结构节点按内容章计，
  *   与树面板「容器 = 有子节点」展示口径一致的统计侧投影）。
  */
 export function isVolumeNode(r: VolumeResolver, ch: WritingChapter): boolean {
@@ -203,7 +211,23 @@ export type ChapterOutlier = 'long' | 'short' | null;
  *   超长 = 字数 > 2×章均；偏短 = 章节数 ≥ 3 时字数 < 0.3×章均（短章在 1~2 章的书里是常态，不标）。
  * 只标注不强制——离群章可能是刻意的节奏设计（高潮短章/过渡长章）。
  */
-export function chapterOutlier(words: number, avgWords: number, chapterCount: number): ChapterOutlier {
+/**
+ * 离群判定（克制口径，均基于「章均字数」）：
+ *   超长 = 字数 > 2×章均；偏短 = 章节数 ≥ 3 时字数 < 0.3×章均（短章在 1~2 章的书里是常态，不标）。
+ * 只标注不强制——离群章可能是刻意的节奏设计（高潮短章/过渡长章）。
+ *
+ * `genre`（2026-11-09 补，默认空 = 小说口径，历史调用一字不改也照旧）：散文集 / 诗集**直接不判**。
+ * 一本诗集里 12 行的绝句和 200 行的长制并存是体裁常态，拿"均值"去比必然系统性误标
+ * （审计 docs/诗歌剧本体裁实装审计-2026-11-09.md §1 第 13 条）。判据在
+ * `writingSchema.outlierMeaninglessForGenre`，不在这里另列一份体裁名单。
+ */
+export function chapterOutlier(
+  words: number,
+  avgWords: number,
+  chapterCount: number,
+  genre = '',
+): ChapterOutlier {
+  if (outlierMeaninglessForGenre(genre)) return null;
   if (avgWords <= 0) return null;
   if (words > avgWords * 2) return 'long';
   if (chapterCount >= 3 && words > 0 && words < avgWords * 0.3) return 'short';
@@ -220,7 +244,7 @@ export interface WritingChapterWordRow {
 }
 
 /** 章节体量行（保持章序 sortOrder），outlier 由 chapterOutlier 统一口径派生 */
-export function buildChapterWordRows(chapters: WritingChapter[]): WritingChapterWordRow[] {
+export function buildChapterWordRows(chapters: WritingChapter[], genre = ''): WritingChapterWordRow[] {
   const r = resolveVolumeResolver(chapters);
   const sorted = [...contentChapters(r, chapters)].sort((a, b) => a.sortOrder - b.sortOrder);
   const total = sorted.reduce((sum, c) => sum + (c.wordCount || 0), 0);
@@ -231,7 +255,7 @@ export function buildChapterWordRows(chapters: WritingChapter[]): WritingChapter
     volume: volumeNameOf(r, c),
     words: c.wordCount || 0,
     status: c.status,
-    outlier: chapterOutlier(c.wordCount || 0, avg, sorted.length),
+    outlier: chapterOutlier(c.wordCount || 0, avg, sorted.length, genre),
   }));
 }
 
@@ -347,6 +371,7 @@ export function formatBookGoalCorpus(
   chapterCount: number,
   today: Date = new Date(),
   deltas?: DailyDelta[],
+  genre?: string,
 ): { zh: string; en: string } | null {
   if (goal.targetWords <= 0 && goal.targetChapters <= 0 && goal.deadline <= 0) return null;
   const p = deriveBookGoalProgress(goal, actualWords, chapterCount, today);
@@ -362,10 +387,14 @@ export function formatBookGoalCorpus(
   }
   if (p.chapter) {
     zhParts.push(
-      `目标 ${p.chapter.target} 章：已写 ${p.chapter.actual} 章（${p.chapter.pct}%${p.chapter.hit ? '，已达标' : ''}）`,
+      genre === 'diary'
+        ? `目标 ${p.chapter.target} 天：已写 ${p.chapter.actual} 天（${p.chapter.pct}%${p.chapter.hit ? '，已达标' : ''}）`
+        : `目标 ${p.chapter.target} 章：已写 ${p.chapter.actual} 章（${p.chapter.pct}%${p.chapter.hit ? '，已达标' : ''}）`,
     );
     enParts.push(
-      `chapters target ${p.chapter.target}: ${p.chapter.actual} written (${p.chapter.pct}%${p.chapter.hit ? ', reached' : ''})`,
+      genre === 'diary'
+        ? `days target ${p.chapter.target}: ${p.chapter.actual} written (${p.chapter.pct}%${p.chapter.hit ? ', reached' : ''})`
+        : `chapters target ${p.chapter.target}: ${p.chapter.actual} written (${p.chapter.pct}%${p.chapter.hit ? ', reached' : ''})`,
     );
   }
   if (goal.deadline > 0 && p.daysLeft !== null) {

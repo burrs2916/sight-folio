@@ -95,6 +95,7 @@ function baseProps(over: Partial<ChapterTreePanelProps> = {}): ChapterTreePanelP
     setSelectedChapterIds: vi.fn(),
     setActiveSetting: vi.fn(),
     setActiveChapter: vi.fn(),
+    onChapterOpened: vi.fn(),
     dragChapterIdRef: { current: null },
     flushSave: vi.fn(async () => true),
     setDropIndex: vi.fn(),
@@ -196,12 +197,14 @@ describe('写作台左栏章节树 ChapterTreePanel（树形化 · 回归锁）'
     expect(props.setActiveChapter, '点尖角不应切章').not.toHaveBeenCalled();
   });
 
-  it('点行 = 切章并清设定选中；批量模式点行 = 切换选中 updater（不切章）', async () => {
+  it('点行 = 切章 + 清设定选中 + 通知外部打开（默认落正文的落点在 WritingPage）；批量模式点行不切章也不打开', async () => {
     const props = baseProps();
     mount(<ChapterTreePanel {...props} />);
     await click(row('c2'));
     expect(props.setActiveChapter).toHaveBeenCalledWith('c2');
     expect(props.setActiveSetting).toHaveBeenCalledWith(null);
+    // 打开动作必须带上章 id：写作台据此把右栏落到这一章的正文（而不是停在章详情）
+    expect(props.onChapterOpened).toHaveBeenCalledWith('c2');
 
     const setSelectedChapterIds = vi.fn();
     const batch = baseProps({ selectionMode: true, selectedChapterIds: [], setSelectedChapterIds });
@@ -210,6 +213,8 @@ describe('写作台左栏章节树 ChapterTreePanel（树形化 · 回归锁）'
     mount(<ChapterTreePanel {...batch} />);
     await click(row('c1'));
     expect(batch.setActiveChapter).not.toHaveBeenCalled();
+    // 批量勾选不是「我要去写这一章」：顺手打开正文会把作者正在勾的清单搅乱
+    expect(batch.onChapterOpened).not.toHaveBeenCalled();
     expect(setSelectedChapterIds).toHaveBeenCalledTimes(1);
     const updater = setSelectedChapterIds.mock.calls[0][0] as (ids: string[]) => string[];
     expect(updater([])).toEqual(['c1']);
@@ -348,5 +353,42 @@ describe('写作台左栏章节树 ChapterTreePanel（树形化 · 回归锁）'
     expect(document.body.textContent).not.toContain('遗留卷名');
     // 但「移卷」能力仍在：行尾动作照旧（c1 有后兄弟 → 多一个「下移」= 5 个）
     expect(Array.from(row('c1').querySelectorAll('button')).length).toBe(5);
+  });
+});
+
+// ⑯-1：行尾「结构读数」按体裁分岔。
+// 为什么必须测到组件级：scriptStructure 那 19 条纯函数锁跑得再绿，也拦不住
+// "算好了但没接到行上"（⑭ 那次 StatsOverviewCard 漏传 genre 就是这么溜过去的）。
+describe('行尾结构读数按体裁（structureInspectorForGenre 的落点）', () => {
+  const textOf = (id: string) => row(id).textContent ?? '';
+
+  it('剧本行 = 幕场/对白实测读数，且不长形式徽标', () => {
+    const scene = chapter('s1', '第 1 场', {
+      kind: '场',
+      content: '<p>第一幕</p><p>第 1 场</p><p>四凤：我在。</p><p>鲁贵：我知道。</p>',
+    });
+    mount(<ChapterTreePanel {...baseProps({ chapters: [scene], genre: 'script' })} />);
+    const txt = textOf('s1');
+    expect(txt).toContain('1 幕');
+    expect(txt).toContain('1 场');
+    expect(txt).toContain('2 人');
+    expect(txt).not.toContain('未标形式');
+  });
+
+  it('诗行 = 形式徽标（未标注时「未标形式」），不出现剧本读数', () => {
+    const poem = chapter('p1', '第 1 首', { kind: '首', content: '<p>床前明月光</p>' });
+    mount(<ChapterTreePanel {...baseProps({ chapters: [poem], genre: 'poetry' })} />);
+    const txt = textOf('p1');
+    expect(txt).toContain('未标形式');
+    expect(txt).not.toContain('幕');
+  });
+
+  it('小说行两种徽标都不出现（零回归：行的 DOM 一字不改）', () => {
+    const plain = chapter('c9', '第九章', { kind: '章', content: '<p>正文一段。</p>' });
+    mount(<ChapterTreePanel {...baseProps({ chapters: [plain] })} />);
+    const txt = textOf('c9');
+    expect(txt).not.toContain('未标形式');
+    expect(txt).not.toContain('幕');
+    expect(txt).not.toContain('人');
   });
 });

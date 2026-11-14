@@ -3244,17 +3244,29 @@ fn html_to_plain_text(input: &str) -> String {
             out.push(c);
         }
     }
-    out.replace("&lt;", "<")
+    let decoded = out
+        .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
         .replace("&amp;", "&")
-        .replace("&nbsp;", " ")
-        .lines()
-        .map(str::trim_end)
-        .filter(|l| !l.trim().is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
+        .replace("&nbsp;", " ");
+    // W-3：保留段落 / 诗节 / 剧本块之间的分隔空行，与写侧 `plain_text_to_paragraph_html` 按
+    // `\n\n` 分段口径闭合——read_chapter 读出的正文喂回 write_chapter 能还原同样的 <p> 块
+    // （诗分行、剧本对白版式往返无损）。段内换行（<br>）仍保持单个 `\n`，故这里把连续空行
+    // 折叠为「恰好一行空行」、并去掉首尾空行，不引入第三种块协议。
+    let mut out_lines: Vec<&str> = Vec::new();
+    for l in decoded.lines().map(str::trim_end) {
+        if l.trim().is_empty() {
+            // 仅在已有内容、且上一行非空时补一个空行作块分隔（去首空行、折叠连续空行）
+            if !out_lines.is_empty() && out_lines.last().is_some_and(|p| !p.trim().is_empty()) {
+                out_lines.push("");
+            }
+        } else {
+            out_lines.push(l);
+        }
+    }
+    out_lines.join("\n")
 }
 
 /// 把模型传入的「作品引用」解析成书：先按内部 id 直查（【当前作品】上下文口径），
@@ -3696,14 +3708,23 @@ fn html_word_count(html: &str) -> i64 {
     stripped.chars().filter(|c| !c.is_whitespace()).count() as i64
 }
 
-/// 体裁 → 默认顶层层级名。与前端 `writingTree.ts::defaultLevels` 的 [0] 同口径：
-/// novel（及未指定）→ 卷，essay/poetry/script → 篇。AI 新建顶层节点与用户
-/// 手点「新建」得到同样的结构语言，目录树不会出现两套层级命名。
+/// 体裁 → 默认顶层层级名。与前端 `writingTree.ts::defaultRootKind` 是**同一张表的两份实现**
+/// （改一边必须改另一边）：⑱ 起一律给**可写单位**，不给容器层 ——
+/// novel（及未指定/脏值）→ 章，essay → 篇，poetry → 首，script → 场，diary → 天（2026-11-10 日记开闸）。
+/// AI 新建顶层节点与用户手点「新建」得到同样的结构语言，目录树才不会长出两套层级命名。
+///
+/// 2026-11-09 诗歌实装时诗歌从「篇」改成「首」：诗的正文单位就是**一首**，
+/// 而它所在的下钻链是 辑 › 首 —— 「辑」是可选分组层，取链首当顶层会把一首诗标成容器层。
 fn default_root_kind(genre: &str) -> &'static str {
-    if genre == "essay" || genre == "poetry" || genre == "script" {
-        "篇"
-    } else {
-        "卷"
+    match genre {
+        "essay" => "篇",
+        "poetry" => "首",
+        "script" => "场",
+        // 日记的分组层是年与月，但顶层必须是能写正文的那一天（同一条理由）。
+        "diary" => "天",
+        // ⑱：小说顶层不再给「卷」。卷是容器层，`content_chapters` 口径会把有正文的卷
+        // 当分组排除掉 —— AI 建完一章却统计不到，正是前端那本 `新建作品 2` 的成因。
+        _ => "章",
     }
 }
 
@@ -3941,7 +3962,7 @@ impl AgentTool for CreateChapterTool {
          initial prose in `content` (plain text, paragraphs separated by blank lines). \
          Returns the new chapter's internal id — use it with write_chapter for follow-up \
          writing. The new node sits at the top level with the book genre's default level \
-         name (novel→卷, essay/poetry/script→篇), same as the manual 'new chapter' button. \
+         name (novel→卷, essay→篇, poetry→首, script→幕), same as the manual 'new chapter' button. \
          Refuses to create a chapter whose title duplicates an existing one in the same book. \
          book_id accepts the internal book id or the book title."
     }
@@ -3964,7 +3985,7 @@ impl AgentTool for CreateChapterTool {
                 },
                 "kind": {
                     "type": "string",
-                    "description": "Optional level name shown in the tree (卷/章/节/篇…). Defaults to the genre's top level (novel→卷, else→篇)."
+                    "description": "Optional level name shown in the tree (卷/章/节/篇/首/幕…). Defaults to the genre's top level (novel→卷, essay→篇, poetry→首, script→幕)."
                 }
             },
             "required": ["book_id", "title"]
@@ -5569,6 +5590,36 @@ mod tests {
         assert_eq!(plain_text_to_paragraph_html("   "), "");
     }
 
+    // W-3：agent 读写通道对诗 / 剧本往返无损。验收口径：读一首诗→原样写回，diff 为空。
+    // read_chapter 出口用 html_to_plain_text（已改保留块分隔空行），write_chapter 用
+    // plain_text_to_paragraph_html（未动）；两者必须互为逆。本测试钉住这条闭合。
+    #[test]
+    fn html_to_plain_text_roundtrip_preserves_stanzas_and_dialogue() {
+        // 诗：两节（两个 <p>），节内多行（<br>）。读→写必须还原同样的 <p>/<br> 结构。
+        let poem = "<p>床前明月光<br>疑是地上霜</p><p>举头望明月</p>";
+        let back = plain_text_to_paragraph_html(&html_to_plain_text(poem));
+        assert_eq!(back, poem, "诗节间空行与行内换行往返必须无损");
+
+        // 剧本：角色名行 / 台词 / 括注指示，各占一块或一行。版式必须原样回来。
+        let script = "<p>【内景 · 深夜】</p><p>林夜：</p><p>你不该来。</p>";
+        assert_eq!(
+            plain_text_to_paragraph_html(&html_to_plain_text(script)),
+            script
+        );
+
+        // 小说（零回归）：两个普通段落往返同样无损。
+        let prose = "<p>第一段。</p><p>第二段。</p>";
+        assert_eq!(
+            plain_text_to_paragraph_html(&html_to_plain_text(prose)),
+            prose
+        );
+
+        // 连续多个空行（脏数据）不得放大成多个分隔空行，也不得被吞掉结构。
+        let messy = "<p>A</p><p></p><p></p><p>B</p>";
+        let round = plain_text_to_paragraph_html(&html_to_plain_text(messy));
+        assert_eq!(round, "<p>A</p><p>B</p>", "空块被折叠，不产生伪空段");
+    }
+
     #[test]
     fn html_word_count_matches_frontend_pipeline() {
         // 与前端 chapterWordCountFromHtml 相同口径：去标签、去空白、按字符计数
@@ -5714,11 +5765,13 @@ mod tests {
         let new_id = out.metadata["chapterId"].as_str().unwrap().to_string();
         assert!(new_id.starts_with("chap_"));
 
-        // 结构口径与前端「新建章节」一致：顶层、novel→卷、排在全书最后、草稿态
+        // 结构口径与前端「新建章节」一致：顶层、novel→**章**、排在全书最后、草稿态。
+        // ⑱（2026-11-10）：这里原来钉的是「卷」。顶层给容器层的后果不是难看，是丢数据口径 ——
+        // `content_chapters` 把 kind='卷' 当分组排除，AI 或用户新建的这章在统计里根本不算一章。
         let created = repo.get_chapter(&new_id).unwrap().unwrap();
         assert_eq!(created.title, "第二章 夜雨");
         assert_eq!(created.parent_id, None);
-        assert_eq!(created.kind, "卷");
+        assert_eq!(created.kind, "章");
         assert_eq!(created.status, "draft");
         assert_eq!(created.sort_order, 1);
         assert_eq!(created.content, "");
@@ -5755,6 +5808,41 @@ mod tests {
             "<p>秋天，无论在什么地方的秋天，总是好的。</p>"
         );
         assert_eq!(created.word_count, 19);
+    }
+
+    #[tokio::test]
+    async fn create_chapter_uses_poetry_genre_default_root_kind() {
+        // 2026-11-09 诗歌实装：诗的正文单位是**一首**，AI 建的顶层节点默认层级必须是「首」，
+        // 既不是旧口径的「篇」，也不是它下钻链的链首「辑」（辑是可选分组层，见前端 GENRE_STRUCTURE）。
+        let db = writing_db();
+        let repo = SqliteWritingRepository::new(db.clone());
+        let mut book = seed_book(&repo, "b3", "短歌集");
+        book.genre = "poetry".into();
+        repo.save_book(&book).unwrap();
+
+        let tool = CreateChapterTool::new(db);
+        let out = tool
+            .execute(json!({ "book_id": "b3", "title": "雪" }))
+            .await
+            .unwrap();
+        assert!(out.success, "{}", out.result);
+        let id = out.metadata["chapterId"].as_str().unwrap().to_string();
+        assert_eq!(repo.get_chapter(&id).unwrap().unwrap().kind, "首");
+    }
+
+    #[test]
+    fn default_root_kind_covers_every_genre_id_frontend_can_give() {
+        // 与前端 `writingTree.defaultRootKind` 是同一张表的两份实现：这里把四个 genre id
+        // 与脏值/空值全部钉住，谁改一边忘了另一边，这条就红。
+        // ⑱（2026-11-10）：四体裁的顶层都是**可写单位**，容器层（卷/幕/辑）只能由作者显式建。
+        assert_eq!(default_root_kind(""), "章");
+        assert_eq!(default_root_kind("novel"), "章");
+        assert_eq!(default_root_kind("essay"), "篇");
+        assert_eq!(default_root_kind("poetry"), "首");
+        assert_eq!(default_root_kind("script"), "场");
+        // 2026-11-10 日记开闸：前端 GENRE_STRUCTURE.diary.root = 天，这里必须是同一个字
+        assert_eq!(default_root_kind("diary"), "天");
+        assert_eq!(default_root_kind("scribble"), "章");
     }
 
     #[tokio::test]

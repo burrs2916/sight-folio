@@ -90,11 +90,12 @@ const dialog = () => (
 
 const row = (key: string) => document.body.querySelector(`[data-testid="health-row-${key}"]`) as HTMLElement | null;
 
-/** 灌入能同时触发「章账 / 章文本 / 一致性 / 剧情线」四组的数据 */
+/** 灌入能同时触发「章文本 / 一致性 / 剧情线」的数据。
+ *  章号落点靠 c2 的重复标点：2026-11-07「章账」整组撤除后，能指向某一章的发现只剩章文本组。 */
 function seed(withSettings: boolean) {
   useWritingStore.setState({
     activeBookId: BOOK,
-    chapters: [chapter('c1', '了了了 沈砚出现了。', 0), chapter('c2', '', 1)],
+    chapters: [chapter('c1', '了了了 沈砚出现了。', 0), chapter('c2', '他好。。然后走了', 1)],
     outlines: [],
     timelineEvents: [event('e1', null)],
     foreshadowings: [],
@@ -128,7 +129,7 @@ describe('WritingHealthDialog', () => {
     seed(false);
     await mount(dialog());
 
-    const r = row('c2:empty');
+    const r = row('c2:RepeatPunct');
     expect(r).toBeTruthy();
     expect(r!.getAttribute('data-jumpable')).toBe('1');
     await act(async () => {

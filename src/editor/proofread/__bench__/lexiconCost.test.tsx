@@ -38,17 +38,6 @@ function chapterChars(n: number): string {
   return s.slice(0, n);
 }
 
-/**
- * 构造**绝不会命中**的词形。
- * 测成本要用全 miss 的词：命中的那条路径会 push issue、拼 excerpt，测出来的是
- * "扫描 + 产出"的混合成本，而不是扫描本身。而且真实场景里作者加的词大多在正文里
- * 只出现零次或几次。
- */
-function missingTerms(n: number): TypoPhrase[] {
-  const out: TypoPhrase[] = [];
-  for (let i = 0; i < n; i++) out.push({ wrong: `硸硹${i}硺`, right: '替换' });
-  return out;
-}
 
 const BUILTIN: CustomLexicon = {
   typos: TYPO_PHRASES,
@@ -81,6 +70,10 @@ function bench(label: string, fn: () => unknown, rounds = 5): number {
  *
  * 造对比用的词时必须让首字分散：真实词库的中文首字分布很广，而若所有候选都以同一个字开头，
  * 正则引擎只要找不到那个字就能整趟跳过，测出来的是"引擎运气好"，不是实现的真实成本。
+ *
+ * 词形带 `硸` 这个正文里绝不出现的收尾字 ⇒ 全 miss：命中的那条路径会 push issue、拼 excerpt，
+ * 量出来的是"扫描 + 产出"的混合成本，而不是扫描本身。（㉙：这条规矩原先写在另一个已经没人在用的
+ * 构造器注释里，结果两个规模测试用了那个"同前缀"的构造器，尺子量错了 —— 规矩要写在**用它的地方**。）
  */
 const HEADS = '一二三四五六七八九十上下左右中内外年月日天地山水火木金土石革糸言谷';
 function scatteredTerms(n: number): TypoPhrase[] {
@@ -117,7 +110,11 @@ describe('校对词库扫描成本', { timeout: 120_000 }, () => {
     const sizes = [200, 1_000, 3_000, 6_000];
     const results: Array<{ n: number; ms: number }> = [];
     for (const n of sizes) {
-      const custom: CustomLexicon = { ...EMPTY, typos: missingTerms(n) };
+      // 用**首字分散**的词形（本文件 :79-84 自己立的规矩）。
+      // 以前这里用 missingTerms()：那些词形全部以同一个前缀开头，引擎找不到那个字就能整趟跳过，
+      // 于是"6,000 条"其实和"200 条"花一样多时间 —— 2026-11-10 全量门禁就是这么红的
+      // （`expected 6.42 to be greater than 7.46`）：红的不是产品，是**测错了的尺子**。
+      const custom: CustomLexicon = { ...EMPTY, typos: scatteredTerms(n) };
       const lex = mergeLexicon(BUILTIN, custom);
       const ms = bench(`5,000 字 + ${n} 条自定义（全 miss）`, () => runProofread(TEXT_5K, lex));
       results.push({ n, ms });
@@ -141,7 +138,8 @@ describe('校对词库扫描成本', { timeout: 120_000 }, () => {
    * 配上大词库时的真实耗时。这个组合是最容易踩到的坏情况——一章粘了超长文本 + 词库膨胀。
    */
   it('最坏组合：超长章节叠加大词库', () => {
-    const custom: CustomLexicon = { ...EMPTY, typos: missingTerms(1_000) };
+    // 同上：最坏组合必须真的"最坏"，用首字分散词形，否则量出来的是引擎运气（㉙ 同一条规矩）
+    const custom: CustomLexicon = { ...EMPTY, typos: scatteredTerms(1_000) };
     const lex = mergeLexicon(BUILTIN, custom);
     const ms = bench('50,000 字 + 1,000 条自定义', () => runProofread(TEXT_50K, lex));
     // 防抖 1.2s 之后跑；这里给一个宽松到荒谬的上界，只抓数量级退化

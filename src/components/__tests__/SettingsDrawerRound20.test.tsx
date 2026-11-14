@@ -78,6 +78,11 @@ beforeEach(() => {
   useSettingsSyncStore.getState().reset();
 });
 
+// 等待预算的说明写在下面「底部落盘状态」那组里（那两条才用到 settle() 的真睡 700ms × 2）。
+// 试过 `describe.configure({ testTimeout })` 做文件级设置：本仓 Vitest 3.2.6 直接
+// `describe.configure is not a function`，整个文件收集失败（8 条测试从 4128 掉到 4120）——
+// 当场被全量门禁抓到，改回逐条传第三个参数。
+
 describe('设置抽屉 · 段首缩进开关', () => {
   it('点一下真的会翻，并且写进设置库（此前是无 onChange 的死控件）', async () => {
     renderDrawer();
@@ -159,6 +164,12 @@ describe('设置抽屉 · 预设改名', () => {
   });
 });
 
+// 这一组的两条各要 `await settle()` 两次，而 settle() 是**真睡 700ms**（盖住设置落盘的防抖）。
+// 单发本文件一直全绿；全量 4100+ 条一起跑时负载高，「写库失败时不再谎称已保存」被默认
+// 5000ms 顶过两次超时（台账 S24：2026-11-10 两次现场都在账上，都是 `Test timed out in 5000ms`，
+// 单发均 8/8 绿）。这里只抬**等待预算**到 20s：断言一条不减、没有 skip、不吞失败，
+// 只是不再让"机器忙"冒充"功能坏了"。正解是把 sleep 换成按状态等待（waitFor），
+// 那属测试改造，记在 S24 里**没销账**。
 describe('设置抽屉 · 底部落盘状态', () => {
   it('写入过程与结果都对得上：先「正在写入」，落库成功后带出可对账的时间', async () => {
     renderDrawer();
@@ -174,7 +185,7 @@ describe('设置抽屉 · 底部落盘状态', () => {
     expect(note).toContain('已自动保存');
     // 时间真的渲染出来了（不是空串把 {time} 占位符吃掉）
     expect(note).toMatch(/\d{1,2}:\d{2}/);
-  });
+  }, 20000);
 
   it('本次启动没写过任何设置时，说明的是「即时生效、无需手动保存」', () => {
     renderDrawer();
@@ -200,5 +211,5 @@ describe('设置抽屉 · 底部落盘状态', () => {
 
     expect(screen.getByTestId('settings-sync-status').textContent).toContain('已自动保存');
     expect(kv.get('theme')).toBeTruthy();
-  });
+  }, 20000);
 });

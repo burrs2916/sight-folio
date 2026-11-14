@@ -42,7 +42,7 @@ import { useToastStore } from '../../store/toastStore';
 import Tooltip from '@mui/material/Tooltip';
 import { t } from '../../i18n';
 import logger from '../../utils/logger';
-import { BOOK_STATUSES, bookStatusDef, genreLabelKey, mediumLabelKey } from '../../utils/writingSchema';
+import { BOOK_STATUSES, bookStatusDef, genreLabelKey, carrierTermKeys, surfaceKeyForGenre } from '../../utils/writingSchema';
 import { BookMetaDialog } from '../../pages/BookMetaDialog';
 import {
   deriveBookGoalProgress,
@@ -56,6 +56,7 @@ import {
   type DailyDelta,
 } from '../../utils/writingStats';
 import { uiFontSize } from '../../theme/appearanceScales';
+import { confirmDestructive } from '../../store/confirmStore';
 
 /** 素材库分类约定：插画走 writing/illustrations，封面走 writing/covers-{bookId}（一书一目录） */
 const CATEGORY = 'writing';
@@ -336,17 +337,30 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
     }
   };
 
-  const handleClear = async () => {
+  const handleClear = () => {
     if (!cover) return;
-    if (!window.confirm(t('studio.cover.clearConfirm'))) return;
-    try {
-      await assetApi.remove(cover.path);
-      setCover(null);
-      showToast(t('studio.cover.cleared'), 'success');
-    } catch (e) {
-      logger.warn('BookMetaPanel', 'clear cover failed', { error: String(e) });
-      showToast(t('studio.opFailed', { msg: String(e) }), 'error');
-    }
+    // 删除铁律（③e）：这是全仓**最后一处原生 window.confirm**，换掉的同时把谎补上——
+    // 旧文案「确定清除这张封面？」听着像取消引用，实际 `assetApi.remove` 会把图片文件
+    // **从磁盘删掉**。现在后果写明白：文件会没、不可恢复。
+    const path = cover.path;
+    confirmDestructive({
+      title: t('studio.cover.clearConfirmTitle'),
+      impact: [t('studio.cover.clearConfirmImpactFile'), t('studio.cover.clearConfirmImpactBook')],
+      confirmLabel: t('nav.delete'),
+      cancelLabel: t('ui.cancel'),
+      onConfirm: () => {
+        void (async () => {
+          try {
+            await assetApi.remove(path);
+            setCover(null);
+            showToast(t('studio.cover.cleared'), 'success');
+          } catch (e) {
+            logger.warn('BookMetaPanel', 'clear cover failed', { error: String(e) });
+            showToast(t('studio.opFailed', { msg: String(e) }), 'error');
+          }
+        })();
+      },
+    });
   };
 
   if (!bookId || !book) return null;
@@ -391,7 +405,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
       <SectionLabel>{t('studio.bookMeta.genreMedium')}</SectionLabel>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
         <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.primary' }}>
-          {t(genreLabelKey(book.genre))} · {t(mediumLabelKey(book.medium))}
+          {t(genreLabelKey(book.genre))} · {t(carrierTermKeys(book.genre, book.medium).labelKey)}
         </Typography>
         <Tooltip title={t('studio.bookMeta.edit')}>
           <IconButton size="small" onClick={() => setMetaDialogOpen(true)} aria-label={t('studio.bookMeta.edit')}>
@@ -564,13 +578,13 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
           )}
         </Box>
 
-        {/* 目标章节数 + 达成率 */}
+        {/* 目标单位数 + 达成率（单位名走 `unitTargetLabel` 槽位：小说章 / 日记天） */}
         <Box sx={{ mb: 1 }}>
           <TextField
             size="small"
             type="number"
             fullWidth
-            label={t('writing.bookTargetChapters')}
+            label={t(surfaceKeyForGenre(book.genre, 'unitTargetLabel'))}
             value={draftChapters}
             onChange={(e) => setDraftChapters(e.target.value)}
             onBlur={commitBookGoal}
@@ -584,7 +598,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
             <Box sx={{ mt: 0.5 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
                 <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.secondary' }}>
-                  {t('writing.bookChapterProgress', {
+                  {t(surfaceKeyForGenre(book.genre, 'unitProgress'), {
                     chapters: actual?.chapters ?? 0,
                     target: bookGoalProgress.chapter.target,
                   })}
@@ -608,7 +622,7 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
             </Box>
           ) : (
             <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', mt: 0.5 }}>
-              {t('writing.bookChapterUnset')}
+              {t(surfaceKeyForGenre(book.genre, 'unitTargetUnset'))}
             </Typography>
           )}
         </Box>
@@ -722,7 +736,10 @@ export function BookMetaPanel({ bookId, onReparse }: { bookId: string | null; on
         {/* 当前体量小结：即便未设目标也让创作者一眼看到进度基线 */}
         {actual && (
           <Typography sx={{ fontSize: uiFontSize(10), color: 'text.disabled', mt: 0.75 }}>
-            {t('studio.bookMeta.currentTally', { chapters: actual.chapters, words: actual.words.toLocaleString() })}
+            {t(surfaceKeyForGenre(book.genre, 'currentTally'), {
+              chapters: actual.chapters,
+              words: actual.words.toLocaleString(),
+            })}
           </Typography>
         )}
       </Box>

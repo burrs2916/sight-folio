@@ -59,6 +59,7 @@ import { useToastStore } from '../../store/toastStore';
 import { sortComponentsEdgesFirst } from '../utils/canvasOrder';
 import { topDirOf } from '../utils/architectureMetrics';
 import logger from '../../utils/logger';
+import { viewKindLabelKey } from '../../utils/writingSchema';
 import {
   createBlankWritingEntity,
   createBookFromCarrierDrop,
@@ -1173,7 +1174,8 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             if (dropOpensCurrentBookView(isBookScene, dropGenre)) {
               useToastStore
                 .getState()
-                .showToast(t('editor.carrierViewSwitched', { name: t('writing.viewKind.catalog') }), 'info');
+                // 视图名按体裁（㉛ T-F）：拖「剧本」进空书，toast 不该报「已切换到大纲」
+                .showToast(t('editor.carrierViewSwitched', { name: t(viewKindLabelKey(dropGenre, 'catalog')) }), 'info');
               return;
             }
             void createBookFromCarrierDrop(dropGenre)
@@ -1275,7 +1277,8 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
             if (dropOpensCurrentBookView(isBookScene, preGenre)) {
               useToastStore
                 .getState()
-                .showToast(t('editor.carrierViewSwitched', { name: t('writing.viewKind.catalog') }), 'info');
+                // 同上：blank 载体走的是这条通路，两处必须同一个解析器（㉛ T-F）
+                .showToast(t('editor.carrierViewSwitched', { name: t(viewKindLabelKey(preGenre, 'catalog')) }), 'info');
               return;
             }
             void createBookFromCarrierDrop(preGenre)

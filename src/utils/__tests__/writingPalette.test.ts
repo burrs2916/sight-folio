@@ -39,6 +39,24 @@ describe("paletteFor", () => {
     expect(essay.config).toMatchObject({ __blank: true, genre: "essay" });
   });
 
+  it("诗歌拖源叫「诗作」，说明行也跟着换成「一首」（2026-11-09 开闸）", () => {
+    const poem = allItems("poetry", "catalog").find((i) => i.id === "chapter")!;
+    expect(poem.labelKey).toBe("writingLeft.tplPoem");
+    expect(t(poem.labelKey)).toBe("诗作");
+    // 说明行必须一起换：昨天散文只换了标签，说明还写着「拖出即建一章」，同一概念两个名词
+    expect(t(poem.descKey)).toContain("一首");
+    expect(poem.config).toMatchObject({ __blank: true, genre: "poetry" });
+  });
+
+  it("四个体裁的拖源标签与说明都翻得出来（面板不许渲染裸 key）", () => {
+    for (const genre of ["novel", "essay", "poetry", "script"]) {
+      for (const item of allItems(genre, "catalog")) {
+        expect(t(item.labelKey), `${genre}/${item.id} 标签`).not.toBe(item.labelKey);
+        expect(t(item.descKey), `${genre}/${item.id} 说明`).not.toBe(item.descKey);
+      }
+    }
+  });
+
   it("人物 / 世界观：各只给自己的设定卡，且都走真建档", () => {
     const chars = paletteFor("novel", "characters");
     expect(chars.groups.find((g) => g.key === "typed")!.items.map((i) => i.id)).toEqual(["character"]);

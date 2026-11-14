@@ -274,4 +274,54 @@ describe('AI 助手空态 · 当前书籍洞察摘要（T5 回归锁）', () => 
     const texts = leafTexts();
     expect(texts.some((x) => x.includes('还没有章节内容'))).toBe(true);
   });
+
+  // 2026-11-08 李先生：「文章非常大、体量非常大的话，这个地方就会非常局促，整个布局会被打乱」
+  // 这条锁死三件事：数字不许是不可折行的长串、长列表必须折叠成 +N、单位不许硬编码中文。
+  it('大体量书籍：数字走紧凑形态、长列表折叠成 +N、单位走 i18n', async () => {
+    const bigChapters: WritingChapter[] = Array.from({ length: 12 }, (_, i) => ({
+      ...chapters[0],
+      id: `ch_big_${i + 1}`,
+      title: `第${i + 1}章 这一章的名字长得离谱要在很窄的洞察卡里被截断而不能把右边的字数与时间顶出容器`,
+      volume: `第 ${Math.floor(i / 2) + 1} 卷`,
+      wordCount: 1028806,
+      status: i === 0 ? 'completed' : 'draft',
+      sortOrder: i + 1,
+      updatedAt: 1700000000 + i * 100,
+    }));
+    const manySettings: WritingSetting[] = Array.from({ length: 9 }, (_, i) =>
+      setting({ id: `s_big_${i}`, name: `角色名${i + 1}` }),
+    );
+    seedStore({
+      activeBookId: 'book_1',
+      books: [book],
+      chapters: bigChapters,
+      settings: manySettings,
+      // 四类预警一起造：时间线冲突 / 伏笔回收早于埋设 / 人设未被引用 / 大纲节拍未落章
+      timelineEvents: [
+        { id: 't1', bookId: 'book_1', settingId: null, at: '第1天', event: '爆炸', chapterId: 'ch_big_1', storylineId: null, outlineId: null, sortOrder: 1, createdAt: 0, updatedAt: 0 },
+        { id: 't2', bookId: 'book_1', settingId: null, at: '第1天', event: '颁奖', chapterId: 'ch_big_2', storylineId: null, outlineId: null, sortOrder: 2, createdAt: 0, updatedAt: 0 },
+      ],
+      foreshadowings: [
+        { id: 'f1', bookId: 'book_1', title: '旧钥匙', status: 'pending', plantChapterId: 'ch_big_3', payoffChapterId: 'ch_big_1', sortOrder: 1, createdAt: 0, updatedAt: 0 },
+      ],
+      outlines: [
+        { id: 'o1', bookId: 'book_1', chapterId: null, title: '未落章节的节拍', content: '', sortOrder: 1, createdAt: 0, updatedAt: 0 },
+      ],
+      storylines: [],
+    });
+    await mountAsync(<WritingBookInsights />);
+
+    const text = document.body.textContent ?? '';
+    const texts = leafTexts();
+    // 总字数 12 × 1,028,806 = 12,345,672 → 显示 1234.6万（而不是 10 个字符的长串把格子顶爆）
+    expect(text).toContain('1234.6万');
+    // 6 个卷只摆 4 个、9 个人设只摆 6 个：剩下的必须以「+N」出现，不能静悄悄消失
+    expect(texts.filter((x) => /^\+\d+$/.test(x)).length).toBeGreaterThanOrEqual(2);
+    // 预警 chip 至多 3 条 + 1 个「+N」
+    const warnChips = Array.from(document.body.querySelectorAll('.MuiChip-colorWarning'));
+    expect(warnChips.length).toBeGreaterThan(1);
+    expect(warnChips.length).toBeLessThanOrEqual(4);
+    // 「字」这个单位以前硬编码中文；现在跟界面语言走
+    expect(text).toContain('102.9万 字');
+  });
 });

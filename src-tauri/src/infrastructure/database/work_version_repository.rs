@@ -11,25 +11,31 @@
 //!    但「清旧 + 置新」是两条 UPDATE，中途失败会留下零个或两个正稿。
 //! 3. **删版本连带抹产物记录**：产物必然挂在版本下（D1），版本没了还留着产物记录，
 //!    成品页就会出现指向空气的幽灵条目。磁盘文件是否删除由调用方决定，本层只回传相对路径。
-use crate::domain::work_version::{ExportArtifact, WorkVersion, WorkVersionChapter};
+use crate::domain::work_version::{ExportArtifact, VersionAsset, WorkVersion, WorkVersionChapter};
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::connection::Database;
 use std::sync::Arc;
 
 const VERSION_COLS: &str = "id, book_id, seq, label, note, is_final, chapter_count, word_count, \
-                            content_hash, schema_ver, locked_at";
+                            content_hash, schema_ver, locked_at, author, publisher, completed_at, isbn";
 const VERSION_CHAPTER_COLS: &str = "version_id, sort_order, src_chapter_id, title, content, kind, \
-                                    parent_id, status, word_count";
+                                    parent_id, status, word_count, cover, entry_date";
 const ARTIFACT_COLS: &str = "id, version_id, book_id, format, spec_id, file_rel_path, file_size, \
                              status, error, origin, created_at";
 
 pub trait WorkVersionRepository {
-    /// 原子写入一个版本头 + 它的全部章节副本；`version.is_final` 为真时同事务清掉旧正稿。
+    /// 原子写入一个版本头 + 全部章节副本 + **定格资产**；`version.is_final` 为真时同事务清掉旧正稿。
+    ///
+    /// 三者同事务是刻意的：只写正文不写图，等于留下一个「以后必然缺图」的版本；
+    /// 反过来只写图不写正文则是孤儿字节。要么一起成，要么一起不。
     fn insert_version(
         &self,
         version: &WorkVersion,
         chapters: &[WorkVersionChapter],
+        assets: &[VersionAsset],
     ) -> AppResult<()>;
+    /// 读某版本的全部定格资产（导出用）。定格之前锁的历史版本返回空表。
+    fn list_version_assets(&self, version_id: &str) -> AppResult<Vec<VersionAsset>>;
     fn list_versions(&self, book_id: &str) -> AppResult<Vec<WorkVersion>>;
     fn find_version(&self, id: &str) -> AppResult<Option<WorkVersion>>;
     /// 最新一版（seq 最大）：指纹比对与「下一版序号」都以它为参照。
@@ -55,7 +61,13 @@ pub trait WorkVersionRepository {
     /// select+update 必须同事务：两步分开会让两个 worker 领到同一条任务重复导出。
     fn claim_next_queued(&self) -> AppResult<Option<ExportArtifact>>;
     /// 回写结局：ready（带 file_size）或 failed（带 error）。
-    fn update_artifact_outcome(&self, id: &str, status: &str, file_size: i64, error: &str) -> AppResult<()>;
+    fn update_artifact_outcome(
+        &self,
+        id: &str,
+        status: &str,
+        file_size: i64,
+        error: &str,
+    ) -> AppResult<()>;
     /// 重试：仅 failed → queued 并清 error；状态不符返回 false（判不判归用例层）。
     fn requeue_failed_artifact(&self, id: &str) -> AppResult<bool>;
     /// 按 id 删一条产物/任务记录；不存在返回 false。
@@ -92,6 +104,10 @@ fn row_to_version(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkVersion> {
         content_hash: row.get(8)?,
         schema_ver: row.get(9)?,
         locked_at: row.get(10)?,
+        author: row.get(11)?,
+        publisher: row.get(12)?,
+        completed_at: row.get(13)?,
+        isbn: row.get(14)?,
     })
 }
 
@@ -106,6 +122,8 @@ fn row_to_version_chapter(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkVersi
         parent_id: row.get(6)?,
         status: row.get(7)?,
         word_count: row.get(8)?,
+        cover: row.get(9)?,
+        entry_date: row.get(10)?,
     })
 }
 
@@ -130,9 +148,31 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
         &self,
         version: &WorkVersion,
         chapters: &[WorkVersionChapter],
+        assets: &[VersionAsset],
     ) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
+
+        // 定格资产（R4）：与版本头、正文同一事务，见 trait 注释
+        for a in assets {
+            tx.execute(
+                "INSERT OR REPLACE INTO version_assets
+                 (version_id, rel_path, media_type, bytes, missing, created_at)
+                 VALUES (?1,?2,?3,?4,?5,?6)",
+                rusqlite::params![
+                    a.version_id,
+                    a.rel_path,
+                    a.media_type,
+                    a.bytes,
+                    a.missing as i64,
+                    version.locked_at
+                ],
+            )?;
+        }
 
         if version.is_final {
             // 先清后立：顺序不能反，否则部分唯一索引会在「旧正稿还在」时把新正稿顶掉。
@@ -144,8 +184,8 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
         tx.execute(
             "INSERT INTO work_versions
              (id, book_id, seq, label, note, is_final, chapter_count, word_count,
-              content_hash, schema_ver, locked_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+              content_hash, schema_ver, locked_at, author, publisher, completed_at, isbn)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)",
             rusqlite::params![
                 version.id,
                 version.book_id,
@@ -158,14 +198,18 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
                 version.content_hash,
                 version.schema_ver,
                 version.locked_at,
+                version.author,
+                version.publisher,
+                version.completed_at,
+                version.isbn,
             ],
         )?;
         for ch in chapters {
             tx.execute(
                 "INSERT INTO work_version_chapters
                  (version_id, sort_order, src_chapter_id, title, content, kind, parent_id,
-                  status, word_count)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                  status, word_count, cover, entry_date)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
                 rusqlite::params![
                     ch.version_id,
                     ch.sort_order,
@@ -176,6 +220,8 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
                     ch.parent_id,
                     ch.status,
                     ch.word_count,
+                    ch.cover,
+                    ch.entry_date,
                 ],
             )?;
         }
@@ -183,8 +229,39 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
         Ok(())
     }
 
+    fn list_version_assets(&self, version_id: &str) -> AppResult<Vec<VersionAsset>> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn.prepare(
+            "SELECT rel_path, media_type, bytes, missing FROM version_assets
+              WHERE version_id = ?1 ORDER BY rel_path",
+        )?;
+        let mut rows = stmt.query_map([version_id], |r| {
+            let missing: i64 = r.get(3)?;
+            Ok(VersionAsset {
+                version_id: version_id.to_string(),
+                rel_path: r.get(0)?,
+                media_type: r.get(1)?,
+                bytes: r.get(2)?,
+                missing: missing != 0,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
     fn list_versions(&self, book_id: &str) -> AppResult<Vec<WorkVersion>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {VERSION_COLS} FROM work_versions WHERE book_id = ?1 ORDER BY seq DESC"
         ))?;
@@ -195,7 +272,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn find_version(&self, id: &str) -> AppResult<Option<WorkVersion>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {VERSION_COLS} FROM work_versions WHERE id = ?1 LIMIT 1"
         ))?;
@@ -207,7 +288,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn latest_version(&self, book_id: &str) -> AppResult<Option<WorkVersion>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {VERSION_COLS} FROM work_versions WHERE book_id = ?1 ORDER BY seq DESC LIMIT 1"
         ))?;
@@ -219,7 +304,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn max_seq(&self, book_id: &str) -> AppResult<i64> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         // MAX() 在无行时返回 NULL，这不是查询失败：显式按 Option 取，取不到即视为 0 版。
         let max: Option<i64> = conn
             .query_row(
@@ -232,7 +321,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn set_final_version(&self, book_id: &str, version_id: &str) -> AppResult<()> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         let owned: i64 = tx.query_row(
             "SELECT COUNT(*) FROM work_versions WHERE id = ?1 AND book_id = ?2",
@@ -249,21 +342,34 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
             "UPDATE work_versions SET is_final = 0 WHERE book_id = ?1 AND is_final = 1",
             [book_id],
         )?;
-        tx.execute("UPDATE work_versions SET is_final = 1 WHERE id = ?1", [version_id])?;
+        tx.execute(
+            "UPDATE work_versions SET is_final = 1 WHERE id = ?1",
+            [version_id],
+        )?;
         tx.commit()?;
         Ok(())
     }
 
     fn delete_version(&self, version_id: &str) -> AppResult<Vec<String>> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         let rel_paths: Vec<String> = tx
             .prepare("SELECT file_rel_path FROM export_artifacts WHERE version_id = ?1")?
             .query_map([version_id], |row| row.get(0))?
             .filter_map(|r| r.ok())
             .collect();
-        tx.execute("DELETE FROM export_artifacts WHERE version_id = ?1", [version_id])?;
-        tx.execute("DELETE FROM work_version_chapters WHERE version_id = ?1", [version_id])?;
+        tx.execute(
+            "DELETE FROM export_artifacts WHERE version_id = ?1",
+            [version_id],
+        )?;
+        tx.execute(
+            "DELETE FROM work_version_chapters WHERE version_id = ?1",
+            [version_id],
+        )?;
         let removed = tx.execute("DELETE FROM work_versions WHERE id = ?1", [version_id])?;
         if removed == 0 {
             return Err(AppError::NotFound(format!("版本 {version_id} 不存在")));
@@ -273,7 +379,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn list_version_chapters(&self, version_id: &str) -> AppResult<Vec<WorkVersionChapter>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {VERSION_CHAPTER_COLS} FROM work_version_chapters\n             WHERE version_id = ?1 ORDER BY sort_order ASC"
         ))?;
@@ -284,7 +394,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn insert_artifact(&self, artifact: &ExportArtifact) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "INSERT INTO export_artifacts
              (id, version_id, book_id, format, spec_id, file_rel_path, file_size, status,
@@ -308,7 +422,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn find_artifact(&self, id: &str) -> AppResult<Option<ExportArtifact>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {ARTIFACT_COLS} FROM export_artifacts WHERE id = ?1 LIMIT 1"
         ))?;
@@ -320,10 +438,18 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn list_artifacts(&self, book_id: Option<&str>) -> AppResult<Vec<ExportArtifact>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let sql = format!(
             "SELECT {ARTIFACT_COLS} FROM export_artifacts {} ORDER BY created_at ASC, id ASC",
-            if book_id.is_some() { "WHERE book_id = ?1" } else { "" }
+            if book_id.is_some() {
+                "WHERE book_id = ?1"
+            } else {
+                ""
+            }
         );
         let mut stmt = conn.prepare(&sql)?;
         let rows = match book_id {
@@ -338,7 +464,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn list_export_jobs(&self) -> AppResult<Vec<ExportArtifact>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let mut stmt = conn.prepare(&format!(
             "SELECT {ARTIFACT_COLS} FROM export_artifacts
              WHERE status IN ('queued', 'running', 'failed')
@@ -351,7 +481,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn claim_next_queued(&self) -> AppResult<Option<ExportArtifact>> {
-        let mut conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let tx = conn.transaction()?;
         let claimed: Option<ExportArtifact> = tx
             .query_row(
@@ -387,8 +521,18 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
         }))
     }
 
-    fn update_artifact_outcome(&self, id: &str, status: &str, file_size: i64, error: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    fn update_artifact_outcome(
+        &self,
+        id: &str,
+        status: &str,
+        file_size: i64,
+        error: &str,
+    ) -> AppResult<()> {
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         conn.execute(
             "UPDATE export_artifacts SET status = ?2, file_size = ?3, error = ?4 WHERE id = ?1",
             rusqlite::params![id, status, file_size, error],
@@ -397,7 +541,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn requeue_failed_artifact(&self, id: &str) -> AppResult<bool> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let changed = conn.execute(
             "UPDATE export_artifacts SET status = 'queued', error = '' WHERE id = ?1 AND status = 'failed'",
             [id],
@@ -406,12 +554,20 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn delete_artifact(&self, id: &str) -> AppResult<bool> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(conn.execute("DELETE FROM export_artifacts WHERE id = ?1", [id])? > 0)
     }
 
     fn fail_interrupted_artifacts(&self, error: &str) -> AppResult<i64> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let changed = conn.execute(
             "UPDATE export_artifacts SET status = 'failed', error = ?1
              WHERE status IN ('queued', 'running')",
@@ -421,7 +577,11 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
     }
 
     fn count_ready_artifacts(&self, book_id: &str, format: &str) -> AppResult<i64> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let count = if format.is_empty() {
             conn.query_row(
                 "SELECT COUNT(*) FROM export_artifacts WHERE book_id = ?1 AND status = 'ready'",

@@ -21,6 +21,7 @@ import { useWritingStore } from "../../store/writingStore";
 import { t, resolveFragments, getLang } from "../../i18n";
 import { buildTree, defaultLevels, suggestedChildKind, type TreeNode } from "../../utils/writingTree";
 import { openWritingDesk } from "../../utils/writingDeskWindow";
+import { unitNameKey, surfaceKeyForGenre } from "../../utils/writingSchema";
 
 const LAYER_COLORS = [
   "#94A3B8",
@@ -54,6 +55,12 @@ export const ArchitectureLayersPanel = memo(function ArchitectureLayersPanel({
   const isBookScene = useSceneStore(
     (s) => s.scenes.find((sc) => sc.id === analysisId)?.primaryLanguage === "novel-zh"
   );
+  // ㉗ 对话框标题也得跟体裁走：入口按钮改成「年月结构」而这里还写「卷部结构」= 半截话。
+  // 书场景 id = "wscan_{bookId}"（与下面 BookVolumeView 同一口径）；取不到体裁 → '' → 回落原键。
+  const structGenre = useWritingStore((s) => {
+    const id = analysisId?.startsWith("wscan_") ? analysisId.slice("wscan_".length) : null;
+    return id ? s.books.find((b) => b.id === id)?.genre ?? "" : "";
+  });
 
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(LAYER_COLORS[0]);
@@ -133,7 +140,7 @@ export const ArchitectureLayersPanel = memo(function ArchitectureLayersPanel({
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         {isBookScene ? <MenuBookIcon sx={{ color: "primary.main" }} /> : <LayersIcon sx={{ color: "primary.main" }} />}
-        {isBookScene ? t("panel.layers.bookTitle") : t("panel.layers.title")}
+        {isBookScene ? t(surfaceKeyForGenre(structGenre, "volumeStructButton")) : t("panel.layers.title")}
       </DialogTitle>
       <DialogContent dividers>
         {isBookScene ? (
@@ -578,7 +585,7 @@ function BookVolumeRow({ tree, depth, bookId, bookTitle, genre }: {
           <Chip
             size="small"
             variant="outlined"
-            label={t("panel.layers.bookVolumeStat", {
+            label={t(surfaceKeyForGenre(genre, "volumeStructStat"), {
               chapters: stats.chapters,
               words: fmtVolumeWords(stats.words),
               finished: stats.finished,
@@ -656,13 +663,13 @@ export function BookVolumeView({ analysisId }: { analysisId: string | null }) {
       <Box sx={{ textAlign: "center", py: 4, color: "text.secondary" }}>
         <MenuBookIcon sx={{ fontSize: 40, opacity: 0.3 }} />
         <Typography variant="body2" sx={{ mt: 1 }}>
-          {t("panel.layers.bookEmpty")}
+          {t(surfaceKeyForGenre(genre, "volumeStructEmpty"))}
         </Typography>
         <Button
           variant="outlined"
           startIcon={<AddIcon />}
           sx={{ mt: 2 }}
-          onClick={() => void createChapter(t("writing.newChapterName", { n: 1 }))}
+          onClick={() => void createChapter(t(unitNameKey(genre), { n: 1 }))}
         >
           {t("writingDesign.addNode")}
         </Button>
@@ -684,7 +691,7 @@ export function BookVolumeView({ analysisId }: { analysisId: string | null }) {
       ))}
       <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, backgroundColor: "action.hover" }}>
         <Typography variant="caption" color="text.secondary">
-          {t("panel.layers.bookTip")}
+          {t(surfaceKeyForGenre(genre, "volumeStructTip"))}
         </Typography>
       </Box>
     </Box>

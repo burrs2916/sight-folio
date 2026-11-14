@@ -56,13 +56,8 @@ fn home_dir() -> AppResult<PathBuf> {
 /// 确保目录存在；失败时错误里带上**具体路径与系统原因**。
 /// 已存在但不是目录，同样算失败（作品库根指向文件属于环境被改坏，必须暴露）。
 fn ensure_directory(path: &Path) -> AppResult<()> {
-    std::fs::create_dir_all(path).map_err(|e| {
-        AppError::Internal(format!(
-            "无法创建作品库目录 {}：{}",
-            path.display(),
-            e
-        ))
-    })
+    std::fs::create_dir_all(path)
+        .map_err(|e| AppError::Internal(format!("无法创建作品库目录 {}：{}", path.display(), e)))
 }
 
 /// 设置库里存的自定义根（去空白后判空；空串视同未设置，回默认根）。
@@ -75,7 +70,9 @@ fn configured_root(settings: &SqliteSettingsRepository) -> AppResult<Option<Path
 }
 
 /// 读作品库根并确保可用（Tauri 命令入口，见 `commands::get_works_library_root`）。
-pub fn get_works_library_root(settings: &SqliteSettingsRepository) -> AppResult<WorksLibraryRootInfo> {
+pub fn get_works_library_root(
+    settings: &SqliteSettingsRepository,
+) -> AppResult<WorksLibraryRootInfo> {
     get_works_library_root_with_home(settings, &home_dir()?)
 }
 
@@ -194,7 +191,9 @@ mod tests {
         assert!(info.is_default, "没设置过时必须如实标默认根");
         assert_eq!(info.path, default_root_in(&home.0).to_string_lossy());
         assert!(
-            std::fs::metadata(&info.path).map(|m| m.is_dir()).unwrap_or(false),
+            std::fs::metadata(&info.path)
+                .map(|m| m.is_dir())
+                .unwrap_or(false),
             "§4：默认根不存在则创建，读取成功就必须已经可用"
         );
     }
@@ -205,7 +204,9 @@ mod tests {
         let home = TempHome::new("custom");
         let custom = home.0.join("外置盘/作品库");
 
-        let set_info = set_works_library_root_with_home(&settings, &custom.to_string_lossy(), &home.0).unwrap();
+        let set_info =
+            set_works_library_root_with_home(&settings, &custom.to_string_lossy(), &home.0)
+                .unwrap();
         assert!(!set_info.is_default);
 
         let got = get_works_library_root_with_home(&settings, &home.0).unwrap();
@@ -262,7 +263,10 @@ mod tests {
         let home = TempHome::new("trim");
         let custom = home.0.join("libs root");
         settings
-            .set(WORKS_LIBRARY_ROOT_KEY, &format!("  {}  ", custom.to_string_lossy()))
+            .set(
+                WORKS_LIBRARY_ROOT_KEY,
+                &format!("  {}  ", custom.to_string_lossy()),
+            )
             .unwrap();
 
         let got = get_works_library_root_with_home(&settings, &home.0).unwrap();
@@ -276,7 +280,9 @@ mod tests {
         let home = TempHome::new("file-as-root");
         let blocker = home.0.join("blocker");
         std::fs::write(&blocker, b"x").unwrap();
-        settings.set(WORKS_LIBRARY_ROOT_KEY, &blocker.to_string_lossy()).unwrap();
+        settings
+            .set(WORKS_LIBRARY_ROOT_KEY, &blocker.to_string_lossy())
+            .unwrap();
 
         let err = get_works_library_root_with_home(&settings, &home.0);
         assert!(
@@ -291,9 +297,13 @@ mod tests {
         let home = TempHome::new("back-to-default");
         let default = default_root_in(&home.0);
 
-        let info = set_works_library_root_with_home(&settings, &default.to_string_lossy(), &home.0).unwrap();
+        let info = set_works_library_root_with_home(&settings, &default.to_string_lossy(), &home.0)
+            .unwrap();
 
-        assert!(info.is_default, "设回默认值就该显示成默认位置，界面不必区分两种来源");
+        assert!(
+            info.is_default,
+            "设回默认值就该显示成默认位置，界面不必区分两种来源"
+        );
         assert_eq!(info.path, default.to_string_lossy());
     }
 }

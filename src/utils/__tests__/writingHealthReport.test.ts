@@ -33,16 +33,22 @@ const chapter = (id: string, over: Partial<WritingChapter> = {}): WritingChapter
  * 造一份同时含 block / warning、跨至少两个组发现的真报告
  * （不手搓 finding，避免测的是假口径）。
  *
- * 两个引擎口径必须照着装进夹具里，否则fixture 本身就是错的：
- * ① 章账判定是 `空章` 优先于 `谎报完稿`（else-if），所以"谎报完稿"那章要**有正文但字数记 0**；
- * ② 一致性组要求全书至少有一章有正文（整本没开写时不该判"人物集体缺席"）。
+ * 2026-11-07 「章账」组整组撤除（层级名由创作者自定义 → 系统无从判定哪个节点该有正文），
+ * 夹具因此改成用**章文本**提供带章落点的 warning、用**一致性**提供 block：
+ * ① c_empty 是空章，它必须"什么都不是"——它留在夹具里就是为了被下面那条 not.toContain 钉住；
+ * ② 一致性组要求全书至少有一章有正文（整本没开写时不该判"人物集体缺席"）；
+ * ③ 归一化重名的那对卡是全场唯一的 block，组内排序靠它验。
  */
 function sample() {
   const chapters: WritingChapter[] = [
     chapter('c_empty', { title: '空缺那一章', content: '', wordCount: 0 }),
-    chapter('c_fin0', { title: '谎报完稿章', content: '开头写了一点。', wordCount: 0, status: 'finished' }),
+    chapter('c_punct', { title: '第三章 长夜', content: '他好。。然后走了', wordCount: 7 }),
   ];
-  const settings = [{ id: 's_dead', name: '从未出场的人物', extra: '{}' }];
+  const settings = [
+    { id: 's_dup_a', name: '陈默', extra: '{}' },
+    { id: 's_dup_b', name: '陈默 ', extra: '{}' },
+    { id: 's_dead', name: '从未出场的人物', extra: '{}' },
+  ];
   const report = buildProofreadReport(chapters, [], [], [], [], settings);
   const titleById = new Map(chapters.map((c) => [c.id, c.title]));
   return {
@@ -67,33 +73,37 @@ describe('writingHealthReport', () => {
 
     expect(md).toContain('长夜将尽');
     expect(md).toContain('2026-10-28 09:05');
-    // 汇总里三个数都要在（block 至少 1 条：谎报完稿）
+    // 汇总里三个数都要在（block 至少 1 条：归一化重名）
     expect(md).toMatch(/必须处理 [1-9]\d* 项/);
     // 分组标题用组名而不是组 id
-    expect(md).toContain('章账');
+    expect(md).toContain('章文本');
     expect(md).toContain('一致性');
-    // 发现正文与章名落点
-    expect(md).toContain('谎报完稿');
-    expect(md).toContain('空缺那一章');
+    // 「章账」组已撤除：导航与导出都不许再出现这个组名
+    expect(md).not.toContain('章账');
+    // 发现落点要写成作者认得出的章名，而不是 id
+    expect(md).toContain('第三章 长夜');
+    // 空章不再是发现：撤报要撤干净，含导出
+    expect(md).not.toContain('空缺那一章');
     expect(md).toContain('从未出场的人物');
   });
 
   it('导出条目数 = 引擎发现数（不允许报告与屏幕两套结论）', () => {
     const input = sample();
     const md = buildHealthReportMarkdown(input);
-    const listed = md
-      .split('\n')
-      .filter((l) => l.startsWith('- 〔')).length;
+    const listed = md.split('\n').filter((l) => l.startsWith('- 〔')).length;
     expect(listed).toBe(input.report.issues.length);
   });
 
   it('组顺序遵循 PROOFREAD_GROUPS，组内必须处理的排前面', () => {
     const md = buildHealthReportMarkdown(sample());
-    // 章账在一致性之前（PROOFREAD_GROUPS 顺序）
-    expect(md.indexOf('章账')).toBeGreaterThanOrEqual(0);
-    expect(md.indexOf('章账')).toBeLessThan(md.indexOf('一致性'));
-    // 谎报完稿是 block，应排在同为章账组的空章之前
-    expect(md.indexOf('谎报完稿')).toBeLessThan(md.indexOf('空缺那一章'));
+    // 章文本在一致性之前（PROOFREAD_GROUPS 顺序）
+    expect(md.indexOf('章文本')).toBeGreaterThanOrEqual(0);
+    expect(md.indexOf('章文本')).toBeLessThan(md.indexOf('一致性'));
+    // 组内排序在一致性组验：它同时含「归一化重名」(block) 与「零提及」(warning)
+    const consistency = (md.split('## 一致性')[1] ?? '').split('\n').filter((l) => l.startsWith('- 〔'));
+    expect(consistency.length).toBeGreaterThanOrEqual(2);
+    expect(consistency[0]).toContain('必须处理');
+    expect(consistency.some((l) => l.includes('建议处理'))).toBe(true);
   });
 
   it('零发现时给出明确"没有发现问题"，而不是留一份空壳文档', () => {
@@ -106,27 +116,34 @@ describe('writingHealthReport', () => {
     expect(html).toContain('没有发现问题');
   });
 
-  it('章账口径：空章优先于"谎报完稿"，两者不同时报同一章', () => {
-    // 有正文但字数记 0 → 谎报完稿（block）
-    const lying = buildProofreadReport(
-      [chapter('a', { content: '写了一点。', wordCount: 0, status: 'finished' })],
-      [], [], [], [], [],
-    );
-    expect(lying.issues.map((i) => i.messageKey)).toEqual(['FinishedNoWords']);
-    // 完全空章 → 只报空章，不再叠加一条"标记完稿但 0 字"
+  it('章账整组撤除：空章 / 标了完稿却 0 字 / 空卷都不进报告（导出同步）', () => {
     const empty = buildProofreadReport(
-      [chapter('b', { content: '', wordCount: 0, status: 'finished' })],
-      [], [], [], [], [],
+      [
+        chapter('a', { content: '', wordCount: 0 }),
+        chapter('b', { content: '写了一点。', wordCount: 0, status: 'finished' }),
+        chapter('v', { title: '第一卷', kind: '卷', content: '', wordCount: 0 }),
+      ],
+      [],
+      [],
+      [],
+      [],
+      [],
     );
-    expect(empty.issues.map((i) => i.messageKey)).toEqual(['EmptyChapter']);
+    expect(empty.issues).toEqual([]);
+    const md = buildHealthReportMarkdown({ ...sample(), report: empty });
+    expect(md).toContain('没有发现问题');
+    expect(md).not.toContain('章账');
   });
 
   it('HTML 必须转义作者自由文本（章名/设定名里的标签不能变成真标签）', () => {
     const chapters = [
       chapter('xss', {
         title: '<script>alert(1)</script>',
-        content: '',
-        wordCount: 0,
+        // 撤掉章账后，让这一章仍产出发现的正路是**它真有文字**；
+        // 正文非空同时把一致性组叫醒（整本无正文时一致性组整组静默，设定名根本进不了报告，
+        // 下面那条 <img> 的转义断言就成了空断言——这是本轮顺手补严的地方）。
+        content: '他好。。然后走了',
+        wordCount: 7,
       }),
     ];
     const settings = [{ id: 's', name: '<img src=x onerror=alert(2)>', extra: '{}' }];
@@ -146,6 +163,8 @@ describe('writingHealthReport', () => {
     expect(html).not.toContain('<b>粗体书名</b>');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('&lt;b&gt;粗体书名&lt;/b&gt;');
+    // 设定名同样必须走转义，且这里断言的是「它以转义形态真的进了报告」
+    expect(html).toContain('&lt;img src=x');
   });
 
   it('同输入同输出（导出可复现，不受运行时刻影响）', () => {

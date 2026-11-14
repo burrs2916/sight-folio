@@ -33,6 +33,8 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import { agentApi, type AiMessage } from '../services/tauri';
 import { useAgentStore } from '../store/agentStore';
+import { useWritingStore } from '../store/writingStore';
+import { aiChatEmptyKey } from '../utils/writingSchema';
 import { useToastStore } from '../store/toastStore';
 import { t } from '../i18n';
 import { logger } from '../utils/logger';
@@ -67,6 +69,9 @@ export function WritingAiChatDialog({
   onOpenSettings,
   initialMessage,
 }: WritingAiChatDialogProps) {
+  // 空态那句按**当前体裁**整句换（⑰-1）：对诗人问「想聊哪条伏笔线」是废话。
+  // 取原始字符串订阅（genre 是 string，不会引起额外重渲染）。
+  const chatGenre = useWritingStore((s) => s.books.find((b) => b.id === s.activeBookId)?.genre ?? '');
   const agents = useAgentStore((s) => s.agents);
   const isStreaming = useAgentStore((s) => s.isStreaming);
   // 流归属：streamingContent/isStreaming 是全局状态，同窗口多 AI 入口共享——
@@ -328,7 +333,7 @@ export function WritingAiChatDialog({
             </Box>
           ) : messages.length === 0 && !isStreaming ? (
             <Typography sx={{ fontSize: uiFontSize(12.5), color: 'text.secondary', textAlign: 'center', py: 6 }}>
-              {t('writing.aiChatEmpty')}
+              {t(aiChatEmptyKey(chatGenre))}
             </Typography>
           ) : (
             <>

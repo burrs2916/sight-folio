@@ -29,6 +29,7 @@ import { writingAnnotationsApi, type WritingAnnotation } from '../../services/wr
 import { t } from '../../i18n';
 import logger from '../../utils/logger';
 import { useWritingStore } from '../../store/writingStore';
+import { kpiLabelKeys, surfaceKeyForGenre, viewKindLabelKey } from '../../utils/writingSchema';
 import { useEditorStore } from '../../store/editorStore';
 import { useWritingDocsStore } from '../../store/writingDocsStore';
 import { openChapterCarrierView, openTypedCarrierView, type WritingViewKind } from '../../utils/studioBook';
@@ -488,10 +489,10 @@ function WorldviewSettingNative({ setting, bookId }: { setting: WritingSetting; 
 
       <Divider sx={{ my: 1.25 }} />
 
-      <SectionTitle>{t('editor.writing.inspector.relatedChapters')}</SectionTitle>
+      <SectionTitle>{t(surfaceKeyForGenre(genre, 'relatedUnits'))}</SectionTitle>
       {related.length === 0 ? (
         <Box sx={{ mt: 0.5 }}>
-          <EmptyNote text={t('editor.writing.inspector.notAttached')} />
+          <EmptyNote text={t(surfaceKeyForGenre(genre, 'unitUnattached'))} />
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', mt: 0.5 }}>
@@ -817,11 +818,11 @@ function WritingSettingInspector({
       <Divider sx={{ my: 1.25 }} />
 
       <SectionTitle>
-        {t(isChar ? 'editor.writing.inspector.appearChapters' : 'editor.writing.inspector.relatedChapters')}
+        {t(isChar ? surfaceKeyForGenre(genre, 'appearUnits') : surfaceKeyForGenre(genre, 'relatedUnits'))}
       </SectionTitle>
       {related.length === 0 ? (
         <Box sx={{ mt: 0.5 }}>
-          <EmptyNote text={t('editor.writing.inspector.notAttached')} />
+          <EmptyNote text={t(surfaceKeyForGenre(genre, 'unitUnattached'))} />
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', mt: 0.5 }}>
@@ -921,6 +922,8 @@ function SettingAnnotationRefs({
   bookId: string;
   chapters: WritingChapter[];
 }) {
+  // ㉙ 这块的按钮提示语指的是"这本书里的这一个正文单位"（日记=这天），体裁得跟着书走
+  const genre = useWritingStore((s) => s.books.find((b) => b.id === bookId)?.genre ?? '');
   const [items, setItems] = useState<WritingAnnotation[] | null>(null);
   useEffect(() => {
     let alive = true;
@@ -953,7 +956,7 @@ function SettingAnnotationRefs({
             key={a.id}
             size="small"
             variant="outlined"
-            title={t('writing.annotationRefsOpen')}
+            title={t(surfaceKeyForGenre(genre, 'openUnitInDesk'))}
             onClick={() => void openWritingDesk({ bookId, chapterId: a.chapterId })}
             sx={{
               textTransform: 'none',
@@ -1527,7 +1530,7 @@ export function WritingInspectorPanel({
       : kind === 'worldview'
         ? t('editor.writing.inspector.tabSetting')
         : kind === 'writing'
-          ? t('writing.chapterContextTitle')
+          ? t(surfaceKeyForGenre(genre, 'unitContextTitle'))
           : t('editor.writing.inspector.tab');
 
   // 选中对象的分层：章卡（config.chapterId）/ 卷头 / 设定卡 / 全书；
@@ -1686,7 +1689,7 @@ export function WritingInspectorPanel({
       chapter.id,
       key,
       settingId,
-      chapter.title || t('editor.writing.inspector.beat'),
+      chapter.title || t(surfaceKeyForGenre(genre, 'unitOutline')),
     );
   };
 
@@ -1698,7 +1701,7 @@ export function WritingInspectorPanel({
       onClick={() => openPane(target)}
       sx={{ mt: 1.25, textTransform: 'none', fontSize: uiFontSize(11) }}
     >
-      {t('editor.writing.inspector.openTpl', { name: t(`writing.viewKind.${target}`) })}
+      {t('editor.writing.inspector.openTpl', { name: t(viewKindLabelKey(genre, target)) })}
     </Button>
   );
 
@@ -1720,7 +1723,7 @@ export function WritingInspectorPanel({
           onClick={onManageVolumes}
           sx={{ textTransform: 'none', fontSize: uiFontSize(11) }}
         >
-          {t('panel.layers.bookTitle')}
+          {t(surfaceKeyForGenre(genre, 'volumeStructButton'))}
         </Button>
       )}
     </Box>
@@ -1790,9 +1793,9 @@ export function WritingInspectorPanel({
                 />
                 <Divider sx={{ my: 1.25 }} />
                 {/* P1.5 本章时间线（反向入口）：绑到本章的事件一览，点行跳时间线视图（按章轴）并选中 */}
-                <SectionTitle>{t('writing.chapterTimelineTitle')}</SectionTitle>
+                <SectionTitle>{t(surfaceKeyForGenre(genre, 'unitTimelineTitle'))}</SectionTitle>
                 {chapterTimelineEvents.length === 0 ? (
-                  <EmptyNote text={t('writing.chapterTimelineEmpty')} />
+                  <EmptyNote text={t(surfaceKeyForGenre(genre, 'unitTimelineEmpty'))} />
                 ) : (
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.25, mt: 0.5 }}>
                     {chapterTimelineEvents.map((ev) => (
@@ -1846,9 +1849,9 @@ export function WritingInspectorPanel({
                   </Box>
                 )}
                 {/* 剧情线联动（刀一）：本章事件挂线去重——点行跳时间线剧情线轴并选中该线 */}
-                <SectionTitle>{t('writing.chapterLinesTitle')}</SectionTitle>
+                <SectionTitle>{t(surfaceKeyForGenre(genre, 'unitStorylinesTitle'))}</SectionTitle>
                 {chapterLines.length === 0 ? (
-                  <EmptyNote text={t('writing.chapterLinesEmpty')} />
+                  <EmptyNote text={t(surfaceKeyForGenre(genre, 'unitStorylinesEmpty'))} />
                 ) : (
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.25, mt: 0.5 }}>
                     {chapterLines.map(({ storyline: sl, count }) => (
@@ -1893,15 +1896,15 @@ export function WritingInspectorPanel({
                   </Box>
                 )}
                 {/* 伏笔联动：本章埋设 + 本章计划回收（双向入口，点行跳伏笔页签编辑卡） */}
-                <SectionTitle>{t('writing.chapterForeshadowTitle')}</SectionTitle>
+                <SectionTitle>{t(surfaceKeyForGenre(genre, 'unitForeshadowTitle'))}</SectionTitle>
                 {plantedHere.length === 0 && payableHere.length === 0 ? (
-                  <EmptyNote text={t('writing.chapterForeshadowEmpty')} />
+                  <EmptyNote text={t(surfaceKeyForGenre(genre, 'unitForeshadowEmpty'))} />
                 ) : (
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.25, mt: 0.5 }}>
                     {plantedHere.length > 0 && (
                       <>
                         <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.disabled">
-                          {t('writing.foreshadowPlantedHere')}
+                          {t(surfaceKeyForGenre(genre, 'plantedHere'))}
                         </Typography>
                         {plantedHere.map(foreshadowRow)}
                       </>
@@ -1909,7 +1912,7 @@ export function WritingInspectorPanel({
                     {payableHere.length > 0 && (
                       <>
                         <Typography variant="caption" sx={{ fontWeight: 700, mt: 0.5 }} color="text.disabled">
-                          {t('writing.foreshadowPayableHere')}
+                          {t(surfaceKeyForGenre(genre, 'payableHere'))}
                         </Typography>
                         {payableHere.map(foreshadowRow)}
                       </>
@@ -1917,7 +1920,7 @@ export function WritingInspectorPanel({
                   </Box>
                 )}
                 <Divider sx={{ my: 1.25 }} />
-                <SectionTitle>{t('editor.writing.inspector.cast')}</SectionTitle>
+                <SectionTitle>{t(surfaceKeyForGenre(genre, 'unitCast'))}</SectionTitle>
                 {characters.length === 0 ? (
                   <EmptyNote text={t('editor.writing.inspector.noCastSettings')} />
                 ) : (
@@ -1933,7 +1936,7 @@ export function WritingInspectorPanel({
                   </Box>
                 )}
                 <Box sx={{ mt: 1.25 }}>
-                  <SectionTitle>{t('editor.writing.inspector.scenes')}</SectionTitle>
+                  <SectionTitle>{t(surfaceKeyForGenre(genre, 'unitScenes'))}</SectionTitle>
                   {worldviews.length === 0 ? (
                     <EmptyNote text={t('editor.writing.inspector.noSceneSettings')} />
                   ) : (
@@ -1982,11 +1985,11 @@ export function WritingInspectorPanel({
                 <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700, mb: 0.75 }}>
                   {vol || t('editor.writing.book.noVolume')}
                 </Typography>
-                <Row label={t('writing.chapterCount')} value={String(rows.length)} />
+                <Row label={t(kpiLabelKeys(genre).count)} value={String(rows.length)} />
                 <Row label={t('writing.totalWords')} value={String(words)} />
                 <Row label={t('editor.writing.status.finished')} value={String(finished)} />
                 <Divider sx={{ my: 1.25 }} />
-                <SectionTitle>{t('editor.writing.inspector.chapterList')}</SectionTitle>
+                <SectionTitle>{t(surfaceKeyForGenre(genre, 'unitListInGroup'))}</SectionTitle>
                 {rows.length === 0 && (
                   <Typography sx={{ fontSize: uiFontSize(11), color: 'text.disabled' }}>
                     {t('editor.writing.book.empty')}
@@ -2002,7 +2005,7 @@ export function WritingInspectorPanel({
                   </Typography>
                 ))}
                 <Typography sx={{ fontSize: uiFontSize(10.5), color: 'text.disabled', lineHeight: 1.7, mt: 1 }}>
-                  {t('editor.writing.inspector.volumeGap')}
+                  {t(surfaceKeyForGenre(genre, 'volumeGapNote'))}
                 </Typography>
               </Box>
             );
@@ -2036,13 +2039,13 @@ export function WritingInspectorPanel({
                 ) : null}
                 <Row
                   label={t(
-                    isChar ? 'editor.writing.inspector.appearChapters' : 'editor.writing.inspector.relatedChapters',
+                    isChar ? surfaceKeyForGenre(genre, 'appearUnits') : surfaceKeyForGenre(genre, 'relatedUnits'),
                   )}
                   value={String(related.length)}
                 />
                 {related.length === 0 ? (
                   <Box sx={{ mt: 0.75 }}>
-                    <EmptyNote text={t('editor.writing.inspector.notAttached')} />
+                    <EmptyNote text={t(surfaceKeyForGenre(genre, 'unitUnattached'))} />
                   </Box>
                 ) : (
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', mt: 0.5 }}>

@@ -9,11 +9,14 @@ import {
 import { makeSection } from './scanSections';
 import { packWithinBudget } from '../tokenBudget';
 import { packDigestFromSections, stampSections } from '../sectionDiff';
+import { genrePromptPack } from '../genrePromptPack';
+// ㉣ N-22：日记叙述视角的**唯一口径住在 services/writing**（解析 + 提示词句），此处只消费。
+import { diaryNarratorPromptLine, parseBookNarrator } from '../../services/writing';
 import { useWritingStore } from '../../store/writingStore';
 import { parseSettingExtra } from '../../services/tauri';
 import { L } from '../aiLang';
 import { getLang, t } from '../../i18n';
-import { bookStatusDef } from '../../utils/writingSchema';
+import { bookStatusDef, characterCardsOptionalForGenre, viewKindVisibleForGenre } from '../../utils/writingSchema';
 import { looseBeats } from '../../utils/writingOutline';
 import {
   buildTimelineCorpus,
@@ -22,6 +25,8 @@ import {
   buildProofreadCorpus,
   buildRefIndex,
   buildChapterIndexCorpus,
+  corpusNounsFor,
+  capEn,
   CHARACTER_PROFILE_FIELDS,
   WORLDBUILDING_PROFILE_FIELDS,
   WORLDBUILDING_TYPE_FIELD,
@@ -99,19 +104,29 @@ const writingContextProvider: AiContextProvider = {
     // ── 1. 作品概览（含大纲：AI 的情节/节奏审视需要结构规划材料）──
     const chapterTitleById = new Map(chapters.map((c) => [c.id, c.title]));
     const overviewLines: string[] = [`- ${L('书名', 'Title')}：${book.title}`];
+    // ㉣ N-22（轮 72 续 · 真人指出「第一人称、第二人称、第三人称都是可以调整的」）：日记的「谁在写」
+    // 进全书概览。**不喂视角，模型就自己替创作者挑人称**。非日记体裁不添这一行 = 上下文逐字不变。
+    if ((book.genre ?? '') === 'diary') {
+      const pov = diaryNarratorPromptLine(parseBookNarrator(book.extra));
+      overviewLines.push(`- ${L(pov.zh, pov.en)}`);
+    }
     if (book.description) {
       overviewLines.push(`- ${L('简介', 'Description')}：${book.description}`);
     }
-    const chapterIndex = buildChapterIndexCorpus(chapters);
+    // ㉥ AI-5b：分组列名跟着这本书的载体走（诗集不再收到一列「卷」）
+    const chapterIndex = buildChapterIndexCorpus(chapters, book.genre ?? '');
+    // ㉧ AI-5c：概览段上下两张嘴（这一段的「章节数 / 章节列表 / N 章共 M 字」与下面那张索引表）
+    // 必须同轮换词，否则同一屏会一半叫「诗作」、一半叫「章节」。词全取 CORPUS_NOUNS。
+    const nouns = corpusNounsFor(book.genre ?? '');
     overviewLines.push(
       // 状态送**本地化标签**而不是库里的原始码：改造前这里直出 book.status，
       // 于是模型收到的是 `状态：draft` 或 `状态：`（新书为空串）——四态落地后
       // 必须走词表翻成人话，AI 才可能正确回答「这本书完结了吗」。
       `- ${L('状态', 'Status')}：${t(bookStatusDef(book.status).labelKey)}`,
-      `- ${L('章节数', 'Chapters')}：${chapters.length}`,
+      `- ${L(`${nouns.zh.unit}数`, capEn(nouns.en.unit))}：${chapters.length}`,
       `- ${L('总字数', 'Total words')}：${totalWords}`,
       '',
-      L('## 章节列表', '## Chapter List'),
+      L(`## ${nouns.zh.unit}列表`, `## ${capEn(nouns.en.unitOne)} List`),
       ...(getLang() === 'en-US' ? chapterIndex.en : chapterIndex.zh),
     );
     if (outlines.length > 0) {
@@ -130,8 +145,8 @@ const writingContextProvider: AiContextProvider = {
       L('作品概览', 'Book Overview'),
       0,
       L(
-        `${book.title}：${chapters.length} 章，共 ${totalWords} 字`,
-        `${book.title}: ${chapters.length} chapters, ${totalWords} words`,
+        `${book.title}：${chapters.length} ${nouns.zh.line}，共 ${totalWords} 字`,
+        `${book.title}: ${chapters.length} ${nouns.en.unit}, ${totalWords} words`,
       ),
       overviewLines,
       {
@@ -230,13 +245,18 @@ const writingContextProvider: AiContextProvider = {
           ['', `_${L('本书还没有人设卡。', 'This book has no character cards yet.')}_`],
           { count: 0 },
         ),
-        dataQuality: sectionQuality(
-          'empty',
-          L(
-            '没有人设卡，人设一致性检查无从执行——只能审情节与文字，不能审角色',
-            'No character cards; consistency checks are impossible — only plot and prose can be reviewed, not characters',
-          ),
-        ),
+        // 散文集 / 诗集「没有人设卡」是**体裁常态，不是数据缺陷**。挂上缺陷标记，
+        // 只会诱导模型输出「建议先建人设卡」这类对散文与诗完全无效的建议（小说侧一字未动）。
+        dataQuality:
+          characterCardsOptionalForGenre(book.genre)
+            ? undefined
+            : sectionQuality(
+                'empty',
+                L(
+                  '没有人设卡，人设一致性检查无从执行——只能审情节与文字，不能审角色',
+                  'No character cards; consistency checks are impossible — only plot and prose can be reviewed, not characters',
+                ),
+              ),
       };
     }
 
@@ -295,16 +315,24 @@ const writingContextProvider: AiContextProvider = {
     // refIndex：把语料中的 #id 关系化引用解析为实体名称（缺失显式标注），
     // 避免模型把悬空引用当有效实体；口径与工作台面板侧一致（buildRefIndex）。
     const refIndex = buildRefIndex(bookSettings, chapters, s.storylines);
+    // ㉲ AI-3（轮 33）：语料层的剧情线子段被裁时（判据在同一份语料里，见 writingCorpus 的 storylinesPruned 段），
+    // 本节的名字 / 计数行 / facts 三张嘴必须同轮跟着收——只撤了段体、节名还挂着「与剧情线」，就是 AU-7 ⑨
+    // 「算好了没接到行上」的注入层变体。存量书建过剧情线时三张嘴逐字回原文（数据不隐身线）。
+    const storylinesShown = s.storylines.length > 0 || viewKindVisibleForGenre(book.genre ?? '', 'storylines');
     const timelineSection = makeSection(
       TIMELINE_KEY,
-      L('时间线与剧情线', 'Timeline & Storylines'),
+      storylinesShown ? L('时间线与剧情线', 'Timeline & Storylines') : L('时间线', 'Timeline'),
       4,
-      L(
-        `${s.timelineEvents.length} 条事件 · ${s.storylines.length} 条剧情线`,
-        `${s.timelineEvents.length} events · ${s.storylines.length} storylines`,
-      ),
-      corpusLines(buildTimelineCorpus(book.id, s.timelineEvents, chapters, s.settings, s.storylines, { refIndex })),
-      { eventCount: s.timelineEvents.length, storylineCount: s.storylines.length },
+      storylinesShown
+        ? L(
+            `${s.timelineEvents.length} 条事件 · ${s.storylines.length} 条剧情线`,
+            `${s.timelineEvents.length} events · ${s.storylines.length} storylines`,
+          )
+        : L(`${s.timelineEvents.length} 条事件`, `${s.timelineEvents.length} events`),
+      corpusLines(buildTimelineCorpus(book.id, s.timelineEvents, chapters, s.settings, s.storylines, { refIndex, genre: book.genre ?? '' })),
+      storylinesShown
+        ? { eventCount: s.timelineEvents.length, storylineCount: s.storylines.length }
+        : { eventCount: s.timelineEvents.length },
     );
 
     // ── 6. 伏笔（埋设/回收状态全表）──
@@ -323,8 +351,8 @@ const writingContextProvider: AiContextProvider = {
       INSPIRATION_KEY,
       L('灵感念头池', 'Inspiration Pool'),
       6,
-      L(`${looseCount} 条未落章念头`, `${looseCount} unmounted ideas`),
-      corpusLines(buildInspirationCorpus(book.id, outlines, s.timelineEvents, s.foreshadowings)),
+      L(`${looseCount} 条未落${nouns.zh.line}念头`, `${looseCount} unmounted ideas`),
+      corpusLines(buildInspirationCorpus(book.id, outlines, s.timelineEvents, s.foreshadowings, book.genre ?? '')),
       { looseCount },
     );
 
@@ -334,11 +362,21 @@ const writingContextProvider: AiContextProvider = {
       L('校对体检', 'Proofread Report'),
       7,
       L(
-        '章文本/章账/伏笔/时间线/剧情线/念头池/一致性 七组维度体检',
-        'Seven-dimension derived report: text, ledger, foreshadowing, timeline, storylines, ideas, consistency',
+        '章文本/伏笔/时间线/剧情线/念头池/一致性 六组维度体检',
+        'Six-dimension derived report: text, foreshadowing, timeline, storylines, ideas, consistency',
       ),
       corpusLines(
-        buildProofreadCorpus(book.id, chapters, outlines, s.timelineEvents, s.foreshadowings, s.storylines, s.settings),
+        buildProofreadCorpus(
+          book.id,
+          chapters,
+          outlines,
+          s.timelineEvents,
+          s.foreshadowings,
+          s.storylines,
+          s.settings,
+          // ㉬ N-21：语料侧同闸 —— 不给模型递「这本日记有 N 条伏笔待回收」这种它无从执行的活
+          book.genre ?? '',
+        ),
       ),
       {},
     );
@@ -347,23 +385,44 @@ const writingContextProvider: AiContextProvider = {
     // 不传第二参会原样返回（tokenBudget.ts 的 no-budget 分支），消费方按 token 上限取数时
     // 裁剪整个失效。落库路径（contextPersist）刻意不传预算 ⇒ 这里收到 undefined 保全集，
     // 「裁剪只发生在告诉 Agent 读哪几节，不发生在落库」的铁律不受影响。
+    // ㉲ AI-3（轮 33 · 注入层裁段）：八段此前无条件整包入 pack —— 诗集也会收到「世界观设定」「伏笔」
+    // 两节空壳，还带一条「没有 XX，请声明盲区」的缺陷标记，等于注入层替没有这些栏的书宣布
+    // 「你有这栏、只是没填」。判据与页签 / 入口 / 创建闸口同一张表（viewKindVisibleForGenre →
+    // hiddenViewKindsForGenre），并沿用页签侧同一条护栏：**本书已建过该类数据 ⇒ 段照旧在** ——
+    // 数据不因裁页签而隐身。小说 / 未设置体裁 hidden = ∅ ⇒ 八段全在，pack 输出逐字节不变（零回归线）。
+    const bookGenre = book.genre ?? '';
+    const packSections = [
+      overview,
+      activeChapterSection,
+      charactersSection,
+      worldbuildingSection,
+      timelineSection,
+      foreshadowingSection,
+      inspirationSection,
+      proofreadSection,
+    ].filter((sec) => {
+      switch (sec.key) {
+        case WORLDBUILDING_KEY:
+          return viewKindVisibleForGenre(bookGenre, 'worldview') || worldbuilding.length > 0;
+        case FORESHADOWING_KEY:
+          return viewKindVisibleForGenre(bookGenre, 'foreshadowing') || s.foreshadowings.length > 0;
+        case CHARACTERS_KEY:
+          return viewKindVisibleForGenre(bookGenre, 'characters') || characters.length > 0;
+        case INSPIRATION_KEY:
+          return viewKindVisibleForGenre(bookGenre, 'inspiration') || outlines.length > 0;
+        case PROOFREAD_KEY:
+          return viewKindVisibleForGenre(bookGenre, 'proofread');
+        default:
+          // 概览 / 当前正文 / 时间线主体三件五体裁恒有，这张表不问这个问题
+          //（剧情线子段的判据在上面 storylinesShown 一处，同轮已收）
+          return true;
+      }
+    });
     const {
       sections: packed,
       truncatedSections,
       tokenEstimate,
-    } = packWithinBudget(
-      [
-        overview,
-        activeChapterSection,
-        charactersSection,
-        worldbuildingSection,
-        timelineSection,
-        foreshadowingSection,
-        inspirationSection,
-        proofreadSection,
-      ],
-      options?.tokenBudget,
-    );
+    } = packWithinBudget(packSections, options?.tokenBudget);
     const now = options?.now ?? Date.now();
     const { sections: stamped, changed, unchanged } = stampSections(packed, options?.previousSections, now);
     const digest = packDigestFromSections(scopeId, AI_CONTEXT_SCHEMA_VERSION, stamped);
@@ -490,6 +549,21 @@ const writingContextProvider: AiContextProvider = {
       group: 'writing',
     },
   ] as AiAnalysisPreset[],
+
+  /**
+   * ㉴（轮 35 · AU-1）自动化整卡白名单：这本书的体裁不该自动跑哪些分析项。
+   *
+   * 表在 `genrePromptPack.automation`（体裁单一事实源的地盘），判据理由派生自
+   * `writingSchema`（三栏整裁 / 体量离群无意义 / 人设卡非必需）——本函数只查表，
+   * 不写第二把尺子。书读不到 = 不申报 = 全部可跑（宁多跑不静默少跑）；
+   * 未设/脏体裁由 genrePromptPack 入口一次落 novel = 全跑，与改造前逐字等价（P1 在册口径）。
+   */
+  automationBlocklist: (scopeId) => {
+    const s = useWritingStore.getState();
+    const book = s.books.find((b) => b.id === scopeId);
+    if (!book) return [];
+    return [...genrePromptPack(book.genre ?? '').automation.meaningless];
+  },
 };
 
 aiContextRegistry.register(writingContextProvider);

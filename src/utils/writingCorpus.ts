@@ -24,6 +24,8 @@ import { isOverdue } from './writingForeshadowing';
 import { looseBeats } from './writingOutline';
 import { beatPlantedAsForeshadowing } from './writingInspiration';
 import { buildProofreadReport, chapterTextIssues } from './writingProofread';
+import { genreDef, viewKindVisibleForGenre, writesByDateForGenre } from './writingSchema';
+import { computeDiaryRhythm, diaryRecords } from './diaryMetrics';
 import {
   computeWritingKpis,
   buildVolumeRows,
@@ -219,12 +221,16 @@ export function buildTimelineCorpus(
   chapters: WritingChapter[],
   settings: WritingSetting[],
   storylines: WritingStoryline[] = [],
-  opts: { refIndex?: RefIndex } = {},
+  opts: { refIndex?: RefIndex; genre?: string } = {},
 ): { zh: string; en: string } {
+  // ㉧ AI-5c：这张档案里的「章」全部是**替这本书宣布层级形状**的词，
+  // 诗集收到「章节骨架 / 绑章」就会以为自己是本没分卷的短篇集（⑭ 刀C 判过的同一个病）。
+  // 判据（哪些事件算未绑、冲突怎么并集）一格未动，本轮只换措辞，词全取 CORPUS_NOUNS。
+  const nouns = corpusNounsFor(opts.genre ?? '');
   const coll = new Intl.Collator('zh', { numeric: true });
   const chapterName = (id: string | null | undefined): { zh: string; en: string } => {
     const c = id ? chapters.find((x) => x.id === id) : null;
-    if (!c) return { zh: '未绑章', en: 'unbound' };
+    if (!c) return { zh: `未绑${nouns.zh.line}`, en: 'unbound' };
     const t = c.title || '未命名';
     return { zh: t, en: t };
   };
@@ -241,10 +247,10 @@ export function buildTimelineCorpus(
   const skeleton = [...chapters].sort((a, b) => a.sortOrder - b.sortOrder);
   const skelZh = skeleton.length
     ? skeleton.map((c, i) => `${i + 1}. ${c.title || '未命名'}${c.kind ? `（${c.kind}）` : ''}`).join(' ')
-    : '（暂无章节）';
+    : `（暂无${nouns.zh.unit}）`;
   const skelEn = skeleton.length
     ? skeleton.map((c, i) => `${i + 1}. ${c.title || 'untitled'}${c.kind ? ` (${c.kind})` : ''}`).join(' ')
-    : '(no chapters yet)';
+    : `(no ${nouns.en.unit} yet)`;
 
   // 事件全表：完整事件按 at 排序；待补全草稿单列
   const complete = events.filter(isComplete).sort((a, b) => coll.compare(a.at?.trim() || '', b.at?.trim() || ''));
@@ -252,8 +258,8 @@ export function buildTimelineCorpus(
   const eventRows = complete.map((e) => {
     const src = `来源：${settingName(e.settingId)}`;
     const srcEn = `source: ${settingNameEn(e.settingId)}`;
-    const ch = e.chapterId ? `；绑章：${chapterName(e.chapterId).zh}` : '';
-    const chEn = e.chapterId ? `; chapter: ${chapterName(e.chapterId).en}` : '';
+    const ch = e.chapterId ? `；绑${nouns.zh.line}：${chapterName(e.chapterId).zh}` : '';
+    const chEn = e.chapterId ? `; ${nouns.en.unitOne}: ${chapterName(e.chapterId).en}` : '';
     return {
       zh: `- [${e.at}] ${e.event}（${src}${ch}）`,
       en: `- [${e.at}] ${e.event} (${srcEn}${chEn})`,
@@ -284,7 +290,7 @@ export function buildTimelineCorpus(
     ? conflictEvents
         .map(
           (e) =>
-            `- [${e.at}] ${e.event}（${e.chapterId ? `章：${chapterName(e.chapterId).zh}` : `来源：${settingName(e.settingId)}`}）`,
+              `- [${e.at}] ${e.event}（${e.chapterId ? `${nouns.zh.line}：${chapterName(e.chapterId).zh}` : `来源：${settingName(e.settingId)}`}）`,
         )
         .join('\n')
     : '（未检出冲突）';
@@ -292,7 +298,7 @@ export function buildTimelineCorpus(
     ? conflictEvents
         .map(
           (e) =>
-            `- [${e.at}] ${e.event} (${e.chapterId ? `chapter: ${chapterName(e.chapterId).en}` : `source: ${settingNameEn(e.settingId)}`})`,
+              `- [${e.at}] ${e.event} (${e.chapterId ? `${nouns.en.unitOne}: ${chapterName(e.chapterId).en}` : `source: ${settingNameEn(e.settingId)}`})`,
         )
         .join('\n')
     : '(no conflicts detected)';
@@ -322,8 +328,15 @@ export function buildTimelineCorpus(
         : '')
     : '(no storylines yet)';
 
-  const baseZh = `【时间线档案】\n【章节骨架】${skelZh}\n\n【剧情线（${storylines.length} 条）】\n${lineZh}\n\n【事件全表（${complete.length} 条）】\n${evZh}\n\n【时间线冲突（${conflictEvents.length}，规划提示非硬错误）】\n${conflictZh}\n\n【待补全草稿（${drafts.length}）】\n${draftZh}`;
-  const baseEn = `[Timeline]\n[Chapter skeleton] ${skelEn}\n\n[Storylines (${storylines.length})]\n${lineEn}\n\n[Events (${complete.length})]\n${evEn}\n\n[Timeline conflicts (${conflictEvents.length}, planning hints, not hard errors)]\n${conflictEn}\n\n[Drafts to complete (${drafts.length})]\n${draftEn}`;
+  // ㉲ AI-3（轮 33 · 注入层裁段）：剧情线段与页签/入口同一张表判 —— 被裁体裁且本书从未建过剧情线时，
+  // 这一段不再端给模型（诗集不该收到一条「【剧情线（0 条）】」替它宣布栏目存在）；被裁体裁**已建过**
+  // 剧情线（存量数据）照旧在段，页签侧「数据不因裁页签而隐身」的护栏在注入层同样成立。
+  // 段在场时 baseZh/baseEn 与改造前逐字节相同（小说 / 剧本 / 存量路径 = 零回归线）。
+  const storylinesPruned = storylines.length === 0 && !viewKindVisibleForGenre(opts.genre ?? '', 'storylines');
+  const storylineBlockZh = storylinesPruned ? '' : `\n\n【剧情线（${storylines.length} 条）】\n${lineZh}`;
+  const storylineBlockEn = storylinesPruned ? '' : `\n\n[Storylines (${storylines.length})]\n${lineEn}`;
+  const baseZh = `【时间线档案】\n【${nouns.zh.unit}骨架】${skelZh}${storylineBlockZh}\n\n【事件全表（${complete.length} 条）】\n${evZh}\n\n【时间线冲突（${conflictEvents.length}，规划提示非硬错误）】\n${conflictZh}\n\n【待补全草稿（${drafts.length}）】\n${draftZh}`;
+  const baseEn = `[Timeline]\n[${capEn(nouns.en.unitOne)} skeleton] ${skelEn}${storylineBlockEn}\n\n[Events (${complete.length})]\n${evEn}\n\n[Timeline conflicts (${conflictEvents.length}, planning hints, not hard errors)]\n${conflictEn}\n\n[Drafts to complete (${drafts.length})]\n${draftEn}`;
   const { refIndex } = opts;
   return {
     zh: refIndex ? resolveRefs(baseZh, refIndex, 'zh') : baseZh,
@@ -393,8 +406,11 @@ export function buildInspirationCorpus(
   outlines: WritingOutline[],
   timelineEvents: WritingTimelineEvent[],
   foreshadowings: WritingForeshadowing[] = [],
+  genre = '',
 ): { zh: string; en: string } {
   void bookId; // 与 buildForeshadowingCorpus 同签名惯例：调用方已按书过滤
+  // ㉧ AI-5c：这节语料里「未落章节拍 / 挂章」两次替四种载体宣布它有「章」这个落点。
+  const nouns = corpusNounsFor(genre);
   const loose = looseBeats(outlines);
   const rows = loose.map((b) => {
     const inTimeline = beatImported(timelineEvents, beatEventText(b));
@@ -412,14 +428,14 @@ export function buildInspirationCorpus(
   const rowsZh = rows.length ? rows.map((r) => r.zh).join('\n') : '（念头池为空）';
   const rowsEn = rows.length ? rows.map((r) => r.en).join('\n') : '(idea pool is empty)';
   return {
-    zh: `【灵感念头池】共 ${loose.length} 条（未分发 ${rows.length - dispatched}）\n${rowsZh}\n（念头=作者手记的灵感收件箱=未落章节拍，脑暴时尊重已有念头的语气与题材；分发去向：挂章/转时间线/转伏笔，标记〔已入…〕的不要重复建议）`,
-    en: `[Idea pool] ${loose.length} total (${rows.length - dispatched} undispatched)\n${rowsEn}\n(Ideas = the author's hand-captured inbox = unanchored beats; respect the tone and genre of existing ideas; dispatch = bind to a chapter / timeline draft / foreshadowing draft; do not re-suggest ideas already marked [in …])`,
+    zh: `【灵感念头池】共 ${loose.length} 条（未分发 ${rows.length - dispatched}）\n${rowsZh}\n（念头=作者手记的灵感收件箱=${nouns.zh.unanchored}，脑暴时尊重已有念头的语气与题材；分发去向：挂${nouns.zh.line}/转时间线/转伏笔，标记〔已入…〕的不要重复建议）`,
+    en: `[Idea pool] ${loose.length} total (${rows.length - dispatched} undispatched)\n${rowsEn}\n(Ideas = the author's hand-captured inbox = unanchored beats; respect the tone and genre of existing ideas; dispatch = bind to ${nouns.en.bindTo} / timeline draft / foreshadowing draft; do not re-suggest ideas already marked [in …])`,
   };
 }
 
 /**
- * 全书「校对体检」语料（双语）：复用 buildProofreadReport 六组发现，
- * 输出分组计数 + 关键明细（空章/完稿 0 字章/预警伏笔/冲突事件/文本问题章），
+ * 全书「校对体检」语料（双语）：复用 buildProofreadReport 全部发现，
+ * 输出分组计数 + 关键明细（预警伏笔/冲突事件/文本问题章）。
  * 供校对题材的 AI 消息自动注入。语义层检查（错别字/连贯性）明确交给 AI 在对话里做。
  */
 export function buildProofreadCorpus(
@@ -431,23 +447,14 @@ export function buildProofreadCorpus(
   storylines: WritingStoryline[] = [],
   /** 设定卡：传入才会带上一致性组（人物账本 vs 正文）。缺省跳过，向后兼容。 */
   settings: { id: string; name: string; extra: string }[] = [],
+  /** ㉬ N-21：体裁。缺省 '' = 六组全跑（旧调用点逐字等价）；日记这类藏了栏的体裁会裁掉对应组，
+   *  否则我们等于在语料里催模型「帮这本日记回收伏笔」——那栏系统根本不让他建。 */
+  genre = '',
 ): { zh: string; en: string } {
   void bookId; // 与其他 corpus 同签名惯例：调用方已按书过滤
-  const report = buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings);
+  const report = buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings, genre);
   const total = report.issues.length;
 
-  const emptyZh = chapters
-    .filter((c) => !c.content?.trim() && (c.wordCount ?? 0) === 0)
-    .map((c) => c.title || '未命名');
-  const emptyEn = chapters
-    .filter((c) => !c.content?.trim() && (c.wordCount ?? 0) === 0)
-    .map((c) => c.title || 'untitled');
-  const fin0Zh = chapters
-    .filter((c) => c.status === 'finished' && (c.wordCount ?? 0) === 0)
-    .map((c) => c.title || '未命名');
-  const fin0En = chapters
-    .filter((c) => c.status === 'finished' && (c.wordCount ?? 0) === 0)
-    .map((c) => c.title || 'untitled');
   const overdueZh = foreshadowings.filter((f) => isOverdue(f, chapters)).map((f) => f.title || '未命名');
   const overdueEn = [...overdueZh];
   const conflictTexts = [...computeTimelineConflicts(timelineEvents, { view: 'book' })]
@@ -461,7 +468,7 @@ export function buildProofreadCorpus(
     (b) => !beatImported(timelineEvents, beatEventText(b)) && !beatPlantedAsForeshadowing(foreshadowings, b),
   ).length;
   const textIssuesZh = chapters
-    .map((c) => ({ title: c.title || '未命名', issues: chapterTextIssues(c) }))
+    .map((c) => ({ title: c.title || '未命名', issues: chapterTextIssues(c, genre) }))
     .filter((x) => x.issues.length > 0)
     .slice(0, MAX_TEXT_ISSUE_CHAPTERS);
 
@@ -469,8 +476,6 @@ export function buildProofreadCorpus(
   if (textIssuesZh.length > 0) {
     linesZh.push(`〔章文本〕` + textIssuesZh.map((x) => `《${x.title}》(${x.issues.length} 项)`).join('、'));
   }
-  if (emptyZh.length > 0) linesZh.push(`〔章账〕空章：${emptyZh.join('、')}`);
-  if (fin0Zh.length > 0) linesZh.push(`〔章账〕标记完稿但 0 字：${fin0Zh.join('、')}`);
   if (overdueZh.length > 0) linesZh.push(`〔伏笔〕回收点已过仍未回收：${overdueZh.join('、')}`);
   if (conflictTexts.length > 0) linesZh.push(`〔时间线〕冲突事件：${conflictTexts.join('；')}`);
   if (drafts > 0) linesZh.push(`〔时间线〕待补全草稿 ${drafts} 条`);
@@ -485,8 +490,6 @@ export function buildProofreadCorpus(
   if (textIssuesZh.length > 0) {
     linesEn.push(`[Chapter text] ` + textIssuesZh.map((x) => `"${x.title}" (${x.issues.length})`).join(', '));
   }
-  if (emptyEn.length > 0) linesEn.push(`[Chapters] empty: ${emptyEn.join(', ')}`);
-  if (fin0En.length > 0) linesEn.push(`[Chapters] marked finished but 0 words: ${fin0En.join(', ')}`);
   if (overdueEn.length > 0) linesEn.push(`[Foreshadowing] payoff overdue: ${overdueEn.join(', ')}`);
   if (conflictTexts.length > 0) linesEn.push(`[Timeline] conflicting events: ${conflictTexts.join('; ')}`);
   if (drafts > 0) linesEn.push(`[Timeline] ${drafts} draft(s) to complete`);
@@ -505,29 +508,130 @@ export function buildProofreadCorpus(
  * 章节体量口径，输出体量 KPI + 卷分布 + 离群章（advisory）+ 节奏提示，供统计题材的
  * AI 消息自动注入。日更趋势（Rust 快照）不进语料——异步数据由页签面直接呈现。
  */
+/**
+ * 语料里三个量词按体裁换（⑭ 分析文档刀C）。对一本诗集说「章节 8 · 卷 0 · 章均 23 字」，
+ * 模型会把它当成「一本没分卷的短篇集」按小说方式铺承接；散文集同理。
+ * 判据只有 isCollectionGenre 一份，这里只放**双语措辞** —— writingSchema 的铁律是
+ * 「只存 i18n key、不存成品文案」，而语料是中英两份内联串（不是 i18n），住不进那张表。
+ *
+ * ㉥ AI-5b 补的 `groupCol`（只加在 en 侧）：那是**索引表的分组列名**。zh 侧单复同形，列名直接吃
+ * `group` 就是对的；en 侧的 `group` 是复数口径（统计行「N …」那种用法），表头要单数，两者不是
+ * 同一个词形。所以这里只补 en 那一格，**不再开第二张量词表**，也不让渲染层自己写字面量。
+ * novel 那格 = 改造前索引表表头逐字（零回归线）。
+ *
+ * ㉧ AI-5c（2026-11-10 轮 20）再补三格，形状与上面同一判据「现成格能推出来的不加，推不出的才登记」：
+ * - `zh.unanchored`：念头池那节的名字。novel 是 `未落章节拍`，**不能由 line 推**（`未落章` ≠ 现文），
+ *   四支换成不含「章」的说法。en 侧那节题改造前就是 `Unanchored beats`，无单位词可换 → **不加 en 格**。
+ * - `en.unitOne`：单数可数形（`; chapter: ` / `## Chapter List` / `[Chapter skeleton]` 要吃它）。
+ *   `en.unit` 是复数口径、`en.avg` 是定语口径（diary 那格是形容词 daily），三者不是同一个词形。
+ *   zh 侧单复同形，一律由现成 `line` 推（绑章/挂章），**不加 zh 格**。
+ * - `en.bindTo`：带冠词的形状（`a chapter` … diary 是 `an entry`）。冠词随首音变，机械拼 `a ` 会写出
+ *   `a entry`，所以整枚登记；zh 侧同样由 `line` 推。
+ * novel 三格 = 改造前逐字（零回归线）。
+ */
+const CORPUS_NOUNS = {
+  novel: {
+    zh: { unit: '章节', group: '卷', avg: '章均', ungrouped: '未分卷', line: '章', unanchored: '未落章节拍', outlierNone: '无（各章体量均在章均常规区间）' },
+    en: { unit: 'chapters', group: 'volumes', groupCol: 'Volume', unitOne: 'chapter', bindTo: 'a chapter', avg: 'chapter', ungrouped: 'no volume', outlierNone: 'none (chapter sizes within normal range)' },
+  },
+  // 合集型（散文 / 诗歌）：**离群行永远会打印**，所以空态措辞也必须按体裁 ——
+  // 对诗集说「无（各章体量均在章均常规区间）」等于替它宣布了一个它根本没有的量纲。
+  essay: {
+    zh: { unit: '篇目', group: '分组', avg: '篇均', ungrouped: '未分组', line: '篇', unanchored: '未落篇目', outlierNone: '不适用（合集型长短差异属体裁常态，不按均值判离群）' },
+    en: { unit: 'pieces', group: 'groups', groupCol: 'Group', unitOne: 'piece', bindTo: 'a piece', avg: 'piece', ungrouped: 'ungrouped', outlierNone: 'not applicable (length variation is normal for a collection)' },
+  },
+  poetry: {
+    zh: { unit: '诗作', group: '分组', avg: '首均', ungrouped: '未分组', line: '首', unanchored: '未落诗作', outlierNone: '不适用（诗集长短悬殊是常态，不按均值判离群）' },
+    en: { unit: 'poems', group: 'groups', groupCol: 'Group', unitOne: 'poem', bindTo: 'a poem', avg: 'poem', ungrouped: 'ungrouped', outlierNone: 'not applicable (poem lengths legitimately vary)' },
+  },
+  // 剧本（⑮-2）：层级是**幕 › 场**，所以分组词必须是「幕」而不是通用的「分组」；
+  // 而且它**不是**合集型 —— 场次体量是节奏工具，离群行照判，空态因此写「无（…）」不是「不适用」。
+  script: {
+    zh: { unit: '场次', group: '幕', avg: '场均', ungrouped: '未分幕', line: '场', unanchored: '未落场次', outlierNone: '无（各场体量均在场均常规区间）' },
+    en: { unit: 'scenes', group: 'acts', groupCol: 'Act', unitOne: 'scene', bindTo: 'a scene', avg: 'scene', ungrouped: 'unplaced', outlierNone: 'none (scene sizes within normal range)' },
+  },
+  // 日记（2026-11-10）：分组是**年与月**，既不是卷也不是幕；它是合集型 —— 某天写两千字、
+  // 某天只写一行，是日记的常态而非缺陷，所以离群空态写「不适用」而不是「无（…常规区间）」。
+  diary: {
+    zh: { unit: '日记', group: '年月', avg: '日均', ungrouped: '未归年月', line: '天', unanchored: '未落日记', outlierNone: '不适用（日记各天长短悬殊属常态，不按均值判离群）' },
+    en: { unit: 'entries', group: 'year/month', groupCol: 'Year/month', unitOne: 'entry', bindTo: 'an entry', avg: 'daily', ungrouped: 'unfiled', outlierNone: 'not applicable (daily lengths legitimately vary)' },
+  },
+} as const;
+
+/** 一张表五个体裁的形状（导出给 corpusNounsFor 的返回位，别让调用方自己写 (typeof X)[keyof typeof X]） */
+export type CorpusNouns = (typeof CORPUS_NOUNS)[keyof typeof CORPUS_NOUNS];
+
+/**
+ * en 语料在**行标签 / 表头 / 节题**位置要首字母大写（`Chapters`、`Chapter List`、`Chapter skeleton`）。
+ *
+ * 为什么是机械大写而不是再登记一格：大写是正字法，不是另一个词 —— 五支的 `cap(unit)` 与
+ * `cap(unitOne)` 逐字等于改造前那三枚裸字面（由 `corpusGenreUnitWords` 套锁死），
+ * 再加 `unitCap`/`unitOneCap` 两格就是让同一个词在同一张表里存三种写法，迟早漂。
+ */
+export function capEn(word: string): string {
+  return word ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+}
+
+/**
+ * 取本体裁的语料量词表（⑭ 刀C 的判据收口，㉞ T-F″ 起为**唯一入口**）。
+ *
+ * 为什么单独导出：`buildStatsCorpus` 之外还有 `buildCatalogCorpus`（大纲骨架）要说
+ * 「无组那一组」叫什么。两处各写一遍下标式取表迟早漂——
+ * 本仓为「同一件事两张表」付过 N 次钱（见 writingSchema `canCreateEntityForGenre` 头注释）。
+ * 回落口径与全仓一致：未设置 / 未登记 / 脏值 = 小说，逐字零回归。
+ */
+export function corpusNounsFor(genre = ''): CorpusNouns {
+  return CORPUS_NOUNS[(genreDef(genre)?.id as keyof typeof CORPUS_NOUNS) ?? 'novel'] ?? CORPUS_NOUNS.novel;
+}
+
 export function buildStatsCorpus(
   bookTitle: string | null,
   chapters: WritingChapter[],
   settings: WritingSetting[],
   goalLine?: { zh: string; en: string } | null,
+  genre = '',
 ): { zh: string; en: string } {
   const kpis = computeWritingKpis(chapters, settings);
   const volRows = buildVolumeRows(chapters);
-  const chRows = buildChapterWordRows(chapters);
+  const chRows = buildChapterWordRows(chapters, genre);
   const outliers = chRows.filter((r) => r.outlier !== null);
   const titleZh = bookTitle ? `《${bookTitle}》` : '';
   const titleEn = bookTitle ? `"${bookTitle}"` : '';
+  // 量词按体裁（⑭ 刀C）：对诗集说「章节 / 卷 / 章均」，模型会按「没分卷的短篇集」去铺承接
+  // 判定走 genreDef（不在语料层写 genre 字面量）；未设置 / 未开闸体裁 = 小说口径，逐字不变
+  const u = corpusNounsFor(genre);
 
   const linesZh: string[] = [
-    `【写作统计】${titleZh}总字数 ${kpis.totalWords.toLocaleString()} · 章节 ${kpis.chapterCount} · 卷 ${kpis.volumeCount} · 设定条目 ${kpis.settingCount} · 章均 ${kpis.avgWords} 字`,
+    `【写作统计】${titleZh}总字数 ${kpis.totalWords.toLocaleString()} · ${u.zh.unit} ${kpis.chapterCount} · ${u.zh.group} ${kpis.volumeCount} · 设定条目 ${kpis.settingCount} · ${u.zh.avg} ${kpis.avgWords} 字`,
   ];
   if (volRows.length > 0) {
     linesZh.push(
       `〔卷分布〕` +
         volRows
-          .map((v) => `${v.volume || '未分卷'}：${v.chapters} 章 ${v.finished} 完稿 ${v.words.toLocaleString()} 字`)
+          .map((v) => `${v.volume || u.zh.ungrouped}：${v.chapters} ${u.zh.line} ${v.finished} 完稿 ${v.words.toLocaleString()} 字`)
           .join('；'),
     );
+  }
+  // ㉖ 日记专属：把「连续 / 空档 / 未标日期」算准了再交给模型。
+  // 书级命令「空档」要求模型回答「中间跨了多久」（workbenchSlashCommands.ts:566-576），
+  // 而它此前拿到的条目清单**没有日期列**（见 ㉖ 取证 1）⇒ 它只能凭「第 N 天」这种序号猜。
+  // 这些数字现在是本地派生的事实，模型不必也不许自己发明日期。
+  if (writesByDateForGenre(genre)) {
+    const rhythm = computeDiaryRhythm(chapters);
+    if (rhythm.distinctDates > 0) {
+      const gapZh = rhythm.gaps.map((g) => `${g.from}~${g.to} ${g.days} 天`).join('、');
+      linesZh.push(
+        `〔记录节奏〕连续 ${rhythm.currentStreak} 天（最长 ${rhythm.longestStreak} 天）· 共记 ${rhythm.distinctDates} 天` +
+          ` · 最后一条 ${rhythm.lastDate} · 首末之间空 ${rhythm.gapDays} 天` +
+          (gapZh ? `（${gapZh}）` : '') +
+          (rhythm.duplicates.length > 0 ? ` · ${rhythm.duplicates.length} 天写了不止一条` : '') +
+          (rhythm.undatedCount > 0
+            ? ` · 另有 ${rhythm.undatedCount} 条未标日期，未计入以上节奏`
+            : ' · 全部条目均已标日期'),
+      );
+    } else {
+      linesZh.push(`〔记录节奏〕暂无带日期的条目，连续与空档**不可推断**，不要凭条目序号猜日期`);
+    }
   }
   if (outliers.length > 0) {
     linesZh.push(
@@ -539,12 +643,12 @@ export function buildStatsCorpus(
         '（advisory 仅供参考，可能是刻意的节奏设计）',
     );
   } else {
-    linesZh.push('〔体量离群〕无（各章体量均在章均常规区间）');
+    linesZh.push(`〔体量离群〕${u.zh.outlierNone}`);
   }
   linesZh.push('（统计=本地派生软提示；节奏与体量建议尊重创作者意图，advisory 不强制）');
 
   const linesEn: string[] = [
-    `[Writing stats] ${titleEn} total ${kpis.totalWords.toLocaleString()} words · ${kpis.chapterCount} chapters · ${kpis.volumeCount} volumes · ${kpis.settingCount} setting entries · avg ${kpis.avgWords} words/chapter`,
+    `[Writing stats] ${titleEn} total ${kpis.totalWords.toLocaleString()} words · ${kpis.chapterCount} ${u.en.unit} · ${kpis.volumeCount} ${u.en.group} · ${kpis.settingCount} setting entries · avg ${kpis.avgWords} words/${u.en.avg}`,
   ];
   if (volRows.length > 0) {
     linesEn.push(
@@ -557,6 +661,23 @@ export function buildStatsCorpus(
           .join('; '),
     );
   }
+  if (writesByDateForGenre(genre)) {
+    const rhythm = computeDiaryRhythm(chapters);
+    if (rhythm.distinctDates > 0) {
+      const gapEn = rhythm.gaps.map((g) => `${g.from}~${g.to} ${g.days}d`).join(', ');
+      linesEn.push(
+        `[Journal rhythm] ${rhythm.currentStreak}-day streak (longest ${rhythm.longestStreak}) · ${rhythm.distinctDates} days recorded` +
+          ` · last entry ${rhythm.lastDate} · ${rhythm.gapDays} blank days between first and last` +
+          (gapEn ? ` (${gapEn})` : '') +
+          (rhythm.duplicates.length > 0 ? ` · ${rhythm.duplicates.length} days carry more than one entry` : '') +
+          (rhythm.undatedCount > 0
+            ? ` · ${rhythm.undatedCount} undated entries stay out of these numbers`
+            : ' · every entry is dated'),
+      );
+    } else {
+      linesEn.push(`[Journal rhythm] no dated entries yet — streaks and gaps are **not inferable**; never guess dates from entry order`);
+    }
+  }
   if (outliers.length > 0) {
     linesEn.push(
       `[Outliers] ` +
@@ -567,7 +688,7 @@ export function buildStatsCorpus(
         ' (advisory only; may be deliberate pacing)',
     );
   } else {
-    linesEn.push('[Outliers] none (chapter sizes within normal range)');
+    linesEn.push(`[Outliers] ${u.en.outlierNone}`);
   }
   linesEn.push("(Stats = local derived soft hints; respect the creator's intent, advisory only)");
 
@@ -730,29 +851,41 @@ export function buildWorldConsistencyPrompt(bookTitle: string, settings: Writing
 }
 
 /**
- * 章节索引表语料（双语，md 表格行数组）——「卷 → 章」结构一览，供作品概览等
+ * 章节索引表语料（双语，md 表格行数组）——「分组 → 正文单位」结构一览，供作品概览等
  * 需要全书章节结构的场景注入。
  *
  * 与 mdTable（ai/providers/scanSections）形态一致但自含渲染：本函数在 utils 层，
  * 不允许反向依赖 ai 层工具；空章节时返回「无数据」提示行而不是空表。
- * 已分卷的书带「卷」列，未分卷省略（与 provider 既有 hasVolumes 判定口径一致）。
+ * 已分组的书带分组列，未分组省略（与 provider 既有 hasVolumes 判定口径一致）。
+ * genre（㉥ AI-5b）：那一列的**列名**按载体取 —— 改造前恒写小说那一支，于是诗集/剧本/日记本
+ * 收到这张表，就等于本仓亲口向模型宣布「你有一个卷层」，模型会按「没分卷的书」去铺承接。
+ * 列名只是措辞，判据（有没有这一列、列里装什么）一律不动。
  */
-export function buildChapterIndexCorpus(chapters: WritingChapter[]): { zh: string[]; en: string[] } {
+export function buildChapterIndexCorpus(chapters: WritingChapter[], genre = ''): { zh: string[]; en: string[] } {
   const r = resolveVolumeResolver(chapters);
   const content = contentChapters(r, chapters);
   const sorted = [...content].sort((a, b) => a.sortOrder - b.sortOrder);
   const hasVolumes = sorted.some((c) => volumeNameOf(r, c));
-  const headersZh = hasVolumes ? ['序号', '卷', '标题', '字数', '状态'] : ['序号', '标题', '字数', '状态'];
-  const headersEn = hasVolumes ? ['#', 'Volume', 'Title', 'Words', 'Status'] : ['#', 'Title', 'Words', 'Status'];
+  // ㉖ 日期列**按数据判、不按体裁字面量判**：没有任何条目带 entryDate（= 现在全部非日记书）
+  // 这张表与改造前逐字节相同；日记则多一列，模型才答得出「空档」命令要的「跨了多久」。
+  const dateOf = new Map<string, string>(diaryRecords(chapters).dated.map((x) => [x.chapterId, x.date]));
+  const hasDates = sorted.some((c) => dateOf.has(c.id));
+  // 列名走那张唯一的量词表（zh 单复同形吃 group，en 吃 groupCol；novel 两支 = 改造前逐字）
+  const nouns = corpusNounsFor(genre);
+  const headersZh = ['序号', ...(hasVolumes ? [nouns.zh.group] : []), ...(hasDates ? ['日期'] : []), '标题', '字数', '状态'];
+  const headersEn = ['#', ...(hasVolumes ? [nouns.en.groupCol] : []), ...(hasDates ? ['Date'] : []), 'Title', 'Words', 'Status'];
   const emptyZh = ['_无数据_'];
   const emptyEn = ['_no data_'];
   if (sorted.length === 0) return { zh: emptyZh, en: emptyEn };
 
-  const zhRows = sorted.map((c, i) =>
-    hasVolumes
-      ? [String(i + 1), volumeNameOf(r, c) || '-', c.title, String(c.wordCount), c.status]
-      : [String(i + 1), c.title, String(c.wordCount), c.status],
-  );
+  const zhRows = sorted.map((c, i) => [
+    String(i + 1),
+    ...(hasVolumes ? [volumeNameOf(r, c) || '-'] : []),
+    ...(hasDates ? [dateOf.get(c.id) ?? '-'] : []),
+    c.title,
+    String(c.wordCount),
+    c.status,
+  ]);
   const enRows = zhRows; // 内容不含语言特定词（标题/卷/字数/状态均为数据本身）
   const render = (headers: string[], rows: string[][]) => [
     `| ${headers.join(' | ')} |`,

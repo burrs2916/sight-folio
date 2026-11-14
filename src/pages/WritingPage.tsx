@@ -56,6 +56,7 @@ import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import NoteAddRoundedIcon from '@mui/icons-material/NoteAddRounded';
+import TodayRoundedIcon from '@mui/icons-material/TodayRounded';
 import DriveFileMoveRoundedIcon from '@mui/icons-material/DriveFileMoveRounded';
 import NotesRoundedIcon from '@mui/icons-material/NotesRounded';
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded';
@@ -207,7 +208,11 @@ import { L } from '../ai/aiLang';
 import { AutoAnalysisPanel } from '../ai/AutoAnalysisPanel';
 
 import { pickLang, t } from '../i18n';
-import { genreLabelKey, mediumLabelKey, bookStatusDef } from '../utils/writingSchema';
+import { genreLabelKey, carrierTermKeys, bookStatusDef, canCreateEntityForGenre } from '../utils/writingSchema';
+import { surfaceKeyForGenre } from '../utils/writingSchema';
+import { hasTodayEntryMode } from '../utils/writingSchema';
+import { diaryEntryTitle, findEntryByDate, todayDateKey, writeDiaryDate } from '../utils/diaryEntry';
+import { unitTermParams } from '../utils/unitTerms';
 import { BookStatusChip } from './BookStatusControl';
 import { BookInfoDialog } from './BookInfoDialog';
 import { GenreMediumFields } from './GenreMediumFields';
@@ -222,7 +227,6 @@ import {
   toggleSettingOnChapter,
 } from '../utils/writingOutline';
 import { buildTree, chapterPathLabels, treeRowIndent, type TreeNode } from '../utils/writingTree';
-import { buildCharactersCorpus, buildCatalogCorpus } from '../utils/writingAiCorpus';
 import { buildWorldBibleCorpus } from '../utils/writingCorpus';
 import { CHAT_CONTEXT_PROFILE } from '../utils/writingCorpusBudget';
 import { foreshadowingsPayableIn } from '../utils/writingForeshadowing';
@@ -230,6 +234,8 @@ import { beatEventText, beatImported, deriveTimeKeys } from '../utils/writingTim
 import { beatPlantedAsForeshadowing } from '../utils/writingInspiration';
 import { buildProofreadReport, chapterTextIssues } from '../utils/writingProofread';
 import { LeftTab, RightTab } from './writingPage/types';
+import VolumeOverviewPanel from './VolumeOverviewPanel';
+import { isVolumeNode, resolveVolumeResolver } from '../utils/writingStats';
 import { ChapterDetailsPanel } from './ChapterDetailsPanel';
 import { ChapterOverviewPanel } from '../editor/panels/ChapterOverviewPanel';
 // 写作偏好（第二十五轮接通消费点）：专注模式与自动保存节奏都从 store 读当前档位，
@@ -316,6 +322,28 @@ function readSavedLeftPanelWidth(): number {
     // 忽略读取异常，回退默认值
   }
   return LEFT_PANEL_WIDTH_DEFAULT;
+}
+
+/**
+ * ㉕ 日记的「今天」：已有今天的条目就打开它，没有才建一条并把日期落进 extra。
+ *
+ * 两点写死在这儿：
+ * 1. **幂等**——一天一条是日记的本分，点两下建出两条就是把作者的账本弄脏，所以先查再建；
+ * 2. 只取一次 `getState()`、**不建订阅**：这是一次点击，不该让整页跟着 store 重渲染
+ *    （与 workbenchContext 里 resolveBookGenre 同一个做法）。
+ */
+function openOrCreateTodayEntry() {
+  const st = useWritingStore.getState();
+  const key = todayDateKey();
+  const hit = findEntryByDate(st.chapters, key);
+  if (hit) {
+    void st.setActiveChapter(hit.id);
+    useToastStore.getState().info(t('writing.diary.todayOpened'));
+    return;
+  }
+  void st.createChapter(diaryEntryTitle(key), writeDiaryDate(undefined, key)).then((created) => {
+    if (created) useToastStore.getState().success(t('writing.diary.todayCreated', { title: created.title }));
+  });
 }
 
 export default function WritingPage() {
@@ -591,7 +619,7 @@ export default function WritingPage() {
 
   // ─── 批次③ 效率：⌘K 跳章 / 快捷键速查 / 导出收纳 / 版本快照（批次④） ───
   const [quickJumpOpen, setQuickJumpOpen] = useState(false);
-  /** 全书体检面板（批次② 增-1）：七组发现此前只在场景画布可见，写作台里一键直达 */
+  /** 全书体检面板（批次② 增-1）：六组发现此前只在场景画布可见，写作台里一键直达 */
   const [healthOpen, setHealthOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [exportAnchor, setExportAnchor] = useState<HTMLElement | null>(null);
@@ -863,6 +891,10 @@ export default function WritingPage() {
 
   const activeBook = books.find((b) => b.id === activeBookId) ?? null;
   const activeChapter = chapters.find((c) => c.id === activeChapterId) ?? null;
+  // 当前选中的是不是**归类节点**（卷/部/篇/自定义层级）：判定只认 utils/writingStats 那一棵树，
+  // 不在这里比 kind 字符串——那是第二份真源（2026-11-07 李先生：点归类节点不许给可编辑正文框）。
+  const volumeResolver = useMemo(() => resolveVolumeResolver(chapters), [chapters]);
+  const activeNodeIsGrouping = !!activeChapter && isVolumeNode(volumeResolver, activeChapter);
   const activeSetting = settings.find((x) => x.id === activeSettingId) ?? null;
   const genre = activeBook?.genre ?? '';
 
@@ -896,8 +928,8 @@ export default function WritingPage() {
   }, [outlines, timelineEvents, foreshadowings, activeChapterId]);
   const proofreadReminders = useMemo(() => {
     if (!activeChapter) return [];
-    return chapterTextIssues(activeChapter);
-  }, [activeChapter]);
+    return chapterTextIssues(activeChapter, genre);
+  }, [activeChapter, genre]);
 
   /**
    * 全书体检发现数（抽屉入口角标）。口径 = utils/writingProofread.buildProofreadReport，
@@ -911,11 +943,12 @@ export default function WritingPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setHealthIssueCount(
-        buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings).issues.length,
+        buildProofreadReport(chapters, outlines, timelineEvents, foreshadowings, storylines, settings, genre)
+          .issues.length,
       );
     }, 1500);
     return () => clearTimeout(timer);
-  }, [chapters, outlines, timelineEvents, foreshadowings, storylines, settings]);
+  }, [chapters, outlines, timelineEvents, foreshadowings, storylines, settings, genre]);
 
   // ─── 章间导航（路线 A）：基于当前书 chapters（sortOrder 顺序），严格不跨书 ───
   const activeChapterIdx = activeChapterId ? chapters.findIndex((c) => c.id === activeChapterId) : -1;
@@ -2121,8 +2154,8 @@ export default function WritingPage() {
     () => [
       {
         id: 'cmd-new-chapter',
-        title: t('writing.newChapter'),
-        category: t('writing.cmdCatChapter'),
+        title: t('writing.newChapter', unitTermParams(activeBook?.genre ?? '')),
+        category: t('writing.cmdCatChapter', unitTermParams(activeBook?.genre ?? '')),
         run: () => openDialog({ kind: 'new-chapter' }),
       },
       {
@@ -2183,7 +2216,8 @@ export default function WritingPage() {
         run: () => setChatOpen(true),
       },
     ],
-    [t, openDialog, focusMode, focusModeActionLabel, cycleFocusMode, handleOpenStats],
+    // genre 进依赖：命令面板那条「新建{unit}」是插值文案，体裁换了必须重算，否则诗集里挂着「新建章节」
+    [t, openDialog, focusMode, focusModeActionLabel, cycleFocusMode, handleOpenStats, activeBook?.genre],
   );
 
   const characters = settings.filter((x) => x.kind === 'character');
@@ -2453,7 +2487,7 @@ export default function WritingPage() {
                         {book.medium && (
                           <Chip
                             size="small"
-                            label={t(mediumLabelKey(book.medium))}
+                            label={t(carrierTermKeys(book.genre, book.medium).labelKey)}
                             sx={{ height: 16, fontSize: uiFontSize(9), flexShrink: 0, '& .MuiChip-label': { px: 0.5 } }}
                           />
                         )}
@@ -2527,7 +2561,8 @@ export default function WritingPage() {
                 '& .MuiTab-root': { minHeight: 34, fontSize: uiFontSize(12.5), px: 0.5, minWidth: 0 },
               }}
             >
-              <Tab value="chapters" label={t('writing.tabChapters')} />
+              {/* ㉓-1 页签名按体裁：日记的左栏第一页签不该写「章节」（键本身仍是小说口径，槽位表回落） */}
+              <Tab value="chapters" label={t(surfaceKeyForGenre(activeBook?.genre ?? '', 'tabUnit'))} />
               <Tab value="settings" label={t('writing.tabSettings')} />
               <Tab value="notes" label={t('writing.tabNotes')} />
             </Tabs>
@@ -2547,7 +2582,7 @@ export default function WritingPage() {
                           textTransform: 'uppercase',
                         }}
                       >
-                        {t('writing.tabChapters')}
+                        {t(surfaceKeyForGenre(activeBook?.genre ?? '', 'tabUnit'))}
                       </Typography>
                     </Tooltip>
                     <Box sx={{ display: 'flex' }}>
@@ -2570,12 +2605,25 @@ export default function WritingPage() {
                           <ChecklistRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title={t('writing.newChapter')}>
+                      {/* ㉕ 只有日记有这颗：判据在 writingSchema.hasTodayEntryMode，组件里不写体裁字面量 */}
+                      {hasTodayEntryMode(activeBook?.genre ?? '') && (
+                        <Tooltip title={t('writing.diary.todayTip')}>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={openOrCreateTodayEntry}
+                            aria-label={t('writing.diary.todayTip')}
+                          >
+                            <TodayRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      <Tooltip title={t('writing.newChapter', unitTermParams(activeBook?.genre ?? ''))}>
                         <IconButton
                           size="small"
                           color="primary"
                           onClick={() => openDialog({ kind: 'new-chapter' })}
-                          aria-label={t('writing.newChapter')}
+                          aria-label={t('writing.newChapter', unitTermParams(activeBook?.genre ?? ''))}
                         >
                           <AddRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
                         </IconButton>
@@ -2618,10 +2666,13 @@ export default function WritingPage() {
                     setSelectedChapterIds={setSelectedChapterIds}
                     setActiveSetting={setActiveSetting}
                     setActiveChapter={setActiveChapter}
-                    onOpenChapterDetails={(id) => {
+                    onChapterOpened={(id) => {
                       setActiveSetting(null);
                       setActiveChapter(id);
-                      setRightTab('details');
+                      // 点章默认进**正文**（2026-11-07 李先生）：写作台的主任务是写字，
+                      // 默认落章详情等于每次点章都先被带到元信息页上。章详情入口不变——
+                      // 右栏「章详情」页签 + 抽屉那颗同名按钮，两个都是写着它干什么的常驻控件。
+                      setRightTab('body');
                     }}
                     dragChapterIdRef={dragChapterIdRef}
                     flushSave={flushSave}
@@ -2698,7 +2749,7 @@ export default function WritingPage() {
                         textTransform: 'uppercase',
                       }}
                     >
-                      {t('writing.characters')}
+                      {t(surfaceKeyForGenre(activeBook?.genre ?? '', 'peopleGroup'))}
                     </Typography>
                     <Tooltip title={t('writing.newCharacter')}>
                       <IconButton
@@ -2734,16 +2785,20 @@ export default function WritingPage() {
                     >
                       {t('writing.worldbuilding')}
                     </Typography>
-                    <Tooltip title={t('writing.newWorldbuilding')}>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => openDialog({ kind: 'new-setting', settingKind: 'worldbuilding' })}
-                        aria-label={t('writing.newWorldbuilding')}
-                      >
-                        <AddRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
-                      </IconButton>
-                    </Tooltip>
+                    {/* ⑲ 体裁闸口：世界观页签在诗集/文集被裁掉，这条独立于页签的 ＋ 却一直能建，
+                       建完在诗集里无处可看（⑲ 现场验实）。只关新建口；已有条目照旧列出，数据可见性护栏不动。 */}
+                    {canCreateEntityForGenre(activeBook?.genre ?? '', 'worldview') && (
+                      <Tooltip title={t('writing.newWorldbuilding')}>
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => openDialog({ kind: 'new-setting', settingKind: 'worldbuilding' })}
+                          aria-label={t('writing.newWorldbuilding')}
+                        >
+                          <AddRoundedIcon sx={{ fontSize: uiFontSize(16) }} />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </Box>
                   {worldbuilding.map(renderSettingRow)}
                   {settings.length === 0 && (
@@ -2945,6 +3000,26 @@ export default function WritingPage() {
             borderColor: 'divider',
           }}
         >
+          {activeNodeIsGrouping && (
+            // 归类节点没有正文也没有章级详情：两个页签都是假选项，于是整条换成只读标题，
+            // 页签本身用 display:none 收起（不是 disabled——灰着的假选项照样会让人点）。
+            <Box
+              data-testid="desk-volume-header"
+              sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 1, px: 1.5, minHeight: 38 }}
+            >
+              <Typography sx={{ fontSize: uiFontSize(12.5), fontWeight: 600 }}>
+                {t('writing.volumeOverviewTitle', {
+                  kind: activeChapter?.kind || t('writing.volumeOverviewKindFallback'),
+                })}
+              </Typography>
+              <Chip
+                size="small"
+                variant="outlined"
+                label={t('writing.volumeOverviewReadonly')}
+                sx={{ fontSize: uiFontSize(11) }}
+              />
+            </Box>
+          )}
           <Tabs
             value={rightTab}
             onChange={(_, v: RightTab) => {
@@ -2958,6 +3033,7 @@ export default function WritingPage() {
             variant="fullWidth"
             sx={{
               flex: 1,
+              display: activeNodeIsGrouping ? 'none' : 'flex',
               minHeight: 38,
               px: 0.5,
               // 圆角例外（第 32 轮逐处拍板）：Tabs 指示条高 3px、只圆顶两角，是随条高走的几何值
@@ -2984,7 +3060,7 @@ export default function WritingPage() {
               value="details"
               icon={<InfoRoundedIcon />}
               iconPosition="start"
-              label={t('writing.tabChapterDetails')}
+              label={t(surfaceKeyForGenre(activeBook?.genre ?? '', 'unitDetail'))}
               disabled={!activeBook}
             />
           </Tabs>
@@ -3162,7 +3238,20 @@ export default function WritingPage() {
           flushSave={flushSave}
           flushSettingSave={flushSettingSave}
         />
-        {rightTab === 'details' ? (
+        {activeNodeIsGrouping && activeChapter ? (
+          /* 归类节点（卷/部/篇/自定义层级）走这块只读概览：它按设计不写正文，给它可以编辑的
+             正文框等于让作者把字写进一个结构节点。要写内容从概览里的章行进去。 */
+          <VolumeOverviewPanel
+            node={activeChapter}
+            chapters={chapters}
+            genre={genre}
+            onOpenChapter={(id) => {
+              setActiveSetting(null);
+              setActiveChapter(id);
+              setRightTab('body');
+            }}
+          />
+        ) : rightTab === 'details' ? (
           /* 单一滚动容器（对齐设定卡分支）：九维统筹卡与章详情面板同处一个滚动流，
              不再各开一个滚动区、上下争高——修「切到章详情布局就乱」。
              统筹卡去掉 maxHeight:52vh 硬顶，改为随内容自然展开。 */
@@ -3632,8 +3721,8 @@ export default function WritingPage() {
                         <Typography sx={{ fontSize: uiFontSize(13), fontWeight: 700 }}>
                           {t(
                             isChar
-                              ? 'editor.writing.inspector.appearChapters'
-                              : 'editor.writing.inspector.relatedChapters',
+                              ? surfaceKeyForGenre(genre, 'appearUnits')
+                              : surfaceKeyForGenre(genre, 'relatedUnits'),
                           )}
                         </Typography>
                       </Box>
@@ -3868,7 +3957,7 @@ export default function WritingPage() {
                                   size="small"
                                   sx={{ width: 210, flexShrink: 0 }}
                                   label={t('writing.timelineAt')}
-                                  placeholder={t('writing.timelineAtHint')}
+                                  placeholder={t(surfaceKeyForGenre(genre, 'tlAtFieldHint'))}
                                   slotProps={{ inputLabel: { shrink: true } }}
                                   value={ev.at}
                                   onChange={(e) => setTimelineRow(ev.id, 'at', e.target.value)}
@@ -3894,7 +3983,7 @@ export default function WritingPage() {
                                   size="small"
                                   select
                                   fullWidth
-                                  label={t('writing.timelineChapter')}
+                                  label={t(surfaceKeyForGenre(genre, 'tlBindUnit'))}
                                   slotProps={{ inputLabel: { shrink: true } }}
                                   value={ev.chapterId ?? ''}
                                   onChange={(e) => setTimelineRow(ev.id, 'chapterId', e.target.value)}
@@ -4006,7 +4095,7 @@ export default function WritingPage() {
                                   size="small"
                                   sx={{ width: 210, flexShrink: 0 }}
                                   label={t('writing.timelineAt')}
-                                  placeholder={t('writing.timelineAtHint')}
+                                  placeholder={t(surfaceKeyForGenre(genre, 'tlAtFieldHint'))}
                                   slotProps={{ inputLabel: { shrink: true } }}
                                   value={ev.at}
                                   onChange={(e) => setTimelineRow(ev.id, 'at', e.target.value)}
@@ -4032,7 +4121,7 @@ export default function WritingPage() {
                                   size="small"
                                   select
                                   fullWidth
-                                  label={t('writing.timelineChapter')}
+                                  label={t(surfaceKeyForGenre(genre, 'tlBindUnit'))}
                                   slotProps={{ inputLabel: { shrink: true } }}
                                   value={ev.chapterId ?? ''}
                                   onChange={(e) => setTimelineRow(ev.id, 'chapterId', e.target.value)}
@@ -4964,6 +5053,8 @@ export default function WritingPage() {
               aiCorpus={{
                 chatTitle: `${t('writing.aiCorpusTitle')} · ${activeBook?.title ?? ''}`,
                 buildContextBlock: buildChatContext,
+                // ㉟ AI-5（轮 12）：语料参谋人设按体裁（未设/空 = 小说口径逐字零回归）
+                genre: activeBook?.genre ?? '',
                 agentId: chatAgentId,
                 onAgentChange: setChatAgentId,
                 onOpenSettings: goAiSettings,
@@ -4993,7 +5084,9 @@ export default function WritingPage() {
           >
             <MenuBookRoundedIcon sx={{ fontSize: uiFontSize(42), color: 'text.disabled' }} />
             <Typography sx={{ fontSize: uiFontSize(13), color: 'text.secondary' }}>
-              {activeBook ? t('writing.selectChapter') : t('writing.emptyBooksHint')}
+              {activeBook
+                ? t('writing.selectChapter', unitTermParams(activeBook.genre))
+                : t('writing.emptyBooksHint')}
             </Typography>
             {booksLoading || chaptersLoading
               ? null
@@ -5004,7 +5097,9 @@ export default function WritingPage() {
                     startIcon={<AddRoundedIcon />}
                     onClick={() => openDialog({ kind: 'new-chapter' })}
                   >
-                    {t('writing.newChapter')}
+                    {/* ㉓-1 这条是**所有体裁**的显示缺陷：键值是「新建{unit}」，这里过去不传参，
+                       于是界面直接印出字面量「新建{unit}」。同文件 2581 行一直传对了，就这处漏。 */}
+                    {t('writing.newChapter', unitTermParams(activeBook?.genre ?? ''))}
                   </Button>
                 )}
           </Box>
@@ -5267,7 +5362,8 @@ export default function WritingPage() {
         }}
         labels={{
           title: t('writing.emotionArcTitle'),
-          empty: t('writing.emotionArcEmpty'),
+          // A6-2：“本章暂无…”的「章」按体裁取节点量词（篇/首/场/篇）；novel 逐字不变。
+          empty: t('writing.emotionArcEmpty', unitTermParams(genre)),
           hint: t('writing.emotionArcHint'),
           flat: t('writing.emotionArcFlat'),
           breakpoint: t('writing.emotionArcBreakpoint'),
@@ -5317,7 +5413,8 @@ export default function WritingPage() {
         }}
         labels={{
           title: t('writing.showTellTitle'),
-          empty: t('writing.showTellEmpty'),
+          // A6-2：同上，「本章没有…」按体裁取量词。
+          empty: t('writing.showTellEmpty', unitTermParams(genre)),
           hint: t('writing.showTellHint'),
           told: t('writing.showTellTold'),
           directions: t('writing.showTellDirections'),
@@ -5348,6 +5445,8 @@ export default function WritingPage() {
         settings={settings}
         chatTitle={`${t('writing.inspirationExpandTitle')} · ${activeBook?.title ?? ''}`}
         buildContextBlock={buildChatContext}
+        // ㉟ AI-5（轮 12）：扩写成品形状按体裁（诗集不再领到「放进小说正文」）
+        genre={activeBook?.genre ?? ''}
         onInsertText={handleInspirationInsert}
         initialBeatId={inspirationExpandInitialId}
         onInitialBeatConsumed={() => setInspirationExpandInitialId(null)}
@@ -5498,6 +5597,9 @@ export default function WritingPage() {
         onClose={() => setStatsOpen(false)}
         bookId={activeBook?.id ?? null}
         bookTitle={activeBook?.title ?? ''}
+        genre={activeBook?.genre ?? ''}
+        chapters={chapters}
+        settings={settings}
         chapterCount={chapters.length}
         chapterTotalWords={chapters.reduce((sum, c) => sum + c.wordCount, 0)}
         dailyGoal={activeBook?.dailyGoal ?? 0}
@@ -5530,7 +5632,7 @@ export default function WritingPage() {
           setActiveChapter(id);
         }}
       />
-      {/* ─── 批次② 全书体检：七组发现清单，章/卡两类可在写作台内直接跳过去处理 ─── */}
+      {/* ─── 批次② 全书体检：六组发现清单，章/卡两类可在写作台内直接跳过去处理 ─── */}
       <WritingHealthDialog
         open={healthOpen}
         onClose={() => setHealthOpen(false)}

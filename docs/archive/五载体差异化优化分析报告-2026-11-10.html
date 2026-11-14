@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>五载体差异化优化分析报告 · 2026-11-10</title>
+<style>
+  :root{
+    --novel:#4A338F; --essay:#2563eb; --poetry:#875b1c; --script:#047857; --diary:#9d174d;
+    --ink:#1f2430; --muted:#6b7280; --line:#e5e7ee; --bg:#f7f8fb; --card:#ffffff;
+    --p0:#b91c1c; --p1:#c2660a; --p2:#1d4ed8; --ok:#15803d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.75 -apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 96px}
+  h1{font-size:28px;margin:0 0 6px}
+  h2{font-size:21px;margin:56px 0 14px;padding-left:12px;border-left:5px solid var(--ink)}
+  h3{font-size:16.5px;margin:28px 0 10px}
+  .sub{color:var(--muted);margin-bottom:32px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 24px;margin:14px 0}
+  table{border-collapse:collapse;width:100%;margin:12px 0;background:var(--card);font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#eef0f6;font-weight:600}
+  tr:nth-child(even) td{background:#fafbfe}
+  .g{display:inline-block;padding:1px 9px;border-radius:20px;color:#fff;font-size:12px;white-space:nowrap}
+  .g-novel{background:var(--novel)} .g-essay{background:var(--essay)} .g-poetry{background:var(--poetry)}
+  .g-script{background:var(--script)} .g-diary{background:var(--diary)} .g-all{background:#374151}
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;font-weight:600}
+  .p0{background:#fee2e2;color:var(--p0)} .p1{background:#ffedd5;color:var(--p1)} .p2{background:#dbeafe;color:var(--p2)}
+  .ok{background:#dcfce7;color:var(--ok)}
+  code{background:#eef1f6;border-radius:4px;padding:1px 6px;font:12.5px ui-monospace,Menlo,monospace}
+  .loc{color:var(--muted);font:12px ui-monospace,Menlo,monospace}
+  ul,ol{padding-left:22px}
+  .kpi-row{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}
+  .kpi{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  .kpi b{display:block;font-size:26px}
+  .note{background:#fffbeb;border:1px solid #f3e3a5;border-radius:10px;padding:12px 18px;margin:12px 0}
+  .flow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  .flow .step{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px}
+  .flow .arrow{color:var(--muted)}
+  .flow .bad{border-color:#fca5a5;background:#fff5f5}
+  .muted{color:var(--muted)}
+  .toc{columns:2;font-size:14px}
+  .toc a{color:var(--ink);text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  td.c{text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>五载体差异化优化分析报告</h1>
+<div class="sub">Sight Folio · 小说 / 散文 / 诗歌 / 剧本 / 日记 —— tabs 区域 · 右侧导航与 AI 助手 · 工作台 · 完结导出 · 自动化任务衔接<br>
+调查基线：工作区当前代码（含 ⑨–㉝ 各刀体裁差异化改造后状态）· 2026-11-10</div>
+
+<div class="kpi-row">
+  <div class="kpi"><b>5 / 5</b><span class="muted">体裁全部 ready 开闸</span></div>
+  <div class="kpi"><b style="color:var(--p0)">7</b><span class="muted">P0 正确性缺口</span></div>
+  <div class="kpi"><b style="color:var(--p1)">14</b><span class="muted">P1 体验断层</span></div>
+  <div class="kpi"><b style="color:var(--p2)">9</b><span class="muted">P2 体系性欠账</span></div>
+  <div class="kpi"><b style="color:var(--ok)">1 套</b><span class="muted">可复用的体裁单一事实源机制</span></div>
+</div>
+
+<div class="card"><b>目录</b>
+<div class="toc">
+<a href="#s1">§1 五载体特征分析 —— 它们到底哪里不同</a><br>
+<a href="#s2">§2 现状基线 —— 已建成的差异化机制（先给结论：地基是对的）</a><br>
+<a href="#s3">§3 中间 tabs 区域：是否需要优化调整</a><br>
+<a href="#s4">§4 右侧导航栏与 AI 助手：针对性调整清单</a><br>
+<a href="#s5">§5 工作台：命令面已分体裁，读写通道没有</a><br>
+<a href="#s6">§6 完结作品导出：genre 在链路中途消失</a><br>
+<a href="#s7">§7 自动化任务与上下文衔接：让上一任务的记忆被下一任务理解</a><br>
+<a href="#s8">§8 统一实施方案：P0 / P1 / P2 三批次 + 验收标准</a><br>
+</div>
+</div>
+
+<h2 id="s1">§1 五载体特征分析 —— 它们到底哪里不同</h2>
+
+<p>五个载体不是"同一篇文章的五种叫法"。它们在<b>结构层级、时间坐标、AI 不许动的东西、离群判定、导出排版、自动诊断维度</b>六个轴上各自不同——任何一轴共用小说口径，产出都是"一本小说式的诗集/剧本/日记"。这正是仓库注释里反复付过学费的结论（<span class="loc">writingSchema.ts:10-11</span>）。</p>
+
+<table>
+<tr><th>维度</th><th><span class="g g-novel>小说</span></th><th><span class="g g-essay>散文</span></th><th><span class="g g-poetry>诗歌</span></th><th><span class="g g-script>剧本</span></th><th><span class="g g-diary>日记</span></th></tr>
+<tr><td>本质</td><td>长篇连载叙事链</td><td>短篇合集，每篇独立立意</td><td>韵文合集，分行为本体</td><td>单本演出文本，对白驱动</td><td>第一人称记录，日期为主键</td></tr>
+<tr><td>载体（medium）</td><td>连载 serial / 单本</td><td>集子 collection</td><td>诗集 collection</td><td>单本 standalone</td><td>日记集 collection</td></tr>
+<tr><td>结构层级</td><td>卷 › 章</td><td>篇 › 节</td><td>辑 › 首</td><td>幕 › 场</td><td>年 › 月 › 天</td></tr>
+<tr><td>单位词（徽标/量词）</td><td>章 / 章</td><td>篇 / 篇</td><td>诗 / 首</td><td>场 / 场</td><td>天 / 篇</td></tr>
+<tr><td>时间坐标</td><td>书内虚构时间线</td><td>无</td><td>无（组诗可编排）</td><td>幕场时序</td><td><b>真实日期</b> <code>extra.entryDate</code></td></tr>
+<tr><td>特有元素</td><td>伏笔、剧情线、世界观、人设卡</td><td>立意、素材</td><td>形式（五言绝句/十四行体…）、意象</td><td>角色表、对白、舞台指示</td><td>条目日期、连续/空档节奏</td></tr>
+<tr><td>AI 硬边界（不许动）</td><td>情节、人物行为、时间线</td><td>立意与人事细节，禁补经历</td><td><b>分行与节次</b>，禁排成散文</td><td>谁说、场序编号，禁把对白改叙述</td><td><b>所记事实</b>，禁替作者编记忆</td></tr>
+<tr><td>体量离群判定</td><td>有意义（章均 2×/0.3×）</td><td>无意义（长短是常态）</td><td>无意义（短诗挨长诗）</td><td>有意义（场次是节奏工具）</td><td>无意义（一天的多少不等质量）</td></tr>
+<tr><td>导出关键排版</td><td>卷页+章分页</td><td>篇题+节，篇≠卷</td><td><b>保留硬换行/居中/无首行缩进</b></td><td>对白悬挂缩进、指示斜体</td><td><b>条目带日期</b>、按月归档</td></tr>
+<tr><td>自动化诊断视角</td><td>伏笔回收/连续性</td><td>立意核/篇序</td><td>形式核验/分行</td><td>冲突递进/对白可辨</td><td>空档断点/前后对照</td></tr>
+</table>
+
+<div class="note"><b>设计推论（本报告全部建议的判据来源）：</b>
+① 凡"AI 硬边界"一行的差异，都必须落到<b>每一条 prompt 构建路径</b>——漏一条，模型就会越界（把诗排成散文、替日记编记忆）；
+② 凡"导出关键排版"的差异，都必须让 genre 走通<b>从 UI 到渲染器全链路</b>——断在中间，产物就是错的；
+③ 凡"特有元素"的差异，决定 tabs/货架/面板<b>该长出什么、该藏什么入口</b>；
+④ 凡"自动化诊断视角"，决定自动任务的预设与<b>结论如何跨任务携带</b>。</div>
+
+
+<h2 id="s2">§2 现状基线 —— 已建成的差异化机制（先给结论：地基是对的）</h2>
+
+<p>这一轮改造（⑨–㉝ 各刀）已经在 <code>src/utils/writingSchema.ts</code> 建成了<b>单一事实源</b>的体裁机制，后续优化应继续走这套表，而不是在渲染层长新的 <code>if (genre === …)</code>：</p>
+
+<table>
+<tr><th>机制</th><th>位置</th><th>作用</th><th>五体裁覆盖</th></tr>
+<tr><td><code>WRITING_GENRES</code> / <code>isGenreReady</code></td><td class="loc">writingSchema.ts:24-85</td><td>体裁表 + ready 闸口（改表即改行为）</td><td class="c">✅ 全 ready</td></tr>
+<tr><td><code>WRITING_MEDIUMS</code> + <code>CARRIER_TERM_OVERRIDES</code></td><td class="loc">writingSchema.ts:45-64, 521-546</td><td>三档载体 ×「体裁×载体」术语覆盖（诗集/日记集/剧本单本）</td><td class="c">✅</td></tr>
+<tr><td><code>hiddenViewKindsForGenre</code> + <code>canCreateEntityForGenre</code></td><td class="loc">writingSchema.ts:176-192</td><td>页签裁剪与实体创建闸口<b>同源</b>（藏视图必关入口）</td><td class="c">✅</td></tr>
+<tr><td><code>SURFACE_DEFAULTS</code> + <code>SURFACE_OVERRIDES</code>（27 个槽位）</td><td class="loc">writingSchema.ts:675-1002</td><td>界面读数句子按体裁换整句；<b>未登记=回落小说原句=零回归</b></td><td class="c">⚠️ 见 §3 缺口 T-2</td></tr>
+<tr><td>单位词四函数 <code>unitNameKey/unitShortKey/unitWordKey/unitClassifierKey</code></td><td class="loc">writingSchema.ts:114-365</td><td>名/徽标/句中词/量词四个概念各判一次</td><td class="c">✅</td></tr>
+<tr><td><code>isCollectionGenre / outlierMeaninglessForGenre / characterCardsOptionalForGenre</code></td><td class="loc">writingSchema.ts:231-478</td><td>合集型 / 离群豁免 / 人设卡可选</td><td class="c">✅</td></tr>
+<tr><td><code>writingTree.defaultLevels</code></td><td class="loc">writingTree.ts:79</td><td>五套结构层级词（卷›章…年›月›天）</td><td class="c">✅</td></tr>
+<tr><td><code>workbenchCommandSet</code> + 五支斜杠命令集（28 条）</td><td class="loc">workbenchSlashCommands.ts</td><td>体裁专属诊断命令，<code>Record&lt;GenrePromptVariant&gt;</code> 穷尽锁</td><td class="c">✅ 问什么已分</td></tr>
+<tr><td>诗歌形式 <code>poetryForms</code> / 剧本结构 <code>scriptStructure</code> / 日记 <code>diaryEntry·diaryMetrics</code></td><td class="loc">utils/</td><td>体裁专属校验与读数（形式核验、对白结构、连续/空档）</td><td class="c">✅</td></tr>
+<tr><td>体裁色（唯一一份）</td><td class="loc">writingSchema.ts:25-34</td><td>小说墨紫 #4A338F / 散文蓝 #2563eb / 诗赭 #875b1c / 剧本翠绿 #047857 / 日记绛红 #9d174d</td><td class="c">✅</td></tr>
+</table>
+
+<div class="note"><b>三条已被测试钉死的护栏模式（本报告的方案全部沿用）：</b><br>
+① 裁剪只影响"新建/展示"，<b>已建视图必显示</b>（数据不因裁页签而隐身）；<br>
+② 页签表与创建闸口同源，<b>禁第二张表</b>；<br>
+③ 覆盖表模式——<b>未登记体裁回落原键</b>，小说侧字节级零回归。加体裁 = 改表，不改渲染层。</div>
+
+<h2 id="s3">§3 中间 tabs 区域：是否需要优化调整</h2>
+
+<p><b>结论：需要，但方向不是"再裁几枚页签"，而是补三件事：读数槽位补齐、剧本设计面缺位、"加法页签"机制。</b>现有 L1（书页签）/ L2（11 枚功能视图页签）的减法与改名已做对：</p>
+
+<table>
+<tr><th>体裁</th><th>L2 页签数</th><th>被裁视图</th><th>改名</th></tr>
+<tr><td><span class="g g-novel>小说</span></td><td class="c">11</td><td>—</td><td>基准</td></tr>
+<tr><td><span class="g g-essay>散文</span> <span class="g g-poetry>诗歌</span> <span class="g g-diary>日记</span></td><td class="c">8</td><td>世界观 / 剧情线 / 伏笔</td><td>篇目 / 诗作 / 条目；人物</td></tr>
+<tr><td><span class="g g-script>剧本</span></td><td class="c">10</td><td>世界观（角色表/幕场/伏笔是戏剧本体，保留是对的）</td><td>幕场 / 角色表</td></tr>
+</table>
+
+<h3>缺口清单</h3>
+<table>
+<tr><th>#</th><th>优先级</th><th>问题</th><th>证据</th><th>影响</th></tr>
+<tr><td>T-1</td><td><span class="tag p1">P1</span></td><td><b>剧本没有专属设计面</b>：pane 分支只有「合集型 / 小说型」二分，script 落进小说 <code>StorylinePane</code>（节拍+人物挂载），且卡内第一栏硬编码叫「主线」。剧本要的是幕›场结构、出场人物、舞台指示维度</td><td class="loc">WritingDesignView.tsx:204-228 · WritingStudioPane.tsx:126 · writingPanes.tsx:3114,3083</td><td>剧本</td></tr>
+<tr><td>T-2</td><td><span class="tag p1">P1</span></td><td><b>槽位表只有 diary 登记了 15 个读数槽位</b>（statsEmpty/unitProgress/unitTargetLabel/currentTally/tabUnit…），essay/poetry/script 全部回落小说原句 → 诗集统计页空态印「还没有章节——落第一章…」、左栏第一页签三体裁都写「章节」、目标卡写「已写 x / 目标 y 章」。且 <span class="loc">writingSchema.ts:876</span> 注释声称"另三体裁各有各的键"，与事实相反——注释成了错误真源</td><td class="loc">writingSchema.ts:812-1001 · WritingPage.tsx:2564 · writingPanes.tsx:2499</td><td>散文/诗歌/剧本</td></tr>
+<tr><td>T-3</td><td><span class="tag p2">P2</span></td><td><b>L2 是封闭全集，只有减法没有加法</b>：日记的「今天」、剧本的「幕场结构总览」只能寄生在左栏或 pane 内部；建议给 <code>KIND_TABS</code> 加 <code>genres?</code> 白名单字段，允许体裁新增页签（机制同 hidden 的镜像）</td><td class="loc">SceneTabBar.tsx:71-85</td><td>日记/剧本</td></tr>
+<tr><td>T-4</td><td><span class="tag p2">P2</span></td><td>「设定」左栏页签对五体裁一视同仁：<b>世界观分组标题常驻</b>（只关了「＋新建」），被裁体裁看到一个永远空的分节</td><td class="loc">WritingPage.tsx:2729-2802</td><td>四类非小说</td></tr>
+<tr><td>T-5</td><td><span class="tag p2">P2</span></td><td>合集型大纲 pane（PiecesPane）没有人挂载列，而日记明确保留人物档 → "人"这个维度在中间区域断链，挂不上也看不了</td><td class="loc">writingPanes.tsx:3186-3259 · writingSchema.ts:183</td><td>日记（次：散文/诗）</td></tr>
+<tr><td>T-6</td><td><span class="tag p2">P2</span></td><td>⌘K 快速跳转「无匹配章节」等零散硬编码小说词</td><td class="loc">ChapterQuickJump.tsx:121</td><td>四类非小说</td></tr>
+</table>
+
+<h2 id="s4">§4 右侧导航栏与 AI 助手：针对性调整清单</h2>
+
+<p><b>结论：右栏结构本身（正文/详情 + 抽屉语料/AI 素材）可以不动，AI 助手必须动——它是五载体区分度要求最高、当前断层也最大的一块。</b>能力 × 体裁覆盖矩阵（以代码为准）：</p>
+
+<table>
+<tr><th>AI 能力</th><th class="c"><span class="g g-novel>小说</span></th><th class="c"><span class="g g-essay>散文</span></th><th class="c"><span class="g g-poetry>诗歌</span></th><th class="c"><span class="g g-script>剧本</span></th><th class="c"><span class="g g-diary>日记</span></th></tr>
+<tr><td>续写 / 整篇润色 / 整篇改写 / 总结（写作台）</td><td class="c">基准</td><td class="c">半支（续写落小说兜底⑤）</td><td class="c">✅ 专属</td><td class="c">✅ 专属</td><td class="c">✅ 专属</td></tr>
+<tr><td><b>选区润色 / 选区改写 / 选区总结</b></td><td class="c">基准</td><td class="c" style="color:var(--p0)"><b>❌ 无分支</b></td><td class="c" style="color:var(--p0)"><b>❌ 无分支</b></td><td class="c" style="color:var(--p0)"><b>❌ 无分支</b></td><td class="c" style="color:var(--p0)"><b>❌ 无分支</b></td></tr>
+<tr><td>逐句审校（校对豁免条）</td><td class="c">基准</td><td class="c">仅换名词</td><td class="c">✅</td><td class="c">✅</td><td class="c">✅</td></tr>
+<tr><td><b>写作台 AI 审阅 6 预设</b>（人设一致/情节节奏/情感浓度/AI味/张力/逻辑连续）</td><td class="c">基准</td><td class="c" style="color:var(--p0)"><b>❌ 零分支</b></td><td class="c" style="color:var(--p0)"><b>❌ 零分支</b></td><td class="c" style="color:var(--p0)"><b>❌ 零分支</b></td><td class="c" style="color:var(--p0)"><b>❌ 零分支</b></td></tr>
+<tr><td>/ai 页五维诊断 + 快捷卡（quickActionPrompts）</td><td class="c">✅</td><td class="c">✅</td><td class="c">✅</td><td class="c">✅</td><td class="c">✅</td></tr>
+<tr><td>资料生稿·草稿</td><td class="c">基准</td><td class="c">半支</td><td class="c">✅</td><td class="c">✅</td><td class="c">✅（硬线最严）</td></tr>
+<tr><td>资料生稿·分析六维</td><td class="c">基准</td><td class="c" colspan="4" style="color:var(--p1)">❌ 世界观/角色/情节/桥段仍是小说六维（注释自认 S21 欠账）</td></tr>
+<tr><td>工作台对话人设（ask / edit / agent）</td><td class="c">基准</td><td class="c">ask✅ / edit·agent❌</td><td class="c">ask✅ / edit·agent❌</td><td class="c">ask✅ / edit·agent❌</td><td class="c">ask✅ / edit·agent❌</td></tr>
+<tr><td>四个手艺面板（AI味/情感弧线/Show-not-Tell/写法对照）</td><td class="c">基准</td><td class="c" colspan="4" style="color:var(--p1)">❌ 无体裁概念，对诗/剧本按散文句法打分</td></tr>
+<tr><td>本地校对规则（错别字/病句）</td><td class="c">基准</td><td class="c" colspan="4" style="color:var(--p1)">❌ 诗的分行、剧本角色名行/括注会被判病句</td></tr>
+</table>
+
+<h3>缺口清单（AI 层）</h3>
+<table>
+<tr><th>#</th><th>优先级</th><th>问题</th><th>证据</th></tr>
+<tr><td>A-1</td><td><span class="tag p0">P0</span></td><td><b>选区润色/改写/总结整段无 genre 分支</b>：选中诗的一节润色，prompt 只有「不得改变情节、人物行为、时间线」——没禁合行、没禁排成散文；日记没有「不得补写」；剧本没有台词/括注保护。整篇分支立的所有规矩，选区一条都不在</td><td class="loc">writingAssistant.ts:304-336, 405-437, 487-501</td></tr>
+<tr><td>A-2</td><td><span class="tag p0">P0</span></td><td><b>写作台 AI 审阅 6 预设全小说口径</b>：散文/诗/日记被裁掉的伏笔、世界观仍被要求「一并审视」；「人设一致性」「情节与节奏」对诗集原样出现</td><td class="loc">writingContextProvider.ts:394-500</td></tr>
+<tr><td>A-3</td><td><span class="tag p1">P1</span></td><td><b>双 prompt 栈漂移已发生</b>：写作台内联走 <code>writingAssistant</code>，/ai 页走 <code>quickActionPrompts</code>（后者五体裁齐全）。散文续写在后者有专属文案、前者落「请为下面的小说片段续写」——同一能力两套答案</td><td class="loc">writingAssistant.ts:229-256 vs quickActionPrompts.ts:270-283</td></tr>
+<tr><td>A-4</td><td><span class="tag p1">P1</span></td><td>工作台 <code>edit/agent</code> 人设与 footer 写死「章节 / 人设卡 / 世界观设定 / 全书结构」（注释自认欠账，仅 ask 接了 <code>personaWords</code>）→ 诗集在改稿模式被建议「先补人设卡」</td><td class="loc">workbenchContext.ts:181,219-230,358</td></tr>
+<tr><td>A-5</td><td><span class="tag p1">P1</span></td><td>章详情/检视器的伏笔·剧情线·世界观分区<b>不查 <code>hiddenViewKindsForGenre</code></b>：标题换词了，区块照渲染 → 对非小说恒是空壳分区（「藏视图不藏入口就是化妆」的右栏版本）</td><td class="loc">ChapterDetailsPanel.tsx:373-630 · WritingInspectorPanel.tsx:1896-1921</td></tr>
+<tr><td>A-6</td><td><span class="tag p2">P2</span></td><td>四个手艺面板、本地校对引擎无体裁判据（诗/剧本/日记按散文句法被误判）</td><td class="loc">AiFlavorPanel/ShowTellPanel/EmotionArcPanel/CraftComparePanel · editor/proofread/*</td></tr>
+<tr><td>A-7</td><td><span class="tag p2">P2</span></td><td>资料生稿的分析六维仍是小说六维（S21 欠账在册）；右栏追问 chip 的提问形态按小说（「情节走向」「伏笔呼应」）</td><td class="loc">writingMaterial.ts:52-99 · workbenchPanelHooks.ts:488-553</td></tr>
+</table>
+
+<h2 id="s5">§5 工作台：命令面已分体裁，读写通道没有</h2>
+
+<p><b>结论：五体裁斜杠命令集（28 条，互不相同）解决了「问什么」；但「读什么、写什么、结果放哪」三件事全部还是小说世界——且后两件对诗歌/剧本是有损的。</b></p>
+
+<table>
+<tr><th>体裁</th><th>命令集（全部 mode:'ask' 只诊断）</th><th>缺失</th></tr>
+<tr><td><span class="g g-novel>小说</span></td><td>体检 / 连续性 / 人物 / 伏笔 / 时间线 / 脑暴（6）</td><td>—（基准）</td></tr>
+<tr><td><span class="g g-essay>散文</span></td><td>文集体检 / 立意核 / 篇序编排 / 素材归集 / 题目脑暴（5）</td><td>—</td></tr>
+<tr><td><span class="g g-poetry>诗歌</span></td><td>诗集体检 / 形式核验 / 意象谱 / 分行断句 / 节奏跨行 / 诗题脑暴（6）</td><td>—</td></tr>
+<tr><td><span class="g g-script>剧本</span></td><td>全剧体检 / 幕场结构 / 对白核 / 舞台指示核 / 冲突递进 / 场次脑暴（6）</td><td><b>缺 /人物</b>（人设词表把「角色表」列为剧本第一读物，命令面无入口，口径自相矛盾）</td></tr>
+<tr><td><span class="g g-diary>日记</span></td><td>整本体检 / 空档断点 / 反复出现的人 / 语气流水账 / 归月建议（5）</td><td><b>缺 /脑暴</b>（余四体皆有）、缺日期时序核验（<code>entryDate</code> 无任何命令消费）、缺素材归集</td></tr>
+</table>
+
+<h3>缺口清单（工作台层）</h3>
+<table>
+<tr><th>#</th><th>优先级</th><th>问题</th><th>证据</th></tr>
+<tr><td>W-1</td><td><span class="tag p0">P0</span></td><td><b>命令让模型去读正文，但它读不到</b>：工作台工具白名单不含写作工具（<code>list_chapters/read_chapter/write_chapter/read_character_card/search_corpus</code>），而 28 条命令里 8 条写着「用 file_read 对照真实正文」——<code>file_read</code> 读的是代码扫描索引 <code>project_files</code>，章节正文在 <code>writing_chapters.content</code>。所有体裁级诊断都在"凭注入摘要猜"</td><td class="loc">workbenchContext.ts:33-46 · workbenchSlashCommands.ts:67,80,93,106,327,408,486,588 · tools.rs:344-346</td></tr>
+<tr><td>W-2</td><td><span class="tag p0">P0</span></td><td><b>书场景不注入 book id</b>：写作工具要 <code>book_id</code>，只能拿书名解析 → 同名/改名/多书并存时打错书。/ai 页有注入（<span class="loc">AiAgentPage.tsx:1024</span>），工作台没有</td><td class="loc">workbenchContext.ts:110-111 · tools.rs:3263-3280</td></tr>
+<tr><td>W-3</td><td><span class="tag p0">P0</span></td><td><b>agent 读写通道对诗/剧本有损</b>：读时并滤空行（诗的节间空行消失），写时按空行切段包 <code>&lt;p&gt;</code>（分行/角色名版式被压成段落）。只要 agent 走 <code>write_chapter</code>，就必然违反命令自己写的「不得把诗排成散文段落」</td><td class="loc">tools.rs:3231-3258, 3664-3676</td></tr>
+<tr><td>W-4</td><td><span class="tag p1">P1</span></td><td><b>全书总览语料无 genre</b>：固定输出「人物/世界观/时间线/剧情线/伏笔/卷/章」——同调用链的 <code>buildCatalogCorpus</code> 已按体裁递词，总览没跟上 → 诗集/日记被灌「伏笔 0、卷分布」</td><td class="loc">writingOverview.ts:200-216 · workbenchPanelHooks.ts:1215-1236</td></tr>
+<tr><td>W-5</td><td><span class="tag p1">P1</span></td><td><code>create_chapter</code> 工具描述与实际层级表不一致（描述写 novel→卷/script→幕，实现返回 章/篇/首/场/天）→ 模型照描述传参，目录树长两套命名</td><td class="loc">tools.rs:3951-3976 vs 3706-3716</td></tr>
+<tr><td>W-6</td><td><span class="tag p1">P1</span></td><td><code>read_chapter</code> 无体裁读出：不返回 <code>extra</code>（poemForm/entryDate）、不区分诗行/对白结构 → 体裁校验命令拿不到结构事实</td><td class="loc">tools.rs:3445-3450</td></tr>
+<tr><td>W-7</td><td><span class="tag p2">P2</span></td><td>28 条命令全 ask 零写操作：「改字不改行」「换一句台词」没有动作入口，体裁写边界无法随命令下发（与 §7 的 edit 命令族一起设计）</td><td class="loc">workbenchSlashCommands.ts:43-126</td></tr>
+<tr><td>W-8</td><td><span class="tag p2">P2</span></td><td>书场景保留代码验证区块（复杂度/技术债/死代码），恒空转</td><td class="loc">workbenchComponents.tsx:106-240</td></tr>
+</table>
+
+<h2 id="s6">§6 完结作品导出：genre 在链路中途消失</h2>
+
+<p><b>结论：导出链路（快照 → 队列 → 六格式）骨架健壮，2026-10 旧报告的排版问题基本已修；但全链路只有「容器 vs 内容」两种节点语义，没有体裁语义——genre 在 <span class="loc">export_jobs.rs:507</span> 变成 EPUB 元数据的一行 <code>dc:subject</code> 后就消失了。</b></p>
+
+<div class="flow">
+<span class="step">完结书架<br><span class="loc">无 genre 展示</span></span><span class="arrow">→</span>
+<span class="step">导出弹窗<br><span class="loc">versionId+formats</span></span><span class="arrow">→</span>
+<span class="step">enqueue_export<br><span class="loc">无 genre 参数</span></span><span class="arrow">→</span>
+<span class="step bad">render_export_file<br><span class="loc">签名无 genre（丢失点）</span></span><span class="arrow">→</span>
+<span class="step bad">epub/docx/pdf/md/txt 渲染器<br><span class="loc">零体裁分支</span></span>
+</div>
+
+<h3>五载体 × 五格式实测矩阵（以代码为准）</h3>
+<table>
+<tr><th>体裁</th><th>EPUB</th><th>PDF</th><th>DOCX</th><th>MD / TXT</th></tr>
+<tr><td><span class="g g-novel>小说</span></td><td class="c ok">✅ 正确</td><td class="c ok">✅ 正确</td><td class="c">⚠️ 章不分页（无 pageBreakBefore）</td><td class="c ok">✅</td></tr>
+<tr><td><span class="g g-essay>散文</span></td><td class="c" colspan="4">⚠️ <b>「篇」被当「卷」</b>：Rust <code>STRUCTURE_KINDS=["卷","篇"]</code> 与前端 <code>{'卷'}</code> 不一致 → 无子级的散文篇目在全部格式里被渲染成卷页（居中大字+强制翻页+TOC 父条目+TXT 分隔线），与编辑器/统计侧「篇目是正文单位」直接矛盾</td></tr>
+<tr><td><span class="g g-poetry>诗歌</span></td><td class="c">⚠️ 分行保留但有首行缩进</td><td class="c" style="color:var(--p0)"><b>❌ P0：<code>&lt;br&gt;</code> 被直接丢弃，全诗黏成一串</b></td><td class="c" style="color:var(--p0)"><b>❌ P0：<code>&lt;br&gt;</code>→<code>'\n'</code> 塞进 <code>&lt;w:t&gt;</code>，Word 不认，分行退化</b></td><td class="c">✅ / ✅</td></tr>
+<tr><td><span class="g g-script>剧本</span></td><td class="c" colspan="4">⚠️ 幕/场层级对，但<b>零对白排版</b>：角色名行、台词、括注舞台指示与正文无区分（PDF 一律 2 字首行缩进）</td></tr>
+<tr><td><span class="g g-diary>日记</span></td><td class="c" colspan="4" style="color:var(--p0)"><b>❌ P1：日期丢失</b>——快照表字段只有 title/content/kind/parent_id/…，<b>没有 <code>extra</code></b>，锁定那刻 <code>entryDate</code> 就没了；未标日期入标题的条目彻底失去时间轴</td></tr>
+</table>
+
+<h3>缺口清单（导出层）</h3>
+<table>
+<tr><th>#</th><th>优先级</th><th>问题</th><th>证据</th></tr>
+<tr><td>E-1</td><td><span class="tag p0">P0</span></td><td>PDF 渲染丢 <code>&lt;br&gt;</code>（诗歌正文级损坏，不是排版问题）</td><td class="loc">pdf_export.rs:756-758</td></tr>
+<tr><td>E-2</td><td><span class="tag p0">P0</span></td><td>DOCX 无 <code>&lt;w:br/&gt;</code>，换行落进 run 文本失效</td><td class="loc">docx_export.rs:493-494, 769-776</td></tr>
+<tr><td>E-3</td><td><span class="tag p1">P1</span></td><td><code>render_export_file</code> 签名无 genre——体裁感知渲染的<b>根因项</b>：单位词、居中、对白格式、日期行全部无从谈起</td><td class="loc">export_jobs.rs:581-591, 507</td></tr>
+<tr><td>E-4</td><td><span class="tag p1">P1</span></td><td>快照 schema 无 <code>extra</code> → 日记日期在锁定环节丢失（需扩快照字段 + 迁移）</td><td class="loc">work_version/models.rs:45-70 · application/work_version/mod.rs:91-106</td></tr>
+<tr><td>E-5</td><td><span class="tag p1">P1</span></td><td>Rust/前端容器词表漂移（「篇」两边判定相反）</td><td class="loc">export_jobs.rs:704 vs writingStats.ts:29</td></tr>
+<tr><td>E-6</td><td><span class="tag p2">P2</span></td><td>排版一刀切：全局 2 字首行缩进（诗应顶格/居中、剧本对白应悬挂缩进）；DOCX 章不分页；MD 图片仍写相对路径（HTML 已修 MD 未修）</td><td class="loc">pdf_export.rs:341 · docx_export.rs（无 pageBreakBefore）· export_jobs.rs:1356-1363</td></tr>
+<tr><td>E-7</td><td><span class="tag p2">P2</span></td><td>产品面：完结书架不显示体裁徽标、导出弹窗不展示体裁也不做「本书按小说口径排」的预期管理；无多书×多格式批量导出</td><td class="loc">PublishedScenesPage.tsx（全文件 0 处 genre）· ExportVersionDialog.tsx:32-58</td></tr>
+</table>
+
+<h2 id="s7">§7 自动化任务与上下文衔接：让上一任务的记忆被下一任务理解</h2>
+
+<p><b>结论：自动化"触发侧"机制已经很好（三道闸门 + 覆盖台账），"衔接侧"接近空白。</b>写作域自动审阅（P3）复用的是代码扫描域的 <code>AutoAnalysisPanel</code> + <code>autoAnalysisOrchestrator</code>，跨任务记忆只有两条窄路：同会话 40 条消息窗口；结论被人工写成写作数据。</p>
+
+<table>
+<tr><th>环节</th><th>现状（已有）</th><th>断点</th></tr>
+<tr><td>触发</td><td>trigger / cooldown / <b>digest 指纹</b>（内容没变不重复烧 AI）；轮转规则按覆盖台账补「从未问过的维度」；每次判定含跳过都落 <code>ai_auto_analysis_runs</code>（<span class="loc">autoAnalysisOrchestrator.ts:8-14,163</span>）</td><td>预设与上下文供给（writingContextProvider 6 预设）小说口径 → 自动化对诗集跑的就是错的视角（联动 A-2）</td></tr>
+<tr><td>执行</td><td>agent 多轮工具循环，工具轨迹落 <code>ai_messages.tool_calls</code></td><td><b>下一轮组装历史时 <code>tool_calls: None</code> 一律丢弃</b>（<span class="loc">agent.rs:936-949，关键行 943</span>）——上一任务"读了哪些章、核了哪些行"的中间事实不可再生</td></tr>
+<tr><td>历史</td><td>同会话内 40 条窗口，按 user 边界裁剪</td><td>无摘要/压缩；<b>跨会话零继承</b>（新会话=新 uuid，只读本 conv，<span class="loc">agent.rs:911,936</span>）</td></tr>
+<tr><td>结论</td><td>代码扫描域有完整闭环：<code>ai_auto_analysis_rules → runs → ai_insights（可 reconfirm 累计置信）→ ai_context_packs/sections</code>（<span class="loc">ai_repository.rs:1981-2210</span>）</td><td><b>写作域没有对应变体</b>：无 task 表、无 memory 表（<span class="loc">migration.rs:845-880,1014-1100</span>）；工作台「行动项」面板数据源绑 <code>activeAnalysisId</code>（代码扫描），<b>书场景恒为空</b> → 体检结论只活在聊天流里，关窗即散（<span class="loc">workbenchPanelHooks.ts:759-761,978-998</span>）</td></tr>
+</table>
+
+<div class="note"><b>这就是「上次体检说这三处要改，这次它全忘了」的完整根因链。</b>用户唯一能做的补救是复述或重跑——而 digest 闸门恰恰会因"内容没变"跳过重跑，自动化越守规矩，衔接断裂越显眼。</div>
+
+<h3>衔接方案：写作域「书级任务账本」（推荐架构）</h3>
+<p>不新造轮子——把代码扫描域已验证的 <b>rule→run→insight→pack</b> 闭环移植到写作域，用 genre 做视角参数：</p>
+<ol>
+<li><b>书级行动项落库（补 D8/D10）</b>：复用 <code>ai_insights</code>，以 <code>moduleId=WRITING_MODULE_ID, scopeId=book.id</code> 落库；前端「行动项/审阅结果」区块把数据源从 <code>activeAnalysisId</code> 换成「书场景按 book scope、代码场景按 analysis」（一个判据，两张脸同源，机制同 hiddenViewKinds）。每条 insight 带：来源命令（/体检、/形式…）、目标单位 chapterId、严重度、状态（open/采纳/忽略）。</li>
+<li><b>跨任务携带（补 D9/D11）</b>：每次 agent 组装上下文时（<code>buildUserMessage</code> 与自动分析 runner 两处），追加「<b>上一轮未结结论</b>」段：该书 open 状态 insights 的 top-N 摘要 + 上次 run 的 digest/时间。prompt 由模型"接着上次的账看"，实现「上一个任务的记忆被下一个任务理解」。</li>
+<li><b>run 摘要取代原始轨迹</b>：不做全量 tool_calls 回放（token 不现实）；每个任务收尾生成 3–5 行结构化 run summary（查了什么/发现了什么/建议了什么）写入 run 记录，作为跨会话、跨任务的携带单位。会话历史窗口同理可升级为「滚动摘要 + 最近 N 条原文」。</li>
+<li><b>体裁视角参数化</b>：自动分析预设按 <code>workbenchCommandSet(genre)</code> 取支（复用斜杠命令集的 5 支诊断，它们本来就是各体裁的体检项），杜绝"给诗集自动跑伏笔审查"。</li>
+<li><b>采纳即闭环</b>：行动项被采纳（agent 改稿或人工改稿）→ digest 变化 → 下轮自动复检该项（reconfirm 语义），置信累计；连续两轮未复现自动关闭。这套语义在 <code>ai_insights</code> 已有实现可参照。</li>
+</ol>
+
+<h2 id="s8">§8 统一实施方案：P0 / P1 / P2 三批次 + 验收标准</h2>
+
+<h3>P0 · 正确性（产物损坏 / AI 必然越界，先行）</h3>
+<table>
+<tr><th>刀</th><th>内容</th><th>涉及</th><th>验收标准</th></tr>
+<tr><td><b>P0-1 导出正文保真</b></td><td>E-1/E-2：PDF 落 <code>&lt;br&gt;</code> 为真换行（text stream 内 <code>T*</code> 序列）；DOCX 输出 <code>&lt;w:br/&gt;</code> run</td><td class="loc">pdf_export.rs · docx_export.rs</td><td>一首 4 节 12 行测试诗五格式导出，逐格式断言行数=源；剧本同测</td></tr>
+<tr><td><b>P0-2 选区 AI 体裁分支</b></td><td>A-1：<code>buildPolishSelectionMessage / buildRewriteSelectionMessage / buildSummarizeSelectionMessage</code> 接入既有 <code>isPoetryGenre</code> 等判据，复用整篇分支的硬边界（诗禁合行、剧本保台词归属、日记禁补写）</td><td class="loc">writingAssistant.ts</td><td>每体裁 × 3 能力 × 选区/整篇 全组合 prompt 快照测试；沿用"小说侧逐字不变"零回归线</td></tr>
+<tr><td><b>P0-3 工作台读写通道</b></td><td>W-1/W-2/W-3：书场景白名单加入 5 个写作工具 + 注入 <code>book_id</code>；<code>read_chapter/write_chapter</code> 往返无损（保留节间空行与行内换行，读写共用一套块协议——参照前端 <code>contentBlocks</code> 的口径，别再写第三把尺子）</td><td class="loc">workbenchContext.ts · tools.rs</td><td>agent 读一首诗→原样写回，diff 为空；注入含 book id 后工具不再按书名解析</td></tr>
+<tr><td><b>P0-4 AI 审阅体裁分支</b></td><td>A-2：6 预设按体裁换维度/文案（散文与日记无伏笔世界观审视、诗按分行与形式、剧本按冲突回合——可直接改写 <code>quickActionPrompts.DIAGNOSE</code> 已有的五支词表，收敛双栈）</td><td class="loc">writingContextProvider.ts</td><td>诗集触发审阅，输出中不出现"伏笔/人设卡/世界观"字样（负面断言测试）</td></tr>
+</table>
+
+<h3>P1 · 体验断层（"点散文还是按小说走"级观感）</h3>
+<table>
+<tr><th>刀</th><th>内容</th></tr>
+<tr><td><b>P1-1 槽位表补齐</b></td><td>T-2：为 essay/poetry/script 登记 SURFACE_OVERRIDES 缺失的 15 槽 ×3 体裁（纯改表，回落机制保证零回归）+ 修正 <span class="loc">writingSchema.ts:876</span> 的失真注释 + T-6 零散硬编码</td></tr>
+<tr><td><b>P1-2 导出 genre 贯通</b></td><td>E-3/E-4/E-5：genre/medium 从 <code>BookMeta</code> 穿进 <code>render_export_file</code> 与各渲染器；快照 schema 加 <code>extra</code>（日记日期）+ 容器词表两边收敛为一份（建议 Rust 侧不再自带词表，快照直接带 <code>is_volume</code> 布尔，由前端按 writingStats 同一判据写入）；日记导出按 <code>entryDate</code> 渲染日期行</td></tr>
+<tr><td><b>P1-3 总览语料体裁化</b></td><td>W-4：<code>buildBookOverview</code> 接 genre（合集型不输出卷分布/伏笔 0；剧本输出幕场清单；日记输出年月+日期轴），与 catalog 语料同参数同判据</td></tr>
+<tr><td><b>P1-4 edit/agent 人设 + 双栈收敛</b></td><td>A-3/A-4：把 <code>writingAssistant</code> 各能力的体裁分支补全（散文续写专属支），并让 <code>quickActionPrompts</code> 与 <code>writingAssistant</code> 共享同一份体裁词表/硬边界常量（一个概念一处定义）；<code>personaWords</code> 从只喂 ask 扩到 edit/agent/footer</td></tr>
+<tr><td><b>P1-5 右栏/检视器空壳分区收口</b></td><td>A-5：章详情与检视器三块 gated 分区接 <code>hiddenViewKindsForGenre</code>（有数据仍显示，机制同页签护栏）</td></tr>
+<tr><td><b>P1-6 剧本设计面 + 命令补缺</b></td><td>T-1：script 独立 pane（幕›场结构树 + 出场人物 + 对白/指示读数，读数直接复用 <code>scriptStructure</code> 已有校验），至少先把「主线」硬编码表头走槽位；W 层补 <code>/人物</code>（script）、<code>/脑暴</code>+<code>/时序</code>（diary）</td></tr>
+</table>
+
+<h3>P2 · 体系性（一次设计、长期收益）</h3>
+<table>
+<tr><th>刀</th><th>内容</th></tr>
+<tr><td><b>P2-1 书级任务账本（§7 方案）</b></td><td>写作域 insights 落库 + 跨任务携带 + run 摘要 + 自动复检闭环——"自动化任务上下文衔接"的正式答案</td></tr>
+<tr><td><b>P2-2 导出体裁版式族</b></td><td>诗（居中/无缩进/硬换行）、剧本（对白悬挂缩进+指示斜体）、日记（日期行）、散文（篇≠卷页）各出一套 layout spec；DOCX 补 pageBreakBefore；MD 图片 data URI 对齐 HTML</td></tr>
+<tr><td><b>P2-3 完结作品产品面</b></td><td>书卡体裁徽标（复用体裁色唯一表）、导出弹窗体裁提示与格式建议、多书×多格式批量队列</td></tr>
+<tr><td><b>P2-4 手艺面板/本地校对体裁化</b></td><td>A-6：四面板接体裁判据（诗不跑句子完整度、剧本按台词轮次跑对话密度）；校对引擎消费 <code>scriptStructure</code>/<code>poetryForms</code> 的行分类做豁免——与 AI 审校豁免第 5 条同一口径</td></tr>
+<tr><td><b>P2-5 加法页签机制 + 左栏设定分节</b></td><td>T-3/T-4/T-5：<code>KIND_TABS</code> 加体裁白名单支持「今天」「幕场总览」类专属页签；设定页签被裁分组整节隐藏；合集型 pane 补人物挂载</td></tr>
+<tr><td><b>P2-6 edit 命令族</b></td><td>W-7：体裁化写命令（/改行 /换台词 /补一句），随命令下发写边界（依赖 P0-3 的无损写通道 + P2-1 的采纳闭环）</td></tr>
+</table>
+
+<div class="card"><b>实施顺序建议（按依赖，不按编号）：</b><br>
+P0-1（导出保真，独立、纯 Rust）→ P0-2（选区分支，独立、纯前端）→ P0-3（读写通道，agent 一切写操作的先决条件）→ P0-4 + P1-4（两者共享一份体裁词表，一并收敛双栈）→ P1-1/P1-3/P1-5（纯改表/纯接判据，可并行插队）→ P1-2（导出贯通，先于 P2-2 版式族）→ P1-6 → P2-1（衔接体系，收益最大但依赖 P0-3/P0-4 就位）→ 其余 P2。<br><br>
+<b>纪律</b>：每一刀沿用三条护栏——覆盖表回落=小说零回归；已建数据必可见；一个概念一个判据（禁第二张表）。测试基线沿用「逐字零回归」对照法：小说/散文侧历史文案字节级不变，新体裁拿新串。</div>
+
+<p class="muted" style="margin-top:48px">附：本报告基于对以下模块的逐文件代码核对——writingSchema / writingTree / unitTerms / poetryForms / scriptStructure / contentBlocks / diaryEntry·diaryMetrics / SceneTabBar / writingPanes·WritingStudioPane·WritingDesignView / WritingPage 及 writingPage 子模块 / writingAssistant·writingMaterial·quickActionPrompts·writingContextProvider / workbenchContext·workbenchSlashCommands·workbenchPanelHooks / PublishedScenesPage·ExportVersionDialog·workVersion 服务 / src-tauri：agent.rs·engine.rs·tools.rs·migration.rs·ai_repository.rs·export_jobs.rs·writing(epub)·docx_export·pdf_export，以及既有《完结作品导出分析报告》《创作台重设计分析》的对照复核。行号以当前工作区为准。</p>
+
+</div>
+</body>
+</html>
+

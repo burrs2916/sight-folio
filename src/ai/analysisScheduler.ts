@@ -33,7 +33,7 @@ import { L } from "./aiLang";
 import { aiContextApi } from "../services/tauri";
 import { aiContextRegistry } from "./contextRegistry";
 import { lastPersistedDigest, persistModuleContext } from "./contextPersist";
-import { isOrchestrating, isRotatingRule, runAutoAnalysis } from "./autoAnalysisOrchestrator";
+import { automationBlocklistFor, isOrchestrating, isRotatingRule, runAutoAnalysis } from "./autoAnalysisOrchestrator";
 import { buildAnalysisCoverage } from "./analysisCoverage";
 import { planFocusPatrol } from "./focusPatrol";
 import { loadEntityRegression } from "./entityRegression";
@@ -238,7 +238,11 @@ export async function probeCoverageGaps(
 
   let hasUncoveredDimension = false;
   // 只有轮转规则能去补一个「没被分析过的维度」；全是锁定维度的规则时连查都不用查。
-  const presets = provider.presets ?? [];
+  // ㉴ AU-1：探针与编排是同一把尺子的两头——池先过体裁白名单再算「从未分析」。
+  // 不裁，心跳会永远把诗集「人设一致性」这种**永远补不上**的格子报成 gap-backlog：
+  // 编排那头永远领不到这张卡，每一拍补跑都空转，欠账账面上永远挂着。
+  const blockedKeys = automationBlocklistFor(moduleId, scopeId);
+  const presets = (provider.presets ?? []).filter((p) => !blockedKeys.includes(p.key));
   if (eligible.some(isRotatingRule) && presets.length > 0) {
     try {
       const runs = await aiContextApi.listAnalysisCoverage(moduleId, scopeId);

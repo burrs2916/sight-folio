@@ -14,6 +14,7 @@ import {
   resolveVolumeResolver,
   volumeNameOf,
   contentChapters,
+  isVolumeNode,
   deriveBookGoalProgress,
   formatBookGoalCorpus,
   derivePaceProjection,
@@ -411,7 +412,10 @@ describe('derivePaceProjection 节奏预测', () => {
     const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 10, 20) }, 1000, mk([500, 500]), TODAY);
     expect(p?.verdict).toBe('overdue');
     expect(p?.overDeadline).toBe(true);
-    expect(p?.daysToDeadline! < 0).toBe(true);
+    // 不写 `p?.daysToDeadline! < 0`：`daysToDeadline` 的类型是 `number | null`（无截稿/已达标
+    // 时就是 null），可选链后再 `!` 等于把"可能没数"硬掰成"一定有数"。真为 null 时
+    // 表达式恰好是 false，测到的就成了"恰好为假"而不是"确实超期"。这里显式先要一个数。
+    expect(p?.daysToDeadline != null && p.daysToDeadline < 0).toBe(true);
     expect(p?.requiredPerDay).toBe(9000); // 已过交稿，需一次补齐全部剩余
   });
 
@@ -465,5 +469,47 @@ describe('formatPaceCorpus 双语渲染', () => {
   it('stalled 句含「无产出」', () => {
     const p = derivePaceProjection({ targetWords: 10000, targetChapters: 0, deadline: secOf(2026, 11, 30) }, 1000, mk([0, 0]), TODAY);
     expect(formatPaceCorpus(p!).zh).toContain('无产出');
+  });
+});
+
+// 2026-11-08 李先生：「点散文以后还是按小说的方式走」。真机 DB 活证据——散文书 `新建作品 3`
+// 唯一的节点是 kind='篇' 的顶层篇目，而旧口径把「篇」当结构层：isVolumeNode 为真 →
+// 写作台藏掉正文编辑器换成只读「卷概览」，散文一篇都写不了。
+describe('散文篇目不是容器', () => {
+  it('顶层 kind=篇 的篇目算内容章：章数与字数都要认它', () => {
+    const pieces = [
+      ch({ id: 'p1', title: '第 1 篇', kind: '篇', wordCount: 812 }),
+      ch({ id: 'p2', title: '第 2 篇', kind: '篇', wordCount: 1204, status: 'finished' }),
+    ];
+    const r = resolveVolumeResolver(pieces);
+    expect(isVolumeNode(r, pieces[0])).toBe(false);
+    // 签名是 (chapters, settings)：按真实签名传，别编参数
+    const k = computeWritingKpis(pieces, []);
+    expect(k.chapterCount).toBe(2);
+    expect(k.totalWords).toBe(2016);
+    expect(k.avgWords).toBe(1008);
+    // 「篇」不许被数成卷：这是"散文被当小说组织"最直接的读数
+    expect(k.volumeCount).toBe(0);
+  });
+
+  it('篇 › 节：有子级的篇仍是容器（走 hasChildren 兜底），字数落在节上', () => {
+    const chapters = [
+      ch({ id: 'p1', title: '第 1 篇', kind: '篇' }),
+      ch({ id: 's1', title: '节一', parentId: 'p1', kind: '节', wordCount: 300 }),
+    ];
+    const r = resolveVolumeResolver(chapters);
+    expect(isVolumeNode(r, chapters[0])).toBe(true);
+    expect(volumeNameOf(r, chapters[1])).toBe('第 1 篇');
+    expect(contentChapters(r, chapters).map((c) => c.id)).toEqual(['s1']);
+  });
+
+  it('小说零回归：kind=卷 依旧是容器，卷自身不计入内容章', () => {
+    const chapters = [
+      ch({ id: 'v1', title: '卷一', kind: '卷' }),
+      ch({ id: 'c1', title: '第一章', parentId: 'v1', wordCount: 10 }),
+    ];
+    const r = resolveVolumeResolver(chapters);
+    expect(isVolumeNode(r, chapters[0])).toBe(true);
+    expect(contentChapters(r, chapters).map((c) => c.id)).toEqual(['c1']);
   });
 });

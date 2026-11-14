@@ -35,6 +35,7 @@ import {
 } from '../utils/writingSearch';
 import { t } from '../i18n';
 import { useToastStore } from '../store/toastStore';
+import { confirmDestructive } from '../store/confirmStore';
 import { logger } from '../utils/logger';
 
 export interface WritingBookSearchDialogProps {
@@ -235,15 +236,26 @@ export function WritingBookSearchDialog({
     [chapters],
   );
 
-  /** 清空搜索历史 */
+  /**
+   * 清空搜索历史（删除铁律③c）：批量清空先确认，并讲清「只清记录、不动文稿」。
+   * 单条历史的 × 保持一点即删 —— 那是逐条、所见即所删的低风险移除，加弹窗只会把用户弹麻。
+   */
   const handleHistoryClear = useCallback(() => {
-    try {
-      localStorage.removeItem(HISTORY_KEY);
-    } catch {
-      /* 忽略 */
-    }
-    setHistory([]);
-  }, []);
+    confirmDestructive({
+      title: t('writing.bookSearchHistoryClearConfirmTitle', { n: history.length }),
+      impact: [t('writing.bookSearchHistoryClearImpactData'), t('writing.bookSearchHistoryClearImpactUndo')],
+      confirmLabel: t('writing.bookSearchHistoryClear'),
+      cancelLabel: t('ui.cancel'),
+      onConfirm: () => {
+        try {
+          localStorage.removeItem(HISTORY_KEY);
+        } catch {
+          /* 忽略 */
+        }
+        setHistory([]);
+      },
+    });
+  }, [history.length]);
 
   const isBusy = replacingId !== null;
 

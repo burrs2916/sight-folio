@@ -94,6 +94,8 @@ vi.mock('../../../utils/studioBook', () => ({
 import { SceneTabBar } from '../SceneTabBar';
 // 方案 A 后 SceneTabBar 用 useNavigate（L1 书页签直达写作台），测试挂载必须包 Router 上下文
 import { MemoryRouter } from 'react-router-dom';
+import { t } from '../../../i18n';
+import { viewKindLabelKey } from '../../../utils/writingSchema';
 
 // ─── 最小渲染器（react-dom/client + act）────────────────────────────────────
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -518,6 +520,260 @@ describe('SceneTabBar · previewMode 键盘切换守卫', () => {
     document.body.appendChild(dialog);
     await press('ArrowRight');
     dialog.remove();
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+});
+
+// 2026-11-08 李先生：散文和小说不一样，可 L2 那排页签以前对谁都一样挂满十一个。
+// 判据收在 writingSchema.hiddenViewKindsForGenre，这里锁的是**渲染层真的吃了它**，
+// 以及那条护栏：书里已经建过的视图，页签绝不许消失。
+describe('SceneTabBar · L2 固定页签按体裁裁剪', () => {
+  /** 把"当前书"切到散文那本。注意：SceneTabBar 的当前书优先取**活动场景的 projectRoot**
+   *  （`parseBookIdFromRoot`），只改 activeBookId 是切不过去的 —— 夹具必须一起改。 */
+  const useEssayBook = () => {
+    // 注意 primaryLanguage 这里必须写 'novel-zh'：`studioBook.ts:75` 给**每一本书**的支撑场景
+    // 都写死 'novel-zh'，而全工作室 12 处 `isBookScene` 判定都认这个值（SceneTabBar/SceneEditor/
+    // 人物面板/架构面板/导出报告…）。也就是说「这是不是一本书」的身份**借用了小说的语言标记**，
+    // 散文只是沾了这行写死的光才能长出页签栏。已记入审计，修法要新增独立标志位（承载层，待拍板）。
+    h.scene.scenes = [{ id: 'wscan_b2', projectRoot: 'writing://b2/', primaryLanguage: 'novel-zh', name: '碎句集' }];
+    h.scene.activeSceneId = 'wscan_b2';
+    h.writing.activeBookId = 'b2';
+    h.editor.views = [{ id: 'v1', name: '大纲', kind: 'catalog', carrierType: 'essay', components: [] }];
+    h.editor.activeViewId = 'v1';
+  };
+
+  it('散文不再挂 世界观/剧情线/伏笔（连载叙事骨架），散文用得上的仍在', () => {
+    useEssayBook();
+    mount(<SceneTabBar />);
+    expect(byText(t('writing.viewKind.worldview')), '散文不该再挂世界观页签').toBeNull();
+    expect(byText(t('writing.viewKind.storylines')), '散文不该再挂剧情线页签').toBeNull();
+    expect(byText(t('writing.viewKind.foreshadowing')), '散文不该再挂伏笔页签').toBeNull();
+    // ㉚ 起散文的第一枚页签叫「篇目」，所以查标签必须走同一个解析器：
+    // 查死 `writing.viewKind.catalog` 会在体裁换词后误报"页签被误裁"。
+    expect(byText(t(viewKindLabelKey('essay', 'catalog'))), '篇目/大纲页签被误裁').toBeTruthy();
+    expect(byText(t('writing.viewKind.writing')), '正文页签被误裁').toBeTruthy();
+    expect(byText(t('writing.viewKind.overview')), '总览页签被误裁').toBeTruthy();
+  });
+
+  it('护栏：这本书**已经建过**世界观视图，页签照旧显示（裁页签不许藏数据）', () => {
+    useEssayBook();
+    h.editor.views = [
+      ...h.editor.views,
+      { id: 'v9', name: '旧世界观', kind: 'worldview', carrierType: 'essay', components: [] },
+    ];
+    mount(<SceneTabBar />);
+    expect(byText(t('writing.viewKind.worldview')), '已建视图的页签被裁掉 = 用户数据看不见').toBeTruthy();
+  });
+
+  it('小说零回归：十一项一个不少', () => {
+    mount(<SceneTabBar />); // beforeEach 里 b1 = novel
+    for (const label of ['大纲','人物设定','世界观','时间线','剧情线','伏笔','灵感','校对','统计','总览','正文']) {
+      expect(byText(label), `小说缺页签「${label}」`).toBeTruthy();
+    }
+  });
+
+  // **已知缺陷的证据锁**（不是"希望如此"）：把场景的 primaryLanguage 换成体裁真实的值，
+  // 整条 L2 页签栏就没了 —— 因为 `isBookScene` 认的是 'novel-zh' 这个语言标记，
+  // 而 `studioBook.ts:75` 给所有体裁的书都写死 'novel-zh'。
+  // 将来把它换成独立的书场景标志位时这条会失败，提醒两件事必须真正分开。
+  it('已知缺陷锁：书场景身份借用了 novel-zh 标记', () => {
+    useEssayBook();
+    h.scene.scenes = [{ ...h.scene.scenes[0], primaryLanguage: 'essay-zh' }];
+    mount(<SceneTabBar />);
+    expect(document.querySelectorAll('.MuiTab-root').length).toBe(0);
+  });
+});
+
+// ─── ㉚ T-A（2026-11-10 轮 5）：L2 页签**换词** ───
+// 裁剪那一半 2026-11-08 就做了（上面那个 describe），但五种载体一直共用同一串名字：
+// 诗集作者的第一枚页签写着「大纲」、剧本写着「人物设定」——判据（surfaceKeyForGenre /
+// collectionPaneKeys）在库里早就有了，页签层是唯一没接上的一张嘴。
+// 这一组锁的是「真的换了」+「小说一个字节没变」，两者缺一都是半刀。
+describe('SceneTabBar · ㉚ L2 页签标签随体裁', () => {
+  const setGenreBook = (genre: string) => {
+    h.writing.books = [book('b1', '当前这本', genre)];
+    h.writing.activeBookId = 'b1';
+    h.scene.scenes = [{ id: 'wscan_b1', projectRoot: 'writing://b1/', primaryLanguage: 'novel-zh', name: '当前这本' }];
+    h.scene.activeSceneId = 'wscan_b1';
+    h.editor.views = [{ id: 'v1', name: '第一枚', kind: 'catalog', carrierType: genre, components: [] }];
+    h.editor.activeViewId = 'v1';
+  };
+  /**
+   * L2 页签文字（按渲染顺序）。夹具里只有 1 本书，所以整棵树上
+   * `.MuiTab-root` = L1 的书名页签 + L2 的 11/8/10 枚固定页签（L2 没有「＋」，见 :938 注释），
+   * 剔掉书名与空文本（图标按钮）就是 L2 本身。
+   */
+  const l2Labels = (): string[] =>
+    Array.from(document.querySelectorAll<HTMLElement>('.MuiTab-root'))
+      .map((el) => (el.textContent ?? '').trim())
+      .filter((s) => s !== '' && s !== '当前这本');
+
+  // ㉳ T-B（轮 34）起「顺序也原样」这半句作废：**标签逐字不动**仍是铁律，
+  // **位次**改由 TAB_ORDER 定稿（目标态卡 §2，正文领头）。这条锁现在验两件事：
+  // 换词零回归 + 小说吃小说那张序表。
+  it('小说：十一枚逐字仍是原句，位次走 ㉳ 序表（正文·大纲·剧情线领头）', () => {
+    setGenreBook('novel');
+    mount(<SceneTabBar />);
+    expect(l2Labels()).toEqual(['正文', '大纲', '剧情线', '人物设定', '世界观', '时间线', '伏笔', '灵感', '校对', '统计', '总览']);
+  });
+
+  // 空体裁与脏体裁是**两种回落**（㉳ 设计注记③）：'' 被组件归一成 novel → 吃小说序表；
+  // 脏值不认 → tabOrderForGenre 空表 → KIND_TABS 基准序。文案两者都落小说那串，不许改。
+  it('旧书没设体裁 → 落小说的串 + 小说的序（归一在组件里发生）', () => {
+    setGenreBook('');
+    mount(<SceneTabBar />);
+    expect(l2Labels()).toEqual(['正文', '大纲', '剧情线', '人物设定', '世界观', '时间线', '伏笔', '灵感', '校对', '统计', '总览']);
+  });
+
+  it('体裁值是脏的 → 文案落小说、位次落基准序（空表不改序 = 旧书零回归线）', () => {
+    for (const g of ['diaryy', 'Novel']) {
+      unmount();
+      setGenreBook(g);
+      mount(<SceneTabBar />);
+      expect(l2Labels(), `genre=${JSON.stringify(g)}`).toEqual([
+        '大纲', '人物设定', '世界观', '时间线', '剧情线', '伏笔', '灵感', '校对', '统计', '总览', '正文',
+      ]);
+    }
+  });
+
+  it('散文：篇目 + 人物（不再顶着「大纲 / 人物设定」），㉳ 序 = 正文·篇目·素材领头', () => {
+    setGenreBook('essay');
+    mount(<SceneTabBar />);
+    const labels = l2Labels();
+    expect(labels.slice(0, 3), '㉳ 序表前三不对').toEqual(['正文', t('writing.essay.tabCatalog'), '灵感']);
+    expect(labels[1]).toBe('篇目');
+    expect(labels).toContain('人物');
+    expect(byText('大纲'), '散文还挂着「大纲」= 换词没生效').toBeNull();
+    expect(byText('人物设定'), '散文不该再叫人物设定').toBeNull();
+  });
+
+  it('诗歌：诗作 —— 与设计卡那一栏同一个词（㉳ 序里排第二，正文在头）', () => {
+    setGenreBook('poetry');
+    mount(<SceneTabBar />);
+    const labels = l2Labels();
+    expect(labels[0]).toBe('正文');
+    expect(labels[1]).toBe('诗作');
+    // 「设计卡叫诗作、页签叫篇目」正是 COLLECTION_PANE_KEYS 头注释许下的愿
+    expect(byText(t('writingDesign.pane.pieces')), '诗集页签不该领到散文的篇目').toBeNull();
+  });
+
+  it('剧本：幕场 + 角色表，剧情线/伏笔照旧（戏剧本体，不许替用户改名），㉳ 序整排定稿', () => {
+    setGenreBook('script');
+    mount(<SceneTabBar />);
+    expect(l2Labels()).toEqual(['正文', '幕场', '角色表', '剧情线', '伏笔', '时间线', '灵感', '校对', '统计', '总览']);
+    expect(byText('世界观'), '剧本已摘世界观（⑑-2）').toBeNull();
+  });
+
+  it('日记：条目 + 人物，且整排不许说出「章」（㉳ 序 = 正文·条目领头，日历等 P4）', () => {
+    setGenreBook('diary');
+    mount(<SceneTabBar />);
+    const labels = l2Labels();
+    expect(labels.slice(0, 2)).toEqual(['正文', '条目']);
+    expect(labels).toContain('人物');
+    expect(byText('大纲'), '日记还挂着「大纲」').toBeNull();
+    for (const label of labels) expect(label, `日记页签说漏了「${label}」`).not.toContain('章');
+  });
+});
+
+// ─── ㉳ T-B（2026-11-11 轮 34）：⌥1–9 直达 + ←→，序列与页签渲染同源 ───
+// 「同源」不许停在口头：夹具故意让**基准序**（catalog→storylines→…→writing）与
+// **小说序表**（writing→catalog→storylines）在这三只已建视图上给出不同排列 ——
+// 键盘若还吃旧的 KIND_TABS 序，下面的断言立刻红。
+describe('SceneTabBar · ㉳ L2 键盘序列与页签顺序同源（⌥1–9 / ←→）', () => {
+  const kv = (id: string, kind: string) => ({ id, name: id, kind, carrierType: 'novel', components: [] });
+
+  beforeEach(() => {
+    // 小说（b1）：writing(v2) catalog(v1) storylines(v3) 已建 + 自定义 v9。
+    // 新序 = [v2, v1, v3, v9]；基准序 = [v1, v3, v2, v9]。
+    h.editor.views = [kv('v1', 'catalog'), kv('v3', 'storylines'), kv('v2', 'writing'), { id: 'v9', name: '我的板子', carrierType: 'novel', components: [] }];
+    h.editor.activeViewId = 'v9';
+    h.editor.previewMode = false;
+  });
+
+  /** macOS ⌥+数字的 e.key 是组合字符（¡/™…），真实事件靠 e.code 判定物理键 —— 夹具照此形状发 */
+  async function pressAltDigit(digit: string, init: KeyboardEventInit = {}) {
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '¡', code: `Digit${digit}`, altKey: true, bubbles: true, ...init }),
+      );
+    });
+  }
+
+  it('⌥1 → 小说序第一枚已建视图（正文 v2），不是基准序第一枚（v1）', async () => {
+    mount(<SceneTabBar />);
+    await pressAltDigit('1');
+    expect(h.editor.switchView).toHaveBeenCalledWith('v2');
+  });
+
+  it('⌥2/⌥3 → 大纲 v1、剧情线 v3（位次 = 小说那张序表，不是基准序）', async () => {
+    mount(<SceneTabBar />);
+    await pressAltDigit('2');
+    expect(h.editor.switchView).toHaveBeenCalledWith('v1');
+    await pressAltDigit('3');
+    expect(h.editor.switchView).toHaveBeenCalledWith('v3');
+  });
+
+  it('自定义页签排在固定页签之后：active=v2 时 ⌥4 → v9', async () => {
+    h.editor.activeViewId = 'v2';
+    mount(<SceneTabBar />);
+    await pressAltDigit('4');
+    expect(h.editor.switchView).toHaveBeenCalledWith('v9');
+  });
+
+  it('←→ 也吃新序：正文(v2) 向右切到 大纲(v1)（旧序会切到 v3）', async () => {
+    h.editor.activeViewId = 'v2';
+    mount(<SceneTabBar />);
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(h.editor.switchView).toHaveBeenCalledWith('v1');
+  });
+
+  it('越界数字（⌥9，序列只有 4 位）：无事发生，绝不缺省即建', async () => {
+    mount(<SceneTabBar />);
+    await pressAltDigit('9');
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+
+  it('目标已是当前视图（⌥4 且 active=v9）：不重复扳 switchView', async () => {
+    mount(<SceneTabBar />);
+    await pressAltDigit('4');
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+
+  it('输入框聚焦时按 ⌥1：不劫持（改名/搜索输入态）', async () => {
+    mount(<SceneTabBar />);
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: '¡', code: 'Digit1', altKey: true, bubbles: true }));
+    });
+    input.remove();
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+
+  it('弹窗打开时按 ⌥1：不切换', async () => {
+    mount(<SceneTabBar />);
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    document.body.appendChild(dialog);
+    await pressAltDigit('1');
+    dialog.remove();
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+
+  it('⌥⌘1 组合：让位系统快捷键，不切换', async () => {
+    mount(<SceneTabBar />);
+    await pressAltDigit('1', { metaKey: true });
+    expect(h.editor.switchView).not.toHaveBeenCalled();
+  });
+
+  it('非书场景（代码/通用场景）：⌥1–9 不注册', async () => {
+    h.scene.scenes = [{ id: 'wscan_code1', projectRoot: 'writing://b1/', primaryLanguage: 'en', name: '代码库' }];
+    h.scene.activeSceneId = 'wscan_code1';
+    mount(<SceneTabBar />);
+    await pressAltDigit('1');
     expect(h.editor.switchView).not.toHaveBeenCalled();
   });
 });

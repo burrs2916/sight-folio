@@ -368,3 +368,172 @@ describe('逐句审校结构化输出（批次④ T3）', () => {
     expect(entries.length).toBe(1);
   });
 });
+
+// 2026-11-08 李先生：「散文跟小说肯定不一样」。以前四条 prompt 一律写「整章小说」
+// 「不得改变情节、人物行为、时间线」——散文没有情节链，这条约束既误导模型也禁掉了正常的删改。
+describe('散文体裁的 prompt', () => {
+  const essay = { genre: 'essay' };
+
+  it('正文单位叫「篇目」，不叫「章节」', () => {
+    expect(buildPolishMessage(ctx(essay))).toContain('【当前篇目】');
+    expect(buildSummarizeMessage(ctx(essay))).toContain('【当前篇目】');
+  });
+
+  it('约束换成散文的：保立意与所写细节、禁止虚构经历', () => {
+    const msg = buildPolishMessage(ctx(essay));
+    expect(msg).toContain('立意');
+    expect(msg).toContain('不得虚构');
+    expect(msg).not.toContain('整章小说');
+  });
+
+  it('改写不许替作者补足他没写的结论', () => {
+    const msg = buildRewriteMessage(ctx(essay));
+    expect(msg).toContain('立意');
+    expect(msg).not.toContain('整章小说');
+  });
+
+  it('审校按散文说，不再出现「小说文本」', () => {
+    const msg = buildReviewMessage(ctx(essay));
+    expect(msg).toContain('请对下面的散文文本');
+    expect(msg).not.toContain('小说文本');
+  });
+
+  it('回归锁：小说（含没设 genre 的旧书）文案与改造前逐字一致', () => {
+    for (const g of [undefined, '']) {
+      expect(buildPolishMessage(ctx({ genre: g }))).toContain('请润色下面的整章小说');
+      expect(buildRewriteMessage(ctx({ genre: g }))).toContain('请改写下面的整章小说');
+      expect(buildSummarizeMessage(ctx({ genre: g }))).toContain('请总结本章小说');
+      expect(buildReviewMessage(ctx({ genre: g }))).toContain('请对下面的小说文本');
+      expect(buildPolishMessage(ctx({ genre: g }))).toContain('【当前章节】');
+    }
+  });
+});
+
+// 2026-11-09 诗歌实装（审计 docs/诗歌剧本体裁实装审计-2026-11-09.md 刀 2）。
+// 诗与小说在 prompt 上真正不同的地方只有一件：**分行与节次就是本体**。
+// 模型"顺手"把三行合成一段，诗就被它改没了 —— 所以这条必须写死在每条生成类约束里。
+describe('诗歌体裁的 prompt', () => {
+  const poem = { genre: 'poetry' };
+
+  it('正文单位叫「诗作」，不叫「章节」也不叫「篇目」', () => {
+    for (const build of [buildPolishMessage, buildSummarizeMessage, buildRewriteMessage, buildReviewMessage]) {
+      const msg = build(ctx(poem));
+      expect(msg).toContain('【当前诗作】');
+      expect(msg).not.toContain('【当前章节】');
+      expect(msg).not.toContain('【当前篇目】');
+    }
+  });
+
+  it('润色：先保分行与节次，再谈炼字；不许把诗排成散文段落', () => {
+    const msg = buildPolishMessage(ctx(poem));
+    expect(msg).toContain('分行与节次就是诗的本体');
+    expect(msg).toContain('把诗排成散文段落');
+    expect(msg).not.toContain('整章小说');
+  });
+
+  it('润色/改写都不许替作者解读诗意（诗最容易被 AI 加成"表达了作者…"）', () => {
+    expect(buildPolishMessage(ctx(poem))).toContain('不得替作者解释');
+    expect(buildRewriteMessage(ctx(poem))).toContain('不得补上作者没写的结论');
+  });
+
+  it('改写可以动断句位置，但不许增删节数', () => {
+    const msg = buildRewriteMessage(ctx(poem));
+    expect(msg).toContain('行的断句位置');
+    expect(msg).toContain('不得增删节数');
+  });
+
+  it('总结只说它写了什么，不替它"思想感情"', () => {
+    const msg = buildSummarizeMessage(ctx(poem));
+    expect(msg).toContain('意象');
+    expect(msg).toContain('不要替它解释');
+    expect(msg).not.toContain('请总结本章小说');
+  });
+
+  it('续写按"再长出一节"说，并且仍按分行排布', () => {
+    const msg = buildContinueMessage(ctx(poem));
+    expect(msg).toContain('请接着下面这首诗往下写');
+    expect(msg).toContain('保持分行');
+    expect(msg).not.toContain('小说片段续写');
+    // 用户给了目标字数也不能被丢掉（只是换成按诗的量词说）
+    expect(buildContinueMessage(ctx({ genre: 'poetry', targetWords: 120 }))).toContain('约 120 字');
+  });
+
+  it('审校：按诗歌说，并追加"跨行/省标点/倒装不算病句"这一条件', () => {
+    const msg = buildReviewMessage(ctx(poem));
+    expect(msg).toContain('请对下面的诗歌文本');
+    expect(msg).not.toContain('小说文本');
+    // 源文里「不要」两侧带 ** 强调标记，断言取它后面那段纯文本
+    expect(msg).toContain('把跨行、省标点、倒装判为病句');
+  });
+
+  it('回归锁：小说（含没设 genre 的旧书）续写文案与改造前逐字一致', () => {
+    for (const g of [undefined, '']) {
+      const msg = buildContinueMessage(ctx({ genre: g }));
+      expect(msg).toContain('请为下面的小说片段续写');
+      expect(msg).toContain('从上面的末尾无缝接着往下写 300～600 字');
+      expect(msg).toContain('【当前章节】');
+      // 诗歌专用那条附加规则绝不能挂到小说身上
+      expect(msg).not.toContain('跨行');
+    }
+    expect(buildReviewMessage(ctx({ genre: '' }))).not.toContain('跨行');
+  });
+
+  it('散文体裁不受本刀影响（诗歌分支插在散文之前，散文分支照旧命中）', () => {
+    expect(buildPolishMessage(ctx({ genre: 'essay' }))).toContain('请润色下面这篇散文');
+    expect(buildReviewMessage(ctx({ genre: 'essay' }))).toContain('请对下面的散文文本');
+    expect(buildReviewMessage(ctx({ genre: 'essay' }))).not.toContain('跨行');
+    expect(buildContinueMessage(ctx({ genre: 'essay' }))).toContain('请为下面的小说片段续写');
+  });
+});
+
+// ── A-1 选区三件套体裁硬边界锁 ──────────────────────────────────────────────
+// 整篇三件套早已 genre 化；本锁确保「选中片段」分支不再共用小说口径，
+// 各体裁拿到自己的硬边界（诗禁排散文、剧本禁台词改叙述、日记禁增补记忆、
+// 散文禁虚构经历），且 novel 选区文案逐字不变（零回归线）。
+describe('选区三件套按体裁给硬边界（A-1）', () => {
+  const sel = (partial: Partial<InlineWritingContext>) =>
+    ctx({ selectionText: '片段内容。', beforeText: '前文', afterText: '后文', ...partial });
+
+  it('诗歌：选区润色禁把诗排成散文，且不出现小说"情节/人物行为"约束', () => {
+    const msg = buildPolishMessage(sel({ genre: 'poetry' }));
+    expect(msg).toContain('分行与节次就是诗的本体');
+    expect(msg).toContain('不许把诗排成散文段落');
+    expect(msg).not.toContain('情节、人物行为、时间线');
+  });
+
+  it('剧本：选区润色保护台词/舞台指示，不被当成叙述', () => {
+    const msg = buildPolishMessage(sel({ genre: 'script' }));
+    expect(msg).toContain('台词是人物');
+    expect(msg).toContain('不得把台词改成叙述');
+  });
+
+  it('日记：选区改写禁增补记忆，且不出现小说"人物行为"约束', () => {
+    const msg = buildRewriteMessage(sel({ genre: 'diary' }));
+    expect(msg).toContain('不得增补记忆');
+    expect(msg).not.toContain('情节、人物行为、时间线');
+  });
+
+  it('散文：选区改写禁虚构原文没有的经历', () => {
+    const msg = buildRewriteMessage(sel({ genre: 'essay' }));
+    expect(msg).toContain('**不要**虚构原文没有的经历、场景或引语');
+  });
+
+  it('总结也分体裁：诗列意象不解读思想感情，剧本按人物要/挡/得', () => {
+    const poetry = buildSummarizeMessage(ctx({ genre: 'poetry', selectionText: '两句诗。' }));
+    expect(poetry).toContain('列出它用了哪些意象');
+    expect(poetry).toContain('不要替它解释');
+    const script = buildSummarizeMessage(ctx({ genre: 'script', selectionText: '一段对白。' }));
+    expect(script).toContain('各自要什么、谁挡着');
+  });
+
+  it('零回归：小说（含未设 genre 旧书）选区文案逐字保持原口径', () => {
+    for (const g of ['novel', undefined]) {
+      const p = buildPolishMessage(ctx({ genre: g, selectionText: '选中句。' }));
+      const r = buildRewriteMessage(ctx({ genre: g, selectionText: '选中句。' }));
+      const s = buildSummarizeMessage(ctx({ genre: g, selectionText: '选中句。' }));
+      expect(p).toContain('提升文字表现力（节奏、画面、对话质感），但**不得改变**情节、人物行为、时间线与信息量');
+      expect(r).toContain('保留情节、人物行为、时间线与全部信息量');
+      expect(s).toContain('提炼这一段发生的情节、人物动向与关键信息');
+    }
+  });
+});

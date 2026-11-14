@@ -26,12 +26,60 @@ export const ROW_CENTER_Y = 11;
 export const treeRowIndent = (depth: number): string => `${INDENT_BASE + depth * INDENT_STEP}px`;
 
 /**
+ * 体裁 → 结构语言（**唯一**判据）。
+ *
+ * 为什么重写成一张表：旧实现是 `poetry || script` 一起混给 essay 的 `['篇','节']`，
+ * 那是"当年不报错的兜底"而不是设计（2026-11-09 李先生：诗歌、剧本这两个题材都没实现，
+ * 看看如何提升）。一张表把两个字段摆在一起，谁再加体裁就必须同时想清楚顶层与下钻链。
+ *
+ * - `root`：「零配置起步」点新建时给顶层节点的层级名。它**不等于 `levels[0]`**：
+ *   诗的本体单位是「首」，「辑」只是可选分组层。照抄 `levels[0]` 会得到「顶层=辑」，
+ *   一首诗被挂上容器层级名，而容器词表（`writingStats.STRUCTURE_KINDS` 只认「卷」）
+ *   会把空的「辑」计成一章 —— 名词错了还会污染统计。
+ *   小说 / 散文沿用历史值（卷 / 篇），逐字不变 = 零回归。
+ * - `levels`：「加子级」的默认建议链（非约束，作者可任意改名 / 越级）。
+ *   剧本的 幕 / 场 于 2026-11-09 开闸（⑮-2a）：`writingSchema.script.ready = true`，
+ *   术语全链 / 页签裁剪 / 货架 / 斜杠命令 / 人设都已按戏剧配齐；**仍未做**的是正文排版
+ *   （角色名、台词缩进、舞台指示样式 —— 属承载层，等李先生点头）。（审计文档 §1 记录的是开闸前状态。）
+ */
+// root = 「零配置起步」那个顶层节点该是什么，⑱ 起统一取**可写单位**，不取容器层：
+//   novel 章（不是卷）、script 场（不是幕）、essay 篇、poetry 首。
+// 理由不是好看：`contentChapters` 用 `isVolumeNode`（kind==='卷' 或有子级）排除容器，
+// 而新建书的第一个节点用的就是这个 root —— 取容器层会得到一个「有正文的卷」，
+// 统计里**章节数算 0**（活证据：库里 `新建作品 2` 的唯一节点 kind=卷、标题却是「第 1 章」）。
+// levels 不变：作者仍能用「加子级」建 卷 / 幕 / 辑。
+const GENRE_STRUCTURE: Record<string, { root: string; levels: string[] }> = {
+  novel: { root: '章', levels: ['卷', '章'] },
+  essay: { root: '篇', levels: ['篇', '节'] },
+  poetry: { root: '首', levels: ['辑', '首'] },
+  script: { root: '场', levels: ['幕', '场'] },
+  // 日记（2026-11-10）：作者定的是「年 › 月 › 天」。root 仍取**可写单位**「天」而不是「年」——
+  // 理由与 18 号那条裁定一字不差：新建书第一个节点用的就是这个 root，给容器层会得到一个
+  // 「有正文的年」，`isVolumeNode` 把它当分组排除，统计里日记天数直接算 0。年与月留在 levels 里，
+  // 作者要分就分、不分就平铺（levels 只是「加子级」的建议链，不是约束）。
+  diary: { root: '天', levels: ['年', '月', '天'] },
+};
+
+/** 未指定 / 未知体裁回落小说（历史书 `genre=''` 的零回归路径）。 */
+function structureOf(genre: string): { root: string; levels: string[] } {
+  return GENRE_STRUCTURE[genre] ?? GENRE_STRUCTURE.novel;
+}
+
+/**
+ * 「零配置起步」新建**顶层**节点时的层级名（= 该体裁的**可写单位**，见上面 root 的注释；⑱）。
+ * 前端（writingStore.createChapter）与 Rust（ai_agent/tools.rs 的 default_root_kind）
+ * 必须同一口径，否则 AI 建的节点和用户手点的节点会是两套层级命名。
+ */
+export function defaultRootKind(genre: string): string {
+  return structureOf(genre).root;
+}
+
+/**
  * 按体裁给的默认层级词汇表（仅作「加子级」的默认建议，非约束）。
- * 小说：卷 › 章；散文/诗歌/剧本：篇（可再下钻节）。
+ * 小说：卷 › 章；散文：篇 › 节；诗歌：辑 › 首；剧本：幕 › 场；日记：年 › 月 › 天。
  */
 export function defaultLevels(genre: string): string[] {
-  if (genre === 'essay' || genre === 'poetry' || genre === 'script') return ['篇', '节'];
-  return ['卷', '章']; // novel 及未指定
+  return structureOf(genre).levels;
 }
 
 /** 给定父节点的 kind 与它在树中的深度，推测「加子级」应给的默认层级名。 */

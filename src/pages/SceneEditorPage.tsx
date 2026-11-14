@@ -66,7 +66,7 @@ import { useWritingStore } from '../store/writingStore';
 import { useProjectStore } from '../store/projectStore';
 import { projectScanApi, spawnCodeWorkbench, writingScanApi, type AssetInfo } from '../services/tauri';
 import { createBookNamed, importBookFromDialog, openBookInStudio, parseBookIdFromRoot } from '../utils/studioBook';
-import { genreLabelKey, mediumLabelKey, genreDef } from '../utils/writingSchema';
+import { genreLabelKey, carrierTermKeys, genreDef } from '../utils/writingSchema';
 import { BookStatusChip } from './BookStatusControl';
 import { BookInfoDialog } from './BookInfoDialog';
 import { NewBookDialog, type NewBookResult } from './NewBookDialog';
@@ -1829,7 +1829,7 @@ export default function SceneEditorPage() {
                     <Chip
                       size="small"
                       variant="outlined"
-                      label={t(mediumLabelKey(activeBook.medium))}
+                      label={t(carrierTermKeys(activeBook.genre, activeBook.medium).labelKey)}
                       sx={{
                         height: 20,
                         fontSize: uiFontSize(11),

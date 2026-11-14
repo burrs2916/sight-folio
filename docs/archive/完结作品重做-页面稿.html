@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>完结作品重做 · 页面稿</title>
+<style>
+:root{--p:#4A338F;--ink:#1c1c22;--mut:#6b6b78;--line:#e6e3f0;--bg:#f7f6fb;--warn:#a4691a;--bad:#b3261e;--ok:#1f7a4d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
+font:14px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",serif}
+header{background:#fff;border-bottom:1px solid var(--line);padding:0 20px;display:flex;align-items:center;gap:14px;height:56px}
+.tabs{display:flex;gap:6px;margin-left:12px}.tab{padding:6px 14px;border-radius:8px;color:var(--mut);cursor:pointer}
+.tab.on{background:var(--p);color:#fff;font-weight:600}
+main{padding:18px 20px 60px}.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+h2{font-size:15px;margin:0 0 10px}h3{font-size:13px;margin:14px 0 8px;color:var(--mut);letter-spacing:.06em}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.book{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer}
+.cover{height:120px;background:linear-gradient(160deg,#5b3fa8,#2f2450);display:flex;align-items:center;justify-content:center;color:#fff;font:700 15px/1.4 "Songti SC",serif;padding:12px}
+.cover .n{display:block;margin-top:6px;font:400 11px/1 sans-serif;opacity:.75}
+.meta{padding:10px 12px}.t{font-weight:700}.s{color:var(--mut);font-size:12px;margin-top:3px}
+.badges{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}.b{font-size:11px;padding:2px 7px;border-radius:999px;background:#efecfa;color:var(--p)}
+.b.stale{background:#fdf1e0;color:var(--warn)}.b.fail{background:#fdeceb;color:var(--bad)}.b.ok{background:#e8f5ee;color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--mut);font-weight:600;font-size:12px;padding:8px;border-bottom:1px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid #f1eff7}tr:hover td{background:#faf9fe}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.inp,.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-size:13px}
+.btn.pri{background:var(--p);color:#fff;border-color:var(--p)}.btn.dgr{color:var(--bad)}
+.split{display:grid;grid-template-columns:1fr 320px;gap:14px}.v{border-left:3px solid var(--p);padding-left:10px}
+.f{font-size:12px;color:var(--mut)}.kv{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:6px}
+.pg{background:#fffdf8;border:1px solid #e8e2d0;padding:26px 30px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.pg h4{text-align:center;font:700 15px/1 "Songti SC",serif;letter-spacing:.18em;margin:0 0 18px}
+.pg p{font:13px/1.95 "Songti SC",serif;text-indent:2em;margin:0 0 .35em;text-align:justify}
+.pg .ph{text-align:center;color:#c9c2ad;font-size:10px;margin-top:14px}
+.pv{display:grid;grid-template-columns:210px 1fr;gap:14px}.pre{border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:8px;font-size:13px}
+pre.on{border-color:var(--p);background:#f8f6ff;box-shadow:inset 3px 0 0 var(--p)}
+ul{margin:6px 0 0 18px;padding:0}li{margin:3px 0}.note{background:#f8f6ff;border:1px dashed #cbc3e6;border-radius:10px;padding:10px 12px;font-size:12.5px;color:#4b4560}
+</style></head><body>
+<header><b style="color:var(--p)">Sight Folio</b><span style="color:var(--mut)">/</span><b>完结作品</b>
+<nav class="tabs"><div class="tab">作品</div><div class="tab on">交付库</div><div class="tab">排版</div><div class="tab">任务 2</div></nav>
+<div style="margin-left:auto" class="f">作品库 ~/Documents/SightFolio 作品库 · 1.8 GB　<a style="color:var(--p)">打开</a></div></header>
+<main>
+<div class="note">静态稿：只为定结构与管理动作，配色/字号非最终。三个新增页签解决你说的“排版不好 + 导出库没法管”。</div>
+
+<h3>① 交付库 —— 产物第一次有独立管理面（跨作品、可批量、能看出过期）</h3>
+<div class="card">
+<div class="bar"><input class="inp" placeholder="搜索书名 / ISBN / 版本标签" size="22">
+<select class="inp"><option>全部格式</option><option>EPUB</option><option>PDF</option><option>DOCX</option></select>
+<select class="inp"><option>全部状态</option><option>已就绪</option><option>已过期</option><option>失败</option></select>
+<select class="inp"><option>按时间倒序</option><option>按占用大小</option></select>
+<span style="flex:1"></span><button class="btn">重试全部失败(2)</button><button class="btn">清理全部过期(3)</button><button class="btn pri">批量导出 4 项</button></div>
+<table><tr><th><input type=checkbox checked></th><th>作品 · 版本</th><th>格式</th><th>版式档</th><th>大小</th><th>生成于</th><th>状态</th><th>动作</th></tr>
+<tr><td><input type=checkbox checked></td><td class=v>新建作品 1<br><span class=f>v3 交稿版 · ✅定稿</span></td><td>EPUB</td><td>书档·默认</td><td>4.2 MB</td><td>11-06 15:12</td>
+<td><span class="b stale">已过期 · 版式已改</span></td><td><a>打开</a> · <a>重导</a> · <a>删除</a></td></tr>
+<tr><td><input type=checkbox></td><td class=v>新建作品 1<br><span class=f>v3 交稿版</span></td><td>PDF</td><td>书档·默认</td><td>6.8 MB</td><td>11-06 15:12</td>
+<td><span class="b ok">就绪</span></td><td><a>打开</a> · <a>复制</a> · <a>删除</a></td></tr>
+<tr><td><input type=checkbox></td><td class=v>海上一日<br><span class=f>v2 试读版</span></td><td>EPUB</td><td>宽疏·读墨</td><td>—</td><td>11-05 21:40</td>
+<td><span class="b fail">失败 · 缺图 assets/writing/illustrations/17889…png</span></td><td><a>看回执</a> · <a>重试</a> · <a>删除</a></td></tr>
+<tr><td><input type=checkbox></td><td class=v>海上一日<br><span class=f>v1 初稿存档</span></td><td>DOCX</td><td>书档·默认</td><td>1.1 MB</td><td>11-03 09:12</td>
+<td><span class="b ok">就绪</span> <span class="f">非定稿</span></td><td><a>打开</a> · <a>重导</a> · <a>删除</a></td></tr></table>
+<div class="kv"><span>本页 4 项 · 合计 12.1 MB</span><span>删除只动文件，不动版本快照（可重导）</span><span>过期 = 内容 / 版式 / 资源清单任一变了（N2）</span></div>
+</div>
+
+<div class="split"><div>
+<h3>② 排版页签 —— 版式档成为作者可管理的对象（左档右真预览）</h3>
+<div class="card"><div class="pv"><div>
+<div class="pre on"><b>书档 · 默认</b><div class=f>页边距 中 · 版心 68% · 页码 外角 · 章起新页</div></div>
+<div class="pre"><b>宋体正文 · 紧排</b><div class=f>正文 宋体 11pt · 行距 1.75 · 无缩进</div></div>
+<div class="pre"><b>轻经典 · 宽疏</b><div class=f>段距 0.9em · 悬挂标点 · 罗马页码</div></div>
+<div class="pre"><b>纸印投稿档</b><div class=f>A4 · 双倍行距 · 页码居中 · 内嵌字体</div></div>
+<button class="btn">＋ 新建版式档</button> <button class="btn">复制当前档</button>
+</div><div>
+<div class="pg"><h4>卷 一 · 风从海上来</h4>
+<p>船离港那天没有风，海面平得像一块刚打磨过的青石，只有缆绳绞紧时发出的钝响提醒人这是要出事了。</p>
+<p>他站在尾楼上看岸上的人越来越小，最后连同整座港一起被潮气抹平。跟船的老周说，头一回出海都这样，吐完了就学会看风了。</p>
+<div class="ph">— 17 —</div></div>
+<div class="kv"><span>正文 宋体 11pt / 行距 1.95</span><span>首行缩进 2em</span><span>两端对齐 + 禁则</span><span>孤行寡行 ≥2</span><span>页码 奇页右 / 偶页左</span><span>字体 已内嵌子集</span></div>
+<button class="btn" style="margin-top:8px">保存并重导本书全部定稿交付</button>
+</div></div></div>
+<div>
+<h3>侧栏 · 作品库体检</h3>
+<div class="card"><div class=f>占用</div><b>1.8 GB</b>
+<div class=f style="margin-top:8px">按作品</div><ul class=f><li>新建作品 1 — 820 MB</li><li>海上一日 — 610 MB</li><li>长夜将尽 — 372 MB</li></ul>
+<div class=f style="margin-top:10px">待处理</div><ul class=f><li><span class="b stale">过期 3</span> 定稿换了未重导</li><li><span class="b fail">失败 2</span> 缺图</li><li>已标完结但零交付 — 1 本</li></ul>
+<button class="btn" style="width:100%;margin-top:10px">按定稿版补齐全部缺失交付</button></div>
+<h3>书详情 · 版本详情（资源回执）</h3>
+<div class="card"><b>新建作品 1 · v3 交稿版</b><div class=f>2026-11-06 15:02 · 7 章 · 297 字 · 快照 v3</div>
+<div class=f style="margin-top:8px">资源回执</div><ul class=f><li>定格图片 2 张（卷首图 1 / 正文插图 1）</li><li>跳过节点 0 · 空卷 2 个已如实排入</li><li>版式档 书档·默认 · 字体 内嵌子集 340 KB</li><li>书目元数据 作者 张三丰 ｜ 星海文艺社</li></ul>
+<div class=f style="margin-top:8px">与 v2 对比</div><ul class=f><li>新增 1 章 · 删除 0 · 改动了 2 章（+86 字）</li></ul>
+<button class="btn pri">从此版导出</button> <button class="btn">设为定稿</button></div>
+</div></div>
+</main></body></html>

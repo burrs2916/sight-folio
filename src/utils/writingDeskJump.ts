@@ -111,3 +111,50 @@ export function dispatchChapterJump(p: ChapterJumpPayload): void {
   }
   applyDeskGotoView(p);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 页面级跳转分发（写作台独立窗口 → 主窗口的整页路由）
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// 与上面章级跳转**同一套判据**，只是落点从 L2 页签换成整页路由。范式在本仓不是新东西：
+// 独立窗口无路由可用，主窗口接管导航（见 App 里 'open-ai-settings' → navigate('/ai')）。
+//
+// 为什么必须有这一层（2026-11-04 审计缺陷 A，`docs/完结作品完成度审计-2026-11-04-1010.md`）：
+// 「锁定一版」与「整书导出」的成功 toast 原先直接写 `navigate('/published')`，而写作台
+// 窗口的形态判据是 **pathname 前缀 `/writing` 且 query 带 `desk=1`**（App.isWritingDeskWindow）。
+// 裸 navigate 一步同时改掉这两者，后果是三重的：
+//   ① 沉浸窗口原地长出侧栏与顶栏（形态突变）；
+//   ② 窗口 label 仍绑着这本书（writing-desk-{bookId}），`openWritingDesk` 见 label 已存在
+//      就只 emitTo + setFocus，而 WritingPage 已被卸载、没有消费方 → 该书专属写作台回不去；
+//   ③ App 的 desk-goto-view 监听以 pathname 为依赖，形态翻转后这扇「假主窗口」开始消费
+//      本该只有主窗口消费的跳转事件，两扇窗互抢焦点。
+// 口径：**跳转只有一个写者** —— desk 窗口发事件、主窗口执行；路由字面量也只在本文件出现一次。
+// 回归锁见 __tests__/writingDeskJump.test.ts 的「页面级跳转分发」与「源码扫描锁」两段。
+
+/** 跨窗口事件名（写作台 → 主窗口）：主窗口据此导航到完结作品页并置前。 */
+export const DESK_GOTO_PUBLISHED_EVENT = 'desk-goto-published';
+
+/** 完结作品页路由：全站唯一字面量出口，组件里不许再各写一遍 '/published'。 */
+export const PUBLISHED_ROUTE = '/published';
+
+/** 跳转落点：'emitted' = 已交主窗口执行（本窗**不许**再动路由）；'local' = 本窗就地跳。 */
+export type WorksLibraryGoto = 'emitted' | 'local';
+
+/**
+ * 「查看完结作品」统一入口（写作台 / 成品页相关 toast 的 onClick 一律走这里）。
+ *
+ * 写作台窗口里 emit 失败时**不做就地兜底跳转**：兜底等于把缺陷 A 重新请回来，
+ * 宁可不跳（本仓口径：禁静默降级），主窗口侧栏仍有一条入口。
+ *
+ * @param navigate 调用方自己的 `useNavigate()`，仅主窗口分支使用
+ */
+export function goWorksLibrary(navigate: (path: string) => void): WorksLibraryGoto {
+  if (isWritingDeskWindow()) {
+    emit(DESK_GOTO_PUBLISHED_EVENT, {}).catch((e) =>
+      logger.warn('writingDeskJump', 'emit desk-goto-published failed', { error: String(e) }),
+    );
+    return 'emitted';
+  }
+  navigate(PUBLISHED_ROUTE);
+  return 'local';
+}

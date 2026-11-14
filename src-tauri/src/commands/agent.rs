@@ -312,6 +312,199 @@ pub fn delete_model(db: State<'_, Arc<Database>>, id: String) -> Result<(), Stri
     AiModelRepo::delete(&db, &id)
 }
 
+// ─── 本地 Ollama 自动发现 ───
+//
+// 两个命令刻意分开：**扫**是只读的（打开设置页就自动跑，不许顺手写库），
+// **接入**是显式动作（建 provider/端点/模型是往用户配置里写东西，得由用户点）。
+
+use crate::plugins::ai_agent::ollama::{self, ExistingEndpoint};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OllamaAdoptResult {
+    pub provider_id: String,
+    pub endpoint_id: String,
+    /// 这次新加的模型 ref_key
+    pub added: Vec<String>,
+    /// 库里已有、这次没动的模型 ref_key
+    pub kept: Vec<String>,
+    /// 库里原本挂着占位上下文、这次被补成服务报出的真实值的模型 ref_key
+    pub refreshed: Vec<String>,
+    pub created_provider: bool,
+    pub created_endpoint: bool,
+}
+
+/// 只读扫描本机 Ollama（macOS / Windows 同一实现，走回环，见模块注释）。
+#[tauri::command]
+pub async fn scan_ollama() -> Result<ollama::OllamaScan, String> {
+    Ok(ollama::scan().await)
+}
+
+/// 把扫到的模型接入模型表。幂等 + **只增不删**（判据在 `ollama::plan_adopt`，这里只执行）。
+/// 上下文窗口自动填：新模型直接用服务报出的 `context_length`；老记录只在仍是占位值时补一次。
+#[tauri::command]
+pub async fn import_ollama_models(
+    db: State<'_, Arc<Database>>,
+) -> Result<OllamaAdoptResult, String> {
+    let scan = ollama::scan().await;
+    if !scan.found {
+        // 如实报错，不返回一个"成功但啥也没干"的空壳 —— 那会让前端只能显示假成功
+        let why = if scan.attempts.is_empty() {
+            "没有可探测的地址".to_string()
+        } else {
+            scan.attempts.join("；")
+        };
+        return Err(format!("未发现本机 Ollama：{why}"));
+    }
+    let endpoints: Vec<ExistingEndpoint> = AiEndpointRepo::list(&db)?
+        .iter()
+        .map(|e| ExistingEndpoint {
+            id: e.id.clone(),
+            provider_id: e.provider_id.clone(),
+            base_url: e.base_url.clone(),
+        })
+        .collect();
+    let providers = AiProviderRepo::list(&db)?;
+    let provider_names: Vec<String> = providers.iter().map(|p| p.name.clone()).collect();
+    // 「哪个端点算这一台 Ollama」只有一处判据：ollama::find_endpoint_by_base（与 plan_adopt 同一个）
+    let hit = ollama::find_endpoint_by_base(&endpoints, &scan.openai_base_url);
+    // 已有模型只读不改：命中端点上的模型（标识 + 库里现有的上下文数值）进判定，其余端点的模型与本函数无关。
+    // 带上 context_window 只为了一个判据：库里还挂着占位值的那些才允许被补成真实值（见 plan_adopt 第 4 条）。
+    let existing_models: Vec<ollama::ExistingModel> = match hit {
+        Some(e) => AiModelRepo::list_by_endpoint(&db, &e.id)?
+            .iter()
+            .map(|m| ollama::ExistingModel {
+                ref_key: m.ref_key.clone(),
+                context_window: m.context_window,
+            })
+            .collect(),
+        None => Vec::new(),
+    };
+    let plan = ollama::plan_adopt(&endpoints, &provider_names, &existing_models, &scan);
+    let now = now_ms();
+    let new_id = |prefix: &str| format!("{prefix}_{}", uuid::Uuid::new_v4().simple());
+
+    let provider_id = if plan.create_provider {
+        let id = new_id("prov");
+        AiProviderRepo::save(
+            &db,
+            &AiProviderRow {
+                id: id.clone(),
+                name: ollama::OLLAMA_PROVIDER_NAME.to_string(),
+                // 本地服务没有密钥：留空比塞一个假 key 诚实，端点那边认证方式记成 none
+                api_key: String::new(),
+                color: "#6B7280".to_string(),
+                enabled: true,
+                created_at: now,
+                updated_at: now,
+            },
+        )?;
+        id
+    } else if !plan.provider_id.is_empty() {
+        plan.provider_id.clone()
+    } else {
+        return Err("命中的端点缺少所属供应商，已停止接入（不猜一个挂上去）".to_string());
+    };
+
+    let endpoint_id = if plan.create_endpoint {
+        let id = new_id("ep");
+        AiEndpointRepo::save(
+            &db,
+            &AiEndpointRow {
+                id: id.clone(),
+                provider_id: provider_id.clone(),
+                name: "本地 Ollama".to_string(),
+                // Ollama 的 OpenAI 兼容面就是 /v1/chat/completions，沿用既有协议实现，
+                // 不为它再写一个 provider（那才是第二份真源）
+                api_type: "openai-completions".to_string(),
+                base_url: plan.openai_base_url.clone(),
+                // 本地服务**没有 Key 这个概念**：认证方式就是 none（一个认证头都不发）。
+                // 早先记成 bearer 是为了走 auth_header_for 的空 Bearer 兜底，那是将就，不是正解。
+                auth_type: "none".to_string(),
+                custom_auth_header: String::new(),
+                enabled: true,
+                created_at: now,
+                updated_at: now,
+            },
+        )?;
+        id
+    } else {
+        plan.endpoint_id.clone()
+    };
+
+    // 早先的自动接入把本地端点记成了 `bearer`（那会儿还没有 `none` 这个选项），每次调用都发一个
+    // 空 Bearer。这里正名一次，**三个条件同时成立才动**：还是 bearer ＋ 地址在本机回环 ＋ 这家
+    // 供应商的密钥本来就是空的。用户自己填过 key 或换过认证方式，一律不碰（同占位值补数的口径）。
+    if !plan.create_endpoint {
+        let rows = AiEndpointRepo::list_by_provider(&db, &provider_id)?;
+        if let Some(mut ep) = rows.into_iter().find(|e| e.id == endpoint_id) {
+            let key_empty = AiProviderRepo::get_by_id(&db, &provider_id)
+                .map(|p| p.map(|p| p.api_key.trim().is_empty()).unwrap_or(true))
+                .unwrap_or(true);
+            if ep.auth_type == "bearer" && ollama::is_loopback_base_url(&ep.base_url) && key_empty {
+                ep.auth_type = "none".to_string();
+                ep.updated_at = now;
+                AiEndpointRepo::save(&db, &ep)?;
+            }
+        }
+    }
+
+    let mut added: Vec<String> = Vec::new();
+    for m in &plan.add {
+        AiModelRepo::save(
+            &db,
+            &AiModelRow {
+                id: new_id("mdl"),
+                name: m.name.clone(),
+                ref_key: m.ref_key.clone(),
+                endpoint_id: endpoint_id.clone(),
+                // 推理模型徽章由扫描到的能力表认出来（`/api/show` 的 capabilities 含 thinking）；
+                // 服务没报就是 false。这两个字段目前只作徽章与元数据，不进请求构造。
+                reasoning: m.reasoning,
+                input_types: vec!["text".to_string()],
+                // 上下文窗口**自动填**：本机 `/api/tags` 会报 `details.context_length`
+                // （0.34.3 实测：qwen3:32b → 40960、gpt-oss:20b → 131072），判据在
+                // `ollama::context_window_of` —— 报了就用报的，没报才退回占位值。
+                // 本机 `/api/ps` 实测 gpt-oss 实际加载的 context_length 就是 131072（与自报一致）；
+                // 但 Ollama 会按显存/`OLLAMA_CONTEXT_LENGTH` 自行取值，嫌大可在模型卡里调小。
+                context_window: m.context_window,
+                // 与手动添加模型的表单默认同口径（4096）：本地模型不许天生比云端少一半输出预算
+                max_tokens: ollama::DEFAULT_MAX_TOKENS,
+                enabled: true,
+                created_at: now,
+                updated_at: now,
+            },
+        )?;
+        added.push(m.ref_key.clone());
+    }
+    // 补数：第 1 刀那批模型是在"扫不出上下文"的误判下建的，库里还挂着占位值。
+    // 这次服务报出了真实值就补上，**只改 context_window 与 updated_at**，其余字段原样回写；
+    // 用户在模型卡里改过的数值不会进这个列表（判据见 plan_adopt 第 4 条）。
+    let mut refreshed: Vec<String> = Vec::new();
+    if !plan.refresh.is_empty() {
+        let rows = AiModelRepo::list_by_endpoint(&db, &endpoint_id)?;
+        for r in &plan.refresh {
+            let Some(row) = rows.iter().find(|x| x.ref_key == r.ref_key).cloned() else {
+                continue; // 计划与库不一致（刚被删掉）：跳过，不猜一条新的出来
+            };
+            let mut row = row;
+            row.context_window = r.context_window;
+            row.updated_at = now;
+            AiModelRepo::save(&db, &row)?;
+            refreshed.push(r.ref_key.clone());
+        }
+    }
+    Ok(OllamaAdoptResult {
+        provider_id,
+        endpoint_id,
+        added,
+        kept: plan.kept.clone(),
+        refreshed,
+        created_provider: plan.create_provider,
+        created_endpoint: plan.create_endpoint,
+    })
+}
+
 // ─── 连接测试 ───
 
 #[tauri::command]
@@ -332,15 +525,14 @@ pub async fn test_endpoint_connection(
 
     let url = format!("{}/models", endpoint.base_url.trim_end_matches('/'));
     let client = reqwest::Client::new();
-    let mut req = client.get(&url);
-
-    // 与真实调用共用同一套 auth 解析，杜绝「测试通过但真实调用失败」的漂移
-    let (auth_header_name, auth_header_value) = crate::plugins::ai_agent::provider::auth_header_for(
+    // 与真实调用共用同一套 auth 装载（判据在 provider::with_auth_header），杜绝「测试通过但真实调用失败」的漂移。
+    // auth_type = none 的本地服务（如本机 Ollama）一个认证头都不发 —— 本地没有 Key 这个概念。
+    let mut req = crate::plugins::ai_agent::provider::with_auth_header(
+        client.get(&url),
         &endpoint.auth_type,
         &endpoint.custom_auth_header,
         &provider.api_key,
     );
-    req = req.header(&auth_header_name, &auth_header_value);
 
     let resp = req
         .send()
@@ -384,23 +576,30 @@ pub async fn test_model_chat(
         crate::plugins::ai_agent::provider::chat_url_for(&endpoint.base_url, &endpoint.api_type);
     let client = reqwest::Client::new();
 
+    // 用**这个模型库里配置的 max_tokens** 探，不再写死 10：
+    // 推理模型的 token 先被 reasoning 吃掉，10 个必然只剩空正文，
+    // 于是「测试成功」变成了假绿（本机 gpt-oss 实测 finish=length、content=""）。
+    let probe_max = if model.max_tokens > 0 {
+        model.max_tokens
+    } else {
+        512
+    };
     let body = serde_json::json!({
         "model": model.ref_key,
         "messages": [{"role": "user", "content": "Hi"}],
-        "max_tokens": 10,
+        "max_tokens": probe_max,
     });
 
-    // 与真实调用共用同一套 auth 解析，杜绝「测试通过但真实调用失败」的漂移
-    let (auth_header_name, auth_header_value) = crate::plugins::ai_agent::provider::auth_header_for(
+    // 与真实调用共用同一套 auth 装载（判据在 provider::with_auth_header），杜绝「测试通过但真实调用失败」的漂移
+    let mut req = crate::plugins::ai_agent::provider::with_auth_header(
+        client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .json(&body),
         &endpoint.auth_type,
         &endpoint.custom_auth_header,
         &provider.api_key,
     );
-    let mut req = client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .header(&auth_header_name, &auth_header_value)
-        .json(&body);
 
     if endpoint.api_type == "anthropic-messages" {
         req = req.header("anthropic-version", "2023-06-01");
@@ -411,16 +610,66 @@ pub async fn test_model_chat(
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
     let status = resp.status();
-    if status.is_success() {
-        Ok(format!("Model test successful (HTTP {})", status))
-    } else {
+    if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
-        Err(format!(
+        return Err(format!(
             "Model test failed (HTTP {}): {}",
             status,
             body.chars().take(200).collect::<String>()
-        ))
+        ));
     }
+    // HTTP 200 只代表"打通了"，不代表"模型会回话"。以前这里只看状态就报成功，
+    // 推理模型（token 先给 reasoning）实测能返回 200 + 空正文 —— 那就是假绿。
+    // 现在把正文与截断原因一起说清楚，空正文绝不冒充成功。
+    let raw = resp.text().await.unwrap_or_default();
+    let v: serde_json::Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => {
+            return Ok(format!(
+                "Model reachable (HTTP {}) but the response is not JSON: {}",
+                status,
+                raw.chars().take(120).collect::<String>()
+            ));
+        }
+    };
+    let choice = v.get("choices").and_then(|c| c.get(0));
+    let content = choice
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .unwrap_or_default();
+    // anthropic-messages 的正文在 content[0].text，形状不同，两条路都要能测
+    let content = if content.is_empty() {
+        v.get("content")
+            .and_then(|c| c.get(0))
+            .and_then(|c| c.get("text"))
+            .and_then(|t| t.as_str())
+            .unwrap_or_default()
+    } else {
+        content
+    };
+    let finish = choice
+        .and_then(|c| c.get("finish_reason"))
+        .and_then(|f| f.as_str())
+        .unwrap_or("unknown");
+    if !content.trim().is_empty() {
+        let preview: String = content.trim().chars().take(60).collect();
+        return Ok(format!(
+            "Model test successful (HTTP {}): {}",
+            status, preview
+        ));
+    }
+    // 空正文不当成功：说清楚是"预算被吃掉"还是"根本没出内容"
+    if finish == "length" {
+        return Ok(format!(
+            "Model reachable (HTTP {}) but returned no answer text: output budget exhausted (finish=length, max_tokens={}). Increase \"max output\" on this model.",
+            status, probe_max
+        ));
+    }
+    Ok(format!(
+        "Model reachable (HTTP {}) but the answer text is empty (finish={}).",
+        status, finish
+    ))
 }
 
 // ─── Agent 命令 ───

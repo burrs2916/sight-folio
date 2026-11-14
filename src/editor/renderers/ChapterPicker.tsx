@@ -6,6 +6,8 @@
 // 用 onMouseDown（非 onClick）避免 input onBlur 先于选择触发导致菜单关闭。
 import { useMemo, useState } from 'react';
 import { t } from '../../i18n';
+import { useWritingStore } from '../../store/writingStore';
+import { surfaceKeyForGenre } from '../../utils/writingSchema';
 import { CV } from './canvasTheme';
 import { buildTree, treeRowIndent, type TreeNode } from '../../utils/writingTree';
 import type { WritingChapter } from '../../services/writing';
@@ -27,6 +29,9 @@ export default function ChapterPicker({
   value?: string | null;
   onClear?: () => void;
 }) {
+  // ㉢ N-20：这颗 × 的提示语此前全体裁共用「未绑章」，日记书里就是叫错单位。
+  // 选择器本身不接 genre，从传入的章节反查所属书（一个选择器只会喂一本书的章节）。
+  const unboundGenre = useWritingStore((s) => s.books.find((b) => b.id === chapters[0]?.bookId)?.genre ?? '');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
@@ -101,7 +106,7 @@ export default function ChapterPicker({
               lineHeight: 1,
               flexShrink: 0,
             }}
-            title={t('writing.timelineUnbound')}
+            title={t(surfaceKeyForGenre(unboundGenre, 'tlUnbound'))}
           >
             ×
           </button>

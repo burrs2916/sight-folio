@@ -40,8 +40,11 @@ impl OpenAiCompatProvider {
         )
     }
 
-    fn build_auth_header(&self) -> (String, String) {
-        crate::plugins::ai_agent::provider::auth_header_for(
+    /// 认证装到请求上（判据在 `provider::auth_header_for`，与 test_* 命令同一套）。
+    /// `auth_type = none`（本机 Ollama 这类本地服务）时一个认证头都不加。
+    fn with_auth(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        crate::plugins::ai_agent::provider::with_auth_header(
+            req,
             &self.config.auth_type,
             &self.config.custom_auth_header,
             &self.config.api_key,
@@ -326,13 +329,11 @@ impl LlmProvider for OpenAiCompatProvider {
     ) -> Result<ChatResponse, String> {
         let url = self.build_chat_url();
         let body = self.build_chat_body(messages, options, false);
-        let (auth_header_name, auth_header_value) = self.build_auth_header();
-
-        let mut req = self
-            .client
-            .post(&url)
-            .header(&auth_header_name, &auth_header_value)
-            .header("Content-Type", "application/json");
+        let mut req = self.with_auth(
+            self.client
+                .post(&url)
+                .header("Content-Type", "application/json"),
+        );
 
         if self.config.api_type == "anthropic-messages" {
             req = req.header("anthropic-version", "2023-06-01");
@@ -395,13 +396,11 @@ impl LlmProvider for OpenAiCompatProvider {
     ) -> Result<Vec<ChatChunk>, String> {
         let url = self.build_chat_url();
         let body = self.build_chat_body(messages, options, true);
-        let (auth_header_name, auth_header_value) = self.build_auth_header();
-
-        let mut req = self
-            .client
-            .post(&url)
-            .header(&auth_header_name, &auth_header_value)
-            .header("Content-Type", "application/json");
+        let mut req = self.with_auth(
+            self.client
+                .post(&url)
+                .header("Content-Type", "application/json"),
+        );
 
         if self.config.api_type == "anthropic-messages" {
             req = req.header("anthropic-version", "2023-06-01");
@@ -449,13 +448,11 @@ impl LlmProvider for OpenAiCompatProvider {
     ) -> Result<(Vec<ChatChunk>, bool), String> {
         let url = self.build_chat_url();
         let body = self.build_chat_body(messages, options, true);
-        let (auth_header_name, auth_header_value) = self.build_auth_header();
-
-        let mut req = self
-            .client
-            .post(&url)
-            .header(&auth_header_name, &auth_header_value)
-            .header("Content-Type", "application/json");
+        let mut req = self.with_auth(
+            self.client
+                .post(&url)
+                .header("Content-Type", "application/json"),
+        );
 
         if self.config.api_type == "anthropic-messages" {
             req = req.header("anthropic-version", "2023-06-01");

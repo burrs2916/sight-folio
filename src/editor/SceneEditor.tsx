@@ -86,6 +86,8 @@ import logger from '../utils/logger';
 import { openChapterCarrierView, openTypedCarrierView } from '../utils/studioBook';
 import { useDragBodyGuard } from '../hooks/useDragBodyGuard';
 import { hasWritingCanvasCard } from '../utils/writingPaneSeed';
+// ㉙ 工作室「写作」页签的标题也要按体裁叫（日记那本书里它是「这天」，不是「本章」）
+import { surfaceKeyForGenre } from '../utils/writingSchema';
 import { spawnCodeWorkbench } from '../services/tauri';
 import { t } from '../i18n';
 import { WritingPropertyPanel } from './panels/WritingPropertyPanel';
@@ -335,6 +337,8 @@ export function SceneEditor({
     const root = activeScene?.projectRoot ?? '';
     return root.startsWith('writing://') ? root.replace(/^writing:\/\//, '').replace(/\/+$/, '') : '';
   }, [activeScene?.projectRoot]);
+  // ㉙ 页签标题那句指的是"这一个正文单位"：体裁取不到（代码场景/书已删）→ '' → 回落原键
+  const writingGenre = useWritingStore((s) => s.books.find((b) => b.id === activeBookId)?.genre ?? '');
 
   // ───────────────────── v2.18 变更耦合工具栏三件套 ─────────────────────
   // 与 v2.17 依赖画像工具栏同形态（filter / window / focus），但语义对齐到「时间维度耦合」：
@@ -1934,7 +1938,7 @@ export function SceneEditor({
                                           : activeViewKind === 'stats'
                                             ? t('writing.statsOverview')
                                             : activeViewKind === 'writing'
-                                              ? t('writing.chapterContextTitle')
+                                              ? t(surfaceKeyForGenre(writingGenre, 'unitContextTitle'))
                                               : t('editor.writing.inspector.tab')
                         }
                       />,
@@ -2031,10 +2035,10 @@ export function SceneEditor({
                     <ForeshadowingOverviewCard />
                   ) : activeViewKind === 'inspiration' ? (
                     /* 灵感视图：要素栏=灵感总览卡（分发统计/念头可点行进详情） */
-                    <InspirationOverviewCard />
+                    <InspirationOverviewCard bookId={activeBookId} />
                   ) : activeViewKind === 'proofread' ? (
                     /* 校对视图：要素栏=体检统计卡（六组计数，有页签去向的组行可点直达） */
-                    <ProofreadOverviewCard />
+                    <ProofreadOverviewCard bookId={activeBookId} />
                   ) : activeViewKind === 'stats' ? (
                     /* 统计视图：要素栏=体量总览卡（KPI 网格 + 离群章可点跳章） */
                     <StatsOverviewCard
@@ -2092,7 +2096,7 @@ export function SceneEditor({
                   ) : isBookScene && activeViewKind === 'inspiration' ? (
                     selectedInspiration ? (
                       /* 灵感视图：详情栏=选中念头编辑与分发器（转时间线/挂章/转伏笔/删除） */
-                      <InspirationDetail beat={selectedInspiration} />
+                      <InspirationDetail beat={selectedInspiration} bookId={activeBookId} />
                     ) : (
                       <Box
                         sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}
@@ -2222,6 +2226,7 @@ export function SceneEditor({
                     isBookScene={isBookScene}
                     bookTopic={aiBookTopic}
                     bookTitle={aiBookTitle}
+                    genre={writingGenre}
                     focusSetting={aiFocusSetting}
                     onOpenCanvasAi={onOpenCanvasAi}
                     onOpenPath={(relPath, line) => {

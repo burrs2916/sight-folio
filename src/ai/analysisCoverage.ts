@@ -36,7 +36,17 @@ export type AnalysisCoverageState =
   /** 分析过，但上下文内容已经变了：结论可能已经对不上代码 */
   | "stale-data"
   /** 上下文没变，只是距上次分析太久（兜底信号，强度低于 stale-data） */
-  | "stale-time";
+  | "stale-time"
+  /**
+   * ㉴（轮 35 · AU-1）该维度在**这个作用域**整卡不适用（体裁白名单表外），且从未跑过。
+   *
+   * 它与 never 必须分开：never 是「该补没补」的红灯，会驱动轮转与心跳补齐；
+   * 对诗集来说「人设一致性」永远没有第一轮——按 never 记，就是每天亮一盏
+   * 永远灭不掉的假红灯，还诱导出永远补不上的欠账。「不跑并且要说」说的就是这个状态。
+   * 注意只在**无运行记录**时出现：这本书改过体裁、该维度历史上有过结论 ⇒ 记录照旧显示
+   * （数据不因裁页签而隐身——页签护栏的台账版）。
+   */
+  | "genre-blocked";
 
 export interface AnalysisCoverageRow {
   presetKey: string;
@@ -56,6 +66,11 @@ export interface AnalysisCoverageRow {
 }
 
 export interface CoverageOptions {
+  /**
+   * ㉴（轮 35 · AU-1）该作用域整卡不适用的预设键（模块侧 automationBlocklist 申报）。
+   * 缺省 = 无裁剪 = 台账逐字节旧观（代码扫描域与改造前一致）。
+   */
+  blockedKeys?: string[];
   /** 当前上下文包指纹；缺省则无法做 stale-data 判定，只按时间兜底 */
   currentDigest?: string;
   /** 当前时间（秒），显式传入便于测试 */
@@ -89,6 +104,9 @@ export function buildAnalysisCoverage(
   const nowSec = options.nowSec ?? Math.floor(Date.now() / 1000);
   const staleAfterHours = options.staleAfterHours ?? DEFAULT_STALE_AFTER_HOURS;
   const currentDigest = options.currentDigest ?? "";
+  // ㉴ AU-1：体裁不适用的名单（见 CoverageOptions.blockedKeys）。只影响「从未跑过」的格子——
+  // 有运行记录的维度一律按记录说话，这是「已建数据不隐身」护栏在台账侧的同款形状。
+  const blocked = new Set(options.blockedKeys ?? []);
 
   // 同一 preset 可能有多条（后端已分组，但手动与自动混流时仍要防御）：取最近的一条
   const latest = new Map<string, AiAutoAnalysisRun>();
@@ -101,6 +119,21 @@ export function buildAnalysisCoverage(
   return presets.map((p) => {
     const run = latest.get(p.key);
     if (!run) {
+      // ㉴ AU-1：体裁表外 + 从未跑过 = 「按体裁跳过」，不是「该补没补」。
+      // 两者的差别必须在台账上可见——这正是「表外项不跑且要说」的「说」。
+      if (blocked.has(p.key)) {
+        return {
+          presetKey: p.key,
+          title: pickLang(p.title),
+          description: pickLang(p.description),
+          state: "genre-blocked" as const,
+          lastRunAt: null,
+          lastDigest: "",
+          lastAgentId: null,
+          lastConversationId: null,
+          detail: t("aiPanel.coverageDetail.genreBlocked"),
+        };
+      }
       return {
         presetKey: p.key,
         title: pickLang(p.title),
@@ -152,6 +185,9 @@ const STATE_PRIORITY: Record<AnalysisCoverageState, number> = {
   "stale-data": 1,
   "stale-time": 2,
   fresh: 3,
+  // ㉴ AU-1：genre-blocked 排在末位只是排序表的完整性——pickNextPreset 把它**整条剔出池**，
+  // 任何排序下它都轮不到（见函数体）。它不该被补，连「垫底补」都不该被想到。
+  "genre-blocked": 4,
 };
 
 /**
@@ -171,9 +207,13 @@ export function pickNextPreset(
   coverage: AnalysisCoverageRow[],
   options: { includeFresh?: boolean } = {},
 ): AnalysisCoverageRow | undefined {
+  // ㉴ AU-1：体裁不适用的维度**任何档位都不进池**——上游（planRotation / probeCoverageGaps）
+  // 已按同一份名单裁过池，这里是下游的牙：万一有人拿着未裁的台账来挑，也不许替诗集
+  // 点名「人设一致性」（两头的尺子出自 automationBlocklistFor 一枚，不会互相打架）。
+  const pickable = coverage.filter((r) => r.state !== "genre-blocked");
   const pool = options.includeFresh
-    ? coverage
-    : coverage.filter((r) => r.state !== "fresh");
+    ? pickable
+    : pickable.filter((r) => r.state !== "fresh");
   if (pool.length === 0) return undefined;
 
   return [...pool].sort((a, b) => {
@@ -193,6 +233,8 @@ export interface CoverageSummary {
   never: number;
   stale: number;
   fresh: number;
+  /** ㉴ AU-1：体裁整卡不适用的维度数（既不算欠账也不算过期，单独说话） */
+  blocked: number;
   /** 已覆盖且仍新鲜的比例（0-100，一位小数） */
   freshRatio: number;
 }
@@ -202,11 +244,15 @@ export function summarizeCoverage(coverage: AnalysisCoverageRow[]): CoverageSumm
   const total = coverage.length;
   const never = coverage.filter((r) => r.state === "never").length;
   const fresh = coverage.filter((r) => r.state === "fresh").length;
-  const stale = total - never - fresh;
+  // ㉴ AU-1：blocked 必须从 stale 的差值里单独摘出来——stale 是用减法凑的，
+  // 新状态不点名就会被算进「已过期」，台账把「不该跑」说成「跑过且过期」，两头谎。
+  const blocked = coverage.filter((r) => r.state === "genre-blocked").length;
+  const stale = total - never - fresh - blocked;
   return {
     total,
     never,
     stale,
+    blocked,
     fresh,
     freshRatio: total === 0 ? 0 : Math.round((fresh / total) * 1000) / 10,
   };

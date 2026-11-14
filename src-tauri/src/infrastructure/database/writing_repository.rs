@@ -1,7 +1,7 @@
 use crate::domain::writing::{
-    ExternalCapture, ExternalCaptureKind, WritingAnnotation, WritingBook,
-    WritingChapter, WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing, WritingNote,
-    WritingOutline, WritingSetting, WritingSettingRevision, WritingStoryline, WritingTimelineEvent,
+    ExternalCapture, ExternalCaptureKind, WritingAnnotation, WritingBook, WritingChapter,
+    WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline,
+    WritingSetting, WritingSettingRevision, WritingStoryline, WritingTimelineEvent,
 };
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::Database;
@@ -460,6 +460,18 @@ impl WritingRepository for SqliteWritingRepository {
         // 同一事务内完成，任一步失败整体回滚，绝不半删（半删 = 书没了但子域
         // 孤儿残留，重启后仍会被按 book_id 查出，与「已放弃」不符）。
         let tx = conn.transaction()?;
+        // 2026-11-04 补齐（审计缺陷 B，见 docs/完结作品完成度审计-2026-11-04-1010.md §3）：
+        // 下面新增的这几张表**全都带 book_id**，过去不在矩阵里 → 删书后留下「界面上看不见、
+        // 也就删不掉」的孤儿账（成稿快照正文一部长篇可达数 MB）。判定口径：删除 = 清干净，
+        // 宁可整事务回滚也不许半删。
+        // 顺序硬约束：work_version_chapters 只认 version_id，必须先用子查询按书捞版本 id 删掉，
+        // 再删 work_versions —— 反过来先删版本头，子查询就再也找不到这些快照行了。
+        // export_artifacts 只删**记录**，作品库里的产物文件一律不动（需求 §5.3：文件保留，
+        // 由用户自己清理；这句后果必须写进删除确认弹窗，不能只在注释里）。
+        tx.execute(
+            "DELETE FROM work_version_chapters WHERE version_id IN (SELECT id FROM work_versions WHERE book_id = ?1)",
+            [id],
+        )?;
         for table in [
             "writing_timeline_events",
             "writing_foreshadowings",
@@ -469,6 +481,17 @@ impl WritingRepository for SqliteWritingRepository {
             "writing_outlines",
             "writing_chapters",
             "writing_annotations",
+            // ↓ 2026-11-04 补齐：崩溃恢复快照 / 笔记 / 设定修订 / 资料捕获
+            "writing_chapter_snapshots",
+            "writing_notes",
+            "writing_setting_revisions",
+            "external_captures",
+            // ↓ 2026-11-04 补齐：成稿版本域（版本头 + 产物记录）
+            "work_versions",
+            "export_artifacts",
+            // 已退役的旧登记表**不在这里清**：§9-13 的结构锁不许新代码引用那个表名
+            // （legacy_completed_works 只许住在 migration.rs）。它指向已删书的孤儿行
+            // 由 migrate 的孤儿账清理通道 sweep（migration.rs::purge_orphan_archive_rows）。
         ] {
             tx.execute(&format!("DELETE FROM {table} WHERE book_id = ?1"), [id])?;
         }
@@ -756,6 +779,16 @@ impl WritingRepository for SqliteWritingRepository {
         )?;
         tx.execute(
             "UPDATE writing_notes SET chapter_id = '' WHERE chapter_id = ?1",
+            [id],
+        )?;
+        // 2026-11-04 全仓删除账 N2：**章的自动历史副本随章一起走**。
+        // 上面「删章不删内容」保护的是能独立存在的创作实体（事件 / 伏笔 / 大纲 / 笔记），
+        // 而 writing_chapter_snapshots 只是这一章正文的旧副本：章被永久删除后，快照既读不到
+        // （快照弹窗按 chapter_id 列表）、也删不掉（全库对它唯一的 DELETE 在「保留最近 N 份」
+        // 的裁剪里）→ 纯脏数据。回收站走的是软删（extra.deletedAt），不经过本函数，
+        // 所以「先扔回收站、随时可恢复」这条路径上的快照完全不受影响。
+        tx.execute(
+            "DELETE FROM writing_chapter_snapshots WHERE chapter_id = ?1",
             [id],
         )?;
         tx.execute("DELETE FROM writing_chapters WHERE id = ?1", [id])?;
@@ -1305,7 +1338,6 @@ impl WritingRepository for SqliteWritingRepository {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     }
-
 }
 
 #[cfg(test)]
@@ -1996,6 +2028,143 @@ mod tests {
         );
     }
 
+    /// 往「成稿版本域 + 四张散表」各塞一行。
+    /// 走裸 SQL 是故意的：删除矩阵本身也是裸 SQL，只有同通道写入才测得到那条 SQL。
+    fn seed_book_side_tables(conn: &Connection, book_id: &str, tag: &str) {
+        conn.execute(
+            "INSERT INTO work_versions
+                (id, book_id, seq, label, note, is_final, chapter_count, word_count, content_hash, schema_ver, locked_at)
+             VALUES (?1, ?2, 1, '交稿版', '', 1, 1, 1200, ?3, 1, 1700000000)",
+            [format!("ver_{tag}"), book_id.to_string(), format!("hash_{tag}")],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO work_version_chapters
+                (version_id, sort_order, src_chapter_id, title, content, kind, parent_id, status, word_count)
+             VALUES (?1, 0, 'ch_x', '第一章', '锁定那一刻的正文', '', NULL, '', 1200)",
+            [format!("ver_{tag}")],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO export_artifacts
+                (id, version_id, book_id, format, spec_id, file_rel_path, file_size, status, error, origin, created_at)
+             VALUES (?1, ?2, ?3, 'epub', 'default', ?4, 10, 'ready', '', 'export', 1700000000)",
+            [
+                format!("art_{tag}"),
+                format!("ver_{tag}"),
+                book_id.to_string(),
+                format!("{tag}/v1/x.epub"),
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO writing_chapter_snapshots
+                (id, chapter_id, book_id, content, word_count, origin, created_at, name)
+             VALUES (?1, 'ch_x', ?2, '旧稿', 3, 'manual', 1700000000, '')",
+            [format!("snap_{tag}"), book_id.to_string()],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO writing_notes
+                (id, book_id, chapter_id, content, tags, pin, created_at, updated_at)
+             VALUES (?1, ?2, 'ch_x', '笔记', '', 0, 1700000000, 1700000000)",
+            [format!("note_{tag}"), book_id.to_string()],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO writing_setting_revisions
+                (id, setting_id, book_id, name, subtitle, description, extra, origin, created_at)
+             VALUES (?1, ?2, ?3, '旧名', '', '', '{}', 'edit', 1700000000)",
+            [
+                format!("rev_{tag}"),
+                format!("set_{tag}"),
+                book_id.to_string(),
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO external_captures
+                (id, book_id, kind, source_raw, extracted_text, analysis_json, title, tags, target_use, created_at, updated_at)
+             VALUES (?1, ?2, 'text', 'raw', 'txt', '{}', '资料', '', '', 1700000000, 1700000000)",
+            [format!("cap_{tag}"), book_id.to_string()],
+        )
+        .unwrap();
+    }
+
+    /// 按书数某表行数。`work_version_chapters` 没有 book_id 列（只认 version_id），
+    /// 必须走子查询按书捞——它也正是删除矩阵里唯一需要抢在 work_versions 之前删的一张。
+    fn count_side_rows(conn: &Connection, table: &str, book_id: &str) -> i64 {
+        let sql = if table == "work_version_chapters" {
+            format!("SELECT COUNT(*) FROM {table} WHERE version_id IN (SELECT id FROM work_versions WHERE book_id = ?1)")
+        } else {
+            format!("SELECT COUNT(*) FROM {table} WHERE book_id = ?1")
+        };
+        let n: i64 = conn.query_row(&sql, [book_id], |r| r.get(0)).unwrap();
+        n
+    }
+
+    /// 删除传播矩阵（P0 一致性）①b 删书必须连「成稿版本域 + 四张散表」一起清
+    /// （2026-11-04 审计缺陷 B：这七张表过去不在矩阵里，删完书留下看不见也删不掉的孤儿账，
+    /// 一部长篇的成稿快照正文可达数 MB）。两头都钉：残留 = 脏数据；把**别的书**的行吃了 = 越界删除。
+    /// 已退役旧登记表不在此列（§9-13 锁住表名），它的孤儿行归 migration 的清理通道，见下一个测。
+    #[test]
+    fn delete_book_cascades_work_version_domain_and_side_tables() {
+        let repo = make_repo();
+        let victim = sample_book("book_del_wv");
+        let other = sample_book("book_keep_wv");
+        repo.save_book(&victim).unwrap();
+        repo.save_book(&other).unwrap();
+
+        let tables = [
+            "work_versions",
+            "work_version_chapters",
+            "export_artifacts",
+            "writing_chapter_snapshots",
+            "writing_notes",
+            "writing_setting_revisions",
+            "external_captures",
+        ];
+
+        {
+            let conn = repo.db.0.lock().unwrap();
+            seed_book_side_tables(&conn, &victim.id, "v");
+            seed_book_side_tables(&conn, &other.id, "k");
+            // 前置正控：两本书每张表都得有行。零数据上的「清空」断言是假的绿。
+            for t in tables {
+                assert_eq!(
+                    count_side_rows(&conn, t, &victim.id),
+                    1,
+                    "夹具未生效：{t} 没有书内行"
+                );
+                assert_eq!(
+                    count_side_rows(&conn, t, &other.id),
+                    1,
+                    "夹具未生效：{t} 没有对照行"
+                );
+            }
+        }
+
+        repo.delete_book(&victim.id).unwrap();
+
+        {
+            let conn = repo.db.0.lock().unwrap();
+            for t in tables {
+                assert_eq!(
+                    count_side_rows(&conn, t, &victim.id),
+                    0,
+                    "删书后 {t} 仍有残留 = 脏数据（看不见也删不掉）"
+                );
+            }
+            for t in tables {
+                assert_eq!(
+                    count_side_rows(&conn, t, &other.id),
+                    1,
+                    "越界删除：别的书的 {t} 被一起吃掉了"
+                );
+            }
+        }
+    }
+
     /// 删除传播矩阵（P0 一致性）② 删章：只删章节行，时间线事件/伏笔/大纲
     /// 全部保留，仅把指向该章的引用解绑回「未绑定章」（零强制）。
     #[test]
@@ -2048,6 +2217,70 @@ mod tests {
         assert!(
             outlines[0].chapter_id.is_none(),
             "删章后大纲应回到「未落章」"
+        );
+    }
+
+    /// ②b 永久删章必须连**该章自己的**自动快照一起清（2026-11-04 全仓删除账 N2）。
+    /// 快照存的是这一章正文的旧副本：章没了以后它既读不到（快照弹窗按 chapter_id 列表）
+    /// 也删不掉（全库对它唯一的 DELETE 在「保留最近 N 份」的裁剪里）= 看不见又删不掉的脏数据。
+    /// 同时反向钉住不许越界：别的章的快照一份都不许少。
+    #[test]
+    fn delete_chapter_clears_only_its_own_snapshots() {
+        let repo = make_repo();
+        let book = sample_book("book_snap_del");
+        repo.save_book(&book).unwrap();
+        repo.save_chapter(&sample_chapter(&book.id, "ch_snap_doomed"))
+            .unwrap();
+        repo.save_chapter(&sample_chapter(&book.id, "ch_snap_keeper"))
+            .unwrap();
+
+        let count_of = |cid: &str| -> i64 {
+            let conn = repo.db.0.lock().unwrap();
+            conn.query_row(
+                "SELECT COUNT(*) FROM writing_chapter_snapshots WHERE chapter_id = ?1",
+                [cid],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap()
+        };
+
+        {
+            let conn = repo.db.0.lock().unwrap();
+            for (n, cid) in [
+                (1, "ch_snap_doomed"),
+                (2, "ch_snap_doomed"),
+                (3, "ch_snap_keeper"),
+            ] {
+                let sid = format!("snap_{n}");
+                let content = format!("旧稿 {n}");
+                conn.execute(
+                    "INSERT INTO writing_chapter_snapshots
+                        (id, chapter_id, book_id, content, word_count, origin, created_at, name)
+                     VALUES (?1, ?2, ?3, ?4, 4, 'manual', 1700000000, '')",
+                    [sid.as_str(), cid, book.id.as_str(), content.as_str()],
+                )
+                .unwrap();
+            }
+        }
+        // 正控：没种子行的话「清零」毫无意义（save_chapter 自己是否落快照不定，所以动态取）
+        let keeper_before = count_of("ch_snap_keeper");
+        assert!(
+            count_of("ch_snap_doomed") >= 2 && keeper_before >= 1,
+            "种子未落库，本片断言会空转"
+        );
+
+        repo.delete_chapter("ch_snap_doomed").unwrap();
+
+        assert_eq!(
+            count_of("ch_snap_doomed"),
+            0,
+            "永久删章后该章快照残留 = N2 回归（看不见也删不掉的脏数据）"
+        );
+        assert_eq!(
+            count_of("ch_snap_keeper"),
+            keeper_before,
+            "越界清理：别的章的快照被吃了（{keeper_before} → 实得 {}）",
+            count_of("ch_snap_keeper")
         );
     }
 

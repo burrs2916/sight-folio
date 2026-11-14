@@ -2,6 +2,8 @@ pub mod change_ledger;
 pub mod code_patch;
 pub mod engine;
 pub mod file_dossier;
+/// 本地 Ollama 自动发现（扫描 + 识别 + 接入计划）
+pub mod ollama;
 pub mod openai_provider;
 pub mod provider;
 pub mod scan_records;

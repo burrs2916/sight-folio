@@ -29,6 +29,11 @@ const PROTECTED_KEY_PREFIXES: string[] = [
   BROWSER_SETTINGS_PREFIX,
   // 崩溃恢复正文草稿、AI 语料草稿与生成态
   'sight-folio:',
+  // **点号家族**（2026-11-04 全仓删除账 N1）：上面那条是冒号 `sight-folio:`，
+  // 而仓里还有一批键写成点号 `sight-folio.`（如 AI 风格一致性开关、旧版书级排版键）。
+  // 少登记这一条的后果是：这类键**每次启动被本模块删一次**，且因为冒号/点号只差一个字符，
+  // 肉眼审查根本发现不了。回归锁见 storageKeyNamespaceRound46.test.ts（用真 isCacheKeyAllowed 判定）。
+  'sight-folio.',
   // 工作台画布缓存等
   'ps.',
   // 工作台面板开关与宽度

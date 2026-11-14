@@ -2,11 +2,15 @@
 import { describe, it, expect } from 'vitest';
 import {
   INSPIRATION_EXPAND_MAX_VERSIONS,
-  INSPIRATION_EXPAND_SYSTEM_HINT,
+  inspirationExpandSystemHintFor,
   buildInspirationExpandPrompt,
   extractInspirationVersions,
 } from '../inspirationExpand';
 import { textToParagraphHtml } from '../../ai/writingAssistant';
+
+// ㉟ AI-5（轮 12）：人设常量改函数。本文件原有断言全部跑**小说口径**（空 genre = 未设旧书），
+// 因此同时是 novel 逐字零回归锁；非小说支的锁在 `src/ai/__tests__/genreFourMouths.test.ts`。
+const INSPIRATION_EXPAND_SYSTEM_HINT = inspirationExpandSystemHintFor('');
 
 describe('extractInspirationVersions（AI 回复 → 候选版本）', () => {
   it('按 ">>> " 标题行切分版本，正文多段保留空行', () => {

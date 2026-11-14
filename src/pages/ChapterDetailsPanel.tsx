@@ -30,6 +30,9 @@ import { beatsOfChapter, castOfChapter, chapterPath, importedBeatIdsOfChapter, p
 import { buildTree, chapterPathLabels } from '../utils/writingTree';
 import { isComplete } from '../utils/writingTimeline';
 import { foreshadowingsPlantedIn, foreshadowingsPayableIn, foreshadowStatusColor } from '../utils/writingForeshadowing';
+import { writesByDateForGenre, surfaceKeyForGenre } from '../utils/writingSchema';
+import { isDiaryDateKey, parseDiaryDate } from '../utils/diaryEntry';
+import { chapterDeletedAt } from '../services/writing';
 
 export interface ChapterDetailsPanelProps {
   /** 当前要展示详情的章（null = 未选中，显示空态引导） */
@@ -62,6 +65,7 @@ export interface ChapterDetailsPanelProps {
 function DraftAtEditor({ event }: { event: WritingTimelineEvent }) {
   // 本地态重置交给调用方 <Box key={ev.id}>：换事件即重挂，useState 初值自然归零
   // （useEffect 里 setState 重置是 React 反模式，且 key 重挂后根本走不到旧实例）
+  const tlDraftGenre = useWritingStore((s) => s.books.find((b) => b.id === event.bookId)?.genre ?? '');
   const [at, setAt] = useState('');
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -100,7 +104,7 @@ function DraftAtEditor({ event }: { event: WritingTimelineEvent }) {
             void commit();
           }
         }}
-        placeholder={t('writing.timelineAtPh')}
+        placeholder={t(surfaceKeyForGenre(tlDraftGenre, 'tlAtPlaceholder'))}
         sx={{
           '& .MuiOutlinedInput-input': { py: 0.5, fontSize: 11.5 },
           '& .MuiOutlinedInput-root': { borderRadius: 1 },
@@ -112,6 +116,93 @@ function DraftAtEditor({ event }: { event: WritingTimelineEvent }) {
         data-testid={`draft-at-hint-${event.id}`}
       >
         {failed ? t('writing.chapterDraftAtSaveFailed') : t('writing.chapterDraftAtHint')}
+      </Typography>
+    </Box>
+  );
+}
+
+/**
+ * 日记条目「记的是哪一天」（㉘ = 欠账 S22）。
+ *
+ * 交互照抄本文件的 DraftAtEditor：逐键不写库、失焦才落账、未变化不写。
+ * 唯一区别是**空值也算一次合法提交** —— 清空日期是作者的动作（这条从此不参与节奏读数），
+ * 而草稿时点填空没有意义。落账走 `setChapterEntryDate`：合并写 extra 的 entryDate 一个字段，
+ * 章头图 / poemForm / deletedAt 这些住在同一个 extra 里的键一个不丢。
+ */
+function EntryDateEditor({ chapter, chapters }: { chapter: WritingChapter; chapters: WritingChapter[] }) {
+  // 初值 = 这条现在标的日期；调用方用 key 换条目即重挂，不会带着上一条的输入
+  const [value, setValue] = useState(() => parseDiaryDate(chapter.extra));
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // 已落账的日期：失焦重复触发时避免无意义写库（与 savedRef 同一手法）
+  const savedRef = useRef(value);
+
+  const commit = async () => {
+    const v = value.trim();
+    if (saving || v === savedRef.current) return;
+    // 浏览器给的就是 YYYY-MM-DD；不合法（含 '2026-11-31' 这种不存在的一天）当成"没改"，绝不写进库
+    if (v && !isDiaryDateKey(v)) return;
+    setSaving(true);
+    setFailed(false);
+    try {
+      await useWritingStore.getState().setChapterEntryDate(chapter.id, v);
+      savedRef.current = v;
+      const others = v
+        ? chapters.filter((c) => c.id !== chapter.id && chapterDeletedAt(c) === 0 && parseDiaryDate(c.extra) === v)
+        : [];
+      if (v && others.length > 0) {
+        // 撞日不许拦：一天写两篇是日记常态，㉖ 已把「同一天多条」当事实读数而不是错误
+        useToastStore.getState().info(
+          t('writing.diary.dateClash', {
+            date: v,
+            n: others.length,
+            titles: others
+              .map((c) => c.title)
+              .filter(Boolean)
+              .join('、'),
+          }),
+        );
+      } else if (v) {
+        useToastStore.getState().success(t('writing.diary.dateSaved', { date: v }));
+      } else {
+        useToastStore.getState().info(t('writing.diary.dateCleared'));
+      }
+    } catch (err) {
+      logger.warn('ChapterDetailsPanel', 'set entry date failed', { error: err });
+      setFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Box sx={{ mt: 0.75 }}>
+      <TextField
+        size="small"
+        type="date"
+        label={t('writing.diary.dateField')}
+        value={value}
+        disabled={saving}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            void commit();
+          }
+        }}
+        slotProps={{
+          // 与 DraftAtEditor 同处口径：data-* 属性不在 MUI 的 input slot props 类型里，需要断言
+          input: { 'data-testid': 'diary-entry-date' } as unknown as Record<string, string>,
+          inputLabel: { shrink: true },
+        }}
+        sx={{ '& .MuiInputBase-input': { fontSize: 11.5, py: 0.5 } }}
+      />
+      <Typography
+        sx={{ fontSize: 10.5, color: failed ? 'error.main' : 'text.disabled', mt: 0.25 }}
+        data-testid="diary-date-hint"
+      >
+        {failed ? t('writing.chapterDraftAtSaveFailed') : t('writing.diary.dateHint')}
       </Typography>
     </Box>
   );
@@ -272,7 +363,7 @@ export function ChapterDetailsPanel({
         chapter.id,
         'cast',
         settingId,
-        chapter.title || t('editor.writing.inspector.beat'),
+        chapter.title || t(surfaceKeyForGenre(book?.genre ?? '', 'unitOutline')),
       );
     } catch (err) {
       logger.warn('ChapterDetailsPanel', 'toggle cast failed', { error: err });
@@ -332,6 +423,12 @@ export function ChapterDetailsPanel({
                 {t('writing.words', { n: chapter.wordCount })}
               </Typography>
             </Box>
+            {/* ㉘ 只有按日期写的体裁（日记）给这一行：㉖ 的连续/空档全按 entryDate 算，
+                读数报「另有 N 条没标日期」却没有任何补日期的口，等于把作者将了一军。
+                体裁判断走 writingSchema 的判据，本面板不自己比体裁 id。 */}
+            {writesByDateForGenre(book?.genre ?? '') && (
+              <EntryDateEditor key={`entry-date-${chapter.id}`} chapter={chapter} chapters={chapters} />
+            )}
             <Box sx={{ display: 'flex', gap: 0.75, mt: 1 }}>
               <Button
                 size="small"
@@ -361,7 +458,7 @@ export function ChapterDetailsPanel({
         {/* 人物：本章 cast 绑定 chips（toggle 进出章节人物） */}
         <Box>
           <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 0.5 }}>
-            {t('editor.writing.inspector.cast')}
+            {t(surfaceKeyForGenre(book?.genre ?? '', 'unitCast'))}
           </Typography>
           {characters.length === 0 ? (
             <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>
@@ -409,7 +506,7 @@ export function ChapterDetailsPanel({
           </Typography>
           {chapterBeats.length === 0 ? (
             <Typography sx={{ fontSize: 11.5, color: 'text.disabled', lineHeight: 1.7 }}>
-              {t('writing.chapterBeatsEmpty')}
+              {t(surfaceKeyForGenre(book?.genre ?? '', 'unitBeatsEmpty'))}
             </Typography>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -453,10 +550,10 @@ export function ChapterDetailsPanel({
         {/* 本章时间线事件 */}
         <Box>
           <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 0.5 }}>
-            {t('writing.chapterTimelineTitle')}
+            {t(surfaceKeyForGenre(book?.genre ?? '', 'unitTimelineTitle'))}
           </Typography>
           {chapterTimelineEvents.length === 0 ? (
-            <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>{t('writing.chapterTimelineEmpty')}</Typography>
+            <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>{t(surfaceKeyForGenre(book?.genre ?? '', 'unitTimelineEmpty'))}</Typography>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.25 }}>
               {chapterTimelineEvents.map((ev) => (
@@ -512,12 +609,12 @@ export function ChapterDetailsPanel({
             <Divider />
             <Box>
               <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 0.5 }}>
-                {t('writing.chapterForeshadowTitle')}
+                {t(surfaceKeyForGenre(book?.genre ?? '', 'unitForeshadowTitle'))}
               </Typography>
               {plantedHere.length > 0 && (
                 <>
                   <Typography variant="caption" sx={{ fontWeight: 700 }} color="text.disabled">
-                    {t('writing.foreshadowPlantedHere')}
+                    {t(surfaceKeyForGenre(book?.genre ?? '', 'plantedHere'))}
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.25 }}>
                     {plantedHere.map(foreshadowRow)}
@@ -527,7 +624,7 @@ export function ChapterDetailsPanel({
               {payableHere.length > 0 && (
                 <>
                   <Typography variant="caption" sx={{ fontWeight: 700, mt: 0.5 }} color="text.disabled">
-                    {t('writing.foreshadowPayableHere')}
+                    {t(surfaceKeyForGenre(book?.genre ?? '', 'payableHere'))}
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.25 }}>
                     {payableHere.map(foreshadowRow)}

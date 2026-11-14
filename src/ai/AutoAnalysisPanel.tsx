@@ -40,7 +40,7 @@ import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import { useAgentStore } from "../store/agentStore";
 import { aiContextRegistry } from "./contextRegistry";
 import { CONTEXT_TOOL_ID } from "./analysisRunner";
-import { PRESET_ROTATE, TRIGGER_ON_ANY, TRIGGER_ON_FULL } from "./autoAnalysisOrchestrator";
+import { automationBlocklistFor, PRESET_ROTATE, TRIGGER_ON_ANY, TRIGGER_ON_FULL } from "./autoAnalysisOrchestrator";
 import { getSchedulerStatus, tickAnalysisScheduler } from "./analysisScheduler";
 import {
   buildAnalysisCoverage,
@@ -115,6 +115,9 @@ const REASON_LABEL: Record<string, { text: string; color: StatusTone }> = {
   "trigger-mismatch": { text: t("aiPanel.reason.triggerMismatch"), color: "neutral" },
   "module-mismatch": { text: t("aiPanel.reason.moduleMismatch"), color: "neutral" },
   "scope-mismatch": { text: t("aiPanel.reason.scopeMismatch"), color: "neutral" },
+  // ㉴ AU-1：表外项不跑且要说——灰是「不该跑」不是「坏了」，但它必须出现在这条轨迹里，
+  // 否则作者在诗集上锁了一张「人设一致性」规则却永远等不到结果，只能猜。
+  "genre-irrelevant": { text: t("aiPanel.reason.genreIrrelevant"), color: "neutral" },
   "agent-missing": { text: t("aiPanel.reason.agentMissing"), color: "danger" },
   "agent-no-tool": { text: t("aiPanel.reason.agentNoTool"), color: "danger" },
   "no-provider": { text: t("aiPanel.reason.noProvider"), color: "danger" },
@@ -134,6 +137,9 @@ const COVERAGE_STYLE: Record<AnalysisCoverageState, { color: StatusTone; label: 
   "stale-data": { color: INSIGHT_ACCENTS.auto, label: t("aiPanel.coverage.staleData") },
   "stale-time": { color: "info", label: t("aiPanel.coverage.staleTime") },
   fresh: { color: "success", label: t("aiPanel.coverage.fresh") },
+  // ㉴ AU-1：灰 = 「这本书不跑这个维度」，与 never 的红灯（该补没补）必须一眼分开；
+  // Record 穷尽锁盯着它（漏格 = tsc 红），这条台账永远不会多出一个渲染空白的状态。
+  "genre-blocked": { color: "neutral", label: t("aiPanel.coverage.genreBlocked") },
 };
 
 function fmtTime(sec: number): string {
@@ -206,7 +212,10 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
         aiContextApi.listAiContextPacks(scopeId),
       ]);
       const currentDigest = packs.find((p) => p.moduleId === moduleId)?.digest ?? "";
-      setCoverage(buildAnalysisCoverage(presets, runsForScope, { currentDigest }));
+      // ㉴ AU-1：台账与编排/心跳共用同一枚 automationBlocklistFor 取裁量名单——
+      // 三张嘴一个判据，禁第二张表。读它不额外花钱：provider 侧只是查一次 store 里的体裁。
+      const blockedKeys = automationBlocklistFor(moduleId, scopeId);
+      setCoverage(buildAnalysisCoverage(presets, runsForScope, { currentDigest, blockedKeys }));
     } catch (e: any) {
       logger.error("AutoAnalysisPanel", "coverage load failed", { error: e });
       setCoverage([]);
@@ -579,10 +588,16 @@ export function AutoAnalysisPanel({ moduleId, scopeId, compact = false }: Props)
                   {t("aiPanel.auto.coverageHeader", {
                     fresh: coverageSummary.fresh,
                     total: coverageSummary.total,
-                    never:
+                    // ㉴ AU-1：「N 个从未分析」后接「N 项体裁不适用」——诗集台账的表头自己说话：
+                    // 灰的那几张不是欠账，是这本书的体裁不跑（且跑过的那张会照旧显示记录）。
+                    never: [
                       coverageSummary.never > 0
                         ? t("aiPanel.auto.coverageHeaderNever", { never: coverageSummary.never })
                         : "",
+                      coverageSummary.blocked > 0
+                        ? t("aiPanel.auto.coverageHeaderBlocked", { n: coverageSummary.blocked })
+                        : "",
+                    ].join(""),
                   })}
                 </Typography>
                 {showCoverage ? (

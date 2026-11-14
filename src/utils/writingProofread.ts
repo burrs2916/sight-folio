@@ -1,8 +1,14 @@
 // 校对体检口径（收拢纯函数，禁止在 pane/右栏各写第二份）：
 //
-// 校对页签 = 全书质量发现清单：**纯本地派生、零新表、零 Rust**，七组维度——
+// 校对页签 = 全书质量发现清单：**纯本地派生、零新表、零 Rust**，六组维度——
 //   章文本（重复标点/三连同字/超长段落/连续空行/引号混用，本地正则，advisory 软提示）
-//   章账（空章 / 标记完稿但 0 字）
+//
+// 「章账」组已整组撤除（2026-11-07 李先生定口径，别再加回来）：
+//   原两条判据——「还是空章」「标记完稿但 0 字」——都建立在"我们知道这个节点该有正文"之上，
+//   而**层级名是创作者自定义的**（部/卷/篇/章/节/幕/回…），卷与部只是归类节点、天生不写字。
+//   判据无法区分「还没写」和「本来就不该写」，报出来就只能是假发现：实测分卷的书每卷一条
+//   「还是空章」，作者的真问题被噪音淹没。既然没法认真判定，就不报——
+//   体检自此只碰**已经有文字的节点**（见 chapterTextIssues：正文剥标签后为空直接返回空数组）。
 //   伏笔（跨章预警，isOverdue 复用）
 //   时间线（冲突 computeTimelineConflicts 复用 + 待补全草稿汇总）
 //   剧情线（未挂线事件汇总 + 空线检测）
@@ -24,7 +30,10 @@ import { collectTimelineConflicts, isComplete } from './writingTimeline';
 import { looseBeats } from './writingOutline';
 import { beatEventText, beatImported } from './writingTimeline';
 import { beatPlantedAsForeshadowing } from './writingInspiration';
+// ㉬ N-21：组级裁剪复用页签可见性真源（`hiddenViewKindsForGenre` 的正问法），不在这里另立第二张表
+import { viewKindVisibleForGenre } from './writingSchema';
 // 批次③ T5：错别字/重复用词/敏感词检测复用编辑器实时引擎，全书口径与编辑器口径同一份数据
+import { lintFormat, specForText, STRUCT_MESSAGE_KEYS } from './writingFormat';
 import { runProofread, type ProofreadIssue } from '../editor/proofread/proofreadEngine';
 // type-only：studioBook 不 import 本模块（无运行时环）；仅取值域映射（组→页签 kind）
 import type { WritingViewKind } from './studioBook';
@@ -44,14 +53,7 @@ export function stripHtmlText(html: string): string {
     .replace(/\n+$/g, '');
 }
 
-export type ProofreadGroup =
-  | 'chapter-text'
-  | 'chapter-account'
-  | 'foreshadow'
-  | 'timeline'
-  | 'storyline'
-  | 'idea'
-  | 'consistency';
+export type ProofreadGroup = 'chapter-text' | 'foreshadow' | 'timeline' | 'storyline' | 'idea' | 'consistency';
 
 export type ProofreadTarget =
   | { type: 'chapter'; id: string }
@@ -99,7 +101,28 @@ export interface ProofreadFinding {
 }
 
 /** 单章文本级检查（每类最多 1 条汇总行，args 带计数/字数）。 */
-export function chapterTextIssues(chapter: WritingChapter): ProofreadFinding[] {
+/**
+ * A6-1：逐章句法校对里，按体裁**停用会误报的那几条规则**（只过滤输出、不删任何规则代码）。
+ *
+ * 取证依据（2026-11-14 探针实跑 `chapterTextIssues`）：
+ *   · 诗：节间空段 `<p></p>` → 误报 `StructEmptyPara`；节距 ≥2 空行 → 误报 `BlankLines`。诗的“分节/留白”是本体，不是病。
+ *   · 剧本：`……（沉默）……` 戏剧留白 → 误报 `RepeatPunct`。单段长对白实测不达 600 字阈值，故**不**豁免 LongParagraph。
+ *   · novel / essay / diary：**空集**（零回归——返回同一数组引用，行为逐字不变）。
+ * 只停用证据点名的规则；typo/敏感词/重复用词等跨体裁通用判定一律保留（不砍功能）。
+ */
+const RULE_EXEMPT_FOR_GENRE: Record<string, ReadonlySet<string>> = {
+  poetry: new Set(['StructEmptyPara', 'BlankLines']),
+  script: new Set(['RepeatPunct']),
+};
+
+const EMPTY_EXEMPT: ReadonlySet<string> = new Set();
+
+/** 取体裁的句法豁免集（未知体裁 / novel / essay / diary 返回空集 = 不豁免）。 */
+export function ruleExemptForGenre(genre: string): ReadonlySet<string> {
+  return RULE_EXEMPT_FOR_GENRE[genre] ?? EMPTY_EXEMPT;
+}
+
+export function chapterTextIssues(chapter: WritingChapter, genre = ''): ProofreadFinding[] {
   const issues: ProofreadFinding[] = [];
   // 正文存 HTML（编辑器 getHTML()）；先剥标签/实体得到纯文本，五类+三类统一在同一文本口径下检测
   const text = stripHtmlText(chapter.content ?? '');
@@ -113,6 +136,15 @@ export function chapterTextIssues(chapter: WritingChapter): ProofreadFinding[] {
   });
   // 批次③ T5：引擎级五类检测在同一文本口径跑**一次**（聚合行 + textHits + 修复判定共用，
   // 消除 buildProofreadReport 后再 hasAutoFixableHtml 每章重扫的第二遍）
+  // 结构层（段首手工缩进 / padding-left 冒充实缩进 / 空段 / <br> 冒充分段 / 中西间隔…）
+  // 与文本层引擎并列：两套判据不重叠（标点类只归引擎），报告里却共用同一份列表与跳转
+  const structIssues = lintFormat(chapter.content ?? '', specForText(text));
+  for (const si of structIssues) {
+    issues.push({
+      ...mk(STRUCT_MESSAGE_KEYS[si.rule], { n: si.count }),
+      locator: { anchor: si.excerpt.slice(0, 12) },
+    });
+  }
   const engineIssues = runProofread(text);
   const textHits = engineIssues.length > 0 ? engineIssues : undefined;
   // 重复标点：。。！！？？……——（同一标点紧邻出现 ≥2 次）
@@ -173,7 +205,11 @@ export function chapterTextIssues(chapter: WritingChapter): ProofreadFinding[] {
   // 统一挂 textHits：所有章文本聚合行共享本行引擎全量命中（含 punct/redundant），
   // ① 正文容器可展开「章内逐条闭环」；② 修复判定 = textHits.some(fix)，
   // 与旧的 hasAutoFixableHtml（对整章再跑一遍引擎）完全等价——有内容即有引擎命中全集。
-  return textHits ? issues.map((i) => ({ ...i, textHits })) : issues;
+  // A6-1：按体裁过滤掉会误报的那几条聚合行（novel/essay/diary 空集→同一引用、逐字零回归）。
+  // 只滤聚合发现行；typo/sensitive/repeat 等通用判定与 textHits 闭环不受影响。
+  const exempt = ruleExemptForGenre(genre);
+  const keptIssues = exempt.size > 0 ? issues.filter((i) => !exempt.has(i.messageKey)) : issues;
+  return textHits ? keptIssues.map((i) => ({ ...i, textHits })) : keptIssues;
 }
 
 // ─── 一致性组：跨章人物账本（批次② 增-4）────────────────────────────────
@@ -396,7 +432,6 @@ export interface ProofreadReport {
 
 export const PROOFREAD_GROUPS: ProofreadGroup[] = [
   'chapter-text',
-  'chapter-account',
   'foreshadow',
   'timeline',
   'storyline',
@@ -404,7 +439,7 @@ export const PROOFREAD_GROUPS: ProofreadGroup[] = [
   'consistency',
 ];
 
-/** 全书体检汇总（七组维度；纯派生，零迁移，便于单测）。 */
+/** 全书体检汇总（六组维度；纯派生，零迁移，便于单测）。 */
 export function buildProofreadReport(
   chapters: WritingChapter[],
   outlines: WritingOutline[],
@@ -413,32 +448,24 @@ export function buildProofreadReport(
   storylines: { id: string; name?: string }[] = [],
   /** 设定卡（人物 + 世界观）。不传 = 跳过一致性组（老调用点向后兼容，不会误报） */
   settings: { id: string; name: string; extra: string; kind?: string }[] = [],
+  /**
+   * ㉬ N-21（2026-11-11 轮 72 续五班 · 李先生真人指出「校对…还是原来那套，你也没改」）：
+   * 这本书的体裁。**缺省 '' = 六组全跑**，与改造前逐字等价（老调用点与单测零影响）。
+   * 传了就会裁掉这本书**结构上不可能有**的那几组：判据复用页签可见性真源，见
+   * `proofreadGroupVisibleForGenre`。现读的实况 = 日记藏 `storylines`/`foreshadowing`
+   * （`hiddenViewKindsForGenre:203`，创建入口也被 `canCreateEntityForGenre` 闸死），
+   * 可体检清单照旧吐 `fs:*`「伏笔逾期未回收」与 `sl:*`「事件未挂线」—— 催作者去建一栏
+   * 系统不让他建的东西，而且跳过去还是死路（入口已闸）。这是「六组一套打五种载体」的实况。
+   */
+  genre = '',
 ): ProofreadReport {
   const issues: ProofreadFinding[] = [];
 
-  // ① 章文本 + ② 章账（逐章）
-  for (const c of chapters) {
-    issues.push(...chapterTextIssues(c));
-    if (!c.content?.trim() && (c.wordCount ?? 0) === 0) {
-      issues.push({
-        key: `${c.id}:empty`,
-        group: 'chapter-account',
-        messageKey: 'EmptyChapter',
-        args: { title: c.title || '…' },
-        target: { type: 'chapter', id: c.id },
-        severity: 'warning',
-      });
-    } else if (c.status === 'finished' && (c.wordCount ?? 0) === 0) {
-      issues.push({
-        key: `${c.id}:fin0`,
-        group: 'chapter-account',
-        messageKey: 'FinishedNoWords',
-        args: { title: c.title || '…' },
-        target: { type: 'chapter', id: c.id },
-        severity: 'block',
-      });
-    }
-  }
+  // ① 章文本（逐章）。这是体检里唯一碰「章」的一组，且**只对已经有文字的节点开口**：
+  // 层级名由创作者自定义，卷/部/篇只是归类节点，任何「这个节点没正文 = 问题」的判据都无从判定。
+  // 编号 ②（章账）永久空置、不重复使用——下面的 ③④⑤⑥⑦ 与历史注释、测试里的引用都对得上。
+  // A6-1：透传 genre，句法豁免走同一入口（novel/essay/diary 空集=逐字不变）。
+  for (const c of chapters) issues.push(...chapterTextIssues(c, genre));
 
   // ③ 伏笔：跨章预警逐条（isOverdue 与伏笔页签同一口径）
   for (const f of foreshadowings) {
@@ -612,11 +639,17 @@ export function buildProofreadReport(
   // ⑦ 一致性：跨章人物账本（正文提及 vs 设定卡）。传了 settings 才算，老调用点不误报。
   if (settings.length > 0) issues.push(...consistencyFindings(chapters, settings));
 
+  // ㉬ N-21：**出口处收口**，不在每个 push 点各判一次 —— 将来新增第 7 条 `fs:*` 也漏不出去。
+  // 判据只有一条：这本书有没有那一栏（`viewKindVisibleForGenre` 现成口径，与页签 / 创建闸口 /
+  // AI 快捷卡四张脸同一个问题同一张表）。`chapter-text`/`timeline`/`idea`/`consistency`
+  // 四类映射到的栏五种体裁都在，等于不过滤。
+  const kept = genre ? issues.filter((i) => proofreadGroupVisibleForGenre(genre, i.group)) : issues;
+
   const counts = PROOFREAD_GROUPS.reduce(
-    (acc, g) => ({ ...acc, [g]: issues.filter((i) => i.group === g).length }),
+    (acc, g) => ({ ...acc, [g]: kept.filter((i) => i.group === g).length }),
     {} as Record<ProofreadGroup, number>,
   );
-  return { issues, counts };
+  return { issues: kept, counts };
 }
 
 // ─── 排序与过滤（纯函数，供校对页签左栏浏览用；禁在 pane 重写第二份） ───
@@ -682,8 +715,6 @@ export function proofreadGroupLabelKey(g: ProofreadGroup): string {
   switch (g) {
     case 'chapter-text':
       return 'writing.proofreadGroup.ChapterText';
-    case 'chapter-account':
-      return 'writing.proofreadGroup.ChapterAccount';
     case 'foreshadow':
       return 'writing.proofreadGroup.Foreshadow';
     case 'timeline':
@@ -714,4 +745,18 @@ export function proofreadGroupView(g: ProofreadGroup): WritingViewKind | null {
     default:
       return null;
   }
+}
+
+/**
+ * ㉬ N-21（2026-11-11 轮 72 续五班）：这一组发现**这本书配不配拥有**。
+ *
+ * 复用 `proofreadGroupView`（组→栏的既有唯一映射，见上）+ 页签可见性真源
+ * `viewKindVisibleForGenre`，**不另立第二张表**（本仓「表一多必漂」付过钱）。
+ * 无对应页签的组（`chapter-text`）恒真。现读实况：日记藏 `storylines`/`foreshadowing`
+ * ⇒ `storyline`/`foreshadow` 两组对日记为假；诗 / 散文 / 剧本 / 小说四体裁六组全真（剧本
+ * 只藏世界观，而一致性组映射到 `characters`，所以一致性照跑）。
+ */
+export function proofreadGroupVisibleForGenre(genre: string, group: ProofreadGroup): boolean {
+  const view = proofreadGroupView(group);
+  return view ? viewKindVisibleForGenre(genre, view) : true;
 }

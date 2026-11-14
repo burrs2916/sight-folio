@@ -16,6 +16,8 @@ import { agentApi } from '../services/tauri';
 import { L } from './aiLang';
 import { getLang, t } from '../i18n';
 import { CHAPTER_TAIL_CHARS } from '../utils/writingCorpusBudget';
+import { genrePromptPack } from './genrePromptPack';
+import { genreSelectionPack } from './genreSelectionPacks';
 
 export type InlineWritingKind = 'continue' | 'polish' | 'rewrite' | 'summarize' | 'review';
 
@@ -38,6 +40,11 @@ export interface InlineWritingContext {
   bookTitle: string;
   bookDescription: string | null;
   chapterTitle: string;
+  /** 作品体裁（writingSchema 的 genre id；空/未设置 = 小说口径，历史行为零回归）。
+   *  散文的「章」其实是**篇**，而且"不得改变情节/人物行为/时间线"这类约束对散文根本不成立
+   *  —— 散文没有情节链，硬要求模型"保持情节"会让它不敢动该动的句子。2026-11-08 李先生：
+   *  散文跟小说肯定不一样。 */
+  genre?: string;
   /** 当前章节全文（纯文本） */
   chapterText: string;
   /** 人设卡（含关系/时间线摘要行；空数组 = 用户还没建卡，prompt 里如实声明盲区） */
@@ -63,6 +70,26 @@ export interface InlineWritingContext {
   /** 每张人设卡的认知权重摘要行（由调用方从 extra.profile.cognitiveWeights 格式化后传入）。
    * 非空时，在生成类任务的 prompt 中追加角色决策倾向指引。 */
   characterCognitiveWeights?: string[];
+}
+
+// ── 体裁判据的位置（AI-1-1，轮 32 ㉕）──────────────────────────────────────────
+// 这里曾经站着 4 个布尔（isEssayGenre / isPoetryGenre / isScriptGenre / isDiaryGenre）
+// 和同一套 if 链的 5 次抄写。判据真源是 `writingSchema.workbenchCommandSet`（含未设/脏值
+// → novel 的唯一兜底），措辞真源是 `genrePromptPack`——漏一个体裁的 prompt 从「静默掉
+// 小说兜底」变成「编译不过」。剧本 2026-11-09 开闸时就是掉过这条缝（模型收到「你是
+// 网文写手…800～2000 字」，会把一出戏排成散文段落），诗歌 11-09 拦下过同类越界。
+// 散文的「章」其实是**篇**，「不得改变情节/人物行为/时间线」对散文根本不成立（2026-11-08
+// 李先生：散文跟小说肯定不一样）——这些差异全部住在 pack 里，本模块只查表。
+
+/**
+ * 正文单位那一行的标签：小说「【当前章节】」，散文「【当前篇目】」，诗歌「【当前诗作】」，
+ * 剧本「【当前场次】」，日记「【当前条目】」——五串全住 `genrePromptPack.unitLabel`。
+ * 单独收成函数是为了让各条 prompt **用同一个词**：以前全是字面量，散文的篇目在 prompt 里
+ * 被叫成"章节"，模型就按"章"去理解篇幅与承接方式。小说分支文案与以前逐字相同。
+ */
+function chapterLabelLine(ctx: InlineWritingContext): string {
+  const label = genrePromptPack(ctx.genre).unitLabel;
+  return L(`${label.zh}${ctx.chapterTitle}`, `${label.en}${ctx.chapterTitle}`);
 }
 
 /** 续写只喂尾部，控制 token：末尾 TAIL_CHARS 字符足够接住文风与情节。
@@ -129,28 +156,24 @@ export function buildContinueMessage(ctx: InlineWritingContext): string {
   const directiveBlock = ctx.directive?.trim()
     ? `\n\n${L('【走向要求】', '[Direction]')}\n${ctx.directive.trim()}\n${L('把以上要求融入续写内容本身；不要在输出里复述或解释这些要求。', 'Weave these requirements into the prose itself; do not restate or explain them in the output.')}`
     : '';
-  const wordsLine =
+  const pack = genrePromptPack(ctx.genre);
+  // 体量行按体裁查表：诗的"往下写"是往下长出一节、剧本是一个冲突回合、日记只把当天
+  // 没说完的意思说完——单位与长度口径全部住在 pack.continueWords（小说/散文共用一对，
+  // essay 的续写口径在册欠账 A-3，刀 2 改表不改这里）。
+  const wordsPair =
     ctx.targetWords && ctx.targetWords > 0
-      ? L(
-          `从上面的末尾无缝接着往下写约 ${ctx.targetWords} 字，保持人称、时态、文风与已有内容一致。`,
-          `Seamlessly continue from the tail above for about ${ctx.targetWords} words, keeping the same person, tense, and style as the existing text.`,
-        )
-      : L(
-          '从上面的末尾无缝接着往下写 300～600 字，保持人称、时态、文风与已有内容一致。',
-          'Seamlessly continue from the tail above for 300-600 words, keeping the same person, tense, and style as the existing text.',
-        );
+      ? pack.continueWords.withTarget(ctx.targetWords)
+      : pack.continueWords.plain;
+  const wordsLine = L(wordsPair.zh, wordsPair.en);
   return (
-    L(
-      '请为下面的小说片段续写。直接续写正文本身：不要任何解释、标题、前言或总结；不要复述已有内容；不要写「以下是续写」之类的话。',
-      'Continue the novel excerpt below. Output the continued prose only: no explanations, titles, prefaces, or summaries; do not repeat existing text.',
-    ) +
+    L(pack.continueHead.zh, pack.continueHead.en) +
     `\n\n` +
     L(
       `【作品】${ctx.bookTitle}${ctx.bookDescription ? `：${ctx.bookDescription}` : ''}`,
       `[Book] ${ctx.bookTitle}${ctx.bookDescription ? `: ${ctx.bookDescription}` : ''}`,
     ) +
     `\n` +
-    L(`【当前章节】${ctx.chapterTitle}`, `[Current Chapter] ${ctx.chapterTitle}`) +
+    chapterLabelLine(ctx) +
     `\n\n` +
     characterBlock +
     outlineBlock +
@@ -203,8 +226,8 @@ export function buildPolishMessage(ctx: InlineWritingContext): string {
         : '';
     return (
       L(
-        '请只润色下面的【选中片段】：提升文字表现力（节奏、画面、对话质感），但**不得改变**情节、人物行为、时间线与信息量。输出必须是润色后的片段本身，能无缝拼回原位：保持与前后文的衔接（人称、时态、语句完整性），不要输出选区之外的内容，不要解释、对照说明或总结。',
-        'Polish ONLY the selected excerpt below: improve prose quality (rhythm, imagery, dialogue) but do **not** change plot, character actions, timeline, or information. Output the polished excerpt itself, ready to be spliced back seamlessly: keep coherence with the surrounding text (person, tense, sentence completeness). Do not output anything beyond the excerpt; no explanations or summaries.',
+        genreSelectionPack(ctx.genre).polish.zh,
+        genreSelectionPack(ctx.genre).polish.en,
       ) +
       styleLine +
       styleRequirementBlock(ctx) +
@@ -212,7 +235,7 @@ export function buildPolishMessage(ctx: InlineWritingContext): string {
       `\n\n` +
       L(`【作品】${ctx.bookTitle}`, `[Book] ${ctx.bookTitle}`) +
       `\n` +
-      L(`【当前章节】${ctx.chapterTitle}`, `[Current Chapter] ${ctx.chapterTitle}`) +
+      chapterLabelLine(ctx) +
       (ctx.characterLines.length
         ? `\n\n${L('【人设卡】', '[Character Cards]')}\n${ctx.characterLines.join('\n')}`
         : '') +
@@ -224,19 +247,20 @@ export function buildPolishMessage(ctx: InlineWritingContext): string {
     );
   }
 
-  // ── 整章润色（原行为）──
+  // ── 整篇润色：五个体裁的"不能动什么"根本不是一回事，五串全住 pack.polishWhole ──
+  // 小说保情节/人物行为/时间线；散文保立意与人事细节并禁补经历；诗保分行与节次；
+  // 剧本保说话人归属与幕场编号；日记禁增补原文没有的场景对话心理因果。
+  // 小说一格与改造前逐字相同（零回归线，golden 快照钉死）。
+  const whole = genrePromptPack(ctx.genre).polishWhole;
   return (
-    L(
-      '请润色下面的整章小说：提升文字表现力（节奏、画面、对话质感），但**不得改变**情节、人物行为、时间线与信息量；不得增删情节点；保留原有分段结构。直接输出润色后的全文正文：不要任何解释、对照说明或总结。',
-      'Polish the chapter below: improve prose quality (rhythm, imagery, dialogue) but do **not** change plot, character actions, timeline, or information; keep the original paragraph structure. Output the polished full text only: no explanations or summaries.',
-    ) +
+    L(whole.zh, whole.en) +
     styleLine +
     styleRequirementBlock(ctx) +
     cognitiveWeightsBlock(ctx) +
     `\n\n` +
     L(`【作品】${ctx.bookTitle}`, `[Book] ${ctx.bookTitle}`) +
     `\n` +
-    L(`【当前章节】${ctx.chapterTitle}`, `[Current Chapter] ${ctx.chapterTitle}`) +
+    chapterLabelLine(ctx) +
     (ctx.characterLines.length ? `\n\n${L('【人设卡】', '[Character Cards]')}\n${ctx.characterLines.join('\n')}` : '') +
     `\n\n` +
     L('【原文】\n', '[Original]\n') +
@@ -281,8 +305,8 @@ export function buildRewriteMessage(ctx: InlineWritingContext): string {
         : '';
     return (
       L(
-        '请改写下面的【选中片段】：在**保留情节、人物行为、时间线与全部信息量**的前提下，重构表达——允许调整句式长短、段落切分、叙事节奏与措辞，让文字更有张力与可读性。**不要**改变任何故事事实，也不要输出选区之外的内容。输出必须是改写后的片段本身，能无缝拼回原位：保持与前后文的衔接（人称、时态、语句完整性）。不要解释、对照说明或总结。',
-        'Rewrite ONLY the selected excerpt below: keep **all plot, character actions, timeline, and information**, but restructure the prose — you may adjust sentence length, paragraph breaks, pacing, and wording to make it more vivid and readable. Do **not** change any story facts, and do not output anything beyond the excerpt. Output the rewritten excerpt itself, ready to be spliced back seamlessly: keep coherence with the surrounding text (person, tense, sentence completeness). No explanations, comparisons, or summaries.',
+        genreSelectionPack(ctx.genre).rewrite.zh,
+        genreSelectionPack(ctx.genre).rewrite.en,
       ) +
       styleLine +
       styleRequirementBlock(ctx) +
@@ -290,7 +314,7 @@ export function buildRewriteMessage(ctx: InlineWritingContext): string {
       `\n\n` +
       L(`【作品】${ctx.bookTitle}`, `[Book] ${ctx.bookTitle}`) +
       `\n` +
-      L(`【当前章节】${ctx.chapterTitle}`, `[Current Chapter] ${ctx.chapterTitle}`) +
+      chapterLabelLine(ctx) +
       (ctx.characterLines.length
         ? `\n\n${L('【人设卡】', '[Character Cards]')}\n${ctx.characterLines.join('\n')}`
         : '') +
@@ -302,18 +326,17 @@ export function buildRewriteMessage(ctx: InlineWritingContext): string {
     );
   }
 
+  // 改写与润色的差别在「可动行文骨架」，各体裁的硬边界同润色一套（pack.rewriteWhole）。
+  const whole = genrePromptPack(ctx.genre).rewriteWhole;
   return (
-    L(
-      '请改写下面的整章小说：在**保留情节、人物行为、时间线与全部信息量**的前提下，重构表达——允许调整句式长短、段落切分、叙事节奏与措辞，让文字更有张力与可读性。**不要**增删故事事实；保留原有分段结构。直接输出改写后的全文正文：不要任何解释、对照说明或总结。',
-      'Rewrite the chapter below: keep **all plot, character actions, timeline, and information**, but restructure the prose — you may adjust sentence length, paragraph breaks, pacing, and wording to make it more vivid and readable. Do **not** add or remove story facts; keep the original paragraph structure. Output the rewritten full text only: no explanations, comparisons, or summaries.',
-    ) +
+    L(whole.zh, whole.en) +
     styleLine +
     styleRequirementBlock(ctx) +
     cognitiveWeightsBlock(ctx) +
     `\n\n` +
     L(`【作品】${ctx.bookTitle}`, `[Book] ${ctx.bookTitle}`) +
     `\n` +
-    L(`【当前章节】${ctx.chapterTitle}`, `[Current Chapter] ${ctx.chapterTitle}`) +
+    chapterLabelLine(ctx) +
     (ctx.characterLines.length ? `\n\n${L('【人设卡】', '[Character Cards]')}\n${ctx.characterLines.join('\n')}` : '') +
     `\n\n` +
     L('【原文】\n', '[Original]\n') +
@@ -333,28 +356,28 @@ export function buildSummarizeMessage(ctx: InlineWritingContext): string {
   if (ctx.selectionText && ctx.selectionText.trim().length > 0) {
     return (
       L(
-        '请总结下面的【选中片段】：提炼这一段发生的情节、人物动向与关键信息，按「情节进展 / 关键信息」两部分组织，控制在 200 字以内。只总结选中片段本身，不要补充选段之外的情节，不要评价文笔。',
-        "Summarize the selected excerpt below: extract what happens in this passage, character developments, and key information, organized into 'Plot progress / Key information', within 200 characters. Summarize only the excerpt itself; do not add events outside it, do not judge the writing.",
+        genreSelectionPack(ctx.genre).summarize.zh,
+        genreSelectionPack(ctx.genre).summarize.en,
       ) +
       `\n\n` +
       L(`【作品】${ctx.bookTitle}`, `[Book] ${ctx.bookTitle}`) +
       `\n` +
-      L(`【当前章节】${ctx.chapterTitle}`, `[Current Chapter] ${ctx.chapterTitle}`) +
+      chapterLabelLine(ctx) +
       `\n\n` +
       L('【选中片段】\n', '[Selected excerpt]\n') +
       ctx.selectionText +
       `\n\n${langNote()}`
     );
   }
+  // 各体裁「总结该端出什么」全住 pack.summarizeWhole（诗列意象、剧本按人物要/挡/得、
+  // 日记只按原文说、散文列人事景、小说列情节推进）。
+  const whole = genrePromptPack(ctx.genre).summarizeWhole;
   return (
-    L(
-      '请总结本章小说：提炼本章发生的情节、人物动向与关键推进（每小节要点式列出），控制在 400 字以内。只总结本章内容，不要补充本章之外的情节，不要评价文笔。',
-      'Summarize this chapter: list what happens, character developments, and key plot progress (bullet-style), within 400 characters. Cover only this chapter; do not add events outside it, do not judge the writing.',
-    ) +
+    L(whole.zh, whole.en) +
     `\n\n` +
     L(`【作品】${ctx.bookTitle}`, `[Book] ${ctx.bookTitle}`) +
     `\n` +
-    L(`【当前章节】${ctx.chapterTitle}`, `[Current Chapter] ${ctx.chapterTitle}`) +
+    chapterLabelLine(ctx) +
     `\n\n` +
     L('【原文】\n', '[Original]\n') +
     ctx.chapterText +
@@ -373,23 +396,31 @@ export function buildReviewMessage(ctx: InlineWritingContext): string {
     ctx.selectionText && ctx.selectionText.trim().length > 0
       ? L('【选中片段】\n', '[Selected excerpt]\n')
       : L('【原文】\n', '[Original]\n');
+  // 小说/散文/诗歌/剧本/日记只差一个名词，前四条规则共用（四份长文案迟早漂移）；
+  // 名词与第 5 条**体裁豁免**全住 pack（诗跨行省标点、剧本角色名行省主语、日记口语
+  // ——按散文的"句子"标准审必然满屏假病句；小说/散文今天没有第 5 条 = 空串照表回落）。
+  const pack = genrePromptPack(ctx.genre);
+  const unitNoun = pack.reviewUnitNoun.zh;
+  const unitNounEn = pack.reviewUnitNoun.en;
+  const extraRuleZh = pack.reviewExemptRule.zh;
+  const extraRuleEn = pack.reviewExemptRule.en;
   return (
     L(
-      '请对下面的小说文本做逐句语法审校（病句检查）：\n' +
+      `请对下面的${unitNoun}文本做逐句语法审校（病句检查）：\n` +
         '1. 按句子逐句检查，**只列出存在问题的句子**；无问题的句子不要列出；\n' +
         '2. 每条输出一行，用竖线 | 分隔四个字段：第N句|原句|问题类型|修改建议。原句必须是正文中的原文（可带上半句便于定位，但不得改写或省略）；问题类型从（成分残缺 / 搭配不当 / 语序不当 / 成分赘余 / 句式杂糅 / 关联词不当 / 指代不明）中选择；修改建议是可直接替换整句原句的修改后句子，不加引号和解释。示例：\n第1句|他是我的一个朋友。|成分赘余|他是我朋友。\n' +
         '3. 全文均无问题时，只输出一句「未发现明显语法问题」；\n' +
-        '4. 只检查语法正确性与句子通顺度，**不要**评价文风、节奏、情节，也不要修改正文本身。',
-      'Proofread the novel text below sentence by sentence (grammar correction):\n' +
+        '4. 只检查语法正确性与句子通顺度，**不要**评价文风、节奏、情节，也不要修改正文本身。' + extraRuleZh,
+      `Proofread the ${unitNounEn} text below sentence by sentence (grammar correction):\n` +
         '1. Check sentence by sentence; list **only sentences with problems**, skip correct ones;\n' +
         '2. Output each entry on one line with four pipe-separated fields: SentenceN|original|issue type|suggested rewrite. The original must be verbatim from the text (you may include the leading clause for locating, but do not rephrase or trim it); pick the issue type from (missing component / improper collocation / wrong word order / redundancy / mixed sentence pattern / conjunction misuse / unclear reference); the suggested rewrite must be a ready-to-replace whole sentence without quotes or extra text. Example:\nSentence 1|他是我的一个朋友。|成分赘余|他是我朋友。\n' +
         '3. If everything is fine, output only "No obvious grammar issues found";\n' +
-        '4. Check grammatical correctness and fluency only — do **not** judge style, pacing, or plot, and do not modify the text.',
+        '4. Check grammatical correctness and fluency only — do **not** judge style, pacing, or plot, and do not modify the text.' + extraRuleEn,
     ) +
     `\n\n` +
     L(`【作品】${ctx.bookTitle}`, `[Book] ${ctx.bookTitle}`) +
     `\n` +
-    L(`【当前章节】${ctx.chapterTitle}`, `[Current Chapter] ${ctx.chapterTitle}`) +
+    chapterLabelLine(ctx) +
     `\n\n` +
     targetLabel +
     targetBlock +

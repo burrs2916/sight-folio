@@ -236,7 +236,7 @@ describe('buildInspirationCorpus —— 灵感念头池语料', () => {
 // ─── buildProofreadCorpus ───
 
 describe('buildProofreadCorpus —— 校对体检语料', () => {
-  it('空章 / 完稿 0 字 / 回收预警 / 冲突事件 / 草稿 / 未挂线 / 未分发念头分组输出', () => {
+  it('回收预警 / 冲突事件 / 草稿 / 未挂线 / 未分发念头分组输出（章账整组撤除）', () => {
     const chapters = [
       ch('c1', 0, { title: '空章', content: '', wordCount: 0 }),
       ch('c2', 1, { title: '完稿零字', wordCount: 0, status: 'finished' }),
@@ -251,9 +251,12 @@ describe('buildProofreadCorpus —— 校对体检语料', () => {
     const fss = [
       fs('f1', { title: '怀表', plantChapterId: 'c3', payoffChapterId: 'c1', status: 'pending' }), // payoff(0) < plant(2) → overdue
     ];
-    const { zh } = buildProofreadCorpus('b1', chapters, outlines, timelineEvents, fss, []);
-    expect(zh).toContain('〔章账〕空章：空章');
-    expect(zh).toContain('〔章账〕标记完稿但 0 字：完稿零字');
+    const { zh, en } = buildProofreadCorpus('b1', chapters, outlines, timelineEvents, fss, []);
+    // 「章账」组自 2026-11-07 整组撤除（层级自定义 → 无从判定哪个节点该有正文）：
+    // 语料里既不许出现组名，也不许把「空章 / 完稿零字」单独抄一条给 AI——屏幕上没有的问题别进上下文。
+    expect(zh).not.toContain('章账');
+    expect(zh).not.toContain('标记完稿但 0 字');
+    expect(en).not.toContain('marked finished but 0 words');
     expect(zh).toContain('〔伏笔〕回收点已过仍未回收：怀表');
     expect(zh).toContain('〔时间线〕冲突事件：撞车一；撞车二');
     expect(zh).toContain('〔时间线〕待补全草稿 1 条');
@@ -549,7 +552,10 @@ describe('buildChapterIndexCorpus —— 卷章索引表', () => {
 // ─── buildStatsCorpus · 全书目标进度注入（承接工作室设置项↔AI 闭环）───
 
 describe('buildStatsCorpus —— 目标进度语料注入', () => {
-  const goalLine = { zh: '【全书目标与进度】目标 10,000 字：已写 3,000 字（30%）', en: '[Book goal & progress] words target 10,000: 3,000 written (30%)' };
+  const goalLine = {
+    zh: '【全书目标与进度】目标 10,000 字：已写 3,000 字（30%）',
+    en: '[Book goal & progress] words target 10,000: 3,000 written (30%)',
+  };
   const chapters = [ch('c1', 0, { title: '第一章', wordCount: 3000, volume: '卷一' })];
 
   it('传入 goalLine：紧跟标题置顶，双语各含目标行', () => {
@@ -569,5 +575,82 @@ describe('buildStatsCorpus —— 目标进度语料注入', () => {
   it('goalLine=null（同未设）：等价于不注入', () => {
     const { zh } = buildStatsCorpus('测试书', chapters, [], null);
     expect(zh).not.toContain('全书目标与进度');
+  });
+});
+
+// ── ⑭ 刀C：语料量词按体裁（对诗集说「章节 / 卷 / 章均」会让它按没分卷的短篇集去铺承接）
+describe('语料措辞按体裁（⑭ 刀C）', () => {
+  const mk = (wordCount: number, volume = '', kind = '章') =>
+    ({ id: `c${wordCount}${volume}${kind}`, bookId: 'b1', title: 'x', content: '', sortOrder: 1, wordCount,
+      status: 'draft', volume, parentId: null, kind, extra: '{}', createdAt: 0, updatedAt: 0 }) as never;
+  // 一长三短：小说口径必报「体量离群」，合集型不该报（长短悬殊是体裁常态）
+  const rows = [mk(10000), mk(120), mk(90), mk(110)];
+  const zh = (genre?: string) => buildStatsCorpus('书', rows, [], null, genre).zh;
+
+  it('小说（不传体裁 / 传 novel / 传空 / 脏值）措辞与改造前一致：章节 · 卷 · 章均', () => {
+    for (const g of [undefined, 'novel', '', 'scribble']) {
+      const line = zh(g as string);
+      expect(line, String(g)).toContain('· 章节 4 ·');
+      expect(line, String(g)).toContain('· 卷 0 ·');
+      expect(line, String(g)).toContain('章均');
+    }
+  });
+
+  it('剧本说「场次 / 幕 / 场均」，且离群行**仍可判**（不是合集型的"不适用"）', () => {
+    const line = zh('script');
+    expect(line).toContain('· 场次 4 ·');
+    expect(line).toContain('· 幕 0 ·');
+    expect(line).toContain('场均');
+    expect(line).not.toContain('· 章节 ');
+    expect(line).not.toContain('· 卷 ');
+    // 诗集/散文集这里是「不适用」；剧本的场次体量是节奏工具，判得出来才有信号
+    expect(line).not.toContain('不适用');
+    expect(buildStatsCorpus('书', [mk(1000), mk(1000), mk(1000)], [], null, 'script').zh)
+      .toContain('〔体量离群〕无（各场体量均在场均常规区间）');
+    expect(buildStatsCorpus('书', [mk(1000), mk(1000), mk(1000)], [], null, 'script').en)
+      .toContain('[Outliers] none (scene sizes within normal range)');
+  });
+
+  it('诗集说「诗作 / 分组 / 首均」，并且不再出现章节与卷', () => {
+    const line = zh('poetry');
+    expect(line).toContain('· 诗作 4 ·');
+    expect(line).toContain('首均');
+    expect(line).not.toContain('· 章节 ');
+    expect(line).not.toContain('· 卷 ');
+  });
+
+  it('散文集说「篇目 / 分组 / 篇均」', () => {
+    const line = zh('essay');
+    expect(line).toContain('· 篇目 4 ·');
+    expect(line).toContain('篇均');
+    expect(line).not.toContain('· 章节 ');
+  });
+
+  // 这一行**永远打印**，所以空态与明细的措辞都必须按体裁。
+  // 上一版我把断言写成「小说 = 无（…）」，但夹具是一长三短，**本来就该判出离群** ——
+  // 红的是我的前提，不是判据。这里把三件事分开钉：小说判得出 / 小说无离群时原文逐字不变 / 合集型明写不适用。
+  it('离群行按体裁：小说判得出，无离群时原句逐字不变，合集型明写不适用', () => {
+    // ① 小说：一长三短必判出离群（明细句里就是「章均」这个量纲）
+    expect(zh()).toContain('〔体量离群〕');
+    expect(zh()).toContain('章均');
+    // ② 小说：体量均匀时无离群，空态原句一字不改（零回归锁）
+    const flat = [mk(1000), mk(1000), mk(1000)];
+    expect(buildStatsCorpus('书', flat, [], null).zh).toContain('〔体量离群〕无（各章体量均在章均常规区间）');
+    // ③ 合集型：不判，且不许残留小说量纲
+    for (const g of ['poetry', 'essay']) {
+      const line = zh(g);
+      expect(line, g).toContain('〔体量离群〕不适用');
+      expect(line, g).not.toContain('章均');
+      expect(line, g).not.toContain('章常规');
+    }
+    // ④ 英文侧同样按体裁（那行也是永远打印的）
+    expect(buildStatsCorpus('书', flat, [], null).en).toContain('[Outliers] none (chapter sizes within normal range)');
+    expect(buildStatsCorpus('书', rows, [], null, 'poetry').en).toContain('[Outliers] not applicable');
+  });
+
+  it('分组量词按体裁：诗集的卷分布行不许写「N 章」', () => {
+    const grouped = [mk(500, '第一辑'), mk(300, '第一辑')];
+    expect(buildStatsCorpus('书', grouped, [], null, 'poetry').zh).toContain('：2 首');
+    expect(buildStatsCorpus('书', grouped, [], null).zh).toContain('：2 章');
   });
 });

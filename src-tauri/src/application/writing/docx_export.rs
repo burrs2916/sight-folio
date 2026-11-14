@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::io::Write;
 
-use super::EpubChapter;
+use super::{has_tree_payload, EpubChapter};
 use crate::error::{AppError, AppResult};
 
 /// 将整书章节导出为 DOCX，写到 `path`。
@@ -14,8 +14,46 @@ pub fn export_docx(
     title: String,
     description: Option<String>,
     chapters: Vec<EpubChapter>,
+    layout: super::layout::BookLayoutSpec,
+    assets: super::FrozenAssets,
+    meta: super::BookMeta,
     path: String,
 ) -> AppResult<()> {
+    // R1：正文字号 / 行距 / 段距 / 首行缩进 / 字体全部来自作者设置（详见 layout.rs）。
+    let styles_xml = STYLES_XML
+        .replace(
+            "<w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/>",
+            &format!(
+                "<w:sz w:val=\"{hp}\"/><w:szCs w:val=\"{hp}\"/>",
+                hp = layout.docx_half_points()
+            ),
+        )
+        .replace(
+            "<w:spacing w:after=\"120\" w:line=\"360\" w:lineRule=\"auto\"/>",
+            &format!(
+                // 注意：`w:ind` 是 `w:pPr` 的子元素，**不能**塞进 `w:spacing .../>` 内部，
+                // 那样产出的 OOXML 是坏的（Word 打不开）。集成测里断过这个位置。
+                "<w:spacing w:after=\"{after}\" w:line=\"{line}\" w:lineRule=\"auto\"/>{first_line}",
+                after = layout.docx_after_twip(),
+                line = layout.docx_line(),
+                first_line = if layout.indent {
+                    "<w:ind w:firstLineChars=\"200\"/>"
+                } else {
+                    ""
+                }
+            ),
+        );
+    let styles_xml = match layout.first_family() {
+        // OOXML 要具名字体，CSS 栈不能整串塞进去；取栈首那个具名字体，中英文各归一位
+        Some(family) => styles_xml.replace(
+            "<w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:cs=\"Times New Roman\"/>",
+            &format!(
+                "<w:rFonts w:ascii=\"{f}\" w:hAnsi=\"{f}\" w:cs=\"{f}\" w:eastAsia=\"{f}\"/>",
+                f = family
+            ),
+        ),
+        None => styles_xml,
+    };
     let file = std::fs::File::create(&path)
         .map_err(|e| AppError::Internal(format!("create {path}: {e}")))?;
     let mut zip = zip::ZipWriter::new(file);
@@ -30,12 +68,13 @@ pub fn export_docx(
             if img_cache.contains_key(&rel) {
                 continue;
             }
-            if let Ok((ext, bytes)) = load_image_bytes(&rel) {
-                let (w, h) = image::load_from_memory(&bytes)
-                    .map(|img| img.dimensions())
-                    .unwrap_or((0, 0));
-                img_cache.insert(rel, (ext, bytes, w, h));
-            }
+            // R4：走统一读法（定格优先）。此前这里是 `if let Ok(..)` —— 读不到就**静默丢图**，
+            // 产出一本「看起来成功、翻开少图」的 docx。缺图现在直接失败并点名文件。
+            let (ext, bytes) = load_image_bytes(&rel, &assets)?;
+            let (w, h) = image::load_from_memory(&bytes)
+                .map(|img| img.dimensions())
+                .unwrap_or((0, 0));
+            img_cache.insert(rel, (ext, bytes, w, h));
         }
     }
 
@@ -88,6 +127,16 @@ pub fn export_docx(
         img_rel_ids.insert(rel.clone(), format!("imgRel{i}"));
     }
 
+    // ㉱ E-A′（2026-11-11）：段落级首行缩进**跟着版式开关走**。旧实现在每个正文段
+    // 硬编码 firstLineChars=200/480 —— 它会盖掉 styles.xml 里按语种×体裁裁出的默认
+    // （诗集/西文书在咽喉处已撤缩进，段落级却不领情），F4 在 DOCX 只接通了样式层这一半。
+    // 中文小说：`layout.indent = true`，本串与旧常量逐字相同（产物零回归）。
+    let body_ppr = if layout.indent {
+        r#"<w:pPr><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr>"#
+    } else {
+        ""
+    };
+
     // 构建 word/document.xml
     let mut doc_xml = String::new();
     doc_xml.push_str(
@@ -100,8 +149,16 @@ pub fn export_docx(
 
     // 书名作为标题
     doc_xml.push_str(&heading1_paragraph(&title));
+    // 署名行（作者 ｜ 出版社）：与 PDF/HTML 同一份判据 `byline_of`，两项都没录就整行不出
+    let byline = super::byline_of(&meta);
+    if !byline.is_empty() {
+        doc_xml.push_str(&format!(
+            "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:t>{}</w:t></w:r></w:p>",
+            xml_escape(&byline)
+        ));
+    }
     if let Some(desc) = &description {
-        doc_xml.push_str(&paragraph(desc, &[]));
+        doc_xml.push_str(&paragraph(desc, &[], body_ppr));
     }
 
     // 各章节
@@ -109,14 +166,23 @@ pub fn export_docx(
     for (rel, (_, _, w, h)) in &img_cache {
         img_sizes.insert(rel.clone(), (*w, *h));
     }
+    // 层级口径（与 EPUB/PDF 同一个判据）：结构书的卷走 Heading2、章走 Heading3、
+    // 节走 Heading4（outlineLvl 1/2/3），Word 导航窗格据此成树；
+    // 遗留口径（旧调用方只给 volume 字符串）恒为 Heading2 —— 输出与改动前逐字节一致。
+    let tree = has_tree_payload(&chapters);
     for ch in &chapters {
-        doc_xml.push_str(&heading2_paragraph(&ch.title));
+        let level = if tree {
+            (2 + ch.depth.unwrap_or(0)).min(4)
+        } else {
+            2
+        };
+        doc_xml.push_str(&heading_paragraph(&ch.title, level));
         // 把 HTML 转成 DOCX 段落序列
         let segments = parse_html_to_segments(&ch.content, &img_rel_ids, &img_sizes);
         for seg in segments {
             match seg {
                 DocxSegment::Paragraph(runs) => {
-                    doc_xml.push_str(&runs_paragraph(&runs));
+                    doc_xml.push_str(&runs_paragraph(&runs, body_ppr));
                 }
                 DocxSegment::Image(rel_id, w, h) => {
                     doc_xml.push_str(&image_paragraph(&rel_id, w, h));
@@ -138,17 +204,23 @@ pub fn export_docx(
     zip.write_all(doc_xml.as_bytes())
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // 写入 word/styles.xml（定义 Heading1/Heading2/Normal，跨端稳定标题样式）
+    // 写入 word/styles.xml（Normal + Heading1..Heading4，跨端稳定标题样式）
+    //
+    // 为什么必须有 Heading3/4：结构书导出的层级是 Heading1=书名 / Heading2=卷 /
+    // Heading3=章 / Heading4=节（outlineLvl 0..3）。只定义到 Heading2 时，卷和章会挤在
+    // 同一级，Word 导航窗格就是一盘平铺 —— 正是「卷章对应不起来」在 DOCX 上的表现。
     const STYLES_XML: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
 <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:eastAsia="宋体" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="zh-CN" w:eastAsia="zh-CN"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="360" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr></w:pPrDefault></w:docDefaults>
 <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
 <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="360" w:after="240"/><w:jc w:val="left"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="44"/><w:szCs w:val="44"/><w:color w:val="1F2430"/></w:rPr></w:style>
 <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="160"/><w:jc w:val="left"/><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:color w:val="312E81"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="220" w:after="140"/><w:jc w:val="left"/><w:outlineLvl w:val="2"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/><w:szCs w:val="28"/><w:color w:val="1F2430"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading4"><w:name w:val="heading 4"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="200" w:after="120"/><w:jc w:val="left"/><w:outlineLvl w:val="3"/></w:pPr><w:rPr><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/><w:color w:val="3C4254"/></w:rPr></w:style>
 </w:styles>"#;
     zip.start_file("word/styles.xml", options)
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    zip.write_all(STYLES_XML.as_bytes())
+    zip.write_all(styles_xml.as_bytes())
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     // 写入 word/_rels/document.xml.rels
@@ -616,15 +688,30 @@ fn extract_img_rel(html: &str, img_rel_ids: &HashMap<String, String>) -> Option<
 }
 
 fn strip_html_tags(html: &str) -> String {
+    // 【E-F · 轮 54】两条同形状的漏口在这一支一起收：
+    // ① `<br>` 以前连同标签名被整只丢掉 ⇒ 段回退（288/357/372）与列表项（543/550）这两条
+    //    吃 strip 的路径，作者的分行无声消失 ⇒ 脱签前先看标签名，是 `br` 就留 `\n` 痕；
+    // ② 源码里**裸写**的换行原样留着 ⇒ 会被下游新的「`\n` = 硬换行」判据误认成真分行。
+    //    按 HTML 口径折成空格。`\n` 这个记号从本轮起只归 `<br>` 所有。
     let mut out = String::new();
     let mut in_tag = false;
+    let mut tag = String::new();
     for ch in html.chars() {
         if ch == '<' {
             in_tag = true;
+            tag.clear();
         } else if ch == '>' {
             in_tag = false;
-        } else if !in_tag {
-            out.push(ch);
+            if is_br_tag_name(&tag) {
+                out.push('\n');
+            }
+        } else if in_tag {
+            tag.push(ch);
+        } else {
+            out.push(match ch {
+                '\n' | '\r' | '\t' => ' ',
+                c => c,
+            });
         }
     }
     out.replace("&lt;", "<")
@@ -635,39 +722,95 @@ fn strip_html_tags(html: &str) -> String {
         .replace("&nbsp;", " ")
 }
 
+/// 标签内文是否为 `br`（吃 `<br>` / `<br/>` / `<br />` / `</br>` 各种形状）。
+/// 从略大小写；别的标签一律返回 false，调用方只关心硬换行。
+fn is_br_tag_name(tag_inner: &str) -> bool {
+    let t = tag_inner.trim().trim_start_matches('/');
+    let name: String = t
+        .chars()
+        .take_while(|c| !c.is_whitespace() && *c != '/')
+        .collect();
+    name.eq_ignore_ascii_case("br")
+}
+
+/// 标题段唯一出口：级别 1..4 对应 styles.xml 里定义好的 Heading1..Heading4（越界钳到 4）。
+///
+/// 为什么要收成一个函数：原来只有 heading1/2 两个各写一份 XML 的函数，第三、四级
+/// 无处可去，卷和章只好挤在同一级 —— 层级就是在这里丢的。
+fn heading_paragraph(text: &str, level: usize) -> String {
+    let style = match level {
+        1 => "Heading1",
+        2 => "Heading2",
+        3 => "Heading3",
+        _ => "Heading4",
+    };
+    let escaped = xml_escape(text);
+    format!(
+        r#"<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr><w:r><w:t>{escaped}</w:t></w:r></w:p>"#
+    )
+}
+
 fn heading1_paragraph(text: &str) -> String {
-    let escaped = xml_escape(text);
-    format!(
-        r#"<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>{escaped}</w:t></w:r></w:p>"#
-    )
+    heading_paragraph(text, 1)
 }
 
+#[allow(dead_code)]
 fn heading2_paragraph(text: &str) -> String {
-    let escaped = xml_escape(text);
-    format!(
-        r#"<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>{escaped}</w:t></w:r></w:p>"#
-    )
+    heading_paragraph(text, 2)
 }
 
-fn paragraph(text: &str, runs: &[DocxRun]) -> String {
-    // 中文出版惯例：正文段落首行缩进 2 字符（firstLineChars=200，Word 按字号自适应）
-    const INDENT_PPR: &str = r#"<w:pPr><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr>"#;
+/// `body_ppr`：正文段的 pPr（缩进与否由调用方按 `BookLayoutSpec` 裁，㉱ E-A′）。
+/// 中文小说拿到的串与旧常量逐字相同 —— 产物零回归；撤缩进的书得到空串（段落不再声明缩进）。
+fn paragraph(text: &str, runs: &[DocxRun], body_ppr: &str) -> String {
     if runs.is_empty() {
-        let escaped = xml_escape(text);
-        format!(r#"<w:p>{INDENT_PPR}<w:r><w:t>{escaped}</w:t></w:r></w:p>"#)
+        // 【E-F · 轮 54】这条回退分支（简介/无 inline 内容的段）与 `run_to_xml` 有同一个漏口，
+        // 一起收掉。无 `\n` 时**保持改前那个串逐字节不变** —— 简介行在零回归口径覆盖的面上
+        // （`r54丙` 钉住），所以这里只在真出现硬换行时才走新路径，不顺手改 `xml:space` 判据。
+        let body = if text.contains('\n') {
+            text_to_run_children(text)
+        } else {
+            format!("<w:t>{}</w:t>", xml_escape(text))
+        };
+        format!(r#"<w:p>{body_ppr}<w:r>{body}</w:r></w:p>"#)
     } else {
         let runs_xml: String = runs.iter().map(run_to_xml).collect();
-        format!(r#"<w:p>{INDENT_PPR}{runs_xml}</w:p>"#)
+        format!(r#"<w:p>{body_ppr}{runs_xml}</w:p>"#)
     }
 }
 
-fn runs_paragraph(runs: &[DocxRun]) -> String {
-    const INDENT_PPR: &str = r#"<w:pPr><w:ind w:firstLineChars="200" w:firstLine="480"/></w:pPr>"#;
+fn runs_paragraph(runs: &[DocxRun], body_ppr: &str) -> String {
     if runs.is_empty() {
-        return format!(r#"<w:p>{INDENT_PPR}<w:r><w:t></w:t></w:r></w:p>"#);
+        return format!(r#"<w:p>{body_ppr}<w:r><w:t></w:t></w:r></w:p>"#);
     }
     let runs_xml: String = runs.iter().map(run_to_xml).collect();
-    format!(r#"<w:p>{INDENT_PPR}{runs_xml}</w:p>"#)
+    format!(r#"<w:p>{body_ppr}{runs_xml}</w:p>"#)
+}
+
+/// 【E-F · 轮 54】把 run 文本写成 `w:t` 序列，其中的 `\n`（= 作者的 `<br>` 硬换行）
+/// 落成 OOXML 的 `<w:br/>`。
+///
+/// 改前 `run_to_xml` 把 `\n` 原样塞进 `<w:t>`：OOXML 里换行不是换行，Word 打开退化成
+/// 一个空格 ⇒ 12 行诗的 DOCX 是一整段，且全仓零 `<w:br/>`（台账 E-F / 旧导出报告 P0-1 E-2）。
+///
+/// **零回归口径**（`r54乙` 钉）：无 `\n` 时输出与改前**逐字节相同**，包括 `xml:space`
+/// 那条判据仍然吃**转义后**的串这一细节。
+fn text_to_run_children(text: &str) -> String {
+    let mut out = String::new();
+    for (i, seg) in text.split('\n').enumerate() {
+        if i > 0 {
+            out.push_str("<w:br/>");
+        }
+        let escaped = xml_escape(seg);
+        // 如果文本包含前导/尾随空格，需要 w:t 带 xml:space="preserve"
+        let space_attr =
+            if escaped.starts_with(' ') || escaped.ends_with(' ') || escaped.contains("  ") {
+                r#" xml:space="preserve""#
+            } else {
+                ""
+            };
+        out.push_str(&format!("<w:t{space_attr}>{escaped}</w:t>"));
+    }
+    out
 }
 
 fn run_to_xml(run: &DocxRun) -> String {
@@ -692,14 +835,7 @@ fn run_to_xml(run: &DocxRun) -> String {
     } else {
         format!("<w:rPr>{props}</w:rPr>")
     };
-    let text = xml_escape(&run.text);
-    // 如果文本包含前导/尾随空格，需要 w:t 带 xml:space="preserve"
-    let space_attr = if text.starts_with(' ') || text.ends_with(' ') || text.contains("  ") {
-        r#" xml:space="preserve""#
-    } else {
-        ""
-    };
-    format!("<w:r>{prop_str}<w:t{space_attr}>{text}</w:t></w:r>")
+    format!("<w:r>{prop_str}{}</w:r>", text_to_run_children(&run.text))
 }
 
 fn image_paragraph(rel_id: &str, width_emu: u32, height_emu: u32) -> String {
@@ -766,22 +902,112 @@ fn extract_data_asset_refs(html: &str) -> Vec<String> {
     refs
 }
 
-fn load_image_bytes(rel: &str) -> AppResult<(String, Vec<u8>)> {
-    // 优先相对引用解析；失败时按字面路径直接读取（与 pdf_export 一致）。
-    let abs = crate::commands::asset::resolve_asset_ref(rel.to_string())
-        .or_else(|_| Ok::<String, String>(rel.to_string()))
-        .map_err(|e| AppError::Internal(format!("resolve asset {rel}: {e}")))?;
-    let bytes =
-        std::fs::read(&abs).map_err(|e| AppError::Internal(format!("read image {abs}: {e}")))?;
-    let ext = std::path::Path::new(&abs)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("png")
-        .to_lowercase();
+fn load_image_bytes(rel: &str, frozen: &super::FrozenAssets) -> AppResult<(String, Vec<u8>)> {
+    // 定格优先、活盘兜底、缺图点名 —— 与 EPUB/PDF 同一个函数，口径不许分叉
+    let (bytes, media) = super::read_asset_bytes(rel, Some(frozen))?;
+    // 扩展名以定格记的 media_type 为准（那才是真字节的类型），猜不出来才退回按引用名猜
+    let ext = match media.rsplit('/').next() {
+        Some(sub) if sub != "octet-stream" => sub.to_ascii_lowercase(),
+        _ => std::path::Path::new(rel)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png")
+            .to_ascii_lowercase(),
+    };
     let ext = if ext == "jpg" {
         "jpeg".to_string()
     } else {
         ext
     };
     Ok((ext, bytes))
+}
+
+// ─── 测试 · E-F（轮 54 新建：本文件此前零 test mod，DOCX 这支从来没有护栏）───
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn plain_run(text: &str) -> DocxRun {
+        DocxRun {
+            text: text.to_string(),
+            bold: false,
+            italic: false,
+            underline: false,
+            strike: false,
+            highlight: false,
+        }
+    }
+
+    /// 12 行诗走完整链路（HTML → runs → OOXML）：必须出 11 枚 `<w:br/>`，且零残留 `\n`。
+    /// 改前 `run_to_xml` 把 `\n` 原样塞进 `<w:t>` ⇒ OOXML 里退化成空格、全仓零 `<w:br/>`。
+    #[test]
+    fn r54甲_十二行诗docx必须出十一枚wbr() {
+        let html = format!("<p>{}</p>", poem_lines("<br>"));
+        let xml: String = parse_inline_elements(&html)
+            .iter()
+            .map(run_to_xml)
+            .collect();
+        assert_eq!(xml.matches("<w:br/>").count(), 11, "{xml}");
+        assert!(!xml.contains('\n'), "`\\n` 不许残留在 OOXML 里：{xml}");
+    }
+
+    /// **零回归金样（改前就必须为绿）**：无 `\n` 的 run 逐字节不变，含 `xml:space` 那条判据
+    /// （判据吃的是**转义后**的串 —— 与改前一致，不许顺手换成转义前）。
+    #[test]
+    fn r54乙_无硬换行的run逐字节不变() {
+        assert_eq!(
+            run_to_xml(&plain_run("普通句子。")),
+            "<w:r><w:t>普通句子。</w:t></w:r>"
+        );
+        assert_eq!(
+            run_to_xml(&plain_run(" 前导空格")),
+            "<w:r><w:t xml:space=\"preserve\"> 前导空格</w:t></w:r>"
+        );
+        assert_eq!(
+            run_to_xml(&plain_run("A & B <c>")),
+            "<w:r><w:t>A &amp; B &lt;c&gt;</w:t></w:r>"
+        );
+        let mut bold = plain_run("重点");
+        bold.bold = true;
+        assert_eq!(
+            run_to_xml(&bold),
+            "<w:r><w:rPr><w:b/></w:rPr><w:t>重点</w:t></w:r>"
+        );
+    }
+
+    /// `paragraph()` 的空 runs 回退分支（简介行走这里）是同一个漏口的第二张嘴。
+    /// 无 `\n` 时它必须逐字节维持旧串 —— 简介行在零回归口径覆盖的面上。
+    #[test]
+    fn r54丙_paragraph空runs回退也必须认硬换行() {
+        assert_eq!(
+            paragraph("第一行\n第二行", &[], "")
+                .matches("<w:br/>")
+                .count(),
+            1
+        );
+        assert_eq!(
+            paragraph("一句简介", &[], ""),
+            "<w:p><w:r><w:t>一句简介</w:t></w:r></w:p>"
+        );
+    }
+
+    /// `strip_html_tags`（段回退 288/357/372、列表项 543/550 都吃它）以前把 `<br>` 连同
+    /// 标签名一起丢；裸换行则相反 —— 它原样留着，会被下一轮新加的 `<w:br/>` 判据误认成真分行。
+    #[test]
+    fn r54丁_strip标签必须给br留痕而不留裸换行() {
+        assert_eq!(strip_html_tags("甲<br>乙"), "甲\n乙");
+        assert!(!strip_html_tags("甲<br>乙").contains("<br"));
+        assert!(
+            !strip_html_tags("甲\n  乙").contains('\n'),
+            "裸换行是排版空白，不是分行"
+        );
+    }
+
+    fn poem_lines(sep: &str) -> String {
+        (1..=12)
+            .map(|i| format!("第{i}行"))
+            .collect::<Vec<String>>()
+            .join(sep)
+    }
 }

@@ -28,6 +28,7 @@ import {
 } from '../../utils/writingForeshadowing';
 import { chapterTextIssues } from '../../utils/writingProofread';
 import { chapterOutlier } from '../../utils/writingStats';
+import { surfaceKeyForGenre } from '../../utils/writingSchema';
 
 export function ChapterOverviewPanel({
   bookId,
@@ -101,7 +102,8 @@ export function ChapterOverviewPanel({
   // 口径与灵感提醒条/灵感页签同源（ideasOfChapter，utils/writingOutline），
   // 计数不再硬编码为 0（2026-10-19 审计项）。
   const freshIdeas = useMemo(() => (chapter ? ideasOfChapter(outlines, chapter.id).length : 0), [outlines, chapter]);
-  const proofreadIssues = useMemo(() => (chapter ? chapterTextIssues(chapter) : []), [chapter]);
+  const proofreadIssues = useMemo(() => (chapter ? chapterTextIssues(chapter, genre) : []), [chapter, genre]);
+
   const kpi = useMemo(() => {
     const bookChapters = chapters.filter((c) => c.bookId === bookId);
     const avg =
@@ -177,7 +179,7 @@ export function ChapterOverviewPanel({
       <GroupTitle label={t('editor.writing.inspector.tabCharacter')} count={castIds.length} />
       {castIds.length === 0 ? (
         <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>
-          {t('editor.writing.inspector.unplanned')}
+          {t(surfaceKeyForGenre(genre, 'unitNoOutline'))}
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -197,7 +199,7 @@ export function ChapterOverviewPanel({
       <GroupTitle label={t('writingDesign.pane.scenes')} count={sceneIds.length} />
       {sceneIds.length === 0 ? (
         <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>
-          {t('editor.writing.inspector.unplanned')}
+          {t(surfaceKeyForGenre(genre, 'unitNoOutline'))}
         </Typography>
       ) : (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -216,9 +218,9 @@ export function ChapterOverviewPanel({
       )}
 
       {/* ④ 时间线（本章事件） */}
-      <GroupTitle label={t('writing.chapterTimelineTitle')} count={chapterEvents.length} />
+      <GroupTitle label={t(surfaceKeyForGenre(genre, 'unitTimelineTitle'))} count={chapterEvents.length} />
       {chapterEvents.length === 0 ? (
-        <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{t('writing.chapterTimelineEmpty')}</Typography>
+        <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{t(surfaceKeyForGenre(genre, 'unitTimelineEmpty'))}</Typography>
       ) : (
         chapterEvents.map((ev) => (
           <Button
@@ -238,7 +240,7 @@ export function ChapterOverviewPanel({
       )}
 
       {/* ⑤ 主剧情线（G1 章级直连）：选择器 = chip 组（本书全部线 + 未挂线），当前归属高亮，点击即挂/解绑 */}
-      <GroupTitle label={t('writing.storylineMainTitle')} count={chapter.storylineId ? 1 : 0} />
+      <GroupTitle label={t(surfaceKeyForGenre(genre, 'mainStorylineTitle'))} count={chapter.storylineId ? 1 : 0} />
       {bookStorylines.length === 0 ? (
         <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{t('writing.storylineEmptyHint')}</Typography>
       ) : (
@@ -276,9 +278,9 @@ export function ChapterOverviewPanel({
       )}
 
       {/* ⑥ 剧情线（本章事件挂线去重） */}
-      <GroupTitle label={t('writing.chapterLinesTitle')} count={chapterLines.length} />
+      <GroupTitle label={t(surfaceKeyForGenre(genre, 'unitStorylinesTitle'))} count={chapterLines.length} />
       {chapterLines.length === 0 ? (
-        <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{t('writing.chapterLinesEmpty')}</Typography>
+        <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{t(surfaceKeyForGenre(genre, 'unitStorylinesEmpty'))}</Typography>
       ) : (
         chapterLines.map(({ storyline: sl, count }) => (
           <Button
@@ -314,9 +316,9 @@ export function ChapterOverviewPanel({
       )}
 
       {/* ⑥ 伏笔（本章埋设 + 本章计划回收） */}
-      <GroupTitle label={t('writing.chapterForeshadowTitle')} count={planted.length + payable.length} />
+      <GroupTitle label={t(surfaceKeyForGenre(genre, 'unitForeshadowTitle'))} count={planted.length + payable.length} />
       {planted.length + payable.length === 0 ? (
-        <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{t('writing.chapterForeshadowEmpty')}</Typography>
+        <Typography sx={{ fontSize: 10.5, color: 'text.disabled' }}>{t(surfaceKeyForGenre(genre, 'unitForeshadowEmpty'))}</Typography>
       ) : (
         <>
           {planted.map((f) => (
@@ -369,7 +371,7 @@ export function ChapterOverviewPanel({
                 {f.title}
               </Box>
               <Box component="span" sx={{ fontSize: 9, color: 'text.disabled', ml: 0.5, flexShrink: 0 }}>
-                {t('writing.chapterForeshadowPayHere')}
+                {t(surfaceKeyForGenre(genre, 'unitForeshadowPayHere'))}
               </Box>
             </Button>
           ))}

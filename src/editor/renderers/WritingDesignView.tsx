@@ -6,6 +6,7 @@
 // 卡根统一拦截 mousedown/click/dblclick 冒泡，编辑控件自身的事件照常工作。
 //   - 小说：主线（卷分组章节 + 节拍 + 出场人物/场景挂载）· 人物 · 场景
 //   - 散文：篇目 · 立意 / 素材
+//   - 诗歌：诗作 · 意象素材（2026-11-09 实装；与散文同属「合集型」，判据 writingPanes.isCollectionGenre）
 // 数据零新表：章节=writing_chapters（卷=volume）、节拍/立意=writing_outlines
 // （挂载=extra JSON）、人物/场景=writing_settings。零 Emotion：纯 div + inline style。
 //
@@ -14,17 +15,18 @@
 import { useEffect } from "react";
 import type { ComponentRendererProps } from "../../types/editor";
 import { useWritingStore } from "../../store/writingStore";
-import { genreLabelKey } from "../../utils/writingSchema";
+import { genreLabelKey, isGenreReady, canCreateEntityForGenre, surfaceKeyForGenre } from "../../utils/writingSchema";
 import { closeCarrierCard } from "../../utils/studioBook";
 import { resolveFragments, t } from "../../i18n";
 import { CV } from "./canvasTheme";
 import {
   CastPane,
   IdeasPane,
-  NOVEL_ACCENT,
-  ESSAY_ACCENT,
   PiecesPane,
   StorylinePane,
+  accentForGenre,
+  collectionPaneKeys,
+  isCollectionGenre,
 } from "./writingPanes";
 
 // ─── 主组件：按体裁分支 ───
@@ -71,11 +73,14 @@ export function WritingDesignView({ config, mode, componentId }: ComponentRender
     );
   }
 
-  const isEssay = genre === "essay";
-  const accent = isEssay ? ESSAY_ACCENT : NOVEL_ACCENT;
+  const isCollection = isCollectionGenre(genre);
+  const paneKeys = collectionPaneKeys(genre);
+  const accent = accentForGenre(genre);
   const badgeChar = resolveFragments(genreLabelKey(genre)).charAt(0) || t("writingDesign.badgeFallback");
-  // 体裁未实装（旧卡 poetry/script）：明示建设中文案，不留空白卡
-  const genreReady = isEssay || genre === "novel" || genre === "";
+  // 体裁未实装：明示建设中文案，不留空白卡。
+  // 判据只准查表（`genreDef().ready`），不在这里复述体裁名 —— 手写一支 `|| genre === "script"`
+  // 就是 W-0b 那条洞的成因：表里 script/diary 已 ready，卡里仍说「建设中」。
+  const genreReady = isGenreReady(genre);
 
   return (
     <div
@@ -92,7 +97,7 @@ export function WritingDesignView({ config, mode, componentId }: ComponentRender
         boxSizing: "border-box",
       }}
       /* 卡根统一拦截：整卡不拖动、不被画布点选（V4：铺满画布的载体视图，
-         拖/选都无意义）；编辑控件自身事件在拦截层之内，照常工作 */
+         拖/选都无意义）；编辑控件自身的事件在拦截层之内，照常工作 */
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
@@ -145,7 +150,7 @@ export function WritingDesignView({ config, mode, componentId }: ComponentRender
           {t("writingDesign.designView")}
         </span>
         <span style={{ fontSize: 9.5, color: CV.text3, marginLeft: "auto", flexShrink: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {t("writingDesign.hint")}
+          {t(surfaceKeyForGenre(genre, "designHint"))}
         </span>
         {mode !== "preview" && (
           <button
@@ -186,26 +191,42 @@ export function WritingDesignView({ config, mode, componentId }: ComponentRender
             padding: 8,
           }}
         >
-          {isEssay ? (
+          {isCollection ? (
             <>
-              <PiecesPane accent={accent} chapters={chapters} />
-              <IdeasPane accent={accent} outlines={outlines} />
+              {/* ㉫ 本卡书逐字递下去：卡内认书只准吃这个 bookId（config.filePath 现解），不吃工作室活跃书 */}
+              <PiecesPane
+                accent={accent}
+                bookId={bookId}
+                chapters={chapters}
+                labelKey={paneKeys.pieces}
+                emptyKey={paneKeys.piecesEmpty}
+              />
+              {/* ㉮ 素材栏认书 = 本卡书（轮 27 · AI-10）：设计卡与 L2 编辑面两个宿主同一张嘴 */}
+              <IdeasPane accent={accent} bookId={bookId} outlines={outlines} labelKey={paneKeys.ideas} />
             </>
           ) : (
             <>
-              <StorylinePane accent={accent} chapters={chapters} outlines={outlines} settings={settings} />
-              <CastPane
-                kind="character"
-                accent={accent}
-                paneLabel={t("writingDesign.pane.characters")}
-                emptyText={t("writingDesign.emptyCharacters")}
-              />
-              <CastPane
-                kind="worldbuilding"
-                accent={accent}
-                paneLabel={t("writingDesign.pane.scenes")}
-                emptyText={t("writingDesign.emptyScenes")}
-              />
+              <StorylinePane accent={accent} bookId={bookId} chapters={chapters} outlines={outlines} settings={settings} />
+              {/* 关联实体栏按体裁裁剪（W-0b 连带修的分叉）：卡里挂一栏「＋ 新建」，建的却是
+                  本体裁**没有页签**的数据 —— hiddenViewKindsForGenre('script') 摘了 worldview，
+                  这里却还摆「场景」，等于⑲之前那批「藏视图不藏入口」的倒装版（建得出、看不见）。
+                  判据与创建闸口同一个 canCreateEntityForGenre，不再另问一遍体裁名。 */}
+              {canCreateEntityForGenre(genre, "character") && (
+                <CastPane
+                  kind="character"
+                  accent={accent}
+                  paneLabel={t("writingDesign.pane.characters")}
+                  emptyText={t("writingDesign.emptyCharacters")}
+                />
+              )}
+              {canCreateEntityForGenre(genre, "worldview") && (
+                <CastPane
+                  kind="worldbuilding"
+                  accent={accent}
+                  paneLabel={t("writingDesign.pane.scenes")}
+                  emptyText={t("writingDesign.emptyScenes")}
+                />
+              )}
             </>
           )}
         </div>

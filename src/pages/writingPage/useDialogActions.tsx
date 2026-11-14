@@ -7,10 +7,13 @@ import { useToastStore } from '../../store/toastStore';
 import { useWritingStore } from '../../store/writingStore';
 import { deleteBookWithScene } from '../../utils/studioBook';
 import { GenreMediumFields } from '../GenreMediumFields';
+import { BookDeletionImpact } from '../../components/ui/BookDeletionImpact';
 import type { WritingSettingKind } from '../../services/writing';
 import type { WritingChapter } from '../../services/tauri';
 import type { Editor } from '@tiptap/react';
 import { uiFontSize } from '../../theme/appearanceScales';
+import { unitNameKey } from '../../utils/writingSchema';
+import { unitTermParams } from '../../utils/unitTerms';
 
 export type WritingDialogState =
   | { kind: 'edit-book-meta'; bookId: string }
@@ -24,7 +27,6 @@ export type WritingDialogState =
   | { kind: 'delete-setting'; settingId: string }
   | { kind: 'new-outline' }
   | { kind: 'rename-outline'; outlineId: string }
-  | { kind: 'delete-outline'; outlineId: string }
   | { kind: 'move-volume'; chapterId: string }
   | { kind: 'move-volume-batch' }
   | { kind: 'delete-chapters-batch' }
@@ -70,6 +72,9 @@ export function useDialogActions(options: {
   const { editor, activeBookId, selectedChapterIds, setSelectionMode, setSelectedChapterIds, openSetting } = options;
 
   const books = useWritingStore((s) => s.books);
+  // 单位名词按**当前这本书**的体裁插值（⑰-1）：对话框标题在诗集里要说「诗作」，
+  // 在剧本里要说「场次」；小说拿到的仍是原串（逐字零回归）。
+  const unitP = () => unitTermParams(books.find((b) => b.id === activeBookId)?.genre ?? '');
   const chapters = useWritingStore((s) => s.chapters);
   const settings = useWritingStore((s) => s.settings);
   const outlines = useWritingStore((s) => s.outlines);
@@ -85,7 +90,6 @@ export function useDialogActions(options: {
   const deleteSetting = useWritingStore((s) => s.deleteSetting);
   const createOutline = useWritingStore((s) => s.createOutline);
   const updateOutline = useWritingStore((s) => s.updateOutline);
-  const deleteOutline = useWritingStore((s) => s.deleteOutline);
   const setChapterVolume = useWritingStore((s) => s.setChapterVolume);
   const restoreChapter = useWritingStore((s) => s.restoreChapter);
   const permanentlyDeleteChapter = useWritingStore((s) => s.permanentlyDeleteChapter);
@@ -121,7 +125,9 @@ export function useDialogActions(options: {
           break;
         }
         case 'new-chapter': {
-          const name = dialogText.trim() || t('writing.newChapterName', { n: chapters.length + 1 });
+          // 默认名跟书的体裁走（散文「第 N 篇」/ 小说「第 N 章」），判据在 unitNameKey
+          const genreOfBook = books.find((b) => b.id === activeBookId)?.genre ?? '';
+          const name = dialogText.trim() || t(unitNameKey(genreOfBook), { n: chapters.length + 1 });
           const chapter = await createChapter(name);
           if (chapter) {
             setActiveSetting(null);
@@ -163,9 +169,6 @@ export function useDialogActions(options: {
         }
         case 'rename-outline':
           if (dialogText.trim()) await updateOutline(dialog.outlineId, { title: dialogText.trim() });
-          break;
-        case 'delete-outline':
-          await deleteOutline(dialog.outlineId);
           break;
         case 'move-volume':
           await setChapterVolume(dialog.chapterId, dialogText.trim());
@@ -229,7 +232,6 @@ export function useDialogActions(options: {
     deleteSetting,
     createOutline,
     updateOutline,
-    deleteOutline,
     setChapterVolume,
     setSelectionMode,
     setSelectedChapterIds,
@@ -287,12 +289,12 @@ export function useDialogActions(options: {
       case 'delete-book':
         return t('writing.deleteBookTitle');
       case 'new-chapter':
-        return t('writing.newChapter');
+        return t('writing.newChapter', unitP());
       case 'rename-chapter':
-        return t('writing.renameChapterTitle');
+        return t('writing.renameChapterTitle', unitP());
       case 'delete-chapter':
         // 软删（2026-09-29）：进回收站，title 从通用「删除」改为「删除章节」以传达可恢复语义
-        return t('writing.deleteChapterTitle');
+        return t('writing.deleteChapterTitle', unitP());
       case 'new-setting':
         return dialog.settingKind === 'character' ? t('writing.newCharacter') : t('writing.newWorldbuilding');
       case 'rename-setting':
@@ -303,8 +305,6 @@ export function useDialogActions(options: {
         return t('writing.newOutline');
       case 'rename-outline':
         return t('writing.renameOutlineTitle');
-      case 'delete-outline':
-        return t('writing.deleteOutlineTitle');
       case 'insert-link':
         return t('writing.fmtLink');
       case 'move-volume':
@@ -322,7 +322,6 @@ export function useDialogActions(options: {
     dialog?.kind === 'delete-book' ||
     dialog?.kind === 'delete-chapter' ||
     dialog?.kind === 'delete-setting' ||
-    dialog?.kind === 'delete-outline' ||
     dialog?.kind === 'delete-chapters-batch';
 
   const dialogBody = (() => {
@@ -332,11 +331,15 @@ export function useDialogActions(options: {
       // 章节缓存只对当前激活书有效；非激活书拿不到章数，用无计数文案
       const knownCount = dialog.bookId === activeBookId;
       return (
-        <Typography sx={{ fontSize: uiFontSize(14) }}>
-          {knownCount
-            ? t('writing.deleteBookConfirm', { title: book?.title ?? '', n: chapters.length })
-            : t('writing.deleteBookConfirmNoCount', { title: book?.title ?? '' })}
-        </Typography>
+        <>
+          <Typography sx={{ fontSize: uiFontSize(14) }}>
+            {knownCount
+              ? t('writing.deleteBookConfirm', { title: book?.title ?? '', n: chapters.length })
+              : t('writing.deleteBookConfirmNoCount', { title: book?.title ?? '' })}
+          </Typography>
+          {/* 删除后果清单（2026-11-04 删除铁律：确认前必须讲清后果，删干净靠传播矩阵） */}
+          <BookDeletionImpact bookId={dialog.bookId} />
+        </>
       );
     }
     if (dialog.kind === 'delete-chapter') {
@@ -378,14 +381,6 @@ export function useDialogActions(options: {
         </>
       );
     }
-    if (dialog.kind === 'delete-outline') {
-      const outline = outlines.find((o) => o.id === dialog.outlineId);
-      return (
-        <Typography sx={{ fontSize: uiFontSize(14) }}>
-          {t('writing.deleteOutlineConfirm', { title: outline?.title ?? '' })}
-        </Typography>
-      );
-    }
     if (dialog.kind === 'delete-setting') {
       const setting = settings.find((x) => x.id === dialog.settingId);
       return (
@@ -412,7 +407,7 @@ export function useDialogActions(options: {
           return t('writing.bookName');
         case 'new-chapter':
         case 'rename-chapter':
-          return t('writing.chapterName');
+          return t('writing.chapterName', unitP());
         case 'new-setting':
         case 'rename-setting':
           return t('writing.settingName');

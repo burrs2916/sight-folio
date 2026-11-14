@@ -59,9 +59,13 @@ import { projectScanApi } from '../services/projectScan';
 import { useAgentStore } from '../store/agentStore';
 import { useWritingStore } from '../store/writingStore';
 import { useToastStore } from '../store/toastStore';
+import OllamaLocalPanel from './OllamaLocalPanel';
 import { L } from '../ai/aiLang';
+import { quickActionCopyFor, quickActionTermsFor, buildAnalyzePrompt, buildOutlinePrompt, buildCharacterPrompt } from '../ai/quickActionPrompts';
+import { genreTagLabelKey } from '../utils/writingSchema';
 import { AI_COLOR } from '../ai/aiBrand';
 import { logger } from '../utils/logger';
+import { authTypeAfterBaseUrlEdit, defaultAuthType, isLoopbackBaseUrl, providerKeyState } from '../utils/agentProviderKey';
 import { t } from '../i18n';
 import type { QuickActionKind } from '../ai/WelcomeView';
 import { PROVIDER_COLORS, randomProviderColor, colorForProvider } from '../utils/providerColors';
@@ -74,6 +78,8 @@ import { WelcomeView } from '../ai/WelcomeView';
 import { MessageBubble } from '../ai/chat/MessageBubble';
 import { ToolCallCard } from '../ai/chat/ToolCallCard';
 import { currentScrollBehavior } from '../utils/reducedMotion';
+import { bookScopedConversations, describeConversationTitles } from '../utils/agentConversationScope';
+import { confirmDestructive } from '../store/confirmStore';
 import { uiFontSize } from '../theme/appearanceScales';
 // import { AcpHostPanel } from '../ai/acp/AcpHostPanel'; // 已隐藏：ACP Host 后台静默运行，不暴露 UI
 
@@ -315,7 +321,6 @@ function ConversationSidebar() {
 
   // T6：搜索 + 批量删除两步确认
   const [search, setSearch] = useState('');
-  const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
     if (selectedAgentId) {
@@ -345,17 +350,40 @@ function ConversationSidebar() {
     return t('agent.sidebar.daysAgo', { n: Math.floor(diff / 86400) });
   };
 
-  // 清空当前作品的全部会话（两步确认，防误触）
+  // 清空当前作品的全部会话（2026-11-04 删除铁律 + 全仓删除账 ③d）。
+  // 三处改判据：
+  //  ① 归属用**按分隔符切段后精确比对**代替 `title.includes(bookTitle)`——
+  //    子串匹配会误删：删《长夜》会把《长夜难明》的会话一起带走；
+  //  ② 把**将删清单原样列进确认弹窗**。会话表里没有归属列（ai_repository.rs:72-78 只有
+  //    id/agent_id/title/时间），归属只能从标题读，所以边界必须让用户看见——
+  //    尤其是"改过书名后旧书名下的会话不在本次范围内"这件事，以前是删完才发现；
+  //  ③ 换掉旧的"两步点击 + 一句『确认清空？』"：不给条数、不给名单、还会 3 秒后自己失效。
   const handleClearBook = () => {
-    if (!confirmClear) {
-      setConfirmClear(true);
-      setTimeout(() => setConfirmClear(false), 3000);
-      return;
-    }
     const bookTitle = currentBook?.title;
     if (!bookTitle) return;
-    conversations.filter((c) => c.title.includes(bookTitle)).forEach((c) => deleteConversation(c.id));
-    setConfirmClear(false);
+    const targets = bookScopedConversations(conversations, bookTitle);
+    if (targets.length === 0) {
+      // 没得删就如实说一句，不弹一张"确认删除 0 个"的窗
+      useToastStore.getState().info(t('agent.sidebar.clearBookConvosNothing'));
+      return;
+    }
+    confirmDestructive({
+      title: t('agent.sidebar.clearBookConvosConfirmTitle', { n: targets.length }),
+      impact: [
+        t('agent.sidebar.clearBookConvosImpactList', {
+          list: describeConversationTitles(targets.map((c) => c.title)),
+        }),
+        t('agent.sidebar.clearBookConvosImpactUndo'),
+        t('agent.sidebar.clearBookConvosImpactScope'),
+      ],
+      confirmLabel: t('agent.sidebar.clearBookConvos'),
+      cancelLabel: t('ui.cancel'),
+      onConfirm: () => {
+        targets.forEach((c) => {
+          void deleteConversation(c.id);
+        });
+      },
+    });
   };
 
   return (
@@ -460,8 +488,10 @@ function ConversationSidebar() {
         ) : (
           (() => {
             const bookTitle = currentBook?.title;
-            const currentConvos = bookTitle ? filtered.filter((c) => c.title.includes(bookTitle)) : [];
-            const otherConvos = bookTitle ? filtered.filter((c) => !c.title.includes(bookTitle)) : filtered;
+            // 与「清空该作品对话」用同一把尺子（utils/agentConversationScope）：
+            // 分组和删除只要各用一套判据，就会出现"列在本书下、却删不掉"或反之。
+            const currentConvos = bookScopedConversations(filtered, bookTitle);
+            const otherConvos = bookTitle ? filtered.filter((c) => !currentConvos.includes(c)) : filtered;
 
             const renderItem = (c: (typeof filtered)[0]) => {
               const selected = c.id === selectedConversationId;
@@ -548,23 +578,16 @@ function ConversationSidebar() {
                         {t('agent.sidebar.currentBook')}
                       </Typography>
                       {!search && (
-                        <Tooltip
-                          title={
-                            confirmClear
-                              ? t('agent.sidebar.clearBookConvosConfirm')
-                              : t('agent.sidebar.clearBookConvos')
-                          }
-                        >
+                        <Tooltip title={t('agent.sidebar.clearBookConvos')}>
                           <IconButton
                             size="small"
                             onClick={handleClearBook}
                             aria-label={t('agent.sidebar.clearBookConvos')}
                             sx={{
                               p: 0.4,
-                              color: confirmClear ? '#fff' : 'text.disabled',
-                              bgcolor: confirmClear ? 'error.main' : 'transparent',
+                              color: 'text.disabled',
                               borderRadius: 1,
-                              '&:hover': { color: confirmClear ? '#fff' : 'error.main' },
+                              '&:hover': { color: 'error.main' },
                             }}
                           >
                             <DeleteIcon sx={{ fontSize: uiFontSize(13) }} />
@@ -642,6 +665,14 @@ function ChatArea({ settingsOpen, onCloseSettings }: { settingsOpen: boolean; on
     const bookTitle = currentBook.title;
     const chapterTitle = currentChapter?.title ?? '';
     const chapterText = currentChapter?.content ?? '';
+    // ㉝ AI-2b（轮 9）：发出去的话按体裁取。单位词表与指令文案的真源在 `quickActionPrompts`
+    // （判据 = `workbenchCommandSet`，未设/脏值落小说格 = 改造前逐字节）；卡面话同批改词走
+    // `aiCardDescKey`（writingSchema），两边配对着色由测试锁在同一批现成名词上。
+    const terms = quickActionTermsFor(currentBook.genre);
+    const copy = quickActionCopyFor(currentBook.genre);
+    // 脏读数修复（队列 AI-2b 点名）：prompt 里的体裁必须是**显示名**，模型读不懂 schema id。
+    // 空体裁旧书不拼括号（与改造前一致）；未登记值按全仓口径落小说词（`genreTagLabelKey`）。
+    const genreTag = currentBook.genre ? `（${t(genreTagLabelKey(currentBook.genre))}）` : '';
 
     switch (kind) {
       case 'continue': {
@@ -653,21 +684,21 @@ function ChatArea({ settingsOpen, onCloseSettings }: { settingsOpen: boolean; on
           .filter((o) => o.chapterId === activeChapterId)
           .map((o) => `- ${o.title}${o.summary ? `：${o.summary.slice(0, 50)}` : ''}`);
         const ctx = [
-          `【当前作品】${bookTitle}${currentBook.genre ? `（${currentBook.genre}）` : ''}`,
-          `【当前章节】${chapterTitle}${currentChapter?.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
-          ...(chars.length ? ['【人设卡】', ...chars] : []),
-          ...(outlineLines.length ? ['【本章大纲】', ...outlineLines] : []),
-          `【全书进度】共${writingChapters.length}章，已完稿${writingChapters.filter((c) => c.status === 'completed').length}章`,
+          `【当前作品】${bookTitle}${genreTag}`,
+          `【${terms.currentUnitLabel}】${chapterTitle}${currentChapter?.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
+          ...(chars.length ? [`【${terms.personaLabel}】`, ...chars] : []),
+          ...(outlineLines.length ? [`【${terms.outlineLabel}】`, ...outlineLines] : []),
+          `【${terms.progressLabel}】共${writingChapters.length}${terms.unitMeasure}，已完稿${writingChapters.filter((c) => c.status === 'completed').length}${terms.unitMeasure}`,
         ].join('\n');
-        content = `${ctx}\n\n---\n\n${L('请为下面的小说片段续写。直接续写正文本身：不要任何解释、标题、前言或总结；不要复述已有内容；不要写「以下是续写」之类的话。', 'Continue the novel excerpt below. Output the continued prose only: no explanations, titles, prefaces, or summaries; do not repeat existing text.')}\n\n【已有正文（末尾）】\n${tail}\n\n${L('从上面的末尾无缝接着往下写 300～600 字，保持人称、时态、文风与已有内容一致。', 'Seamlessly continue from the tail above for 300-600 words, keeping the same person, tense, and style as the existing text.')}`;
+        content = `${ctx}\n\n---\n\n${L(copy.continueIntro.zh, copy.continueIntro.en)}\n\n【已有正文（末尾）】\n${tail}\n\n${L(copy.continueTail.zh, copy.continueTail.en)}`;
         break;
       }
       case 'polish': {
         const ctx = [
           `【当前作品】${bookTitle}`,
-          `【当前章节】${chapterTitle}${currentChapter?.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
+          `【${terms.currentUnitLabel}】${chapterTitle}${currentChapter?.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
         ].join('\n');
-        content = `${ctx}\n\n---\n\n${L('请润色下面的整章小说：提升文字表现力（节奏、画面、对话质感），但**不得改变**情节、人物行为、时间线与信息量；不得增删情节点；保留原有分段结构。直接输出润色后的全文正文：不要任何解释、对照说明或总结。', 'Polish the chapter below: improve prose quality (rhythm, imagery, dialogue) but do **not** change plot, character actions, timeline, or information; keep the original paragraph structure. Output the polished full text only: no explanations or summaries.')}\n\n【原文】\n${chapterText}`;
+        content = `${ctx}\n\n---\n\n${L(copy.polish.zh, copy.polish.en)}\n\n【原文】\n${chapterText}`;
         break;
       }
       case 'analyze': {
@@ -680,83 +711,29 @@ function ChatArea({ settingsOpen, onCloseSettings }: { settingsOpen: boolean; on
           .filter((o) => o.chapterId === activeChapterId)
           .map((o) => `- ${o.title}${o.summary ? `：${o.summary.slice(0, 50)}` : ''}`);
         const ctx = [
-          `【当前作品】${bookTitle}${currentBook.genre ? `（${currentBook.genre}）` : ''}`,
-          `【当前章节】${chapterTitle}${currentChapter?.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
-          ...(chars.length ? ['【人设卡】', ...chars] : []),
-          ...(outlineLines.length ? ['【本章大纲】', ...outlineLines] : []),
-          `【全书进度】共${total}章，已完稿${completed}章`,
+          `【当前作品】${bookTitle}${genreTag}`,
+          `【${terms.currentUnitLabel}】${chapterTitle}${currentChapter?.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
+          ...(chars.length ? [`【${terms.personaLabel}】`, ...chars] : []),
+          ...(outlineLines.length ? [`【${terms.outlineLabel}】`, ...outlineLines] : []),
+          `【${terms.progressLabel}】共${total}${terms.unitMeasure}，已完稿${completed}${terms.unitMeasure}`,
         ].join('\n');
-        // 五维结构化写作诊断：把 AI 的审视拆成 5 个正交维度，引导逐维调用工具取正文
-        const diagnose = L(
-          `请按以下五维诊断模板逐维审视本书，并返回结构化报告。
-
-【维度 1 · 情节破洞 plotHole】
-- 梳理主线逻辑，检查是否有起因无结果、结果无起因、关键信息前后矛盾、人物动机突变无铺垫。
-- 标记：问题简述、涉及章节、严重程度（严重/中等/轻微）、修改建议。
-
-【维度 2 · 人设一致性 characterConsistency】
-- 检查已出场角色在言行、动机、口头禅、关系上的前后一致性。
-- 标记：角色名、矛盾章节、与初始人设的差异、修改建议。
-
-【维度 3 · 叙事节奏 pacing】
-- 审视各章的「信息密度—情绪起伏—场景切换」节奏，是否出现连续高潮后突然拖慢、或过渡章堆砌说明文。
-- 标记：节奏失衡的章节区间、具体症状、修改建议。
-
-【维度 4 · 文风漂移 styleDrift】
-- 对比开头与最新完稿章节的叙述人称、句式长度、形容词密度、对话风格、幽默/严肃程度，判断是否出现文风突变。
-- 标记：漂移方向、典型段落、修改建议。
-
-【维度 5 · 伏笔状态 foreshadowingCheck】
-- 列出全书已埋伏笔及其当前回收状态（待收/已收/可能丢失）；检查是否有伏笔被重复利用或遗漏。
-- 标记：伏笔标题、埋设章、计划/实际回收章、状态评估。
-
-输出格式：
-1. 先给一页「诊断摘要」：各维度评分（1-10）+ 最优先修复的 3 项。
-2. 再逐维展开具体发现，每项含：章节、原文摘要、问题描述、修改建议。
-3. 如需查阅其他章节正文或角色卡，可调用 list_chapters、read_chapter、read_character_card。
-4. 谈「文风 / 句式 / 用词」时要给出示例，必须先调用 search_corpus 查作者自己的语料库；
-   查不到就直说没有，**绝不可自己编一句当作参考示例**。
-5. 需要修订人设 / 世界观卡时调用 update_character_card：只传你确实要改的字段（未传的字段保持原样），
-   登记别名一律用 add_aliases。卡上的性格、经历、关系**只能写作者给过的、或正文可证的**，
-   不得自行补全；该操作需作者审批，作者拒绝后不要重复提交同一改动。`,
-          `Please conduct a structured five-dimension writing diagnostic:
-
-[Dimension 1 · Plot Holes]
-Review main plot logic for missing causes/results, contradictory info, or unmotivated character turns. Flag each with chapter reference and severity.
-
-[Dimension 2 · Character Consistency]
-Check whether characters stay consistent in speech, motivation, catchphrase, and relationships across chapters.
-
-[Dimension 3 · Pacing]
-Evaluate chapter-level info-density, emotional arc, and scene transitions for lulls or spikes.
-
-[Dimension 4 · Style Drift]
-Compare narrative voice, sentence length, adjective density, and tone between the opening and the latest completed chapter.
-
-[Dimension 5 · Foreshadowing Status]
-List planted hooks and their payoff state (pending / paid-off / possibly lost).
-
-Output: one-page summary with scores, then chapter-by-chapter findings.
-If you need to read other chapter text or character cards, call list_chapters / read_chapter / read_character_card.
-When discussing style, phrasing or diction you MUST ground any example in the author's own library via
-search_corpus; if nothing matches, say so plainly - never invent example lines.
-5. To revise a character / worldview card call update_character_card: pass ONLY the fields you really
-mean to change (anything omitted keeps its current value) and always register alternative names via
-add_aliases. Never invent traits, backstories or relations - write only what the author supplied or
-what the manuscript proves. The author must approve the write; if they decline, do not retry it.`,
-        );
-        content = `${ctx}\n\n---\n\n${diagnose}`;
+        // ㉞ AI-2b′（轮 11）：五维诊断模板按体裁取，真源 = `quickActionPrompts` 的 DIAGNOSE。
+        // 改造前这里整段写死小说：诗集收到的是「维度 1 · 情节破洞」「维度 5 · 伏笔状态」，
+        // 而这两栏在 `hiddenViewKindsForGenre` 里早被诗集裁掉了。组装也放在模块里 —— 页面
+        // 只调一个函数拿一整段成品，不给「算好了没接到行上」（AU-7 ⑨）留缝。
+        content = `${ctx}\n\n---\n\n${buildAnalyzePrompt(currentBook.genre)}`;
         break;
       }
       case 'outline': {
         const total = writingChapters.length;
         const completed = writingChapters.filter((c) => c.status === 'completed').length;
         const ctx = [
-          `【当前作品】${bookTitle}${currentBook.genre ? `（${currentBook.genre}）` : ''}`,
-          `【当前章节】${chapterTitle}${currentChapter?.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
-          `【全书进度】共${total}章，已完稿${completed}章`,
+          `【当前作品】${bookTitle}${genreTag}`,
+          `【${terms.currentUnitLabel}】${chapterTitle}${currentChapter?.wordCount ? `（${currentChapter.wordCount}字）` : ''}`,
+          `【${terms.progressLabel}】共${total}${terms.unitMeasure}，已完稿${completed}${terms.unitMeasure}`,
         ].join('\n');
-        content = `${ctx}\n\n---\n\n${L('请为当前小说生成或优化章节大纲。\n\n要求：\n1. 梳理已有章节的起承转合，确保情节推进合理\n2. 为未完成的章节提供详细的细纲（含场景、人物、关键对话）\n3. 检查大纲中是否存在节奏失衡、伏笔遗漏或逻辑断层\n4. 保持与前文章节风格一致，避免突兀的题材转换\n5. 以结构化列表形式输出，每章含：标题、核心目标、场景清单、人物出场、情绪基调', "Please generate or optimize the chapter outline for the current novel.\n\nRequirements:\n1. Map the existing chapters' rising action and transitions, ensuring logical plot progression\n2. Provide detailed sub-outlines for unfinished chapters (including scenes, characters, key dialogues)\n3. Check for pacing imbalances, missing foreshadowing, or logical gaps\n4. Maintain consistency with previous chapters' style, avoiding abrupt genre shifts\n5. Output as a structured list: each chapter with title, core objective, scene list, characters present, emotional tone")}`;
+        // ㉞ AI-2b′：大纲指令同上（Record 穷尽 = 编译期锁；页面不再自持小说模板）
+        content = `${ctx}\n\n---\n\n${buildOutlinePrompt(currentBook.genre)}`;
         break;
       }
       case 'character': {
@@ -764,16 +741,19 @@ what the manuscript proves. The author must approve the write; if they decline, 
           .filter((s) => s.kind === 'character')
           .map((c) => `- ${c.name}${c.description ? `：${c.description.slice(0, 80)}` : ''}`);
         const ctx = [
-          `【当前作品】${bookTitle}${currentBook.genre ? `（${currentBook.genre}）` : ''}`,
+          `【当前作品】${bookTitle}${genreTag}`,
           ...(chars.length ? ['【现有角色】', ...chars] : []),
         ].join('\n');
-        content = `${ctx}\n\n---\n\n${L('请为当前作品进行角色设定诊断与优化。\n\n要求：\n1. 分析现有角色塑造深度：动机层次、性格多面性、成长弧线\n2. 检查角色关系网的密度与张力，标记冗余或孤立角色\n3. 为角色设计标志性语言风格（口头禅、句式偏好、修辞特征）\n4. 评估角色与主线的关联度，给出「合并/删除/强化」建议\n5. 如有空白领域（反派动机不足、配角脸谱化），提出新角色或深化方案\n6. 输出形式：角色卡表格 + 关系拓扑图（文字版）', 'Please diagnose and optimize character development for the current work.\n\nRequirements:\n1. Analyze existing character depth: motivation layers, personality facets, growth arcs\n2. Check character relationship network density and tension; flag redundant or isolated characters\n3. Design signature speech patterns (catchphrases, sentence preferences, rhetorical features)\n4. Evaluate character relevance to main plot; suggest merge / remove / strengthen actions\n5. Identify weak areas (e.g., under-motivated antagonist, stereotyped side characters) and propose new or deepened solutions\n6. Output format: character card table + relationship topology (text-based)')}`;
+        // ㉠ AI-2b″（轮 13）：角色诊断指令按体裁取。角色卡对五种载体都可见，小说那六条
+        // （反派动机 / 配角脸谱 / 成长弧线 / 与主线的关联度）对诗集日记是错误任务单。
+        // 真源 = `quickActionPrompts` 的 CHARACTER（novel 格逐字节 = 改造前本页字面量）。
+        content = `${ctx}\n\n---\n\n${buildCharacterPrompt(currentBook.genre)}`;
         break;
       }
       case 'world': {
         const ctx = [
-          `【当前作品】${bookTitle}${currentBook.genre ? `（${currentBook.genre}）` : ''}`,
-          `【当前章节】${chapterTitle}`,
+          `【当前作品】${bookTitle}${genreTag}`,
+          `【${terms.currentUnitLabel}】${chapterTitle}`,
         ].join('\n');
         content = `${ctx}\n\n---\n\n${L('请为当前作品构建或优化世界观设定。\n\n要求：\n1. 梳理已呈现的世界规则（物理法则、社会结构、文化习俗、历史背景），检查是否前后矛盾\n2. 补充「作者已暗示但未明说」的设定细节，提升沉浸感\n3. 评估当前设定的「叙事利用率」：哪些设定被充分利用，哪些只是背景板\n4. 提出 3-5 个可增强戏剧张力的世界规则冲突点\n5. 如有科幻/奇幻元素，检查其内部逻辑自洽性（能力代价、限制条件、副作用）\n6. 输出形式：设定文档 + 冲突点清单 + 叙事建议', 'Please build or optimize the world-building for the current work.\n\nRequirements:\n1. Review presented world rules (physics, social structures, cultural customs, historical background); check for internal contradictions\n2. Supplement implied-but-unstated setting details to enhance immersion\n3. Evaluate narrative utilization rate: which settings are leveraged vs. mere backdrop\n4. Propose 3-5 world-rule conflict points that can heighten dramatic tension\n5. If sci-fi/fantasy elements exist, verify internal logical consistency (costs, constraints, side effects)\n6. Output format: setting document + conflict list + narrative suggestions')}`;
         break;
@@ -991,6 +971,9 @@ function MessageView({
 
   const currentBook = writingBooks.find((b) => b.id === activeBookId);
   const currentChapter = writingChapters.find((c) => c.id === activeChapterId);
+  // ㉞ AI-2b′：常规发送与「快捷插入」的单位词按体裁取（真源 = quickActionPrompts 的 TERMS）。
+  // 没有激活书籍时落小说格，而这四处本来就只在写作场景里可达。
+  const terms = quickActionTermsFor(currentBook?.genre ?? '');
 
   // 首次进入消息视图：若书籍列表未加载则补拉，保证作品选择器可用
   useEffect(() => {
@@ -1040,8 +1023,8 @@ function MessageView({
       // 只给书名的话模型会把书名当 book_id 传，触发查无此书。
       ctxLines.push(
         L(
-          `【当前作品】《${currentBook.title}》${currentBook.genre ? `（${currentBook.genre}）` : ''}（作品 id：${currentBook.id}）`,
-          `[Current Book] "${currentBook.title}"${currentBook.genre ? ` (${currentBook.genre})` : ''} (book id: ${currentBook.id})`,
+          `【当前作品】《${currentBook.title}》${currentBook.genre ? `（${t(genreTagLabelKey(currentBook.genre))}）` : ''}（作品 id：${currentBook.id}）`,
+          `[Current Book] "${currentBook.title}"${currentBook.genre ? ` (${t(genreTagLabelKey(currentBook.genre))})` : ''} (book id: ${currentBook.id})`,
         ),
       );
 
@@ -1049,15 +1032,15 @@ function MessageView({
         const vol = currentChapter.volume ? `${currentChapter.volume} · ` : '';
         ctxLines.push(
           L(
-            `【当前章节】${vol}${currentChapter.title}${currentChapter.wordCount ? `（${currentChapter.wordCount}字）` : ''}（章节 id：${currentChapter.id}）`,
-            `[Current Chapter] ${vol}${currentChapter.title}${currentChapter.wordCount ? ` (${currentChapter.wordCount} chars)` : ''} (chapter id: ${currentChapter.id})`,
+            `【${terms.currentUnitLabel}】${vol}${currentChapter.title}${currentChapter.wordCount ? `（${currentChapter.wordCount}字）` : ''}（${terms.idLabel}：${currentChapter.id}）`,
+            `[${terms.currentUnitEn}] ${vol}${currentChapter.title}${currentChapter.wordCount ? ` (${currentChapter.wordCount} chars)` : ''} (${terms.idEn}: ${currentChapter.id})`,
           ),
         );
       }
 
       const chars = writingSettings.filter((s) => s.kind === 'character').slice(0, 5);
       if (chars.length) {
-        ctxLines.push(L('【人设卡】', '[Character Cards]'));
+        ctxLines.push(L(`【${terms.personaLabel}】`, `[${terms.personaEn}]`));
         chars.forEach((c) => {
           ctxLines.push(`- ${c.name}${c.description ? `：${c.description.slice(0, 60)}` : ''}`);
         });
@@ -1065,7 +1048,7 @@ function MessageView({
 
       const relOutlines = writingOutlines.filter((o) => o.chapterId === activeChapterId).slice(0, 8);
       if (relOutlines.length) {
-        ctxLines.push(L('【本章大纲】', '[Chapter Outline]'));
+        ctxLines.push(L(`【${terms.outlineLabel}】`, `[${terms.outlineEn}]`));
         relOutlines.forEach((o) => {
           ctxLines.push(`- ${o.title}${o.summary ? `：${o.summary.slice(0, 50)}` : ''}`);
         });
@@ -1074,7 +1057,7 @@ function MessageView({
       const completed = writingChapters.filter((c) => c.status === 'completed').length;
       ctxLines.push(
         L(
-          `【全书进度】共${writingChapters.length}章，已完稿${completed}章`,
+          `【${terms.progressLabel}】共${writingChapters.length}${terms.unitMeasure}，已完稿${completed}${terms.unitMeasure}`,
           `[Progress] ${writingChapters.length} total, ${completed} completed`,
         ),
       );
@@ -1145,21 +1128,21 @@ function MessageView({
       .split('\n')
       .map((l) => `> ${l}`)
       .join('\n');
-    appendToInput(L(`【当前章节末尾】\n${quoted}`, `[Current chapter tail]\n${quoted}`));
+    appendToInput(L(`【${terms.currentUnitLabel}末尾】\n${quoted}`, `[${terms.tailEn}]\n${quoted}`));
   };
 
   const insertCharacters = () => {
     const chars = writingSettings.filter((s) => s.kind === 'character').slice(0, 5);
     if (!chars.length) return;
     const lines = chars.map((c) => `- ${c.name}${c.description ? `：${c.description.slice(0, 60)}` : ''}`);
-    appendToInput(L('【人设卡】\n', '[Character Cards]\n') + lines.join('\n'));
+    appendToInput(L(`【${terms.personaLabel}】\n`, `[${terms.personaEn}]\n`) + lines.join('\n'));
   };
 
   const insertOutline = () => {
     const rel = writingOutlines.filter((o) => o.chapterId === activeChapterId).slice(0, 8);
     if (!rel.length) return;
     const lines = rel.map((o) => `- ${o.title}${o.summary ? `：${o.summary.slice(0, 50)}` : ''}`);
-    appendToInput(L('【本章大纲】\n', '[Chapter Outline]\n') + lines.join('\n'));
+    appendToInput(L(`【${terms.outlineLabel}】\n`, `[${terms.outlineEn}]\n`) + lines.join('\n'));
   };
 
   /** 从本地选择文本文件（.txt/.md），读取内容以引用块插入输入框 */
@@ -1742,7 +1725,14 @@ function SettingsView() {
         <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 2 }}>
           {sectionMeta[section].desc}
         </Typography>
-        {section === 'provider' && <ProviderConfig />}
+        {section === 'provider' && (
+          <>
+            {/* 本机 Ollama：打开就自动扫描 + 自动接入（2026-11-07 口径），摆在供应商列表上方，
+                因为它是"又一个供应商"，而这一家不需要用户填任何东西 */}
+            <OllamaLocalPanel />
+            <ProviderConfig />
+          </>
+        )}
         {section === 'endpoint' && <EndpointConfig />}
         {section === 'model' && <ModelConfig />}
         {section === 'agent' && <AgentConfig />}
@@ -1863,12 +1853,14 @@ function ListCard({
 // ─── Provider 配置 ───
 
 function ProviderConfig() {
-  const { providers, loadProviders, saveProvider, deleteProvider } = useAgentStore();
+  // endpoints 只为一个判定服务：这家有没有端点跑在本机回环上（决定"未配置 Key"这句话该不该说）
+  const { providers, endpoints, loadProviders, loadEndpoints, saveProvider, deleteProvider } = useAgentStore();
   const [editing, setEditing] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     loadProviders();
+    loadEndpoints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1906,6 +1898,7 @@ function ProviderConfig() {
       {showForm && (
         <ProviderForm
           initial={editing}
+          localNoKey={providerKeyState(editing || {}, endpoints) === 'local-noneed'}
           onSave={handleSave}
           onCancel={() => {
             setEditing(null);
@@ -1921,12 +1914,19 @@ function ProviderConfig() {
         </Box>
       )}
 
-      {providers.map((p) => (
+      {providers.map((p) => {
+        // 三种状态分开说话：有 key / 本地服务本来就不需要 key / 远端真的没配（判据在 utils/agentProviderKey）
+        const keyState = providerKeyState(p, endpoints);
+        return (
         <ListCard
           key={p.id}
           icon={<Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: colorForProvider(p.id, p.color) }} />}
           title={p.name}
-          subtitle={p.apiKey ? '••••' + p.apiKey.slice(-4) : t('agent.form.noKey')}
+          subtitle={
+            keyState === 'masked'
+              ? '••••' + p.apiKey.slice(-4)
+              : t(keyState === 'local-noneed' ? 'agent.form.localNoKey' : 'agent.form.noKey')
+          }
           chips={
             <Chip
               label={p.enabled ? t('agent.form.enabled') : t('agent.form.disabled')}
@@ -1952,12 +1952,13 @@ function ProviderConfig() {
             </>
           }
         />
-      ))}
+        );
+      })}
     </Box>
   );
 }
 
-function ProviderForm({ initial, onSave, onCancel }: any) {
+function ProviderForm({ initial, localNoKey, onSave, onCancel }: any) {
   const [name, setName] = useState(initial?.name || '');
   const [apiKey, setApiKey] = useState(initial?.apiKey || '');
   const [color, setColor] = useState(initial?.color || '');
@@ -1987,6 +1988,13 @@ function ProviderForm({ initial, onSave, onCancel }: any) {
           required
           sx={{ mb: 1.5 }}
         />
+        {/* 本地服务（端点在本机回环上）连「密钥」这个输入框都不出现：
+            本地压根没有 Key，摆一个空框就是让人去配一个不存在的东西。远端照旧。 */}
+        {localNoKey ? (
+          <Typography sx={{ fontSize: uiFontSize(12), color: 'text.secondary', mb: 1.5 }}>
+            {t('agent.form.localNoKeyHint')}
+          </Typography>
+        ) : (
         <TextField
           label={t('agent.form.apiKey')}
           value={apiKey}
@@ -2012,6 +2020,7 @@ function ProviderForm({ initial, onSave, onCancel }: any) {
             },
           }}
         />
+        )}
 
         {/* 标识颜色：预设圆点 + 自定义取色器；不选则保存时随机生成 */}
         <Box sx={{ mb: 1.5 }}>
@@ -2197,7 +2206,9 @@ function EndpointConfig() {
             key={ep.id}
             icon={<LinkIcon sx={{ fontSize: uiFontSize(18), color: 'text.secondary' }} />}
             title={ep.name}
-            subtitle={`${provider?.name || t('agent.form.unknown')} · ${ep.apiType}`}
+            subtitle={`${provider?.name || t('agent.form.unknown')} · ${ep.apiType} · ${
+              ep.authType === 'none' ? t('agent.form.noAuth') : ep.authType
+            }`}
             chips={
               <Chip
                 label={ep.enabled ? t('agent.form.enabled') : t('agent.form.disabled')}
@@ -2242,7 +2253,10 @@ function EndpointForm({ initial, providers, onSave, onCancel }: any) {
   const [name, setName] = useState(initial?.name || '');
   const [apiType, setApiType] = useState(initial?.apiType || 'openai-completions');
   const [baseUrl, setBaseUrl] = useState(initial?.baseUrl || '');
-  const [authType, setAuthType] = useState(initial?.authType || 'bearer');
+  // 地址在本机回环 → 认证方式默认就是「无需密钥」：本地服务压根没有 Key 这个概念，
+  // 不该让人先去供应商里"配一个空 Key"。（判据与后端 is_loopback_base_url 同一口径）
+  const localUrl = isLoopbackBaseUrl(initial?.baseUrl) || isLoopbackBaseUrl(baseUrl);
+  const [authType, setAuthType] = useState(defaultAuthType(initial?.authType, initial?.baseUrl));
   const [customAuthHeader, setCustomAuthHeader] = useState(initial?.customAuthHeader || '');
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
 
@@ -2294,15 +2308,22 @@ function EndpointForm({ initial, providers, onSave, onCancel }: any) {
         <TextField
           label={t('agent.form.baseUrl')}
           value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setBaseUrl(next);
+            // 一填成本机地址就把认证方式带成「无需密钥」（只在他还没动过 bearer 默认时带，不覆盖手选）
+            setAuthType((a: string) => authTypeAfterBaseUrlEdit(a, next));
+          }}
           fullWidth
           size="small"
-          placeholder="https://api.openai.com/v1"
+          placeholder="https://api.openai.com/v1  |  http://127.0.0.1:11434/v1"
+          helperText={localUrl ? t('agent.form.localUrlHint') : ''}
           sx={{ mb: 1.5 }}
         />
         <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
           <InputLabel>{t('agent.form.authType')}</InputLabel>
           <Select value={authType} label={t('agent.form.authType')} onChange={(e) => setAuthType(e.target.value)}>
+            <MenuItem value="none">{t('agent.form.noAuth')}</MenuItem>
             <MenuItem value="bearer">{t('agent.form.bearer')}</MenuItem>
             <MenuItem value="x-api-key">{t('agent.form.xApiKey')}</MenuItem>
             <MenuItem value="custom">{t('agent.form.customHeader')}</MenuItem>

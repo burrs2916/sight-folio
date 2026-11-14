@@ -12,7 +12,7 @@ import { registerBuiltinComponents } from '../../editor/registry';
 
 describe('parseCanvasOps', () => {
   it('裸 JSON 数组直接解析', () => {
-    const { ops, parseError } = parseCanvasOps('[{"op":"move","id":"comp_1","x":10,"y":20}]');
+    const { ops, parseError } = parseCanvasOps('[{"op":"move","id":"comp_1","x":10,"y":20}]', '');
     expect(parseError).toBeNull();
     expect(ops.length).toBe(1);
     expect(ops[0]).toEqual({ op: 'move', id: 'comp_1', x: 10, y: 20 });
@@ -20,7 +20,7 @@ describe('parseCanvasOps', () => {
 
   it('带解释文字和代码围栏的回复也能抠出 JSON', () => {
     const reply = '好的，方案如下：\n```json\n[{"op":"remove","id":"comp_9"}]\n```\n请确认。';
-    const { ops, parseError } = parseCanvasOps(reply);
+    const { ops, parseError } = parseCanvasOps(reply, '');
     expect(parseError).toBeNull();
     expect(ops.length).toBe(1);
     expect(ops[0].op).toBe('remove');
@@ -34,7 +34,7 @@ describe('parseCanvasOps', () => {
         { op: 'move', id: 'c1', x: 'abc', y: 3 }, // 坐标非数字
         { op: 'rename', id: 'c1', name: '改名' }, // 合法
         'garbage',
-      ]),
+      ]), ''
     );
     expect(ops.length).toBe(1);
     expect(ops[0].op).toBe('rename');
@@ -47,7 +47,7 @@ describe('parseCanvasOps', () => {
         { op: 'resize', id: 'c1', width: 10, height: 50 }, // 尺寸过小 → 丢
         { op: 'resize', id: 'c1', width: 400, height: 99999 }, // 超上限 → 收敛
         { op: 'set_text', id: 'c1', text: 'x'.repeat(600) },
-      ]),
+      ]), ''
     );
     expect(ops.length).toBe(2);
     expect(ops[0]).toMatchObject({ op: 'resize', width: 400, height: 2000 });
@@ -56,11 +56,11 @@ describe('parseCanvasOps', () => {
   });
 
   it('无数组 / 坏 JSON 返回 parseError', () => {
-    expect(parseCanvasOps('我觉得没法做').parseError).toBe('no-array');
-    expect(parseCanvasOps('[{bad json}]').parseError).toBe('invalid-json');
+    expect(parseCanvasOps('我觉得没法做', '').parseError).toBe('no-array');
+    expect(parseCanvasOps('[{bad json}]', '').parseError).toBe('invalid-json');
     // 对象串没有 [ ] 括号对 → 同样按「找不到数组」处理
-    expect(parseCanvasOps('{"op":"move"}').parseError).toBe('no-array');
-    expect(parseCanvasOps('').parseError).toBe('empty');
+    expect(parseCanvasOps('{"op":"move"}', '').parseError).toBe('no-array');
+    expect(parseCanvasOps('', '').parseError).toBe('empty');
   });
 });
 
@@ -194,7 +194,7 @@ describe('applyCanvasOps（AI 改画布写通道）', () => {
 describe('第十四轮：worldview 可新增 + 文字落主字段', () => {
   it('writing-worldview 进入 AI 可新增白名单', () => {
     const { ops } = parseCanvasOps(
-      '[{"op":"add","type":"writing-worldview","name":"灵潮体系","x":10,"y":10}]',
+      '[{"op":"add","type":"writing-worldview","name":"灵潮体系","x":10,"y":10}]', ''
     );
     expect(ops).toHaveLength(1);
     expect(ops[0]).toMatchObject({ op: 'add', type: 'writing-worldview' });

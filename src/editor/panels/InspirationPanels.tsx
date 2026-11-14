@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { useWritingStore } from '../../store/writingStore';
+import { canCreateEntityForGenre, surfaceKeyForGenre } from '../../utils/writingSchema';
 import { useEditorStore } from '../../store/editorStore';
 import type { WritingOutline } from '../../services/tauri';
 import { looseBeats, parseBeatExtra, toggleBeatMount } from '../../utils/writingOutline';
@@ -24,24 +25,39 @@ import {
   inspirationStateColor,
   inspirationStateOf,
 } from '../../utils/writingInspiration';
-import { openTypedCarrierView } from '../../utils/studioBook';
+import { ensureWritingBookWired, openTypedCarrierView } from '../../utils/studioBook';
 import { openWritingDesk } from '../../utils/writingDeskWindow';
 import { clipSummary } from '../../utils/writingSearch';
+import { confirmDestructive } from '../../store/confirmStore';
 import { t } from '../../i18n';
 import { DraftInput } from '../components/DraftInput';
 import ChapterPicker from '../renderers/ChapterPicker';
 
 // ─── 要素 tab · 灵感总览卡 ───
-export function InspirationOverviewCard() {
+/**
+ * ㉭ 认书第五例（轮 26 · AI-9）：本卡收**必填** bookId（签名翻面不给默认值，轮 21 先例），
+ * 由 SceneEditor 递场景书。改造前它两件事都吃工作室当前书（先 useWritingStore 取活跃书、再
+ * books.find），而同屏兄弟 InspirationDetail 在 ㉬ 已换场景书 ⇒ 半张卡换源：
+ * ① jumpTo 拿 A 的体裁开载体视图 —— 被裁体裁会跳到那页看不见的面（闸门开在隔壁书上）；
+ * ② handleCreate 走 createOutline，而它按 store 活跃书落库 ⇒ 在 B 的画布上点「＋记个念头」，
+ *    念头静默建进 A（或活跃书为 null 时静默不建）。②是 ㉬ 唯一没碰的写侧形状。
+ * 判据链零动：闸口仍只调 canCreateEntityForGenre / openTypedCarrierView 现成解析，本刀只换「书」的来源。
+ */
+export function InspirationOverviewCard({ bookId }: { bookId: string }) {
   const outlines = useWritingStore((s) => s.outlines);
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
   const foreshadowings = useWritingStore((s) => s.foreshadowings);
   const books = useWritingStore((s) => s.books);
-  const activeBookId = useWritingStore((s) => s.activeBookId);
   const createOutline = useWritingStore((s) => s.createOutline);
   const selectInspiration = useEditorStore((s) => s.selectInspiration);
 
-  const loose = useMemo(() => looseBeats(outlines), [outlines]);
+  // ㉮ 认书第六例（轮 27 · AI-10）：行表 / 总数 / 两条统计全部长在 loose 上——改造前池子按工作室
+  // 活跃书整份列出 ⇒ ㉭ 把闸门与去向收到 B 后，分叉态下 B 的卡仍列着 A 的念头（半修）。现在池子
+  // 先按本卡书过滤再进 looseBeats（㉫ 的渲染过滤同形状：同书 = 装载器本就 list(bookId) 的 no-op，
+  // 逐字 = 改造前；分叉 = 宁缺不错）。刻意不在卡挂载时 loadOutlines(本卡书)：store 的 outlines
+  // 槽按 activeBookId 守卫（writingStore.ts:1237-1243），强载会抽掉活跃书缓存喂的其它面；
+  // 「点卡即扳书」属 P13 产品口径，未拍板。
+  const loose = useMemo(() => looseBeats(outlines.filter((o) => o.bookId === bookId)), [outlines, bookId]);
   const inTimelineCount = useMemo(
     () => loose.filter((b) => beatImported(timelineEvents, beatEventText(b))).length,
     [loose, timelineEvents],
@@ -50,7 +66,9 @@ export function InspirationOverviewCard() {
     () => loose.filter((b) => beatPlantedAsForeshadowing(foreshadowings, b)).length,
     [loose, foreshadowings],
   );
-  const genre = books.find((b) => b.id === activeBookId)?.genre ?? '';
+  // 零回归：本卡书 == 工作室当前书时两条表达式取自同一份 books、命中同一条目 ⇒ 取值逐字相同；
+  // 认不出书 → '' → 沿用「未设体裁 = 小说口径」既有回落（与 ㉬ InspirationDetail 同一张脸）。
+  const genre = books.find((b) => b.id === bookId)?.genre ?? '';
   // 反向出口（联动刀三）：统计行可点——直接跳到分发去向页签，分发结果一眼可达。
   const jumpTo = (kind: 'timeline' | 'foreshadowing') => {
     try {
@@ -61,6 +79,9 @@ export function InspirationOverviewCard() {
   };
 
   const handleCreate = async () => {
+    // ㉭ 写侧扳正（㉫ 同一道闸、同一句宁可不建）：createOutline 落库到那一刻的活跃书，
+    // 所以先把活跃书扳到本卡书；扳不动（无卡书 / 接线失败）就不建，绝不静默建进别人的书。
+    if (!(await ensureWritingBookWired(bookId))) return;
     const item = await createOutline(t('writingDesign.captureIdea'));
     if (item) useEditorStore.getState().selectInspiration(item.id);
   };
@@ -241,8 +262,16 @@ const mountChipSx = (active: boolean, color: string, bg: string) =>
   }) as const;
 
 // ─── 详情 tab · 念头编辑与分发器 ───
-export function InspirationDetail({ beat }: { beat: WritingOutline }) {
+export function InspirationDetail({ beat, bookId }: { beat: WritingOutline; bookId: string }) {
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
+  // ⑲ 体裁闸口：灵感页签四种体裁都保留，而「转为伏笔草稿」会造出诗集/文集里
+  // 已被裁掉、造完也看不见的伏笔实体 —— 分发出口必须跟着体裁收口（⑲ 现场验实）。
+  // ㉬ 认书第四例：体裁按**调用端递来的本卡/场景书**反查（灵感 pane 递本卡 bookId、SceneEditor 递
+  // projectRoot 现解的场景书），与同屏 TimelineEventDetail / StorylineDetail / ForeshadowingDetail /
+  // ProofreadOverviewCard（㉫）同一张嘴。本卡书与工作室当前书分叉可达 ⇒ 旧口径会拿 A 书的闸口
+  // 去管 B 书的分发出口（诗集卡上端出「转伏笔」、小说卡上却又关掉它）。零回归：同书时取自同一份
+  // books、命中同一条目，取值逐字相同；认不出书 → '' → 沿用「未设体裁 = 小说口径」既有回落。
+  const inspGenre = useWritingStore((s) => s.books.find((b) => b.id === bookId)?.genre ?? '');
   const foreshadowings = useWritingStore((s) => s.foreshadowings);
   const chapters = useWritingStore((s) => s.chapters);
   const settings = useWritingStore((s) => s.settings);
@@ -287,6 +316,8 @@ export function InspirationDetail({ beat }: { beat: WritingOutline }) {
   };
   const toForeshadow = async () => {
     if (inForeshadow || !fsDraft.title) return;
+    // 双层：UI 藏口 + 动作本体自锁（这个动作以后被别人复用时，不会绕过口径）
+    if (!canCreateEntityForGenre(inspGenre, 'foreshadowing')) return;
     const item = await createForeshadowing(fsDraft.title);
     if (item && fsDraft.description) await updateForeshadowing(item.id, { description: fsDraft.description });
   };
@@ -401,26 +432,28 @@ export function InspirationDetail({ beat }: { beat: WritingOutline }) {
         >
           {inTimeline ? `✓ ${t('writing.inspirationToTimelineDone')}` : `⇢ ${t('writing.inspirationToTimeline')}`}
         </Box>
-        <Box
-          component="button"
-          type="button"
-          onClick={() => void toForeshadow()}
-          disabled={inForeshadow || !fsDraft.title}
-          title={
-            inForeshadow
-              ? t('writing.inspirationToForeshadowDone')
-              : fsDraft.title
-                ? t('writing.inspirationToForeshadow')
-                : t('writing.inspirationToEmpty')
-          }
-          sx={{
-            ...dispatchBtnSx,
-            opacity: inForeshadow || !fsDraft.title ? 0.55 : 1,
-            cursor: inForeshadow || !fsDraft.title ? 'default' : 'pointer',
-          }}
-        >
-          {inForeshadow ? `✓ ${t('writing.inspirationToForeshadowDone')}` : `⇢ ${t('writing.inspirationToForeshadow')}`}
-        </Box>
+        {canCreateEntityForGenre(inspGenre, 'foreshadowing') && (
+          <Box
+            component="button"
+            type="button"
+            onClick={() => void toForeshadow()}
+            disabled={inForeshadow || !fsDraft.title}
+            title={
+              inForeshadow
+                ? t('writing.inspirationToForeshadowDone')
+                : fsDraft.title
+                  ? t('writing.inspirationToForeshadow')
+                  : t('writing.inspirationToEmpty')
+            }
+            sx={{
+              ...dispatchBtnSx,
+              opacity: inForeshadow || !fsDraft.title ? 0.55 : 1,
+              cursor: inForeshadow || !fsDraft.title ? 'default' : 'pointer',
+            }}
+          >
+            {inForeshadow ? `✓ ${t('writing.inspirationToForeshadowDone')}` : `⇢ ${t('writing.inspirationToForeshadow')}`}
+          </Box>
+        )}
         {/* L2 跨视图 AI 扩写：打开该书写作台独立窗口并预选本念头（O7 扩写闭环扩展到场景视图） */}
         <Box
           component="button"
@@ -454,12 +487,12 @@ export function InspirationDetail({ beat }: { beat: WritingOutline }) {
         </Box>
       )}
       <Typography variant="caption" color="text.disabled">
-        {t('writing.inspirationBindHint')}
+        {t(surfaceKeyForGenre(inspGenre, 'bindHint'))}
       </Typography>
       {/* 挂章（转正）：挂上即离开念头池 */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         <Typography variant="caption" color="text.secondary">
-          {t('writing.inspirationBindChapter')}
+          {t(surfaceKeyForGenre(inspGenre, 'bindUnit'))}
         </Typography>
         <ChapterPicker
           uniqueKey={beat.id}
@@ -520,8 +553,20 @@ export function InspirationDetail({ beat }: { beat: WritingOutline }) {
       <Typography
         variant="caption"
         onClick={() => {
-          selectInspiration(null);
-          void deleteOutline(beat.id);
+          // 删除铁律（③e）：与工作室画布念头 × 共用同一套后果口径（文案同一批键，不各写一份）
+          confirmDestructive({
+            title: t('writingDesign.deleteIdeaConfirmTitle', { title: beat.title }),
+            impact: [
+              t('writingDesign.deleteIdeaConfirmImpactBindings'),
+              t('writingDesign.deleteIdeaConfirmImpactUndo'),
+            ],
+            confirmLabel: t('writing.inspirationDelete'),
+            cancelLabel: t('ui.cancel'),
+            onConfirm: () => {
+              selectInspiration(null);
+              void deleteOutline(beat.id);
+            },
+          });
         }}
         title={t('writing.inspirationDelete')}
         sx={{ cursor: 'pointer', color: 'text.disabled', '&:hover': { color: 'error.main' }, mt: 0.5 }}

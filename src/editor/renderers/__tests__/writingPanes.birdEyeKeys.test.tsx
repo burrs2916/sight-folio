@@ -100,7 +100,7 @@ describe('鸟瞰条 · 同名根节点不得撞 key（回归锁）', () => {
   it('两个 kind+title 完全相同的根（卷 · 卷 2 ×2）不产生 duplicate key 告警，且两段都渲染', () => {
     h.writing.chapters = [chapter('v1', '卷 2', '卷', null), chapter('v2', '卷 2', '卷', null)];
     h.writing.outlines = [];
-    mount(<StorylinePane accent="#4A338F" chapters={h.writing.chapters} outlines={h.writing.outlines} settings={[]} />);
+    mount(<StorylinePane accent="#4A338F" bookId="b1" chapters={h.writing.chapters} outlines={h.writing.outlines} settings={[]} />);
 
     const dup = errorSpy.mock.calls
       .map((c) => String(c[0]))

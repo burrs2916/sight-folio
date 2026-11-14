@@ -39,6 +39,7 @@ import {
   tryParseCaptureJson,
 } from '../../ai/writingCapture';
 import { useToastStore } from '../../store/toastStore';
+import { useWritingStore } from '../../store/writingStore';
 import { buildCaptureInsertText, type CaptureInsertAnalysis, type CaptureInsertPart } from './captureInsert';
 import { logger } from '../../utils/logger';
 import { uiFontSize } from '../../theme/appearanceScales';
@@ -182,6 +183,8 @@ export function ExternalCapturePanel({
             title: c.title,
             sourceRaw: c.sourceRaw,
             extractedText: c.extractedText,
+            // ㉟ AI-5（轮 12）：素材「被谁使用」按体裁（本书面板天然按 bookId 现读）
+            genre: useWritingStore.getState().books.find((b) => b.id === bookId)?.genre ?? '',
           }),
           onDelta: () => undefined,
         });
@@ -208,7 +211,7 @@ export function ExternalCapturePanel({
         setReanalyzingId(null);
       }
     },
-    [agentId, agents.length, reanalyzingId, t],
+    [agentId, agents.length, reanalyzingId, bookId, t],
   );
 
   return (

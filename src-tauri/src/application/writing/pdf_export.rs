@@ -6,7 +6,7 @@
 // - 中文字体：定位系统 CJK TTF → ttf-parser 解析字形 → 嵌入
 //   Type0/CIDFontType2（Identity-H 编码，CID=GID 由 FontFile2 字形表决定，
 //   ToUnicode CMap 保证复制/搜索，W 数组按真实 advance 建立）；
-// - 正文图片：`<img data-asset="...">` 经 `resolve_asset_ref` 读字节 →
+// - 正文图片：`<img data-asset="...">` 经 `writing::read_asset_bytes`（定格优先、缺图点名）读字节 →
 //   image 解码为 RGB → FlateDecode 压缩为图像 XObject；
 // - 换行：按字符 advance 累加逐字断行（CJK 无空格，不依赖空格分词）。
 //
@@ -18,8 +18,7 @@ use std::io::Write;
 use lopdf::dictionary;
 use lopdf::{Object, ObjectId, Stream};
 
-use super::EpubChapter;
-use crate::commands::asset::resolve_asset_ref;
+use super::{has_tree_payload, EpubChapter};
 use crate::error::{AppError, AppResult};
 
 // ─── 常量 ───
@@ -31,6 +30,68 @@ const BODY_FONT_SIZE: f64 = 11.0;
 const LINE_HEIGHT_FACTOR: f64 = 1.5;
 const SKIP_GAP: f64 = 8.0;
 const MAX_IMG_W: f64 = 420.0;
+
+/// PDF 正文版式（**由 `BookLayoutSpec` 派生，不许在这另立字号常量**）。
+///
+/// 为什么需要一个独立结构而不是就地遮蔽常量：`BODY_FONT_SIZE / LINE_HEIGHT_FACTOR / SKIP_GAP`
+/// 除了正文循环，还被 `ensure_space`（翻页基线）、`BODY_LINE_H` / `HEADING_LINE_H`（行高）用到。
+/// 只遮蔽正文循环那几十行会造出**「正文用新字号、翻页与行高用旧值」**的混合版式 ——
+/// 比完全不接更坏。所以把这三值收成一个结构，整条链路一次切过去。
+///
+/// 封面页与目录页**本轮仍用既有校准值**：那两页的点线引导、页码位置是按固定字号排死的，
+/// 跟着正文一起放大需要重排整套版面，属独立一批（不许半改）。
+#[derive(Debug, Clone, Copy)]
+pub struct PdfLayout {
+    /// 正文字号（pt）
+    pub body: f64,
+    /// 行距倍数
+    pub line: f64,
+    /// 段后距（pt）
+    pub gap: f64,
+    /// 首行缩进（em，0 = 作者没开缩进）
+    pub indent_em: f64,
+}
+
+impl PdfLayout {
+    /// 与历史常量对齐的缺省（11pt / 1.5 / 8pt），供不传版式时逐字节保持旧行为
+    pub const fn legacy() -> Self {
+        Self {
+            body: BODY_FONT_SIZE,
+            line: LINE_HEIGHT_FACTOR,
+            gap: SKIP_GAP,
+            indent_em: 2.0,
+        }
+    }
+
+    /// px→pt 用 0.75；段距按 em×正文字号；缩进跟随作者开关
+    pub fn from_spec(spec: &super::layout::BookLayoutSpec) -> Self {
+        Self {
+            body: spec.body_pt(),
+            line: spec.line_height,
+            gap: spec.para_spacing_em * spec.body_pt(),
+            indent_em: if spec.indent { 2.0 } else { 0.0 },
+        }
+    }
+
+    pub fn body_line(self) -> f64 {
+        self.body * self.line
+    }
+    /// 章题层级：历史上是 15.0pt（= 正文 11pt × 1.36），跟着正文字号等比走，
+    /// 否则作者把正文调到 16.5pt 后**章题会比正文还小**。
+    pub fn heading_size(self) -> f64 {
+        self.body * (15.0 / 11.0)
+    }
+    pub fn heading_line(self) -> f64 {
+        self.heading_size() * self.line * 2.0 + self.gap
+    }
+    /// 章前卷标（遗留口径）字号：历史 13.0pt 相对 11pt 正文
+    pub fn volume_size(self) -> f64 {
+        self.body * (13.0 / 11.0)
+    }
+    pub fn volume_line(self) -> f64 {
+        self.volume_size() * self.line + self.gap
+    }
+}
 
 /// 字形表：把 ttf-parser 的 `Face`（借用字体字节、生命周期受限）降级为
 /// 纯标量与哈希表，避免自引用结构。
@@ -87,8 +148,13 @@ pub fn export_pdf(
     title: String,
     description: Option<String>,
     chapters: Vec<EpubChapter>,
+    layout: super::layout::BookLayoutSpec,
+    assets: super::FrozenAssets,
+    meta: super::BookMeta,
     path: String,
 ) -> AppResult<()> {
+    // R1：正文版式来自作者的排版设置（`PdfLayout` 只负责换算成 PDF 单位）
+    let lay = PdfLayout::from_spec(&layout);
     // 1. 定位系统 CJK 字体
     let font_path = find_cjk_font()?;
     let font_bytes = std::fs::read(&font_path)
@@ -112,10 +178,14 @@ pub fn export_pdf(
     {
         charset.insert(extra);
     }
+    // 扉页署名行（作者 ｜ 出版社）。字符必须进子集：字形缺失不报错，只会安静地什么都不显示，
+    // 那种"看起来没问题"的坏法最难查，所以这里连同 charset 一起处理并留在注释里提醒。
+    let byline = super::byline_of(&meta);
+    charset.extend(byline.chars());
     let glyphs = GlyphTable::build(&font_bytes, &charset)?;
 
     // 3. 预收集正文图片
-    let img_cache = collect_images(&chapters)?;
+    let img_cache = collect_images(&chapters, &assets)?;
     let img_dims: HashMap<String, (u32, u32)> = img_cache
         .iter()
         .filter_map(|(k, v)| image_dimensions(v).ok().map(|d| (k.clone(), d)))
@@ -179,7 +249,12 @@ pub fn export_pdf(
         "Type" => "Font",
         "Subtype" => "Type0",
         "BaseFont" => "SightFolioCJK",
-        "Encoding" => Object::string_literal("Identity-H"),
+        // 必须是 **Name** 对象（`/Identity-H`），不能是字符串字面量。
+        // 写成 `Object::string_literal` 会输出成 `(Identity-H)`，poppler / Safari / Chrome
+        // 一律判 `Invalid Encoding in Type 0 font` → 字体装载失败 → `No font in show`
+        // → 所有文字绘制被静默丢弃，**每一页都是白纸**，而导出仍然返回成功。
+        // 这一行是 2026-11-06 用真产物 + 浏览器截屏查出来的 P0。
+        "Encoding" => Object::Name(b"Identity-H".to_vec()),
         "DescendantFonts" => vec![Object::from(cid_font_id)],
         "ToUnicode" => to_unicode_id,
     });
@@ -195,27 +270,36 @@ pub fn export_pdf(
 
     // 6. 排版：封面页 + 目录页 + 正文（按章流式分页，基线坐标模型）
     let mut page_streams: Vec<Vec<u8>> = Vec::new();
-    page_streams.push(build_cover_stream(&title, &description, &glyphs));
+    page_streams.push(build_cover_stream(&title, &byline, &description, &glyphs));
     page_streams.push(build_toc_stream(&title, &chapters, &[], &glyphs)); // 页码占位，稍后回填
 
     let mut current: Vec<u8> = Vec::new();
-    let mut baseline = PAGE_H - MARGIN - BODY_FONT_SIZE; // 首行基线
+    let mut baseline = PAGE_H - MARGIN - lay.body; // 首行基线
     let mut page_count: u32 = 2; // 已含封面+目录
     let mut chap_start: Vec<u32> = Vec::new();
     let mut last_volume: String = String::new();
+    // 结构口径判据（与目录页同源）：容器行走卷页排版，遗留 volume 字符串卷标自动失效
+    let tree = has_tree_payload(&chapters);
 
     for ch in &chapters {
         // 章首强制新页（出版惯例：每章起新页；第一章紧随目录页亦从新页开始）
         if !current.is_empty() {
             page_streams.push(std::mem::take(&mut current));
             page_count += 1;
-            baseline = PAGE_H - MARGIN - BODY_FONT_SIZE;
+            baseline = PAGE_H - MARGIN - lay.body;
         }
-        let volume = ch.volume.as_deref().unwrap_or("");
-        let volume = volume.trim();
+        // 结构口径（快照导出）：容器节点自己就是**卷页**，卷题走居中大字，
+        // 它带的正文按卷首语排在下面 —— 所以这一行不再需要"章前卷标"，两套同时给会重复。
+        // 遗留口径：仍按 volume 字符串在章前打一行卷标（旧调用方零变化）。
+        let is_volume_page = tree && ch.is_volume == Some(true);
+        let volume = if tree {
+            ""
+        } else {
+            ch.volume.as_deref().unwrap_or("").trim()
+        };
         // 卷标题：卷名变化时在新页顶部输出粗体卷标（目录卷层级与正文呼应）
         let vol_line_h = if !volume.is_empty() && volume != last_volume {
-            13.0 * LINE_HEIGHT_FACTOR + SKIP_GAP
+            lay.volume_line()
         } else {
             0.0
         };
@@ -224,51 +308,72 @@ pub fn export_pdf(
             &mut baseline,
             &mut page_streams,
             &mut page_count,
-            HEADING_LINE_H() + vol_line_h,
+            lay.heading_line() + vol_line_h,
+            lay.body,
         );
         if vol_line_h > 0.0 {
-            append_text_line_center(&mut current, volume, 13.0, &glyphs, baseline, true);
-            baseline -= 13.0 * LINE_HEIGHT_FACTOR + SKIP_GAP;
+            append_text_line_center(
+                &mut current,
+                volume,
+                lay.volume_size(),
+                &glyphs,
+                baseline,
+                true,
+            );
+            baseline -= lay.volume_line();
             last_volume = volume.to_string();
         }
         chap_start.push(page_count); // 该章起始落在当前页（ensure_space 已翻页则已 +1）
-        append_text_line_at(
-            &mut current,
-            &ch.title,
-            15.0,
-            &glyphs,
-            MARGIN,
-            baseline,
-            true,
-        );
-        baseline -= 15.0 * LINE_HEIGHT_FACTOR + SKIP_GAP;
+        let title_size = if is_volume_page {
+            lay.body * (17.0 / 11.0)
+        } else {
+            lay.heading_size()
+        };
+        if is_volume_page {
+            append_text_line_center(&mut current, &ch.title, title_size, &glyphs, baseline, true);
+        } else {
+            append_text_line_at(
+                &mut current,
+                &ch.title,
+                title_size,
+                &glyphs,
+                MARGIN,
+                baseline,
+                true,
+            );
+        }
+        baseline -= title_size * lay.line + lay.gap;
 
         let blocks = parse_blocks(&ch.content);
         for block in blocks {
             match block {
                 HtmlBlock::Paragraph(text) => {
-                    // 中文出版惯例：段落首行缩进 2 字符（2 × 字号）
-                    let indent = BODY_FONT_SIZE * 2.0;
+                    // 中文出版惯例：段落首行缩进 2 字符（2 × 字号）。
+                    // ㉱ E-A′：字符数从 `lay.indent_em` 取 —— 这张表的值由 layout 裁定
+                    // （语种×体裁：中文非诗=2.0，西文与诗集=0.0）。旧实现写死 2.0，
+                    // `from_spec` 算好的开关在排版循环里从未被消费 —— F4 在 PDF 断在这里。
+                    let indent = lay.body * lay.indent_em;
                     let (first_line, rest) =
-                        layout_text_first_indent(&text, BODY_FONT_SIZE, BODY_W, indent, &glyphs);
+                        layout_text_first_indent(&text, lay.body, BODY_W, indent, &glyphs);
                     if let Some(fl) = first_line {
                         ensure_space(
                             &mut current,
                             &mut baseline,
                             &mut page_streams,
                             &mut page_count,
-                            BODY_LINE_H(),
+                            lay.body_line(),
+                            lay.body,
                         );
                         append_text_line_at(
                             &mut current,
                             &fl,
-                            BODY_FONT_SIZE,
+                            lay.body,
                             &glyphs,
                             MARGIN + indent,
                             baseline,
                             false,
                         );
-                        baseline -= BODY_FONT_SIZE * LINE_HEIGHT_FACTOR;
+                        baseline -= lay.body * lay.line;
                     }
                     for line in rest {
                         ensure_space(
@@ -276,12 +381,13 @@ pub fn export_pdf(
                             &mut baseline,
                             &mut page_streams,
                             &mut page_count,
-                            BODY_LINE_H(),
+                            lay.body_line(),
+                            lay.body,
                         );
-                        append_text_line(&mut current, &line, BODY_FONT_SIZE, &glyphs, baseline);
-                        baseline -= BODY_FONT_SIZE * LINE_HEIGHT_FACTOR;
+                        append_text_line(&mut current, &line, lay.body, &glyphs, baseline);
+                        baseline -= lay.body * lay.line;
                     }
-                    baseline -= SKIP_GAP;
+                    baseline -= lay.gap;
                 }
                 HtmlBlock::Heading(text, level) => {
                     let size = if level <= 1 { 14.0 } else { 12.0 };
@@ -290,10 +396,11 @@ pub fn export_pdf(
                         &mut baseline,
                         &mut page_streams,
                         &mut page_count,
-                        size * LINE_HEIGHT_FACTOR * 2.0 + SKIP_GAP,
+                        size * lay.line * 2.0 + lay.gap,
+                        lay.body,
                     );
                     append_text_line_at(&mut current, &text, size, &glyphs, MARGIN, baseline, true);
-                    baseline -= size * LINE_HEIGHT_FACTOR + SKIP_GAP;
+                    baseline -= size * lay.line + lay.gap;
                 }
                 HtmlBlock::Image(rel) => {
                     if let Some((w, h)) = img_dims.get(&rel) {
@@ -306,10 +413,11 @@ pub fn export_pdf(
                                 &mut baseline,
                                 &mut page_streams,
                                 &mut page_count,
-                                dh + SKIP_GAP,
+                                dh + lay.gap,
+                                lay.body,
                             );
                             append_image(&mut current, obj, dw, dh, baseline);
-                            baseline -= dh + SKIP_GAP;
+                            baseline -= dh + lay.gap;
                         }
                     }
                 }
@@ -319,25 +427,20 @@ pub fn export_pdf(
                         if line.is_empty() {
                             continue;
                         }
-                        for wrapped in layout_text(&line, BODY_FONT_SIZE, BODY_W, &glyphs) {
+                        for wrapped in layout_text(&line, lay.body, BODY_W, &glyphs) {
                             ensure_space(
                                 &mut current,
                                 &mut baseline,
                                 &mut page_streams,
                                 &mut page_count,
-                                BODY_LINE_H(),
+                                lay.body_line(),
+                                lay.body,
                             );
-                            append_text_line(
-                                &mut current,
-                                &wrapped,
-                                BODY_FONT_SIZE,
-                                &glyphs,
-                                baseline,
-                            );
-                            baseline -= BODY_FONT_SIZE * LINE_HEIGHT_FACTOR;
+                            append_text_line(&mut current, &wrapped, lay.body, &glyphs, baseline);
+                            baseline -= lay.body * lay.line;
                         }
                     }
-                    baseline -= SKIP_GAP;
+                    baseline -= lay.gap;
                 }
             }
         }
@@ -401,29 +504,20 @@ pub fn export_pdf(
     Ok(())
 }
 
-fn BODY_LINE_H() -> f64 {
-    BODY_FONT_SIZE * LINE_HEIGHT_FACTOR
-}
-
-fn HEADING_LINE_H() -> f64 {
-    15.0 * LINE_HEIGHT_FACTOR * 2.0 + SKIP_GAP
-}
-
-// ─── 排版辅助 ───
-
 fn ensure_space(
     current: &mut Vec<u8>,
     baseline: &mut f64,
     pages: &mut Vec<Vec<u8>>,
     page_count: &mut u32,
     need: f64,
+    body: f64,
 ) {
     // 所需行高超过本页剩余空间（基线到页底）时翻页。
     let top = *baseline; // 当前基线 = 距页顶的绝对高度
     if top < MARGIN + need {
         pages.push(std::mem::take(current));
         *page_count += 1;
-        *baseline = PAGE_H - MARGIN - BODY_FONT_SIZE;
+        *baseline = PAGE_H - MARGIN - body;
     }
 }
 
@@ -506,9 +600,52 @@ fn format_f64(v: f64) -> String {
     s.trim_end_matches('0').trim_end_matches('.').to_string()
 }
 
+/// 按字符 advance 累加断行的**软折**本体（任意语言都按真实字形宽度换行）：只管页宽，
+/// 不解释 `\n` —— 硬换行由 `layout_text` / `layout_text_first_indent` 先切段。
+/// 拆成独立函数是因为首行缩进那一支要复用同一段算术，不许复制粘贴两份。
+/// 软折的循环本体。首行缩进那一支要复用同一段算术，所以单独拆出来（不许复制粘贴两份）。
+fn wrap_width(line: &str, font_size: f64, max_width: f64, glyphs: &GlyphTable) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut cur = String::new();
+    let mut w: f64 = 0.0;
+    for ch in line.chars() {
+        let cw = glyphs.advance_em(ch) * font_size;
+        if w + cw > max_width && !cur.is_empty() {
+            lines.push(cur.clone());
+            cur.clear();
+            w = 0.0;
+        }
+        cur.push(ch);
+        w += cw;
+    }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    lines
+}
+
+/// 【E-F · 轮 54】先按 `\n` 切**硬换行**（`<br>` 在解析层留的痕），每段再按字宽软折。
+/// 改前只认字宽 ⇒ 作者的分行到 PDF 全塌；空段（`<br><br>`）在这里产出一条**真空行**，
+/// 而不是被末尾那句 `if !line.is_empty()` 顺手吞掉（`r54丙` 钉住）。
+fn layout_text(text: &str, font_size: f64, max_width: f64, glyphs: &GlyphTable) -> Vec<String> {
+    let mut lines = Vec::new();
+    for seg in text.split('\n') {
+        if seg.is_empty() {
+            lines.push(String::new());
+        } else {
+            lines.extend(wrap_width(seg, font_size, max_width, glyphs));
+        }
+    }
+    lines
+}
+
 /// 按字符 advance 累加断行（任意语言都按真实字形宽度换行）。
 /// `first_indent` > 0 时，第一行可用宽度扣除该缩进量（中文首行缩进 2 字符），
 /// 返回 `(首行, 后续行)`；首行需横向偏移 `first_indent` 绘制。
+///
+/// 【E-F · 轮 54】缩进只作用于**第一个物理行段**：段后的 `<br>` 是作者分行，
+/// 既不继续缩进、也不许被折回首行。**零回归口径**（`r54丁` 钉）：无 `\n` 时逐字等于改前 ——
+/// 首行填到 `first_max` 就换行，剩余部分按**满宽**重排，不是整段按 `first_max` 折。
 fn layout_text_first_indent(
     text: &str,
     font_size: f64,
@@ -520,56 +657,43 @@ fn layout_text_first_indent(
         return (None, Vec::new());
     }
     if first_indent <= 0.0 {
-        let lines = layout_text(text, font_size, max_width, glyphs);
-        let mut rest = lines;
+        let mut rest = layout_text(text, font_size, max_width, glyphs);
         let first = rest.first().cloned();
         if !rest.is_empty() {
             rest.remove(0);
         }
         return (first, rest);
     }
-    // 首行按 first_max 断行
+    // 首行按 first_max 断行；剩余字符按满宽重排（这一段算术与改前逐字一致）
     let first_max = max_width - first_indent;
+    let head = text.split('\n').next().unwrap_or("");
     let mut first = String::new();
     let mut w = 0.0f64;
-    for ch in text.chars() {
+    // `taken` = 真正吃进首行的字数。剩余部分一律按**已取字数**回退（与改前
+    // `text.chars().skip(first.chars().count())` 同一口径）。这里曾用 `while let Some(ch) = chars.next()`
+    // 迭代器取到再 break，那个字符既没进首行也没进 remainder ⇒ **正文丢字**，
+    // 被零回归金样 `r54丁` 当场抓住（少一个"甲"）。不许再拿迭代器当前位置当"已消费"。
+    let mut taken = 0usize;
+    for ch in head.chars() {
         let cw = glyphs.advance_em(ch) * font_size;
         if w + cw > first_max && !first.is_empty() {
             break;
         }
         first.push(ch);
         w += cw;
+        taken += 1;
     }
-    if first.len() == text.chars().count() {
-        // 全部容纳在第一行
-        return (Some(first), Vec::new());
-    }
-    let rest_input: String = text.chars().skip(first.chars().count()).collect();
-    (
-        Some(first),
-        layout_text(&rest_input, font_size, max_width, glyphs),
-    )
-}
-
-/// 按字符 advance 累加断行（任意语言都按真实字形宽度换行）。
-fn layout_text(text: &str, font_size: f64, max_width: f64, glyphs: &GlyphTable) -> Vec<String> {
-    let mut lines = Vec::new();
-    let mut line = String::new();
-    let mut w: f64 = 0.0;
-    for ch in text.chars() {
-        let cw = glyphs.advance_em(ch) * font_size;
-        if w + cw > max_width && !line.is_empty() {
-            lines.push(line.clone());
-            line.clear();
-            w = 0.0;
+    let remainder: String = head.chars().skip(taken).collect();
+    let mut rest = wrap_width(&remainder, font_size, max_width, glyphs);
+    // 其后的硬换行段：满宽、不缩进；空段 = 一条真空行
+    for seg in text.split('\n').skip(1) {
+        if seg.is_empty() {
+            rest.push(String::new());
+        } else {
+            rest.extend(wrap_width(seg, font_size, max_width, glyphs));
         }
-        line.push(ch);
-        w += cw;
     }
-    if !line.is_empty() {
-        lines.push(line);
-    }
-    lines
+    (Some(first), rest)
 }
 
 /// W 宽度数组：每字符 `gid [advance]` 段。
@@ -617,6 +741,20 @@ fn tag_name(lower_tag: &str) -> Option<&str> {
     }
 }
 
+/// 【E-F · 轮 54】把源文本并入累积器，顺手按 HTML 口径把**裸换行折成空格**。
+///
+/// `\n` 这个记号从本轮起**只归 `<br>` 所有**：不折这一步，导入稿/格式化过的 HTML 里那些
+/// 排版用的换行会被 `layout_text` 当成作者手打的分行，凭空切出假分行（`r54戊` 钉这条边界）。
+/// 所以 `<br>` 那一支不走这里 —— 它直接 `push('\n')`，两者不许混用同一个记号。
+fn push_plain(acc: &mut String, s: &str) {
+    for ch in s.chars() {
+        acc.push(match ch {
+            '\n' | '\r' => ' ',
+            c => c,
+        });
+    }
+}
+
 /// 块级解析：把 HTML 降维成段落/标题/图片/表格。递归处理块内子内容，
 /// 变换累计文本到最近的块级结构。
 fn parse_blocks(html: &str) -> Vec<HtmlBlock> {
@@ -638,10 +776,10 @@ fn parse_blocks_into(html: &str, blocks: &mut Vec<HtmlBlock>) {
 
     loop {
         let Some(pos) = rest.find('<') else {
-            text_acc.push_str(rest);
+            push_plain(&mut text_acc, rest);
             break;
         };
-        text_acc.push_str(&rest[..pos]);
+        push_plain(&mut text_acc, &rest[..pos]);
         let after = &rest[pos..];
         let Some(gt) = after.find('>') else {
             text_acc.push_str(after);
@@ -668,6 +806,10 @@ fn parse_blocks_into(html: &str, blocks: &mut Vec<HtmlBlock>) {
         let name = tag_name(&lower);
         match name {
             Some("br") => {
+                // 【E-F · 轮 54】`<br>` 是作者手打的**硬换行**。改前这里只消耗标签、什么痕都不留
+                // ⇒ 12 行诗的 PDF 塌成一整段（台账 E-F / 旧导出报告 P0-1 E-1）。这里只负责**留痕**，
+                // 真正的换行落点在 layout_text / layout_text_first_indent。
+                text_acc.push('\n');
                 rest = tail;
             }
             Some(n) if is_block_tag(n) => {
@@ -786,7 +928,12 @@ fn extract_data_asset(tag: &str) -> Option<String> {
 
 // ─── 封面/目录页 ───
 
-fn build_cover_stream(title: &str, description: &Option<String>, glyphs: &GlyphTable) -> Vec<u8> {
+fn build_cover_stream(
+    title: &str,
+    byline: &str,
+    description: &Option<String>,
+    glyphs: &GlyphTable,
+) -> Vec<u8> {
     let mut buf = Vec::new();
     // 垂直居中排布：书名、简介（如有）、出品行
     let mut y = PAGE_H / 2.0 + 60.0;
@@ -796,6 +943,14 @@ fn build_cover_stream(title: &str, description: &Option<String>, glyphs: &GlyphT
         y -= 26.0 * 1.4;
     }
     y -= 26.0;
+    // 署名行：作者没录就整行不排
+    if !byline.is_empty() {
+        for line in layout_text(byline, 14.0, BODY_W, glyphs) {
+            append_text_line_center(&mut buf, &line, 14.0, glyphs, y, false);
+            y -= 14.0 * 1.6;
+        }
+        y -= 14.0;
+    }
     if let Some(d) = description {
         for line in layout_text(d, 12.0, BODY_W, glyphs) {
             append_text_line_center(&mut buf, &line, 12.0, glyphs, y, false);
@@ -824,37 +979,50 @@ fn build_toc_stream(
 
     // 卷分组：卷名首次出现输出卷标题（粗体），后续章条目相对卷缩进 2 字符；
     // 无卷的书保持平铺。页码右对齐到页尾（右缩进 = MARGIN），点线自适应填充中间空隙。
+    // 目录两种口径（判据只在 has_tree_payload 一处）：
+    //  · 结构口径（快照导出）：条目按 depth 逐层缩进，容器（卷/篇）自身加粗 —— 目录里
+    //    就是父子关系，卷不再是「凭空多出来的一行组标题」；
+    //  · 遗留口径（旧调用方只给 volume 字符串）：卷名首现输出粗体组题，卷下章缩进 2 字。
+    let tree = has_tree_payload(chapters);
     let page_right = PAGE_W - MARGIN;
     let mut seen_volume: Option<String> = None;
     for (i, ch) in chapters.iter().enumerate() {
-        let volume = ch.volume.as_deref().filter(|v| !v.is_empty());
-        if volume != seen_volume.as_deref() {
-            if let Some(v) = volume {
-                append_text_line_at(&mut buf, v, 12.0, &glyphs, MARGIN, y, true);
-                y -= 22.0;
+        let mut indent = 0.0_f64;
+        let mut bold = false;
+        if tree {
+            indent = 22.0 * ch.depth.unwrap_or(0).min(3) as f64;
+            bold = ch.is_volume == Some(true);
+        } else {
+            let volume = ch.volume.as_deref().filter(|v| !v.is_empty());
+            if volume != seen_volume.as_deref() {
+                if let Some(v) = volume {
+                    append_text_line_at(&mut buf, v, 12.0, &glyphs, MARGIN, y, true);
+                    y -= 22.0;
+                }
+                seen_volume = volume.map(str::to_string);
             }
-            seen_volume = volume.map(str::to_string);
+            indent = if volume.is_some() { 22.0 } else { 0.0 }; // 卷下章条目缩进（2 × 11pt）
         }
-        let indent = if volume.is_some() { 22.0 } else { 0.0 }; // 卷下章条目缩进（2 × 11pt）
+        let entry_size = if bold { 12.0 } else { 11.0 };
         let p = pages.get(i).copied().unwrap_or(0);
 
-        // 标题（左起点 = 页边距 + 卷缩进）
+        // 标题（左起点 = 页边距 + 层级缩进）
         append_text_line_at(
             &mut buf,
             &ch.title,
-            11.0,
+            entry_size,
             &glyphs,
             MARGIN + indent,
             y,
-            false,
+            bold,
         );
         if p > 0 {
             // 页码右对齐：右端贴页边距
             let page_text = p.to_string();
             let page_w = text_width(&page_text, 11.0, &glyphs);
             let page_x = page_right - page_w;
-            // 点线自适应：从标题末尾到页码左端之间填满
-            let title_w = text_width(&ch.title, 11.0, &glyphs);
+            // 点线自适应：从标题末尾到页码左端之间填满（宽度按条目实际字号算）
+            let title_w = text_width(&ch.title, entry_size, &glyphs);
             let dot_w = text_width("·", 11.0, &glyphs);
             let gap = page_x - (MARGIN + indent + title_w) - 6.0; // 标题与页码的最小间距
             let dot_count = if gap > 0.0 && dot_w > 0.0 {
@@ -883,7 +1051,10 @@ fn build_toc_stream(
 
 // ─── 图片 ───
 
-fn collect_images(chapters: &[EpubChapter]) -> AppResult<HashMap<String, Vec<u8>>> {
+fn collect_images(
+    chapters: &[EpubChapter],
+    frozen: &super::FrozenAssets,
+) -> AppResult<HashMap<String, Vec<u8>>> {
     let mut map = HashMap::new();
     for ch in chapters {
         let mut cursor = ch.content.as_str();
@@ -894,14 +1065,11 @@ fn collect_images(chapters: &[EpubChapter]) -> AppResult<HashMap<String, Vec<u8>
             };
             let rel = &rest[..end];
             if !rel.is_empty() && !map.contains_key(rel) {
-                // 优先相对引用解析；失败则按字面路径尝试
-                let abs = resolve_asset_ref(rel.to_string())
-                    .or_else(|_| Ok::<String, String>(rel.to_string()));
-                if let Ok(abs) = abs {
-                    if let Ok(bytes) = std::fs::read(&abs) {
-                        map.insert(rel.to_string(), bytes);
-                    }
-                }
+                // R4：走统一读法（定格优先、活盘兜底、缺图点名）。
+                // 此前这里是两层 `if let Ok(..)` —— 读不到就**静默丢图**，PDF 里那块位置直接空着，
+                // 作者拿到手才发现少了插画。缺图现在让任务失败并说出是哪个文件。
+                let (bytes, _media) = super::read_asset_bytes(rel, Some(frozen))?;
+                map.insert(rel.to_string(), bytes);
             }
             cursor = &rest[end..];
         }
@@ -1002,4 +1170,105 @@ fn find_cjk_font() -> AppResult<String> {
     Err(AppError::Internal(
         "no system CJK TTF font; PDF export requires a TTF font (e.g. DroidSansFallback).".into(),
     ))
+}
+
+// ─── 测试 · E-F（轮 54 新建：本文件此前零 test mod，PDF 这支从来没有护栏）───
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    /// 空字形表 ⇒ `GlyphTable::advance_em` 对任何字符回退 0.5 em（见其 `unwrap_or(&0.5)`）；
+    /// 字号 12pt ⇒ 每字 6pt。把「系统里有 CJK 字体」这个环境依赖从断言里摘掉，只留算术本身。
+    fn fixed_glyphs() -> GlyphTable {
+        GlyphTable {
+            map: HashMap::new(),
+            advance: HashMap::new(),
+            units_per_em: 1000.0,
+            ascender: 0.8,
+            descender: -0.2,
+        }
+    }
+
+    /// 12 行诗（台账 E-F 的验收形状）：11 枚硬换行，每行 3 字。
+    fn poem_text(sep: &str) -> String {
+        (1..=12)
+            .map(|i| format!("第{i}行"))
+            .collect::<Vec<String>>()
+            .join(sep)
+    }
+
+    fn one_paragraph(blocks: &[HtmlBlock]) -> String {
+        assert_eq!(blocks.len(), 1, "整段应合成一个段落块");
+        match &blocks[0] {
+            HtmlBlock::Paragraph(t) => t.clone(),
+            _ => panic!("期望 Paragraph 块，得到别的块型"),
+        }
+    }
+
+    /// **上游那枚钉**：`<br>` 必须在段落文本里留下痕。旧实现 `Some("br") => { rest = tail; }`
+    /// 只消耗标签什么痕都不留 ⇒ 下游再怎么改也拿不到分行信息。三种写法都得认。
+    #[test]
+    fn r54甲_解析层必须把br留成硬换行痕() {
+        assert_eq!(
+            one_paragraph(&parse_blocks("<p>一行<br>二行<br/>三行<br />四行</p>")),
+            "一行\n二行\n三行\n四行"
+        );
+    }
+
+    /// 验收口径「逐格式行数 = 源」在 PDF 布局层的落点。满宽 420pt、每行 18pt ⇒ 一个物理
+    /// 行段恰好一行；首行缩进只许作用于**第一个**行段，不许把后续行拉回缩进或合并。
+    #[test]
+    fn r54乙_十二行诗的布局行数必须等于源() {
+        let g = fixed_glyphs();
+        let text = poem_text("\n");
+        let lines = layout_text(&text, 12.0, 420.0, &g);
+        assert_eq!(lines.len(), 12, "实际折出 {} 行", lines.len());
+        let (first, rest) = layout_text_first_indent(&text, 12.0, 420.0, 24.0, &g);
+        assert_eq!(first.as_deref(), Some("第1行"));
+        assert_eq!(rest.len(), 11, "缩进多吃了行段 ⇒ 行数漂");
+        assert_eq!(rest[0], "第2行");
+    }
+
+    /// `<br><br>` = 一次真实空行。旧 `layout_text` 末尾的 `if !line.is_empty()` 会把空行吞掉。
+    #[test]
+    fn r54丙_连续两枚br必须产出一条真空行() {
+        let g = fixed_glyphs();
+        assert_eq!(
+            layout_text("甲\n\n乙", 12.0, 420.0, &g),
+            vec!["甲".to_string(), String::new(), "乙".to_string()]
+        );
+    }
+
+    /// **零回归金样（改前就必须为绿）**：无 `<br>` 的小说段，断行算术逐字不变。
+    /// 数字按改前实现手推（每字 6pt）：满宽 60pt ⇒ 10 字一行；首行缩进 30pt ⇒ 首行 5 字，
+    /// 剩余按**满宽**重排 —— 改前就是「首行填到 first_max 就 break，其余交给 layout_text」，
+    /// 不许改成「整段按 first_max 折」，那是把小说排版偷偷换掉。
+    #[test]
+    fn r54丁_无硬换行的小说段断行逐字不变() {
+        let g = fixed_glyphs();
+        let novel = "甲".repeat(20);
+        assert_eq!(
+            layout_text(&novel, 12.0, 60.0, &g),
+            vec!["甲".repeat(10), "甲".repeat(10)]
+        );
+        let (first, rest) = layout_text_first_indent(&novel, 12.0, 60.0, 30.0, &g);
+        assert_eq!(first.as_deref(), Some("甲甲甲甲甲"));
+        assert_eq!(rest, vec!["甲".repeat(10), "甲".repeat(5)]);
+        assert_eq!(
+            layout_text_first_indent("", 12.0, 60.0, 30.0, &g),
+            (None, Vec::new())
+        );
+    }
+
+    /// `\n` 这个记号从本轮起**只归 `<br>` 所有**：源 HTML 里裸写的换行是排版空白，
+    /// 按 HTML 口径折成空格。不做这一步，导入稿/格式化过的 HTML 会被切成一片假分行。
+    #[test]
+    fn r54戊_源码级裸换行不得冒充硬换行() {
+        assert!(
+            !one_paragraph(&parse_blocks("<p>第一段\n  续写\n第二段</p>")).contains('\n'),
+            "裸换行必须折成空格"
+        );
+    }
 }

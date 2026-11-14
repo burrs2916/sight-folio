@@ -40,6 +40,7 @@ import {
   StatsReminder,
 } from '../../editor/components/writingReminders';
 import { uiFontSize } from '../../theme/appearanceScales';
+import { surfaceKeyForGenre } from '../../utils/writingSchema';
 
 // 右抽屉（上下文辅助面板）展开态宽度拖拽：范围 240–560，默认 320，跨会话持久化
 const DRAWER_WIDTH_MIN = 240;
@@ -348,7 +349,7 @@ export function WritingDrawer({
               '& .MuiButton-startIcon svg': { fontSize: uiFontSize(14) },
             }}
           >
-            {t('writing.tabChapterDetails')}
+            {t(surfaceKeyForGenre(genre, 'unitDetail'))}
           </Button>
           <IconButton
             size="small"
@@ -365,7 +366,7 @@ export function WritingDrawer({
           </IconButton>
         </Box>
 
-        {/* 全书体检入口（批次② 增-1）：七组全书体检此前只在场景画布可见，写作台进不去。
+        {/* 全书体检入口（批次② 增-1）：六组全书体检此前只在场景画布可见，写作台进不去。
             刻意放在提醒区之上、且不受"有没有提醒"控制——0 项也要显示，
             "全书没查出问题"本身就是作者要看到的信息。 */}
         {onOpenHealth && (

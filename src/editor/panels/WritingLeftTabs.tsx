@@ -6,7 +6,8 @@
 //   L2「大纲」编辑面（sceneEditor.utils.dropOpensCurrentBookView），有内容的载体
 //   新建书并直达新书的大纲编辑面（studioBook.createBookFromCarrierDrop）；
 //   与 L2 页签点击同样收敛到 openTypedCarrierView 同一链路，不再落 workbench 设计卡。
-//   poetry / script 置灰明示建设中、不可拖。
+//   四个可写体裁（novel / essay / poetry / script）与日记都已 ready，全部可拖；
+//   （这行原先写着"poetry / script 置灰建设中"，那是 2026-11-09 开闸前的状态 —— 注释在骗代码。）
 // 拖拽协议与实例拖入同一套（application/x-project-entity [+ -data]）；
 // drop 建档语义见 studioBook.createBookFromCarrierDrop。
 // D2：dragstart setDragImage 自绘 ghost（载体色块 + 名称），拖拽过程看得见拖的是什么。

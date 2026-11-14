@@ -62,14 +62,32 @@ const COLOR_OUTLINE = "#0ea5e9";
 const COLOR_NOTE = "#94a3b8";
 
 /**
- * 章 / 篇：命名跟随**当前书体裁**（散文书拖出即「篇目」），与
- * createBlankWritingEntity 的 genreHint 口径一致；genre 也随拖拽 payload 传给落点建档。
+ * 正文单位（章 / 篇 / 首）的**拖源措辞**随当前书体裁：标签与说明一起换，别只换一半。
+ * （2026-11-09 补：昨天散文那刀只换了 labelKey，说明行还写着「拖出即建一章」——
+ * 同一个概念两个名词，正是李先生说的"点散文还是按小说走"。）
+ * 未列出的体裁（novel / script / 旧书空 genre）走小说口径 = 历史文案逐字不变。
+ * diary 于 2026-11-10 补上：这张表原来只有 essay/poetry 两支，日记若不入表，
+ * 右栏拖源条目会顶着「空白章节」—— 那条注释自己写着"未列出的走小说口径"，是漏口不是设计。
+ *
+ * 判据与 `writingSchema.unitNameKey`（默认**标题**）是两条：这里定的是**拖源条目名**，
+ * 一个说"这条组件叫什么"，一个说"新建的那个实例叫什么"，合成一个函数只会互相牵制。
  */
+const UNIT_ITEM_WORDS: Record<string, { labelKey: string; descKey: string }> = {
+  essay: { labelKey: "writingLeft.tplEssayPiece", descKey: "editor.writing.palette.descPiece" },
+  poetry: { labelKey: "writingLeft.tplPoem", descKey: "editor.writing.palette.descPoem" },
+  diary: { labelKey: "writingLeft.tplDiaryDay", descKey: "editor.writing.palette.descDiary" },
+};
+const UNIT_ITEM_WORDS_DEFAULT = {
+  labelKey: "analyzer.writing.entity.chapter.name",
+  descKey: "editor.writing.palette.descChapter",
+};
+
 function chapterItem(genre: string): PaletteItem {
+  const words = UNIT_ITEM_WORDS[genre] ?? UNIT_ITEM_WORDS_DEFAULT;
   return {
     id: "chapter",
-    labelKey: genre === "essay" ? "writingLeft.tplEssayPiece" : "analyzer.writing.entity.chapter.name",
-    descKey: "editor.writing.palette.descChapter",
+    labelKey: words.labelKey,
+    descKey: words.descKey,
     color: COLOR_CHAPTER,
     entityType: "writing-chapter",
     blank: true,

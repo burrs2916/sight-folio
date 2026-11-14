@@ -11,6 +11,7 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import { useWritingStore } from '../../store/writingStore';
+import { statusLabelKey } from '../../utils/writingSchema';
 import { useAssetPickerStore } from '../../store/assetPickerStore';
 import { illustrationAssetRef } from '../extensions/writingImage';
 import { CoverThumb } from '../../components/CoverThumb';
@@ -18,13 +19,9 @@ import { parseChapterCover } from '../../utils/writingOutline';
 import { buildTree, chapterPathLabelMap } from '../../utils/writingTree';
 import { COVER_FALLBACK_COLOR } from '../../utils/writingCover';
 import { t } from '../../i18n';
+import { surfaceKeyForGenre } from '../../utils/writingSchema';
 
-/** 章状态徽章文案（与 ChapterMetaControls 同一枚举：'' 待写 / draft 草稿 / finished 已完） */
-function statusLabel(status: string): string {
-  if (status === 'finished') return t('writingDesign.statusFinished');
-  if (status === 'draft') return t('writingDesign.statusDraft');
-  return t('writingDesign.statusTodo');
-}
+
 
 function statusColor(status: string): string {
   if (status === 'finished') return '#2e7d32';
@@ -75,7 +72,7 @@ export function ChapterMetaPanel({ chapterId, bookId }: { chapterId: string; boo
             color: 'text.secondary',
           }}
         >
-          {t('writing.chapterDetailsTitle')}
+          {t(surfaceKeyForGenre(book?.genre ?? '', 'unitDetail'))}
         </Typography>
         <Typography
           component="span"
@@ -89,7 +86,7 @@ export function ChapterMetaPanel({ chapterId, bookId }: { chapterId: string; boo
             bgcolor: 'action.hover',
           }}
         >
-          {statusLabel(chapter.status)}
+
         </Typography>
       </Box>
       <Typography sx={{ fontSize: 13.5, fontWeight: 700, wordBreak: 'break-word', mt: 0.5 }}>
