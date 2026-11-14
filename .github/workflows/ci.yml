@@ -15,6 +15,10 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # 本项目前端 bundle 很大（monaco + 主包 5MB+），GitHub runner 上 Node 默认堆（~2GB）会 OOM（exit 134）。
+  # 本地 Mac 默认堆更大所以不现；显式抬到 8GB（ubuntu-latest 16GB 内存安全）。workflow 级 env 同时覆盖
+  # frontend-check 的 vite build 与 publish-tauri 里 tauri-action 的 beforeBuildCommand（同一个 vite build）。
+  NODE_OPTIONS: --max-old-space-size=8192
 
 jobs:
   frontend-check:
