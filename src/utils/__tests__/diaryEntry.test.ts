@@ -8,7 +8,7 @@
  *     机制上多写一个分隔符都不会被肉眼发现，只能靠断言。
  */
 import { readFileSync } from 'node:fs';
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
 import {
   DIARY_DATE_RE,
   diaryDateParts,
@@ -46,6 +46,18 @@ function chapter(partial: Partial<WritingChapter> = {}): WritingChapter {
 }
 
 describe('㉕ 本地日期口径', () => {
+  // 这组用例的靶心是「东八区深夜」相对「UTC 昨天」的差，天然要求运行环境是 UTC+8。
+  // 本地 Mac 默认东八区能过，但 GitHub runner 默认 UTC 会翻车——所以这里显式钉死时区，
+  // 让锁在任何机器/任何 CI 上都按设计意图（东八区）出结果，而不是依赖外部环境。
+  let prevTz: string | undefined;
+  beforeAll(() => {
+    prevTz = process.env.TZ;
+    process.env.TZ = 'Asia/Shanghai';
+  });
+  afterAll(() => {
+    process.env.TZ = prevTz;
+  });
+
   it('深夜算今天，不算昨天（这是 UTC 口径最容易翻车的一刻）', () => {
     // 2026-11-11 00:30 (+08:00) → 本地是 11-11，但 UTC 还是 11-10
     const late = new Date('2026-11-11T00:30:00+08:00');

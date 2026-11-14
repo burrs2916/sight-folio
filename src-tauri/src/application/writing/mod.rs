@@ -1731,9 +1731,28 @@ mod export_smoke_tests {
             st.contains("1 0 0 1 74 "),
             "首行缩进应按当前正文字号落位（50 + 12×2 = 74）"
         );
-        // T3 页脚页码居中（正文页 "页码 / 总页数" 关于页面水平居中，x≈288.74）
+        // T3 页脚页码居中（正文页 "页码 / 总页数" 关于页面水平居中）。
+        // 居中 x 由页脚文本按真实字形宽度算出（(PAGE_W - w)/2），随字体而变：
+        // 例 macOS Arial ≈ 288.74、Linux DroidSansFallback ≈ 288.39——两者都正确居中。
+        // 故不能钉死某一台字体的精确串；页脚独占基线 y=footer_y=MARGIN/2=25，
+        // 据此锁定页脚那一行 Tm 的 x，校验它落在水平居中区间即可（与 toc 右对齐判据同构）。
+        // 区间 (250, 297.5)：上界 PAGE_W/2=297.5（居中必略左于几何中心，因页脚总有宽度），
+        // 下界宽松防页码位数/字体不同使居中 x 左移；与左贴边 50、右贴边 545 显著区分。
+        let footer_centered_ok = st.split("Tm").any(|seg| {
+            let head = seg.rsplit("1 0 0 1 ").next().unwrap_or("");
+            let mut it = head.split_whitespace();
+            match (it.next(), it.next()) {
+                (Some(xs), Some(ys)) => xs
+                    .parse::<f64>()
+                    .ok()
+                    .zip(ys.parse::<f64>().ok())
+                    .map(|(x, y)| y == 25.0 && x > 250.0 && x < 297.5)
+                    .unwrap_or(false),
+                _ => false,
+            }
+        });
         assert!(
-            st.contains("288.74"),
+            footer_centered_ok,
             "footer page number not horizontally centered"
         );
         // T3 封面书名居中（x≈245.5）
@@ -1888,6 +1907,7 @@ mod epub_export_smoke_tests {
         let out = std::env::temp_dir()
             .join("sightfolio_epub_test")
             .join("smoke.epub");
+        std::fs::create_dir_all(out.parent().unwrap()).unwrap();
         let _ = std::fs::remove_file(&out);
         let r = crate::application::writing::export_epub(
             "测试之书".into(),
@@ -2072,6 +2092,7 @@ mod epub_export_smoke_tests {
         let out = std::env::temp_dir()
             .join("sightfolio_epub_test")
             .join("volumes.epub");
+        std::fs::create_dir_all(out.parent().unwrap()).unwrap();
         let _ = std::fs::remove_file(&out);
         let r = crate::application::writing::export_epub(
             "卷之书".into(),
@@ -2154,6 +2175,7 @@ mod epub_export_smoke_tests {
         let out = std::env::temp_dir()
             .join("sightfolio_epub_test")
             .join("minimal.epub");
+        std::fs::create_dir_all(out.parent().unwrap()).unwrap();
         let _ = std::fs::remove_file(&out);
         let r = crate::application::writing::export_epub(
             "无图之书".into(),
@@ -2206,6 +2228,7 @@ mod epub_export_smoke_tests {
         let out = std::env::temp_dir()
             .join("sightfolio_epub_test")
             .join("escape.epub");
+        std::fs::create_dir_all(out.parent().unwrap()).unwrap();
         let _ = std::fs::remove_file(&out);
         let r = crate::application::writing::export_epub(
             "A & B <book>".into(),
