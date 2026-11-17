@@ -215,7 +215,7 @@ function detectPunctuation(sentences: { text: string; start: number; end: number
 }
 
 /** 情绪直述：短句（≤26 字）直接陈述抽象情绪/评价词，缺具体呈现 */
-function detectVague(text: string, sentences: { text: string; start: number; end: number }[]): AiFlavorIssue[] {
+function detectVague(_text: string, sentences: { text: string; start: number; end: number }[]): AiFlavorIssue[] {
   const issues: AiFlavorIssue[] = [];
   for (const s of sentences) {
     const len = bodyLen(s.text);

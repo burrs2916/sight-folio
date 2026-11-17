@@ -230,7 +230,7 @@ export function getSlashCommands(isBookScene?: boolean, genre?: string): Workben
       description: () => L("为选中或当前代码生成文档注释并写入", "Generate doc comments for the selection/file and write them"),
       mode: "edit",
       embedSelection: true,
-      buildText: (args, ctx) => {
+      buildText: (_args, ctx) => {
         if (!ctx.activeFile) return L("请先打开一个文件，再使用 /doc。", "Open a file before using /doc.");
         const lang = ctx.activeFile.language ?? "";
         if (ctx.selection) {

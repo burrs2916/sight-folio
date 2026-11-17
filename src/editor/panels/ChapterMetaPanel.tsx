@@ -11,7 +11,6 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import { useWritingStore } from '../../store/writingStore';
-import { statusLabelKey } from '../../utils/writingSchema';
 import { useAssetPickerStore } from '../../store/assetPickerStore';
 import { illustrationAssetRef } from '../extensions/writingImage';
 import { CoverThumb } from '../../components/CoverThumb';

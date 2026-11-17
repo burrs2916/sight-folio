@@ -251,7 +251,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [clientToCanvas, t]);
+  }, [clientToCanvas]);
 
   // ─── 画布截图导出 PNG（低频操作，动态 import 不进主包；捕获 canvasRef 容器，
   //     工具条/小地图是其兄弟节点，天然不入图）───
@@ -276,7 +276,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
     } finally {
       setExportingPng(false);
     }
-  }, [exportingPng, t]);
+  }, [exportingPng]);
 
   // ─── LOD 档位（R37：全览时虚拟化失效的补位手段）──────────────────────
   // 视口虚拟化只在「实体在视口外」时省事，而用户最常用的「适应画布」恰恰把
@@ -377,6 +377,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
       return null;
     }
     return ids;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- canvasSize 对象已拆为 .width/.height 精确触发，整个对象每次 render 新建引用，补了反而导致不必要重算
   }, [components, scale, panOffset, canvasSize.width, canvasSize.height, selectedIds]);
 
   // ─── 渲染顺序：依赖边先于实体 ───
@@ -464,7 +465,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
         .getState()
         .showToast(t('editor.depEdgeClick', { from: nameOf(from), to: nameOf(to), symbols }), 'info');
     },
-    [t],
+    [],
   );
 
   // ─── 拖放状态 ───
@@ -963,7 +964,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [updateComponentTransform, viewportRef]);
+  }, [updateComponentTransform, viewportRef, WRITING_SNAP_TYPES]);
 
   // ─── V4 拍板：载体 = 铺满画布的载体视图，拖动/缩放均无意义，实体缩放手柄已移除 ───
 
@@ -1046,6 +1047,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
       1000,
     );
     if (next) setViewportAnimated(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 同 380 行：canvasSize 对象已拆为 .width/.height 精确触发
   }, [fitRequest, components, setViewportAnimated, ZOOM_LIMITS, canvasSize.width, canvasSize.height]);
 
   // 打开上下文菜单
@@ -1355,6 +1357,7 @@ export function ProjectCanvas({ onSyncToCanvas, syncing }: { onSyncToCanvas?: ()
       addView,
       deselectAll,
       updateComponentTransform,
+      isBookScene,
     ],
   );
 

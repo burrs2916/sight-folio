@@ -230,12 +230,8 @@ pub fn export_docx(
         .to_string();
     for (i, (_rel, (ext, _, _, _))) in img_cache.iter().enumerate() {
         let rel_id = format!("imgRel{i}");
-        let ct = match ext.as_str() {
-            "png" => "image/png",
-            "jpg" | "jpeg" => "image/jpeg",
-            "gif" => "image/gif",
-            _ => "image/png",
-        };
+        // ct（MIME type）已弃用：docx Relationship 里不需要显式 content type，
+        // 阅读器按扩展名自动识别。留着占位变量只会触发 unused_variables 警告。
         doc_rels.push_str(&format!(
             r#"<Relationship Id="{rel_id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img{i}.{ext}"/>"#
         ));

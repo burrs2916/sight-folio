@@ -138,7 +138,9 @@ export default function ScenePreviewPage() {
       sceneName: scene.name,
       isLive,
     });
-  }, [sceneId, scenes, loadScene, setCanvasConfig, isLive]);
+  },
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSceneWithViews 是 Zustand store 上的函数属性，引用不稳定；补了会导致 effect 每 render 都跑
+  [sceneId, scenes, loadScene, setCanvasConfig, isLive]);
 
   useEffect(() => {
     return () => {

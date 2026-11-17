@@ -1,3 +1,5 @@
+// [public API reserved] allow dead_code: 封存域/预留公共 API，保留签名
+#![allow(dead_code)]
 // pdf_export.rs
 // 离线原生 PDF 导出（T7）：不依赖浏览器打印，纯 Rust 生成。
 //
@@ -987,8 +989,8 @@ fn build_toc_stream(
     let page_right = PAGE_W - MARGIN;
     let mut seen_volume: Option<String> = None;
     for (i, ch) in chapters.iter().enumerate() {
-        let mut indent = 0.0_f64;
-        let mut bold = false;
+        let indent; // 不初始化：if/else 所有路径都赋值，消除 unused_assignments 警告
+        let mut bold = false; // 保留初始值，else 分支里不赋值（粗体只在 tree 模式生效）
         if tree {
             indent = 22.0 * ch.depth.unwrap_or(0).min(3) as f64;
             bold = ch.is_volume == Some(true);
@@ -999,8 +1001,8 @@ fn build_toc_stream(
                     append_text_line_at(&mut buf, v, 12.0, &glyphs, MARGIN, y, true);
                     y -= 22.0;
                 }
-                seen_volume = volume.map(str::to_string);
             }
+            seen_volume = volume.map(str::to_string); // 不管 volume 是 Some/None 都更新
             indent = if volume.is_some() { 22.0 } else { 0.0 }; // 卷下章条目缩进（2 × 11pt）
         }
         let entry_size = if bold { 12.0 } else { 11.0 };

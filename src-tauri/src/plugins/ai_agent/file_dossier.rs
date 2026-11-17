@@ -134,7 +134,7 @@ pub fn resolve_file(conn: &Connection, analysis_id: &str, raw: &str) -> Resoluti
     let exact = fetch_files(conn, "rel_path = ?2", &[aid.clone(), input.clone()]);
     if !exact.is_empty() {
         return if exact.len() == 1 {
-            Resolution::One(exact.into_iter().next().unwrap(), "exact")
+            Resolution::One(exact.into_iter().next().expect("exact match list must have at least one element"), "exact")
         } else {
             Resolution::Ambiguous(exact)
         };
@@ -147,7 +147,7 @@ pub fn resolve_file(conn: &Connection, analysis_id: &str, raw: &str) -> Resoluti
     );
     if !suffix.is_empty() {
         return if suffix.len() == 1 {
-            Resolution::One(suffix.into_iter().next().unwrap(), "suffix")
+            Resolution::One(suffix.into_iter().next().expect("suffix match list must have at least one element"), "suffix")
         } else {
             Resolution::Ambiguous(suffix)
         };
@@ -160,7 +160,7 @@ pub fn resolve_file(conn: &Connection, analysis_id: &str, raw: &str) -> Resoluti
     );
     if !by_name.is_empty() {
         return if by_name.len() == 1 {
-            Resolution::One(by_name.into_iter().next().unwrap(), "basename")
+            Resolution::One(by_name.into_iter().next().expect("basename match list must have at least one element"), "basename")
         } else {
             Resolution::Ambiguous(by_name)
         };
@@ -172,7 +172,7 @@ pub fn resolve_file(conn: &Connection, analysis_id: &str, raw: &str) -> Resoluti
         &[aid.clone(), format!("%{}%", escape_like(&input))],
     );
     if contains.len() == 1 {
-        return Resolution::One(contains.into_iter().next().unwrap(), "contains");
+        return Resolution::One(contains.into_iter().next().expect("contains match list must have at least one element"), "contains");
     }
     if !contains.is_empty() {
         return Resolution::Ambiguous(contains);

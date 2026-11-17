@@ -31,6 +31,7 @@ export function MetricRenderer(props: ComponentRendererProps) {
   const backgroundColor = (config.backgroundColor as string) || "rgba(0,0,0,0.2)";
   const borderRadius = (config.borderRadius as number) ?? 4;
   const padding = (config.padding as number) ?? 12;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- statusRules 是 config.statusRules 的空值兜底（|| []），每次 render 可能新建数组
   const statusRules = (config.statusRules as StatusRule[]) || [];
   const field = (config.field as string) || "";
 

@@ -124,7 +124,7 @@ export function WritingDocsRenderer({ config, componentId, mode }: ComponentRend
     if (proofreadJumpAnchor.textHits?.length) {
       setProofreadHits(proofreadJumpAnchor.textHits);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [proofreadJumpAnchor, activeEntry?.chapterId]);
   useEffect(() => {
     if (!activeEntry) setProofreadHits(null);

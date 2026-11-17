@@ -3736,6 +3736,7 @@ pub struct WriteChapterTool {
 }
 
 impl WriteChapterTool {
+    #[allow(dead_code)]
     pub fn new(db: Arc<Database>) -> Self {
         Self { db, notifier: None }
     }
@@ -3942,6 +3943,7 @@ pub struct CreateChapterTool {
 }
 
 impl CreateChapterTool {
+    #[allow(dead_code)]
     pub fn new(db: Arc<Database>) -> Self {
         Self { db, notifier: None }
     }

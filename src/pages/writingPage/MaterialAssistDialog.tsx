@@ -204,7 +204,7 @@ export function MaterialAssistDialog({
     } finally {
       setScanning(false);
     }
-  }, [t]);
+  }, []);
 
   // ─── AI 分析资料 ───
   const handleAnalyze = useCallback(async () => {
@@ -233,7 +233,7 @@ export function MaterialAssistDialog({
     } finally {
       setAnalyzing(false);
     }
-  }, [agentId, files, books, targetBookId, t]);
+  }, [agentId, files, books, targetBookId]);
 
   // ─── AI 生成正文草稿：分析结果 + 目标章已有正文（衔接） ───
   const handleGenerate = useCallback(async () => {
@@ -280,7 +280,6 @@ export function MaterialAssistDialog({
     targetChapters,
     activeChapterId,
     currentChapterText,
-    t,
   ]);
 
   const canInsert = draftText.trim().length > 0 && targetChapterId;

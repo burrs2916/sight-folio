@@ -1326,7 +1326,9 @@ fn palmdoc_decompress(data: &[u8]) -> Vec<u8> {
 
         match byte {
             new if prev.is_some() => {
-                let old = prev.take().unwrap();
+                let old = prev
+                    .take()
+                    .expect("prev is Some here, guarded by prev.is_some() match arm");
 
                 // 与前一个字节合并成 distance-length 对。
                 let mut dist_len_bytes = u16::from_be_bytes([old, new]);

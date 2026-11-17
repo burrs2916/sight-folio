@@ -239,7 +239,7 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
             "SELECT rel_path, media_type, bytes, missing FROM version_assets
               WHERE version_id = ?1 ORDER BY rel_path",
         )?;
-        let mut rows = stmt.query_map([version_id], |r| {
+        let rows = stmt.query_map([version_id], |r| {
             let missing: i64 = r.get(3)?;
             Ok(VersionAsset {
                 version_id: version_id.to_string(),
@@ -399,7 +399,7 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
             .0
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        conn.execute(
+        match conn.execute(
             "INSERT INTO export_artifacts
              (id, version_id, book_id, format, spec_id, file_rel_path, file_size, status,
               error, origin, created_at)
@@ -417,8 +417,20 @@ impl WorkVersionRepository for SqliteWorkVersionRepository {
                 artifact.origin,
                 artifact.created_at,
             ],
-        )?;
-        Ok(())
+        ) {
+            Ok(_) => Ok(()),
+            // UNIQUE 冲突：同版本 + 同格式 + 同 spec 已有 queued/running 任务
+            // （migration.rs 里 IX_ea_idempotent 部分唯一索引拦截）
+            Err(rusqlite::Error::SqliteFailure(err, _))
+                if err.code == rusqlite::ErrorCode::ConstraintViolation =>
+            {
+                Err(AppError::Validation(format!(
+                    "「{}」的 {} 格式导出已在队列中，请勿重复提交",
+                    artifact.book_id, artifact.format
+                )))
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 
     fn find_artifact(&self, id: &str) -> AppResult<Option<ExportArtifact>> {

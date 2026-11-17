@@ -1,3 +1,5 @@
+// [public API reserved] allow dead_code: 封存域/预留公共 API，保留签名
+#![allow(dead_code)]
 //! 写作域应用服务层（T4 领域下沉）。
 //!
 //! 职责：承载写作域的中重逻辑——EPUB 导出、全书扫描（分析器融合）、
@@ -433,7 +435,6 @@ pub fn byline_of(meta: &BookMeta) -> String {
 /// 重写时**先删掉标签内原有 `src`，再补一个新 `src`** —— 直接追加会造出重复属性，
 /// 而重复属性在 XHTML 里是非法的，阅读器取哪一个全看运气。
 pub fn inline_images_as_data_uri(html: &str, frozen: Option<&FrozenAssets>) -> AppResult<String> {
-    use base64::Engine;
     let engine = base64::engine::general_purpose::STANDARD;
     let mut out = String::with_capacity(html.len() + 1024);
     let mut rest: &str = html;

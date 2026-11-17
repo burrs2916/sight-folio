@@ -945,7 +945,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       });
     }
     return out;
-  }, [canvasScope, scopeFacts, t]);
+  }, [canvasScope, scopeFacts]);
 
   const impactFiles = useMemo<{ fileId: string; relPath: string }[]>(() => {
     const focusId = canvasScope?.fileId ?? activeFile?.fileId;
@@ -1314,6 +1314,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       bookTopic,
       bookTitle,
       focusSetting,
+      impactFiles,
     ],
   );
 
@@ -1328,7 +1329,7 @@ export function useWorkbenchContext(deps: WorkbenchPanelDeps) {
       }
       void send(text);
     },
-    [isStreaming, send, t],
+    [isStreaming, send],
   );
 
   const prevStreaming = useRef(isStreaming);
@@ -1718,7 +1719,7 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
         return false;
       }
     },
-    [activeAnalysisId, resolveFileId, selectedConversationId, ctx],
+    [ resolveFileId, selectedConversationId, ctx],
   );
 
   const onCodeApply = useCallback(
@@ -1818,7 +1819,7 @@ export function useWorkbenchEdits(deps: WorkbenchPanelDeps & { ctx: ReturnType<t
       useToastStore.getState().showToast(t('workbench.aiCode.applyFail', { error: e?.message ?? String(e) }), 'error');
     }
     setDiff(null);
-  }, [diff, selectedConversationId, ctx]);
+  }, [diff, selectedConversationId, ctx, activeFile]);
 
   return {
     diff,
@@ -1924,6 +1925,7 @@ export function useWorkbenchChat(deps: {
       saveComposerSkip(selectedConversationIdRef.current, resolved);
       return resolved;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- saveComposerSkip 是 hook 内普通函数（每次 render 新建），补了会让 setComposerSkip 也每次重建；用空依赖保持其稳定，saveComposerSkip 内部只访问 localStorage，无状态闭包风险
   }, []);
 
   // 切换会话：从 localStorage 载入该会话的已处理集合。用原始 setter 避免回写，
@@ -2065,7 +2067,7 @@ export function useWorkbenchChat(deps: {
         useToastStore.getState().showToast(t('workbench.aiApply.composerApplied', { n }), 'success');
       }
     },
-    [composersByMsg, composerSkip, edits, ctx],
+    [composersByMsg, composerSkip, edits, ctx, setComposerSkip],
   );
 
   // ── 消息级操作（对标 VS Code Copilot Chat 的气泡悬浮工具条）──
@@ -2146,7 +2148,7 @@ export function useWorkbenchChat(deps: {
 
   const skipComposerItem = useCallback((key: string) => {
     setComposerSkip((s) => new Set(s).add(key));
-  }, []);
+  }, [setComposerSkip]);
   const skipAllForMsg = useCallback(
     (msgId: string) => {
       const items = composersByMsg[msgId];
@@ -2157,7 +2159,7 @@ export function useWorkbenchChat(deps: {
         return next;
       });
     },
-    [composersByMsg],
+    [composersByMsg, setComposerSkip],
   );
 
   return {

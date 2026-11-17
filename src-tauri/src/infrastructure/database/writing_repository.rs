@@ -1,3 +1,5 @@
+// [SEALED] allow dead_code: 封存域/预留公共 API，保留签名
+#![allow(dead_code)]
 use crate::domain::writing::{
     ExternalCapture, ExternalCaptureKind, WritingAnnotation, WritingBook, WritingChapter,
     WritingChapterSnapshot, WritingDailyStat, WritingForeshadowing, WritingNote, WritingOutline,

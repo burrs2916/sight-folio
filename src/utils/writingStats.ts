@@ -59,7 +59,7 @@ export function isVolumeNode(r: VolumeResolver, ch: WritingChapter): boolean {
 }
 
 /** 旧模型（全书无 parentId）时章节卷名直接取遗留 volume 字段 */
-function legacyVolumeName(r: VolumeResolver, ch: WritingChapter): string {
+function legacyVolumeName(_r: VolumeResolver, ch: WritingChapter): string {
   return ch.volume || '';
 }
 

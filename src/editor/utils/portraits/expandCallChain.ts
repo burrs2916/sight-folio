@@ -19,7 +19,7 @@ import { receiverQualifiedName } from '.././callEdgeReceiver';
  * - 非侵入：零后端、不触碰 runCallGraphPortrait 的全量布局。
  */
 export function expandCallChain(
-  analysisId: string,
+  _analysisId: string,
   symbolId: string,
   origin: { x: number; y: number },
   depth = 2,

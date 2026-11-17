@@ -41,5 +41,34 @@ export default defineConfig(() => ({
   },
   build: {
     modulePreload: false,
+    // 生产构建自动剥离 console.* 和 debugger：
+    // dev 模式保留（方便调试），生产包里全部移除 —— 减体积 + 不暴露敏感信息（如 authStore 里 accessToken 刷新的 debug log）。
+    // 用 terser：esbuild 的 drop 选项在 Vite 6 的 minify 路径上透传不稳定，terser 的 compress.drop_console/debugger 100% 生效。
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+    rollupOptions: {
+      output: {
+        // 手动 chunk 拆分：把大型第三方库各自拆出独立 chunk，
+        // 避免全部塞进 index 主 chunk（之前 5 MB），并行下载 + 更好的缓存命中。
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("@mui")) return "mui";
+            if (id.includes("@tiptap") || id.includes("tiptap")) return "tiptap";
+            if (id.includes("echarts")) return "echarts";
+            if (id.includes("three")) return "three";
+            if (id.includes("@monaco-editor") || id.includes("monaco-editor")) return "monaco-core";
+            if (id.includes("zustand")) return "zustand";
+            if (id.includes("@tauri-apps")) return "tauri";
+            if (id.includes("prosemirror") || id.includes("@tiptap")) return "prosemirror";
+            return "vendor";
+          }
+        },
+      },
+    },
   },
 }));

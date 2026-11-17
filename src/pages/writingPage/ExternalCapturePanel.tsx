@@ -123,7 +123,7 @@ export function ExternalCapturePanel({
     return () => {
       alive = false;
     };
-  }, [bookId, t]);
+  }, [bookId]);
 
   useEffect(() => reload(), [reload, refreshKey]);
 
@@ -140,7 +140,7 @@ export function ExternalCapturePanel({
         setDeletingId(null);
       }
     },
-    [t],
+    [],
   );
 
   /**
@@ -211,7 +211,7 @@ export function ExternalCapturePanel({
         setReanalyzingId(null);
       }
     },
-    [agentId, agents.length, reanalyzingId, bookId, t],
+    [agentId, agents.length, reanalyzingId, bookId],
   );
 
   return (

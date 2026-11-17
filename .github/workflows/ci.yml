@@ -38,6 +38,15 @@ jobs:
       - name: Install dependencies (locked)
         run: npm ci --legacy-peer-deps --no-audit --no-fund
 
+      # Vite 依赖预构建缓存（node_modules/.vite/deps）。
+      # 这是 dev server 和首次 build 中最慢的一步；缓存命中后构建快 15-30s。
+      - name: Cache Vite deps
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.vite/deps
+          key: vite-deps-${{ hashFiles('package-lock.json') }}
+          restore-keys: vite-deps-
+
       - name: Type check
         run: npx tsc --noEmit
 
@@ -104,17 +113,40 @@ jobs:
       - name: Cargo clippy
         run: |
           cd src-tauri
-          cargo clippy --all-features -- -W clippy::all
+          # clippy::unwrap_used + expect_used：让 unwrap()/expect() 在 CI 里报警。
+          # 项目当前约 1500+ 处裸 unwrap（以 repository/commands 层为主），
+          # 先开警告逐步收敛，暂不 -D（禁止）以免阻塞 PR。
+          cargo clippy --all-features -- \
+            -W clippy::all \
+            -W clippy::unwrap_used \
+            -W clippy::expect_used
 
       - name: Cargo test
         run: |
           cd src-tauri
           cargo test --all-features
 
+  rust-audit:
+    name: Rust Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit (RustSec DB)
+        run: cargo install cargo-audit --locked
+
+      - name: Run vulnerability scan
+        run: |
+          cd src-tauri
+          cargo audit
+
   publish-tauri:
     name: Publish ${{ matrix.platform }}
-    needs: [frontend-check, rust-check]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [frontend-check, rust-check, rust-audit]
+    # 只在 push v* 标签时触发 — main 推送不自动编译，完全对齐产品约束。
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     strategy:

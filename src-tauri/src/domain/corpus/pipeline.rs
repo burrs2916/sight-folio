@@ -1,3 +1,5 @@
+// [SEALED] allow dead_code: 封存域/预留公共 API，保留签名
+#![allow(dead_code)]
 /// 语料导入管线（纯函数，无 IO）：文本 → 句序列切分 + 字数统计。
 ///
 /// 设计约束：

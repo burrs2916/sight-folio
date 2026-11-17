@@ -47,7 +47,6 @@ import { BookMetaDialog } from '../../pages/BookMetaDialog';
 import {
   deriveBookGoalProgress,
   derivePaceProjection,
-  formatPaceCorpus,
   resolveBookGoalInput,
   deadlineToInput,
   diffDailyStats,

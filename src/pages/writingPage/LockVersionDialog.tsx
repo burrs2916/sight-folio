@@ -104,7 +104,7 @@ export function LockVersionDialog({ open, onClose, bookId, flushSave, flushSetti
         setSubmitting(false);
       }
     },
-    [bookId, closeAndReset, flushSave, flushSettingSave, getFreshChapters, isFinal, label, navigate, note, submitting],
+    [bookId, closeAndReset, flushSave, flushSettingSave, getFreshChapters, isFinal, label, navigate, note, submitting, author, publisher, completedAt, isbn],
   );
 
   return (

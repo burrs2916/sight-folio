@@ -1277,16 +1277,6 @@ export function WritingSettingDetail({ setting, bookId }: { setting: WritingSett
   const extra = useMemo(() => parseSettingExtra(setting.extra), [setting.extra]);
 
   // 反向联动：与此人物/设定相关的伏笔（2026-10-04）——必须在所有 Hook 之后、早退之前定义
-  const foreshadowings = useWritingStore((s) => s.foreshadowings);
-  const outlines = useWritingStore((s) => s.outlines);
-  const settingsAll = useWritingStore((s) => s.settings);
-  const books = useWritingStore((s) => s.books);
-  const selectForeshadowing = useEditorStore((s) => s.selectForeshadowing);
-  const genre = useMemo(() => books.find((b) => b.id === bookId)?.genre ?? 'fiction', [books, bookId]);
-  const relatedFs = useMemo(
-    () => sortForeshadowings(relatedForeshadowings(setting.id, foreshadowings, outlines, settingsAll), []),
-    [setting.id, foreshadowings, outlines, settingsAll],
-  );
 
   if (setting.kind === 'worldbuilding') {
     return <WorldviewSettingNative setting={setting} bookId={bookId} />;

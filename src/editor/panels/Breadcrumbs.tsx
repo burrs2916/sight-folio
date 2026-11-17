@@ -121,6 +121,7 @@ export function Breadcrumbs({
   const fileName = parts[parts.length - 1];
   const dirParts = parts.slice(0, -1);
   // 当前光标符号链（外层→内层）；最内层（末项）承载符号级 AI 诊断。
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- chain 是 symbols 的空值兜底（|| []），实际数据源是 symbols
   const chain = symbols && symbols.length ? symbols : [];
   const activeSym = chain.length ? chain[chain.length - 1] : null;
   // 链过长时取「头 + ⋯ + 尾」，对标 Zed MAX_SEGMENTS=12 的中段省略（保持首尾上下文）。

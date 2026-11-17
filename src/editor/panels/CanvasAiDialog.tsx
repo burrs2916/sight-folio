@@ -90,7 +90,7 @@ export function CanvasAiDialog({ open, onClose }: { open: boolean; onClose: () =
     const comps = useEditorStore.getState().components;
     const map = new Map(comps.map((c) => [c.id, c.name]));
     return (id: string) => map.get(id) ?? id.slice(0, 8);
-  }, [ops]);
+  }, []);
 
   const handleRun = async () => {
     if (!agentId || !instruction.trim()) return;

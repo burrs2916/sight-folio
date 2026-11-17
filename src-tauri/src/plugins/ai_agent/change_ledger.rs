@@ -100,6 +100,7 @@ pub struct RevertOutcome {
     pub new_lines: usize,
     /// 撤销后写入磁盘的内容（调用方据此 emit file-changes / 刷新编辑器）
     #[serde(skip)]
+    #[allow(dead_code)]
     pub content: String,
 }
 

@@ -335,6 +335,7 @@ export function SceneEditorProvider({ children, crs, mode = 'edit' }: { children
       core.eventBindingEngine.destroy();
       initializedRef.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- crs 是初始化 prop，本 effect 只在首次挂载跑一次（initializedRef 守卫），crs 后续不会变
   }, []);
 
   return (

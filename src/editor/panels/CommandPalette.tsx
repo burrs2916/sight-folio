@@ -151,7 +151,7 @@ export function CommandPalette({
     }
   }, [open]);
 
-  const history = useMemo(() => loadHistory(), [open]);
+  const history = useMemo(() => loadHistory(), []);
 
   // 使用频次排序（镜像 Zed hit_counts）：被面板调用越多越靠前，其次按标题字典序。
   const ranked = useMemo(() => {
@@ -162,7 +162,7 @@ export function CommandPalette({
       if (ub !== ua) return ub - ua;
       return a.title.localeCompare(b.title);
     });
-  }, [commands, open]);
+  }, [commands]);
 
   const results = useMemo(() => {
     const q = query.trim();

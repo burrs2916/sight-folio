@@ -61,6 +61,7 @@ impl AnalysisScope {
 #[derive(Debug, Clone)]
 pub struct DimensionCoverage {
     pub key: &'static str,
+    #[allow(dead_code)]
     pub label: &'static str,
     pub count: i64,
 }

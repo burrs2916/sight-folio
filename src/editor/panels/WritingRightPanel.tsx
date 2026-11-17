@@ -167,7 +167,7 @@ export function WritingOutlinePanel({
       groups.get(key)!.push(r);
     }
     return [...groups.entries()];
-  }, [files, t]);
+  }, [files]);
 
   if (volumes.length === 0) return <EmptyState icon={<MenuBookIcon />} text="" />;
   return (

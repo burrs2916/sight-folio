@@ -46,6 +46,7 @@ export function useViewport() {
         });
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- canvasConfig.viewport.* 嵌套属性路径，ESLint 无法静态验证，补整个 canvasConfig 会导致每 render 都重建 callback
     [viewport, setViewport]
   );
 

@@ -105,11 +105,6 @@ async function mountAsync(ui: ReactElement) {
 }
 
 /** 等待面板内部 300ms 防抖到期并 flush 检索 promise 微任务 */
-async function flushDebounce() {
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 320));
-  });
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -181,7 +176,7 @@ describe('语料参考区双标签页（语料库 / AI 语料 · P0 骨架），
     expect(h.status).toHaveBeenCalledTimes(1);
     // 切到 AI 语料 Tab
     await act(async () => {
-      ai!.querySelectorAll('[role="tab"]').forEach((t) => {});
+      ai!.querySelectorAll('[role="tab"]').forEach(() => {});
       ai!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     // Tab 语义：MUI Tab 是 role=tab；此处直接点其文本

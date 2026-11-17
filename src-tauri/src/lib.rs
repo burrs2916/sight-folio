@@ -143,10 +143,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let db = Database::new(app.handle()).expect("Failed to initialize database");
+            let db = Database::new(app.handle())?;
 
             {
-                let conn = db.0.lock().unwrap();
+                let conn = db
+                    .0
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 init_tables(&conn)?;
                 migrate(&conn)?;
             }
@@ -311,7 +314,9 @@ pub fn run() {
             // 代码工作台集成终端会话表
             app.manage(TerminalManager::new());
 
-            let window = app.get_webview_window("main").unwrap();
+            let window = app
+                .get_webview_window("main")
+                .expect("main webview window must exist in setup");
             window.set_title("Sight Folio")?;
 
             // macOS dev 模式 Dock 图标（debug 构建才需要；打包版由 .app bundle 提供）

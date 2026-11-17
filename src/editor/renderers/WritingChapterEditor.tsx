@@ -40,7 +40,6 @@ import { beatEventText, beatImported } from '../../utils/writingTimeline';
 import { beatPlantedAsForeshadowing } from '../../utils/writingInspiration';
 import { chapterTextIssues } from '../../utils/writingProofread';
 import { unitShortKey } from '../../utils/writingSchema';
-import type { WritingChapter } from '../../services/writing';
 import {
   ForeshadowReminder,
   InspirationReminder,
@@ -298,7 +297,7 @@ export function WritingChapterEditor({
     loadedContentRef.current = next;
     editor.commands.setContent(next, { emitUpdate: false });
     // 只读容器无 pending 排程，saveState 恒 idle，重置无副作用
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setSaveState('idle');
     // 刻意不依赖 chapter 对象身份：装载后保存回写/外部同步都靠内容快照判别，不按引用重置
   }, [editor, chapterId, chapter, readOnly, flushSave, setSaveState]);

@@ -76,7 +76,7 @@ async fn relay(ws: WebSocketStream<tokio::net::TcpStream>, app: AppHandle, conn_
     let mut read: futures::stream::SplitStream<WebSocketStream<tokio::net::TcpStream>> = read;
 
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
-    ws_conns().lock().unwrap().insert(conn_id.clone(), tx);
+    ws_conns().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).insert(conn_id.clone(), tx);
     let _ = app.emit(
         "acp-ws-conn",
         serde_json::json!({ "connId": conn_id, "connected": true }),
@@ -115,7 +115,7 @@ async fn relay(ws: WebSocketStream<tokio::net::TcpStream>, app: AppHandle, conn_
     }
 
     // 连接关闭：清理槽位 + 通知前端
-    ws_conns().lock().unwrap().remove(&conn_id);
+    ws_conns().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&conn_id);
     let _ = app.emit(
         "acp-ws-conn",
         serde_json::json!({ "connId": conn_id, "connected": false }),
@@ -127,7 +127,7 @@ async fn relay(ws: WebSocketStream<tokio::net::TcpStream>, app: AppHandle, conn_
 #[tauri::command]
 pub async fn send_acp_ws(conn_id: Option<String>, message: String) -> Result<(), String> {
     let frames: Vec<WsTx> = {
-        let map = ws_conns().lock().unwrap();
+        let map = ws_conns().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         match &conn_id {
             Some(id) => map.get(id).into_iter().cloned().collect(),
             None => map.values().cloned().collect(),
@@ -143,6 +143,6 @@ pub async fn send_acp_ws(conn_id: Option<String>, message: String) -> Result<(),
 #[tauri::command]
 pub async fn stop_acp_ws_server() -> Result<(), String> {
     ws_stop().store(true, Ordering::SeqCst);
-    ws_conns().lock().unwrap().clear();
+    ws_conns().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clear();
     Ok(())
 }

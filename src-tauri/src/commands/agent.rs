@@ -527,7 +527,7 @@ pub async fn test_endpoint_connection(
     let client = reqwest::Client::new();
     // 与真实调用共用同一套 auth 装载（判据在 provider::with_auth_header），杜绝「测试通过但真实调用失败」的漂移。
     // auth_type = none 的本地服务（如本机 Ollama）一个认证头都不发 —— 本地没有 Key 这个概念。
-    let mut req = crate::plugins::ai_agent::provider::with_auth_header(
+    let req = crate::plugins::ai_agent::provider::with_auth_header(
         client.get(&url),
         &endpoint.auth_type,
         &endpoint.custom_auth_header,

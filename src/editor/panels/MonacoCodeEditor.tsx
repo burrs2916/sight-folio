@@ -1237,7 +1237,7 @@ export const MonacoCodeEditor = forwardRef<MonacoEditorHandle, MonacoCodeEditorP
       }));
     if (!bmRef.current) bmRef.current = ed.createDecorationsCollection(bookmarkDecos);
     else bmRef.current.set(bookmarkDecos);
-  }, [marks, heatRanges, deadRanges, cloneRanges, bookmarks]);
+  }, [marks, heatRanges, deadRanges, cloneRanges]);
 
   useEffect(() => {
     applyDecos();

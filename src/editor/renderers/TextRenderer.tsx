@@ -423,6 +423,7 @@ function useAutoFit(
   useEffect(() => {
     if (!autoFit) return;
     fittedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps 是外部传入的依赖列表（非数组字面量），ESLint 无法静态验证
   }, deps);
 
   useEffect(() => {
@@ -450,6 +451,7 @@ function useAutoFit(
       onConfigChange("_autoFitSize", { width: fitW, height: fitH });
       fittedRef.current = true;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deps spread 来自外部传入，ESLint 无法静态验证
   }, [autoFit, onConfigChange, padding, borderWidth, contentRef, containerRef, ...deps]);
 }
 
@@ -788,7 +790,7 @@ export function TextRenderer(props: ComponentRendererProps) {
     }
 
     return sx;
-  }, [isHorizontalMarquee, fontFamily, fontSize, fontWeight, fontStyle, lineHeight, letterSpacing, textAlign, textDecoration, textShadowValue, colorStyle, loopAnimStyle, marqueeStyle, loopAnimation, carouselResult.animStyle, enterComplete, hovered, hoverEffect, gradientEnabled, gradientFrom, overflow]);
+  }, [isHorizontalMarquee, fontFamily, fontSize, fontWeight, fontStyle, lineHeight, letterSpacing, textAlign, textDecoration, textShadowValue, colorStyle, loopAnimStyle, marqueeStyle, loopAnimation, carouselResult.animStyle, enterComplete, hovered, hoverEffect, gradientEnabled, gradientFrom, overflow, color]);
 
   const containerAnimStyle = useMemo(() => {
     if (!enterComplete) {

@@ -49,6 +49,7 @@ pub struct AiContextPackInputDto {
     /// 本次内容发生变化的分节键（分节级增量保存时，sections 只需带这些节，
     /// 但 section_keys 仍要给全集，否则包元信息会漏节）
     #[serde(default)]
+    #[allow(dead_code)]
     pub changed_sections: Vec<String>,
     /// 包内分节键全集。分节增量保存时 sections 是子集，全集必须单独给。
     #[serde(default)]

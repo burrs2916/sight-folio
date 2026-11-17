@@ -37,7 +37,6 @@ import { agentApi, type AiMessage } from '../../services/tauri';
 import type { WritingOutline, WritingSetting } from '../../services/writing';
 import { parseBeatExtra } from '../../utils/writingOutline';
 import {
-  INSPIRATION_EXPAND_MAX_VERSIONS,
   inspirationExpandSystemHintFor,
   buildInspirationExpandPrompt,
   extractInspirationVersions,

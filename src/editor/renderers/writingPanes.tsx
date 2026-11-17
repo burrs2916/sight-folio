@@ -105,7 +105,6 @@ import ChapterPicker from './ChapterPicker';
 import EntityPicker from './EntityPicker';
 import { ForeshadowingDetail } from '../panels/ForeshadowingPanels';
 import { InspirationDetail } from '../panels/InspirationPanels';
-import { ChapterStatusDot } from '../components/ChapterStatusDot';
 import { DraftInput } from '../components/DraftInput';
 import { currentScrollBehavior } from '../../utils/reducedMotion';
 import { confirmDestructive } from '../../store/confirmStore';
@@ -806,11 +805,6 @@ export function CastPane({
   );
 }
 
-// ─── 节点状态循环：待写 → 草稿 → 已完（点击状态点）───
-// 状态点本体、层级配色与状态文案都已抽到 components/ChapterStatusDot（左栏作品目录树与
-// 本视图共用同一枚，禁第二份）。
-const NODE_STATUS_CYCLE = ['', 'draft', 'finished'];
-
 // ─── 鸟瞰条：全书形状（按根节点泛化；卷/部/篇…任意根都聚合其子树进度） ───
 function countSubtree(node: TreeNode): { total: number; finished: number; draft: number } {
   let total = 1;
@@ -907,7 +901,6 @@ function NodeRow({
 }) {
   const reparentNode = useWritingStore((s) => s.reparentNode);
   const renameNodeKind = useWritingStore((s) => s.renameNodeKind);
-  const setChapterStatus = useWritingStore((s) => s.setChapterStatus);
   const renameChapter = useWritingStore((s) => s.renameChapter);
   const deleteChapter = useWritingStore((s) => s.deleteChapter);
   const createChildNode = useWritingStore((s) => s.createChildNode);
@@ -951,7 +944,6 @@ function NodeRow({
   const hasForeshadow = chapterForeshadows.length > 0;
   const fsPending = chapterForeshadows.filter((f) => f.status === 'pending');
   const pendingCount = fsPending.length;
-  const count = chapterForeshadows.length;
   const firstPendingFs = fsPending[0];
   const firstFs = chapterForeshadows[0];
   const foreshadowTooltip =
@@ -974,12 +966,6 @@ function NodeRow({
     } catch (err) {
       console.warn('NodeRow.openChapterLine failed', String(err));
     }
-  };
-
-  const cycleStatus = () => {
-    const cur = node.node.status ?? '';
-    const next = NODE_STATUS_CYCLE[(NODE_STATUS_CYCLE.indexOf(cur) + 1) % NODE_STATUS_CYCLE.length];
-    void setChapterStatus(node.node.id, next);
   };
 
   const commitKind = () => {
@@ -3187,7 +3173,6 @@ export function StorylinePane({
   accent,
   bookId,
   chapters,
-  outlines,
   settings,
 }: {
   accent: string;
@@ -3198,8 +3183,6 @@ export function StorylinePane({
   settings: WritingSetting[];
 }) {
   const createChapter = useWritingStore((s) => s.createChapter);
-  const createOutline = useWritingStore((s) => s.createOutline);
-  const updateOutline = useWritingStore((s) => s.updateOutline);
   // 注意：章节列表只在**编辑区（设计视图，页面本体）**呈现，绝不进左栏（铁律 #9）。
   // ㉫ 书名与体裁按「本卡 bookId」反查全局书目，与 BookMetaPanel:140-141 / ArchitectureLayersPanel:651
   // 同一条在册口径；卡片所属的书与工作室当前书分叉可达（写作台书切换器只翻后者）。
@@ -3705,6 +3688,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
   }, [bookEvents]);
 
   // 事件 at 排序统一走 utils 唯一口径 compareByAt（空 at 排后），不再本地 new Collator（禁止第二份）。
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- sortEventsByAt 是普通函数（每次 render 新建），内部只调用 utils.compareByAt，闭包纯净
   const sortEventsByAt = (a: WritingTimelineEvent, b: WritingTimelineEvent) => compareByAt(a.at, b.at);
 
   // 全书合并轴：跨所有 lane 的完整事件按 at 混排，作为「全书的」总览（每个 chip 标注来源 lane）。
@@ -3716,7 +3700,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
       settingId: null,
       events: [...completeEvents].sort(sortEventsByAt),
     }),
-    [completeEvents, t],
+    [completeEvents],
   );
 
   // 事件来源 lane 名（用于合并轴 / 待补全的 chip 标注）
@@ -3757,7 +3741,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
       return a.name.localeCompare(b.name, 'zh');
     });
     return list;
-  }, [completeEvents, bookScopedSettings, t, sortEventsByAt]);
+  }, [completeEvents, bookScopedSettings,  sortEventsByAt]);
 
   // 章节级 lane：本书章按 sortOrder 为骨架，每章一组其绑定事件；末尾「未绑章」组收纳 chapterId 为空的事件。
   // 空章（无绑定事件）也列出并标「未锚定」，作为规划空缺提示。
@@ -3772,7 +3756,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
         },
         { groupByVolume: true },
       ),
-    [bookChapters, completeEvents, t],
+    [bookChapters, completeEvents, tlGenre],
   );
 
   // 剧情线 lane（P0）：每条线一轨（color=线配色），末尾「未挂线」组收纳 storylineId 为空的事件。
@@ -3793,7 +3777,7 @@ export function TimelinePane({ accent, bookId }: { accent: string; bookId: strin
       events: completeEvents.filter((e) => !e.storylineId).sort(sortEventsByAt),
     });
     return lanes;
-  }, [bookStorylines, completeEvents, t]);
+  }, [bookStorylines, completeEvents]);
 
   // 视图切换：全书轴（按设定分轨）/ 按章轴（按章分轨）/ 剧情线轴（按线分轨）
   const lanes = timelineView === 'book' ? settingLanes : timelineView === 'chapter' ? chapterLanes : storylineLanes;

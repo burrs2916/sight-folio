@@ -221,6 +221,7 @@ pub struct VersionMeta {
 }
 
 impl VersionMeta {
+    #[allow(dead_code)]
     /// 没有版本语义的路径（写作台「另存为」）用它：全空，别造半个空。
     pub fn none() -> Self {
         Self::default()

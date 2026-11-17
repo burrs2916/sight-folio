@@ -326,7 +326,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
       target.style.transform = `translate(${newX}px, ${newY}px)`;
       setFrame((prev) => ({ ...prev, translate: [newX, newY] }));
     },
-    [width, height],
+    [],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -486,6 +486,7 @@ export const EditorCanvasComponent = memo(function EditorCanvasComponent({
     });
     setRenderer(() => FallbackRenderer);
     // #endregion debug-point comp-tunnel-render-error
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- component.id 是对象属性路径，已用 type/definition?.type 精确触发
   }, [type, definition?.type]);
 
   return (

@@ -240,6 +240,7 @@ export function SceneEditor({
         .showToast(synced ? t('editor.searchNoMatch', { q }) : t('editor.searchUnsynced'), 'warning');
     }
     // 命中 > 0 时静默高亮（连续输入避免 toast 刷屏，画布高亮已是反馈）
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- switchToDirSortView 是普通函数，每次 render 都新建，且内部逻辑无外部依赖，闭包安全
   }, []);
   const onDirSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
@@ -559,7 +560,7 @@ export function SceneEditor({
       setRightTab(AI_TAB);
       setRightPanelOpen(true);
     }
-  }, [aiPanelRequest]);
+  }, [aiPanelRequest, AI_TAB]);
   // 右栏联动（书场景）：在画布上选中任意实体 → 自动切到「属性/详情」栏（第 2 栏）。
   // 第 1 栏「组件」是拖源，拖出落卡后会立刻选中新卡；不联动的话「选不中、改不了」的
   // 观感会回来。只在**当前停在组件栏**时切，用户手动停在别的栏位时不抢。
@@ -574,6 +575,7 @@ export function SceneEditor({
     if (!isBookScene) return;
     if (!selectedComponent) return;
     setRightTab((cur) => (cur === 0 ? 1 : cur));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedComponent 是对象，已拆为 selectedComponent?.id / ?.type 精确触发
   }, [isBookScene, selectedComponent?.id, selectedComponent?.type]);
   // 写作设定项选中（人物/世界观，由 CastPane「查看详情」驱动）→ 切到「详情」栏（第 2 栏）
   // 让其叙事性描述面板可见；与画布选中互斥，二者不会同时成立。
@@ -581,6 +583,7 @@ export function SceneEditor({
     if (!isBookScene) return;
     if (!selectedSetting) return;
     setRightTab(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedSetting 是对象，已拆为 selectedSetting?.id 精确触发
   }, [isBookScene, selectedSetting?.id]);
   // 切书（L1 页签）→ 清空写作设定项选中态，避免跨书残留幽灵选中。
   useEffect(() => {
@@ -1242,7 +1245,7 @@ export function SceneEditor({
             flexShrink: 0,
             borderBottom: 1,
             borderColor: 'divider',
-            backgroundColor: (t) => 'rgb(var(--template-palette-background-paperChannel) / 0.95)',
+            backgroundColor: (_t) => 'rgb(var(--template-palette-background-paperChannel) / 0.95)',
             gap: 0.5,
             height: 36,
             position: 'relative',

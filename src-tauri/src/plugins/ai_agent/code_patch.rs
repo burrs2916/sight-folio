@@ -47,6 +47,7 @@ pub enum PatchError {
 }
 
 impl PatchError {
+    #[allow(dead_code)]
     /// 给模型看的错误信：说清楚发生了什么 + 下一步该怎么做。
     ///
     /// 无位置证据时的兜底版本（等价旧行为）。工具侧应优先用
@@ -503,6 +504,7 @@ pub struct LocateHint {
 }
 
 impl LocateHint {
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.occurrences.is_empty() && self.candidates.is_empty()
     }

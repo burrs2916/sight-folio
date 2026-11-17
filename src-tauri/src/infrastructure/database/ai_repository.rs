@@ -998,8 +998,10 @@ pub struct AiInsightRow {
 /// 只有两档，刻意不做「处理中 / 已忽略」等中间态：状态越多 Agent 越容易乱填，
 /// 而这套沉淀真正要回答的只有一个问题——**这条结论现在还要不要占用注意力**。
 pub mod insight_status {
+    #[allow(dead_code)]
     pub const OPEN: &str = "open";
     pub const RESOLVED: &str = "resolved";
+    #[allow(dead_code)]
     /// 部分解决：多证据/多行问题里有一部分已消失，但还没彻底干净
     pub const PARTIAL: &str = "partial";
 }

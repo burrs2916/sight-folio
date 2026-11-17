@@ -22,6 +22,7 @@ impl CorpusDatabase {
         Ok(CorpusDatabase(Mutex::new(conn)))
     }
 
+    #[allow(dead_code)]
     /// 测试/降级用：内存库（schema 相同，FTS5 可用性随库验证）。
     pub fn open_in_memory() -> Result<Self, rusqlite::Error> {
         let mut conn = Connection::open_in_memory()?;

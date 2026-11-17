@@ -31,7 +31,7 @@ import ChapterPicker from '../renderers/ChapterPicker';
  * 伏笔 P2 · 牵涉人物区（编辑卡内嵌，2026-09-19）：
  * 数据全在 outlines（节拍 cast）× settings 派生，零新模型；点 chip 选中设定。
  */
-function ForeshadowingCastSection({ item, bookId }: { item: WritingForeshadowing; bookId: string | null }) {
+function ForeshadowingCastSection({ item, bookId: _bookId }: { item: WritingForeshadowing; bookId: string | null }) {
   const outlines = useWritingStore((s) => s.outlines);
   const settings = useWritingStore((s) => s.settings);
   const selectSetting = useEditorStore((s) => s.selectSetting);

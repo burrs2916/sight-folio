@@ -83,7 +83,7 @@ export function defaultLevels(genre: string): string[] {
 }
 
 /** 给定父节点的 kind 与它在树中的深度，推测「加子级」应给的默认层级名。 */
-export function suggestedChildKind(parentKind: string, depth: number, levels: string[]): string {
+export function suggestedChildKind(parentKind: string, _depth: number, levels: string[]): string {
   // 命中默认词汇表则顺延下一层；否则沿用最后一层（允许无限下钻）。
   const idx = levels.indexOf(parentKind);
   if (idx >= 0 && idx + 1 < levels.length) return levels[idx + 1];

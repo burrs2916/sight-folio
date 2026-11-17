@@ -418,6 +418,7 @@ export function CodeWorkbenchBody({
       await useAgentStore.getState().sendMessage(convId, prompt);
       setAiOpen(true);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- buildAiPrompt 是普通函数，内部只依赖 config.fileLanguages 等常量，闭包安全
     [tabs, activeFileId],
   );
   const findings = useProjectStore((s) => s.findings);
@@ -903,7 +904,7 @@ export function CodeWorkbenchBody({
       setDefPickerCandidates(sorted);
       setDefPickerOpen(true);
     },
-    [symbols, activeFileId, openWorkbenchTab],
+    [symbols, activeFileId],
   );
 
   // 取某文件当前应写盘文本：优先未保存缓冲区，否则回退到标签内存内容，最后读磁盘。
@@ -1955,7 +1956,6 @@ export function CodeWorkbenchBody({
       },
     ];
   }, [
-    t,
     activeTab,
     activeFileId,
     tabs,
@@ -1967,7 +1967,6 @@ export function CodeWorkbenchBody({
     setExpanded,
     setQuickOpenOpen,
     closeTab,
-    setActive,
     openBuffers,
     resetLayout,
     handleRenameSymbol,
@@ -3012,7 +3011,7 @@ export function CodeWorkbenchBody({
         word={defPickerWord}
         candidates={defPickerCandidates}
         files={files}
-        onPick={(fileId, relPath, name, language, line) => {
+        onPick={(fileId, _relPath, name, _language, line) => {
           openWorkbenchTab(fileId, line, t('workbench.jumpToSymbol', { name }));
           setDefPickerOpen(false);
         }}

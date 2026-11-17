@@ -74,6 +74,7 @@ impl ToolRegistry {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn list_names(&self) -> Vec<String> {
         self.tools.keys().cloned().collect()
     }
@@ -81,6 +82,7 @@ impl ToolRegistry {
     /// 单次调用工具白名单：只保留 `keep` 中（大小写不敏感）已注册的工具。
     /// 与 Agent 配置里的 `tool_ids` 取交集——本函数只在此基础上进一步收窄，
     /// 不会凭空启用 Agent 未授权的工具。
+    #[allow(dead_code)]
     pub fn filter_keep(&mut self, keep: &[String]) {
         self.tools
             .retain(|name, _| keep.iter().any(|k| k.eq_ignore_ascii_case(name)));
@@ -734,7 +736,9 @@ impl AgentEngine {
             let mut indices: Vec<i32> = tool_call_map.keys().cloned().collect();
             indices.sort();
             for idx in indices {
-                let (id, name, args) = tool_call_map.get(&idx).unwrap();
+                let (id, name, args) = tool_call_map
+                    .get(&idx)
+                    .expect("tool_call_map key must exist: idx came from same map's keys()");
                 calls.push(super::provider::ToolCall {
                     id: id.clone().unwrap_or_default(),
                     call_type: "function".to_string(),

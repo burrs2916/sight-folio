@@ -166,6 +166,7 @@ pub fn chat_url_for(base_url: &str, api_type: &str) -> String {
 
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
+    #[allow(dead_code)]
     async fn chat(
         &self,
         messages: &[ChatMessage],
@@ -205,6 +206,7 @@ pub trait LlmProvider: Send + Sync {
         Ok((chunks, false))
     }
 
+    #[allow(dead_code)]
     fn validate_config(&self, config: &ProviderConfig) -> Result<(), String>;
 }
 

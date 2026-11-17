@@ -247,7 +247,7 @@ export function ExternalCaptureDialog({
       const preview = await loadImageObjectUrl(abs);
       setImagePreview(preview ?? '');
     },
-    [t],
+    [],
   );
 
   /** 拖放：进入/离开用计数器防抖（子元素进出会抖动），落盘取第一个图片文件 */
@@ -323,7 +323,7 @@ export function ExternalCaptureDialog({
     } finally {
       setAnalyzing(false);
     }
-  }, [canAnalyze, agentId, kind, title, extractedText, sourceRaw, bookId, t]);
+  }, [canAnalyze, agentId, kind, title, extractedText, sourceRaw, bookId]);
 
   // ─── 保存：构造 ExternalCapture 落库 → 父级刷新素材库 ───
   const tagsArr = useMemo(
@@ -378,7 +378,6 @@ export function ExternalCaptureDialog({
     targetUse,
     onSaved,
     onClose,
-    t,
   ]);
 
   const busy = analyzing || saving;

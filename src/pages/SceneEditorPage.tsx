@@ -1732,7 +1732,7 @@ export default function SceneEditorPage() {
           flexShrink: 0,
           borderBottom: 1,
           borderColor: 'divider',
-          backgroundColor: (theme) => 'rgb(var(--template-palette-background-paperChannel) / 0.95)',
+          backgroundColor: (_theme) => 'rgb(var(--template-palette-background-paperChannel) / 0.95)',
         }}
       >
         {isBookScene ? (

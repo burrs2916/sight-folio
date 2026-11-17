@@ -1733,6 +1733,17 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // 幂等锁：同版本 + 同格式 + 同 spec 只允许一个 queued/running 状态的任务存在。
+    // ready / failed / missing 是终态，允许多条（重试需求）。
+    // SQLite 部分唯一索引（partial unique index）自动拦截重复入队 —— 第二次 enqueue
+    // 会触发 SQLITE_CONSTRAINT，直接拒绝并返回业务语义错误。
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS IX_ea_idempotent
+         ON export_artifacts(version_id, format, spec_id)
+         WHERE status IN ('queued', 'running')",
+        [],
+    )?;
+
     // 旧表 completed_works 改名保留为 legacy_completed_works（开放项 Q1）
     let has_completed_works: bool = conn
         .query_row(
@@ -2512,7 +2523,7 @@ pub fn purge_orphan_archive_rows(conn: &Connection) -> Result<usize, rusqlite::E
     }
     let no_book = " WHERE book_id NOT IN (SELECT id FROM writing_books)";
     // 顺序硬约束：先删版本头，再按「版本头已不在」捞快照与产物记录 —— 反了就会留下一轮孤儿。
-    let mut sweeps: Vec<(&str, String)> = vec![
+    let sweeps: Vec<(&str, String)> = vec![
         ("work_versions", format!("DELETE FROM work_versions{no_book}")),
         (
             "work_version_chapters",

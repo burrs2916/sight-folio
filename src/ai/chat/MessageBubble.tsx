@@ -4,7 +4,6 @@
 // - 助手消息正文走 ChatMarkdown（代码块高亮 + 复制 + 标题/列表/引用/链接）
 // - 用户消息保持纯文本渲染，气泡视觉与助手一致
 // - 支持流式光标（isStreaming 且内容在更新时显示 ▍ 光标）
-import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { uiFontSize } from '../../theme/appearanceScales';

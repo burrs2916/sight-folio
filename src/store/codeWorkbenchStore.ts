@@ -384,7 +384,7 @@ function normalizeTreeToPanes(node: PaneNode, panes: Record<string, WorkbenchPan
  *  文件内容置 loading 并异步懒加载；与 openTab 同口径。返回是否成功恢复。 */
 function restoreInto(
   s: CodeWorkbenchState,
-  get: () => CodeWorkbenchStore,
+  _get: () => CodeWorkbenchStore,
   set: (fn: (s: CodeWorkbenchState) => void) => void,
 ): boolean {
   let raw: string | null = null;

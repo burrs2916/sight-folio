@@ -210,7 +210,9 @@ export function useDialogActions(options: {
     }
     setDialog(null);
     setDialogText('');
-  }, [
+  },
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- openSetting 是父组件传入的函数，每次 render 引用都变，补了会导致子组件无限重渲染
+  [
     dialog,
     dialogText,
     books,
@@ -236,6 +238,7 @@ export function useDialogActions(options: {
     setSelectionMode,
     setSelectedChapterIds,
     editor,
+    activeBookId,
   ]);
 
   // P1 性能：useCallback 稳定引用——否则传给 ChapterTreePanel 会每渲染新建闭包，破坏 React.memo 隔离。

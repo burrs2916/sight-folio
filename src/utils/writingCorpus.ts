@@ -216,7 +216,7 @@ export function buildWorldBibleCorpus(
  * opts.refIndex（可选）：传入时对事件文本中的 #id 引用做关系化解析（resolveRefs）。
  */
 export function buildTimelineCorpus(
-  bookId: string | null,
+  _bookId: string | null,
   events: WritingTimelineEvent[],
   chapters: WritingChapter[],
   settings: WritingSetting[],
@@ -350,7 +350,7 @@ export function buildTimelineCorpus(
  * opts.refIndex（可选）：传入时对伏笔描述中的 #id 引用做关系化解析（resolveRefs）。
  */
 export function buildForeshadowingCorpus(
-  bookId: string | null,
+  _bookId: string | null,
   foreshadowings: WritingForeshadowing[],
   chapters: WritingChapter[],
   storylines: WritingStoryline[] = [],

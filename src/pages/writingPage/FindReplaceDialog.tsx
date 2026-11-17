@@ -1,4 +1,4 @@
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from '@mui/material';
+import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from '@mui/material';
 import type { Editor } from '@tiptap/react';
 import { t } from '../../i18n';
 import { findMatches, replaceAllMatches } from './editorUtils';

@@ -183,7 +183,7 @@ export function WritingDrawer({
     if (!s) return;
     const next = s.width - (e.clientX - s.x);
     updateDrawerWidth(Math.min(DRAWER_WIDTH_MAX, Math.max(DRAWER_WIDTH_MIN, Math.round(next))));
-  }, []);
+  }, [updateDrawerWidth]);
 
   /** 拖拽结束：写偏好 + 清理拖拽态 */
   const onResizeEnd = useCallback(() => {
@@ -209,7 +209,7 @@ export function WritingDrawer({
     } catch {
       // 存储不可写（隐私模式等）：本次会话内立即生效即可
     }
-  }, [releaseBodyDrag]);
+  }, [releaseBodyDrag, updateDrawerWidth]);
 
   // 拖拽监听挂在 window：移出面板/iframe 边界仍持续跟手，松开即停
   useEffect(() => {

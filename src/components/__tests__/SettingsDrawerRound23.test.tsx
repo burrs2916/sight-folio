@@ -8,7 +8,7 @@
 // 另附一条源码锁：首帧必须等主题 / 布局 / 正文排版都从设置库读回后再画，
 // 否则打开软件会先闪一遍默认外观，观感就是「设置又没生效」。
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import AppTheme from '../../theme/AppTheme';
 import SettingsDrawer from '../layout/SettingsDrawer';

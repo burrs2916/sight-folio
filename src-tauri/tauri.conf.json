@@ -35,8 +35,7 @@
           "$DOCUMENT/**",
           "$DESKTOP/**",
           "$DOWNLOAD/**",
-          "$PICTURE/**",
-          "$HOME/GithubProSpace/**"
+          "$PICTURE/**"
         ]
       }
     }

@@ -22,6 +22,7 @@ export function useEditorLayerSync() {
 
     return () => {
       unsub();
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- registeredRef.current 是可变 ref，cleanup 时读取的是最新值（非渲染期快照），正是我们想要的
       for (const [id] of registeredRef.current) {
         if (viewportSyncService) {
           viewportSyncService.unregisterProvider(id);

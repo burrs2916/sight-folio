@@ -185,7 +185,7 @@ fn candidate_paths_for(
 ) -> Vec<PathBuf> {
     let base = dev_or_exe_dir.join("config.db");
     let mut paths: Vec<PathBuf> = Vec::new();
-    let mut push_unique = |paths: &mut Vec<PathBuf>, p: PathBuf| {
+    let push_unique = |paths: &mut Vec<PathBuf>, p: PathBuf| {
         if !paths.contains(&p) {
             paths.push(p);
         }

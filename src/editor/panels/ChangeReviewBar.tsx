@@ -158,6 +158,7 @@ export function ChangeReviewBar({ activeRelPath, onOpenPath, emptySlot, onApplie
     } finally {
       setBusyId(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onAppliedChange 是 props 函数（每次 render 引用都变），rows 是 useMemo 数组，均不适合硬补
   }, [analysisId]);
 
   const revert = useCallback(async (row: CodeChangeRow) => {

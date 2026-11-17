@@ -64,7 +64,7 @@ fn get_project_root() -> Result<PathBuf, String> {
         if dir.join("package.json").exists() || dir.join("Cargo.toml").exists() {
             return Ok(dir.to_path_buf());
         }
-        dir = dir.parent().unwrap();
+        dir = dir.parent().ok_or("Failed to traverse up directory tree")?;
     }
 
     let cwd = std::env::current_dir().map_err(|e| format!("Failed to get current dir: {}", e))?;
@@ -294,7 +294,7 @@ fn get_thumbnails_dir() -> Result<PathBuf, String> {
                 .map_err(|e| format!("Failed to create thumbnails dir: {}", e))?;
             return Ok(thumb_dir);
         }
-        dir = dir.parent().unwrap();
+        dir = dir.parent().ok_or("Failed to traverse up directory tree")?;
     }
 
     let project_root = get_project_root()?;

@@ -295,6 +295,7 @@ impl BookLayoutSpec {
     pub fn body_pt(&self) -> f64 {
         self.font_size_px * 0.75
     }
+    #[allow(dead_code)]
     /// PDF 用：段后距（pt）
     pub fn para_gap_pt(&self) -> f64 {
         self.para_spacing_em * self.font_size_px * 0.75

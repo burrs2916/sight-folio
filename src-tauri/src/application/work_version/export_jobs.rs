@@ -912,7 +912,28 @@ where
                 );
                 std::thread::spawn(move || {
                     let _slot = slot; // 槽位随任务线程结束归还（含 panic 路径）
-                    run(&v, &w, &st, &job, &r);
+                    // catch_unwind：run 内部任何 panic 都被吞掉，只打日志不进程崩溃。
+                    // 任务不会被自动标记 failed（run 自己的 error handling 才做），
+                    // 但至少不会让整个 sight-folio 进程被拉下来。
+                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        run(&v, &w, &st, &job, &r);
+                    })) {
+                        Ok(()) => {}
+                        Err(panic) => {
+                            let msg = if let Some(s) = panic.downcast_ref::<&str>() {
+                                s.to_string()
+                            } else if let Some(s) = panic.downcast_ref::<String>() {
+                                s.clone()
+                            } else {
+                                "<unknown panic payload>".to_string()
+                            };
+                            eprintln!(
+                                "[sight-folio] 导出任务 panic（已吞掉，不影响进程）：\n\
+                                 job_id={}\nversion_id={}\nformat={}\npayload={}",
+                                job.id, job.version_id, job.format, msg
+                            );
+                        }
+                    }
                 });
                 started += 1;
             }
@@ -1611,7 +1632,11 @@ mod tests {
     fn artifact_row(id: &str, status: &str) -> ExportArtifact {
         ExportArtifact {
             id: id.to_string(),
-            version_id: "ver_x".to_string(),
+            // version_id 带上 id — 避免同测试里多条 queued/running 记录触发
+            // IX_ea_idempotent 唯一索引（UNIQUE version_id+format+spec_id WHERE status IN queued/running）。
+            // 生产场景同 version_id 同 format 只会有一条 queued 记录（入队幂等锁），
+            // 但测试场景需要多条独立 artifact 验证状态流转，这里拆 version_id。
+            version_id: format!("ver_x_{id}"),
             book_id: "b1".to_string(),
             format: "epub".to_string(),
             spec_id: "default".to_string(),

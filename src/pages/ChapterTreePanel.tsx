@@ -39,7 +39,6 @@
 
 import { Fragment, memo, useEffect, useMemo, useState } from 'react';
 import {
-  POETRY_FORMS,
   POETRY_TRADITION_KEYS,
   poetryGroupsForLang,
   poemFormView,
@@ -79,10 +78,8 @@ import {
   defaultLevels,
   suggestedChildKind,
   treeRowIndent,
-  chapterPathLabelMap,
   type TreeNode,
 } from '../utils/writingTree';
-import { ChapterStatusDot } from '../editor/components/ChapterStatusDot';
 import { TreeIndentGuides, TreeChevron, TreeKindBadge, TreeMetaText } from '../editor/components/TreeRowShared';
 import { getLang, t } from '../i18n';
 import { logger } from '../utils/logger';

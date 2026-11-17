@@ -15,7 +15,6 @@
 import type { WritingForeshadowing } from '../../services/tauri';
 import type { WritingChapter } from '../../services/writing';
 import type { ProofreadFinding } from '../../utils/writingProofread';
-import { beatEventText, beatImported } from '../../utils/writingTimeline';
 import { computeWritingKpis, buildChapterWordRows } from '../../utils/writingStats';
 import { dispatchChapterJump } from '../../utils/writingDeskJump';
 import { t } from '../../i18n';

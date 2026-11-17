@@ -153,6 +153,7 @@ impl OpenAiCompatProvider {
         body
     }
 
+    #[allow(dead_code)]
     fn parse_anthropic_response(&self, json: &Value) -> Result<ChatResponse, String> {
         let stop_reason = json["stop_reason"].as_str().map(|s| match s {
             "end_turn" => "stop".to_string(),

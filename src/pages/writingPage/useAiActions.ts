@@ -130,6 +130,7 @@ export function useAiActions(
 ): AiActions {
   const agents = useAgentStore((s) => s.agents);
   const loadAgents = useAgentStore((s) => s.loadAgents);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- writingPresets 是 aiContextRegistry.get() 的结果，实际数据源是 registry 内部稳定引用
   const writingPresets = aiContextRegistry.get(WRITING_MODULE_ID)?.presets ?? [];
 
   const [aiDialogOpen, setAiDialogOpen] = useState(false);

@@ -20,12 +20,6 @@ import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import FormControl from '@mui/material/FormControl';
-import FormLabel from '@mui/material/FormLabel';
-import RadioGroup from '@mui/material/RadioGroup';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Radio from '@mui/material/Radio';
-import CircularProgress from '@mui/material/CircularProgress';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
@@ -53,7 +47,6 @@ import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineR
 import CompareArrowsRoundedIcon from '@mui/icons-material/CompareArrowsRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import NoteAddRoundedIcon from '@mui/icons-material/NoteAddRounded';
 import TodayRoundedIcon from '@mui/icons-material/TodayRounded';
@@ -65,18 +58,10 @@ import FindInPageRoundedIcon from '@mui/icons-material/FindInPageRounded';
 import SpellcheckRoundedIcon from '@mui/icons-material/SpellcheckRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import KeyboardRoundedIcon from '@mui/icons-material/KeyboardRounded';
-import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import LinkOffRoundedIcon from '@mui/icons-material/LinkOffRounded';
-import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
-import FormatBoldRoundedIcon from '@mui/icons-material/FormatBoldRounded';
-import FormatItalicRoundedIcon from '@mui/icons-material/FormatItalicRounded';
-import FormatStrikethroughRoundedIcon from '@mui/icons-material/FormatStrikethroughRounded';
 import HighlightRoundedIcon from '@mui/icons-material/HighlightRounded';
-import FormatUnderlinedRoundedIcon from '@mui/icons-material/FormatUnderlinedRounded';
 import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
 import StickyNote2RoundedIcon from '@mui/icons-material/StickyNote2Rounded';
-import FormatQuoteRoundedIcon from '@mui/icons-material/FormatQuoteRounded';
 import FormatColorTextRoundedIcon from '@mui/icons-material/FormatColorTextRounded';
 import TextIncreaseRoundedIcon from '@mui/icons-material/TextIncreaseRounded';
 import TextDecreaseRoundedIcon from '@mui/icons-material/TextDecreaseRounded';
@@ -87,10 +72,8 @@ import FormatAlignJustifyRoundedIcon from '@mui/icons-material/FormatAlignJustif
 import FormatIndentIncreaseRoundedIcon from '@mui/icons-material/FormatIndentIncreaseRounded';
 import FormatIndentDecreaseRoundedIcon from '@mui/icons-material/FormatIndentDecreaseRounded';
 import FormatClearRoundedIcon from '@mui/icons-material/FormatClearRounded';
-import FormatListBulletedRoundedIcon from '@mui/icons-material/FormatListBulletedRounded';
 import FormatListNumberedRoundedIcon from '@mui/icons-material/FormatListNumberedRounded';
 import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
-import PhotoRoundedIcon from '@mui/icons-material/PhotoRounded';
 import PsychologyRoundedIcon from '@mui/icons-material/PsychologyRounded';
 import FolderOpenRoundedIcon from '@mui/icons-material/FolderOpenRounded';
 import CameraAltRoundedIcon from '@mui/icons-material/CameraAltRounded';
@@ -98,7 +81,6 @@ import RestoreRoundedIcon from '@mui/icons-material/RestoreRounded';
 import FormatSizeRoundedIcon from '@mui/icons-material/FormatSizeRounded';
 import ClearIcon from '@mui/icons-material/Clear';
 import Popover from '@mui/material/Popover';
-import Switch from '@mui/material/Switch';
 import Slider from '@mui/material/Slider';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -124,10 +106,8 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { WritingAnnotation as WritingAnnotationExtension } from '../editor/extensions/writingAnnotation';
-import { WritingImage, insertIllustrationIntoEditor, illustrationAssetRef } from '../editor/extensions/writingImage';
+import { WritingImage, insertIllustrationIntoEditor } from '../editor/extensions/writingImage';
 import { TextIndent } from '../editor/extensions/textIndent';
-import { CoverThumb } from '../components/CoverThumb';
-import { save as saveDialog, open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { emit, listen } from '@tauri-apps/api/event';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -137,18 +117,10 @@ import {
   isWritingDeskWindow,
   type WritingDeskFocus,
 } from '../utils/writingDeskWindow';
-import { deleteBookWithScene } from '../utils/studioBook';
 // 认知权重的单一口径（维度清单 + 写入语义）：UI 与 AI 上下文共用，避免两处各自漂移
 import { COGNITIVE_DIMENSIONS, withCognitiveWeight } from '../utils/writingCognitiveWeights';
 import { useWritingStore } from '../store/writingStore';
 import {
-  saveTextFile,
-  saveWritingEpub,
-  saveWritingDocx,
-  saveWritingPdf,
-  backupWritingBook,
-  restoreWritingBook,
-  writingScanApi,
   writingSnapshotsApi,
   writingAnnotationsApi,
   parseSettingExtra,
@@ -160,16 +132,13 @@ import {
   type WritingWorldbuildingProfile,
   type WritingCognitiveWeights,
   type WritingTimelineEvent,
-  type AiAgent,
   type AssetInfo,
 } from '../services/tauri';
 import { parseBookGoal, writingApi, writingNotesApi } from '../services/writing';
 import type { WritingNote } from '../services/writing';
 import { settingCompleteness } from '../utils/writingOutline';
 import { useToastStore } from '../store/toastStore';
-import { useProjectStore } from '../store/projectStore';
 import { useAssetPickerStore } from '../store/assetPickerStore';
-import { analyzerRegistry } from '../editor/analyzer/analyzerRegistry';
 import { useAgentStore } from '../store/agentStore';
 import WritingStatsDialog from './WritingStatsDialog';
 import WritingAppearanceMatrix from './WritingAppearanceMatrix';
@@ -191,23 +160,16 @@ import { useDragBodyGuard } from '../hooks/useDragBodyGuard';
 
 import { textToChapterHtml, countChapterWords, type ParsedChapter } from '../utils/writingImport';
 import { AssetLibraryDialog } from '../editor/panels/AssetLibraryDialog';
-import { aiContextRegistry } from '../ai/contextRegistry';
 import { WRITING_MODULE_ID } from '../ai/providers/writingContextProvider';
-import { launchModuleAnalysis } from '../ai/analysisRunner';
 import {
-  runInlineWritingTask,
   textToParagraphHtml,
-  tailOf,
-  POLISH_CONTEXT_CHARS,
-  type InlineWritingKind,
-  type PolishStyle,
   type SettingCardKind,
   type SettingCompletionContext,
 } from '../ai/writingAssistant';
 import { L } from '../ai/aiLang';
 import { AutoAnalysisPanel } from '../ai/AutoAnalysisPanel';
 
-import { pickLang, t } from '../i18n';
+import { t } from '../i18n';
 import { genreLabelKey, carrierTermKeys, bookStatusDef, canCreateEntityForGenre } from '../utils/writingSchema';
 import { surfaceKeyForGenre } from '../utils/writingSchema';
 import { hasTodayEntryMode } from '../utils/writingSchema';
@@ -215,20 +177,15 @@ import { diaryEntryTitle, findEntryByDate, todayDateKey, writeDiaryDate } from '
 import { unitTermParams } from '../utils/unitTerms';
 import { BookStatusChip } from './BookStatusControl';
 import { BookInfoDialog } from './BookInfoDialog';
-import { GenreMediumFields } from './GenreMediumFields';
 import { logger } from '../utils/logger';
 import {
   chaptersOfSetting,
   ideasOfChapter,
-  parseChapterCover,
-  castOfChapter,
   looseBeats,
   relationTargetName,
   toggleSettingOnChapter,
 } from '../utils/writingOutline';
-import { buildTree, chapterPathLabels, treeRowIndent, type TreeNode } from '../utils/writingTree';
-import { buildWorldBibleCorpus } from '../utils/writingCorpus';
-import { CHAT_CONTEXT_PROFILE } from '../utils/writingCorpusBudget';
+import { buildTree, treeRowIndent, type TreeNode } from '../utils/writingTree';
 import { foreshadowingsPayableIn } from '../utils/writingForeshadowing';
 import { beatEventText, beatImported, deriveTimeKeys } from '../utils/writingTimeline';
 import { beatPlantedAsForeshadowing } from '../utils/writingInspiration';
@@ -272,8 +229,7 @@ import { SettingHistoryPanel } from './writingPage/SettingHistoryPanel';
 import { TypographyPopover } from './writingPage/TypographyPopover';
 import { AnnotationCreateDialog } from './writingPage/AnnotationCreateDialog';
 import { AnnotationViewDialog } from './writingPage/AnnotationViewDialog';
-import { turndown } from './writingPage/turndown';
-import { chapterWordCount, chapterWordCountFromHtml, findMatches, replaceAllMatches } from './writingPage/editorUtils';
+import { chapterWordCount, chapterWordCountFromHtml } from './writingPage/editorUtils';
 import { buildEditorBodySx } from './writingPage/editorSx';
 import { runProofread, type ProofreadIssue } from '../editor/proofread/proofreadEngine';
 import { detectAiFlavor, type AiFlavorIssue } from '../editor/proofread/aiFlavorEngine';
@@ -376,7 +332,7 @@ export default function WritingPage() {
     if (!s) return;
     const next = s.width + (e.clientX - s.x);
     updateLeftPanelWidth(Math.min(LEFT_PANEL_WIDTH_MAX, Math.max(LEFT_PANEL_WIDTH_MIN, Math.round(next))));
-  }, []);
+  }, [updateLeftPanelWidth]);
 
   const onLeftResizeEnd = useCallback(() => {
     if (!leftDragStartRef.current) return;
@@ -401,7 +357,7 @@ export default function WritingPage() {
     } catch {
       // 存储不可写（隐私模式等）：本次会话内立即生效即可
     }
-  }, [releaseBodyDrag]);
+  }, [releaseBodyDrag, updateLeftPanelWidth]);
 
   // 拖拽监听挂在 window：移出面板/iframe 边界仍持续跟手，松开即停
   useEffect(() => {
@@ -433,27 +389,18 @@ export default function WritingPage() {
   const createOutline = useWritingStore((s) => s.createOutline);
   const updateOutline = useWritingStore((s) => s.updateOutline);
 
-  const setChapterVolume = useWritingStore((s) => s.setChapterVolume);
   const setDailyGoal = useWritingStore((s) => s.setDailyGoal);
   const setBookGoal = useWritingStore((s) => s.setBookGoal);
   const loadBooks = useWritingStore((s) => s.loadBooks);
 
-  const setBookMeta = useWritingStore((s) => s.setBookMeta);
-  const renameBook = useWritingStore((s) => s.renameBook);
   const setActiveBook = useWritingStore((s) => s.setActiveBook);
   const createChapter = useWritingStore((s) => s.createChapter);
-  const renameChapter = useWritingStore((s) => s.renameChapter);
   const setChapterStatus = useWritingStore((s) => s.setChapterStatus);
   const renameNodeKind = useWritingStore((s) => s.renameNodeKind);
-  const deleteChapter = useWritingStore((s) => s.deleteChapter);
   const deletedChapters = useWritingStore((s) => s.deletedChapters);
-  const restoreChapter = useWritingStore((s) => s.restoreChapter);
-  const permanentlyDeleteChapter = useWritingStore((s) => s.permanentlyDeleteChapter);
   const setActiveChapter = useWritingStore((s) => s.setActiveChapter);
   const saveChapterContent = useWritingStore((s) => s.saveChapterContent);
-  const createSetting = useWritingStore((s) => s.createSetting);
   const updateSetting = useWritingStore((s) => s.updateSetting);
-  const deleteSetting = useWritingStore((s) => s.deleteSetting);
   const setActiveSetting = useWritingStore((s) => s.setActiveSetting);
   const timelineEvents = useWritingStore((s) => s.timelineEvents);
   const storylines = useWritingStore((s) => s.storylines);
@@ -644,10 +591,6 @@ export default function WritingPage() {
   // 多色高亮色板
   const [highlightAnchor, setHighlightAnchor] = useState<HTMLElement | null>(null);
   const [highlightOpen, setHighlightOpen] = useState(false);
-
-  // ─── P1 创作体系：建书向导（体裁+载体）与已有书体裁编辑的选中态 ───
-  const [wizardGenre, setWizardGenre] = useState('');
-  const [wizardMedium, setWizardMedium] = useState('');
 
   // ─── 全文检索（P5）：标题/正文过滤章节列表 ───
   const [chapterQuery, setChapterQuery] = useState('');
@@ -1009,19 +952,6 @@ export default function WritingPage() {
         : chapters,
     [chapters, chapterSearchQuery],
   );
-
-  // 章节树用于落章下拉（仅章详情面板使用，与左栏旧大纲无直接耦合）
-  const chapterRowsForBind = useMemo(() => {
-    const rows: { id: string; title: string; depth: number }[] = [];
-    const walk = (nodes: TreeNode[]) => {
-      for (const n of nodes) {
-        rows.push({ id: n.node.id, title: n.node.title, depth: n.depth });
-        walk(n.children);
-      }
-    };
-    walk(buildTree(chapters));
-    return rows;
-  }, [chapters]);
 
   // 时间线「绑定章节」：按当前书构建章节树，下拉严格按树层级展开（缩进口径与大纲树一致）
   const bindableChapterRows = useMemo(() => {
@@ -1614,7 +1544,6 @@ export default function WritingPage() {
     handleAnalyzeBook,
     buildChatContext,
     openInlineDialog,
-    buildInlineContext,
     handleRunInline,
     handleApplyInlineResult,
     aiDialogOpen,
@@ -1653,7 +1582,6 @@ export default function WritingPage() {
     agents,
     writingPresets,
     streamPreviewRef,
-    inlineSelectionRef,
     settingAiOpen,
     setSettingAiOpen,
     settingAiAgentId,
@@ -1692,8 +1620,6 @@ export default function WritingPage() {
   const {
     dialog,
     setDialog,
-    dialogText,
-    setDialogText,
     recycleBinOpen,
     setRecycleBinOpen,
     permanentDeleteTarget,
@@ -1767,7 +1693,7 @@ export default function WritingPage() {
         unlisten = u;
       });
     return () => unlisten?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- CLOSE_FLUSH_TIMEOUT_MS 为组件内常量
+     
   }, [flushSave, flushSettingSave]);
 
   // 切换设定卡：flush 上一张，装载新卡
@@ -2217,7 +2143,7 @@ export default function WritingPage() {
       },
     ],
     // genre 进依赖：命令面板那条「新建{unit}」是插值文案，体裁换了必须重算，否则诗集里挂着「新建章节」
-    [t, openDialog, focusMode, focusModeActionLabel, cycleFocusMode, handleOpenStats, activeBook?.genre],
+    [openDialog, focusModeActionLabel, cycleFocusMode, handleOpenStats, activeBook?.genre, setChatOpen, setRecycleBinOpen],
   );
 
   const characters = settings.filter((x) => x.kind === 'character');

@@ -1,3 +1,5 @@
+// [SEALED] allow dead_code: 封存域/预留公共 API，保留签名
+#![allow(dead_code)]
 //! 函数级 def-use 数据流摘要（过程间数据流分析的「函数摘要」层）
 //!
 //! ## 为什么需要它

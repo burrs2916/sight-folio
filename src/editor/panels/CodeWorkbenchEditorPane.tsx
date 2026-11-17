@@ -210,7 +210,7 @@ export function EditorPane({
       openWorkbenchTab(h.fileId, h.line, t("workbench.jumpToUsage", { name: usagesWord }));
       // 保持抽屉打开，便于像 Zed 多缓冲引用面板那样逐步跳转
     },
-    [openWorkbenchTab, usagesWord],
+    [ usagesWord],
   );
 
   const onListKeyDown = useCallback(

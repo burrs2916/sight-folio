@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useMemo, startTransition, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
@@ -384,7 +383,6 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
   // 方案 A（2026-09-14）：写作台入口从书场景顶栏迁 L1 书页签 —— 导航动作归导航位。
   // 与 SceneEditorPage.handleOpenWriting 同一链路：setActiveBook 自动装载章节/设定/大纲
   // （writingStore.ts:149），再跳 /writing。书页签上每本书都可直达，不必先切场景。
-  const navigate = useNavigate();
   const openBookWriting = useCallback(
     (bookId: string) => {
       void useWritingStore
@@ -396,7 +394,7 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
           useToastStore.getState().showToast(t('studio.opFailed', { msg: String(err) }), 'error');
         });
     },
-    [navigate],
+    [],
   );
 
   // L2 类型化单例入口：大纲 / 人物设定 / 世界观 / 正文。题材取**当前书的体裁**
@@ -623,7 +621,7 @@ export function SceneTabBar({ bookToolbar }: { bookToolbar?: ReactNode }) {
           display: 'flex',
           alignItems: 'center',
           gap: 0.5,
-          backgroundColor: (theme) => 'rgb(var(--template-palette-background-paperChannel) / 0.85)',
+          backgroundColor: (_theme) => 'rgb(var(--template-palette-background-paperChannel) / 0.85)',
           borderRadius: 1.5,
           px: 0.5,
           py: 0.25,

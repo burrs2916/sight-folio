@@ -273,7 +273,7 @@ describe('AI 语料参谋 · 生成飞行中切书（数据污染回归锁）', 
     // B 会话就位后重新输入并发送：消息必须落进 **B 书自己的会话**（而不是残留的 A 会话）。
     // 切书后草稿按书隔离（B 无草稿 → 输入清空，属正确行为），需重新输入。
     resolveList([{ id: CONV_B, agentId: 'a1', title: TITLE_B, createdAt: 1, updatedAt: 1 }]);
-    h.listMessages.mockImplementation((convId: string) => Promise.resolve([]));
+    h.listMessages.mockImplementation((_convId: string) => Promise.resolve([]));
     await act(async () => {});
     const input2 = document.body.querySelector('textarea') as HTMLTextAreaElement;
     await act(async () => {

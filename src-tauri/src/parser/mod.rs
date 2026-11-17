@@ -1,3 +1,5 @@
+// [SEALED] allow dead_code: 封存域/预留公共 API，保留签名
+#![allow(dead_code)]
 //! 后端语言解析器插件框架（R45：解析器插件化）
 //!
 //! 背景：此前语言解析能力分散在 4 处硬编码 match 里——

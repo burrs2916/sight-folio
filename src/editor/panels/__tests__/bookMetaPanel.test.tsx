@@ -338,7 +338,7 @@ describe('书属性卡 · 节奏预测', () => {
     return `${d.getFullYear()}-${m}-${dd}`;
   };
   // 近 N 天「全书总字数快照」逐日递增 → 差分出每日新增；末位 = 今天
-  function statsRising(dailyWords: number, days: number, base = 0): any[] {
+  function statsRising(dailyWords: number, _days: number, base = 0): any[] {
     const out: any[] = [];
     // 快照按「累计总量」存：第一天 base，之后每天 +dailyWords
     let cum = base;
@@ -352,10 +352,6 @@ describe('书属性卡 · 节奏预测', () => {
     return out;
   }
 
-  function paceText(): string {
-    const el = Array.from(document.body.querySelectorAll('*')).find((n) => (n.textContent ?? '').includes('节奏预测'));
-    return el ? (document.body.textContent ?? '') : '';
-  }
 
   it('设了总字数目标 + 有产出 → 渲染节奏预测块（含结论徽标 / 均速）', async () => {
     h.writing.books[0] = {

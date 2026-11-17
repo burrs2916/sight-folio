@@ -75,6 +75,7 @@ pub struct ApprovalDecision {
 }
 
 impl ApprovalDecision {
+    #[allow(dead_code)]
     pub fn plain(approved: bool) -> Self {
         Self {
             approved,

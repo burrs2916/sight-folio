@@ -260,8 +260,10 @@ export default function AiAgentPage() {
     };
     sync().catch(() => {});
     // 依赖以原始值形式抽离，避免 URLSearchParams 对象引用每次 render 变动导致死循环
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
+  },
+  /* eslint-disable react-hooks/exhaustive-deps */
+  // searchParams 对象引用每次 render 新建（补了会死循环），改用 .get() 提取原始值订阅变化
+  [
     searchParams.get('book'),
     searchParams.get('chapter'),
     books.length,
@@ -269,7 +271,8 @@ export default function AiAgentPage() {
     loadBooks,
     setActiveBook,
     setActiveChapter,
-  ]);
+  ]
+  /* eslint-enable react-hooks/exhaustive-deps */);
 
   const closeSettings = () => setSettingsOpen(false);
   const toggleSettings = () => setSettingsOpen((s) => !s);
