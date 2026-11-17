@@ -912,9 +912,9 @@ where
                 );
                 std::thread::spawn(move || {
                     let _slot = slot; // 槽位随任务线程结束归还（含 panic 路径）
-                    // catch_unwind：run 内部任何 panic 都被吞掉，只打日志不进程崩溃。
-                    // 任务不会被自动标记 failed（run 自己的 error handling 才做），
-                    // 但至少不会让整个 sight-folio 进程被拉下来。
+                                      // catch_unwind：run 内部任何 panic 都被吞掉，只打日志不进程崩溃。
+                                      // 任务不会被自动标记 failed（run 自己的 error handling 才做），
+                                      // 但至少不会让整个 sight-folio 进程被拉下来。
                     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         run(&v, &w, &st, &job, &r);
                     })) {

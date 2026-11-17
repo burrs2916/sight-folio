@@ -146,10 +146,7 @@ pub fn run() {
             let db = Database::new(app.handle())?;
 
             {
-                let conn = db
-                    .0
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let conn = db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                 init_tables(&conn)?;
                 migrate(&conn)?;
             }

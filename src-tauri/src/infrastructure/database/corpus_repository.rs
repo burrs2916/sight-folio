@@ -137,7 +137,11 @@ impl SqliteCorpusRepository {
     /// 幂等替换某书全部标签：先清后插（trim 去空去重已由调用方 normalize）。
     /// 调用方必须已持有锁且书存在（UPDATE 校验过 n>0）。
     fn sync_tags_inner(&self, book_id: i64, tags: &[String]) -> AppResult<()> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let tx = conn.unchecked_transaction()?;
         tx.execute(
             "DELETE FROM corpus_book_tags WHERE book_id = ?1",
@@ -439,7 +443,11 @@ impl SqliteCorpusRepository {
         chunks: &[(String, String, String)],
         mut progress: Option<&mut dyn FnMut(usize, usize)>,
     ) -> AppResult<CorpusBook> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let tx = conn.unchecked_transaction()?;
         let now = chrono::Utc::now().timestamp();
         // 导入即分类（与编辑口径一致）：分隔串 → 多标签（真源表）→ category 镜像列（顿号串）。
@@ -536,7 +544,11 @@ impl CorpusRepository for SqliteCorpusRepository {
     }
 
     fn list_books(&self) -> AppResult<Vec<CorpusBook>> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(&format!(
             "SELECT {BOOK_COLS} FROM corpus_books ORDER BY created_at DESC, id DESC"
         ))?;
@@ -552,7 +564,11 @@ impl CorpusRepository for SqliteCorpusRepository {
     }
 
     fn get_book(&self, id: i64) -> AppResult<CorpusBook> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut book = conn
             .query_row(
                 &format!("SELECT {BOOK_COLS} FROM corpus_books WHERE id = ?1"),
@@ -565,7 +581,11 @@ impl CorpusRepository for SqliteCorpusRepository {
     }
 
     fn get_book_source(&self, id: i64) -> AppResult<Option<CorpusBookSource>> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT book_id, source, raw_text, stored_at
              FROM corpus_book_sources WHERE book_id = ?1",
@@ -602,7 +622,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         let tags = normalize_tags(&split_tags(category));
         let joined = join_tags(&tags);
         let n = {
-            let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let conn = self
+                .db
+                .0
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             conn.execute(
                 "UPDATE corpus_books
                  SET title = ?2, author = ?3, language = ?4, category = ?5
@@ -623,7 +647,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         if q.is_empty() {
             return Ok(Vec::new());
         }
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut rows = if q.chars().count() >= 3 {
             // ≥3 字符：书 FTS5 MATCH（trigram 子串，覆盖 title/author/category；与句子分支同口径转义）。
             // 排序保持「最新导入优先」（与旧 LIKE 分支一致）；FTS 仅作候选集，不按 rank 重排。
@@ -672,7 +700,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         let tags = normalize_tags(tags);
         let joined = join_tags(&tags);
         let n = {
-            let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let conn = self
+                .db
+                .0
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             conn.execute(
                 "UPDATE corpus_books SET category = ?2 WHERE id = ?1",
                 params![id, joined],
@@ -690,7 +722,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         if tag.is_empty() {
             return Ok(Vec::new());
         }
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(&format!(
             "SELECT {BOOK_COLS} FROM corpus_books
              WHERE EXISTS (
@@ -720,7 +756,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         if from.is_empty() || to.is_empty() || from == to {
             return Ok(0);
         }
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let tx = conn.unchecked_transaction()?;
         // 受影响书目：当前带旧标签的书（去重）
         let affected: Vec<i64> = {
@@ -760,7 +800,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         if into.is_empty() || sources.is_empty() {
             return Ok(0);
         }
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let tx = conn.unchecked_transaction()?;
         let placeholders = vec!["?"; sources.len()].join(", ");
         // 受影响书目：带任一源标签的书
@@ -801,7 +845,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         if tag.is_empty() {
             return Ok(0);
         }
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let tx = conn.unchecked_transaction()?;
         let affected: Vec<i64> = {
             let mut stmt =
@@ -822,7 +870,11 @@ impl CorpusRepository for SqliteCorpusRepository {
 
     /// 全库标签书目计数（P2-2）：计数降序、同计数按标签名升序；标签为空串不出现（表内无空标签）。
     fn list_tag_counts(&self) -> AppResult<Vec<(String, i64)>> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mut stmt = conn.prepare(
             "SELECT tag, COUNT(book_id) AS n FROM corpus_book_tags
              GROUP BY tag ORDER BY n DESC, tag ASC",
@@ -840,7 +892,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         raw_text: &str,
         chunks: &[(String, String, String)],
     ) -> AppResult<()> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let tx = conn.unchecked_transaction()?;
         // 删旧 chunks（触发器同步清 FTS 倒排）→ 插新 → 刷新统计/来源/指纹 → 刷新镜像
         tx.execute(
@@ -877,7 +933,11 @@ impl CorpusRepository for SqliteCorpusRepository {
     }
 
     fn delete_book(&self, id: i64) -> AppResult<()> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let tx = conn.unchecked_transaction()?;
         // 显式删 chunks（触发器同步清 FTS 倒排）、标签、镜像，再删书行
         tx.execute("DELETE FROM corpus_chunks WHERE book_id = ?1", params![id])?;
@@ -921,7 +981,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         if q.is_empty() {
             return Ok((Vec::new(), 0));
         }
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let limit = limit.max(1);
         let offset = offset.max(0);
         // 重复句合并会缩减结果条数 → 原始命中按 (offset+limit) 大窗口倍取
@@ -989,7 +1053,11 @@ impl CorpusRepository for SqliteCorpusRepository {
         // 这些句子天然以超高次数霸占报告前列，把真正值得注意的重复淹没。
         // 组数可能很大 → 最多扫描 MAX_GROUP_SCAN 组（触顶时 total 为下界）。
         const MAX_GROUP_SCAN: i64 = 20_000;
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         // norm_hash <> 0：排除旧数据/未计算行的默认值，避免它们被误聚成一组
         let mut stmt = conn.prepare(
             "SELECT norm_hash AS h, COUNT(*) AS n, COUNT(DISTINCT book_id) AS bk, MIN(content) AS sample
@@ -1042,7 +1110,11 @@ impl CorpusRepository for SqliteCorpusRepository {
     }
 
     fn optimize_storage(&self) -> AppResult<CorpusStorageReport> {
-        let conn = self.db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let conn = self
+            .db
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         // ① 先合并 WAL：让 page_count × page_size 与实际文件字节一致（报告口径）
         conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
         let page_size: i64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0))?;
