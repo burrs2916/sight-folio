@@ -15,6 +15,11 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # 依赖树巨大（mongodb/sqlx/tree-sitter 全家桶 + 封存域），debug 构建含全量
+  # debuginfo 时 target 目录 25GB+，会把 runner 磁盘吃满（os error 28）。
+  # 关闭 dev/test profile 的 debuginfo + 增量编译，target 体积降 80%+。
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
   # 本项目前端 bundle 很大（monaco + 主包 5MB+），GitHub runner 上 Node 默认堆（~2GB）会 OOM（exit 134）。
   # 本地 Mac 默认堆更大所以不现；显式抬到 8GB（ubuntu-latest 16GB 内存安全）。workflow 级 env 同时覆盖
   # frontend-check 的 vite build 与 publish-tauri 里 tauri-action 的 beforeBuildCommand（同一个 vite build）。
@@ -78,6 +83,17 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
+      # 磁盘瘦身：runner 预装 Android SDK(~9GB)/.NET/CodeQL/swapfile(4GB)，
+      # 本项目 Rust 依赖树编译产物极大，不清理会 "No space left on device"。
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/.ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune --all --force 2>/dev/null || true
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          df -h /
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -170,6 +186,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Linux release 构建同样吃磁盘（依赖树大），先瘦身。
+      - name: Free disk space (Linux)
+        if: matrix.platform == 'Linux'
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/.ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune --all --force 2>/dev/null || true
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          df -h /
 
       - name: Install system dependencies (Linux)
         if: matrix.platform == 'Linux'

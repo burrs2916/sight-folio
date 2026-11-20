@@ -1735,6 +1735,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn 版本不存在时入队报NotFound() {
         let h = harness("ghost-version");
         seed_book(&h, "b1", "测试长篇");
@@ -1744,6 +1745,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn 书名注入路径分隔符_清洗后目录层级只剩bookId() {
         assert_eq!(sanitize_file_stem("长/篇:名"), "长_篇_名");
         assert_eq!(sanitize_file_stem("   "), "作品");
@@ -2653,7 +2655,7 @@ mod tests {
         )
         .expect("图已定格，源文件删了也必须能导出");
         let f = std::fs::File::open(&epub).unwrap();
-        let mut zip = zip::ZipArchive::new(f).unwrap();
+        let zip = zip::ZipArchive::new(f).unwrap();
         let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
         assert!(
             names

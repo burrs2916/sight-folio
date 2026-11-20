@@ -289,7 +289,6 @@ pub async fn revert_code_changes_by_conversation(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::domain::project_files::ProjectFile;
     use std::path::Path;
 

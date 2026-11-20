@@ -682,7 +682,7 @@ def f():
 
     #[test]
     fn go_alias_import_unused_detected() {
-        let src = r#"
+        let _src = r#"
 package main
 import foo "github.com/a/b"
 import "github.com/c/d"

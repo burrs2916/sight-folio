@@ -2882,7 +2882,7 @@ mod tests {
         // class C { foo(){} caller(){ this.foo() } }  +  游离 function foo()
         let c = mk_sym("C", "C", "class", 1, 30);
         let foo_method = mk_sym("C.foo", "foo", "method", 2, 6);
-        let free_foo = mk_sym("free.foo", "foo", "function", 40, 45);
+        let _free_foo = mk_sym("free.foo", "foo", "function", 40, 45);
         let caller = mk_sym("C.caller", "caller", "method", 10, 25);
         let mut type_syms_by_file: HashMap<String, Vec<&ProjectSymbol>> = HashMap::new();
         type_syms_by_file.insert("f".to_string(), vec![&c]);
@@ -3897,7 +3897,7 @@ func NewStore() *Store { return &Store{} }
             }
         }
 
-        let pct = |a: usize, b: usize| -> f64 {
+        let _pct = |a: usize, b: usize| -> f64 {
             if b == 0 {
                 0.0
             } else {

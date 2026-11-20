@@ -833,6 +833,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn 回环地址_三种写法都认_含IPv6与缺scheme() {
         assert!(is_loopback_base_url("http://127.0.0.1:11434/v1"));
         assert!(is_loopback_base_url("http://localhost:11434/v1"));

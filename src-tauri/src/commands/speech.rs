@@ -14,13 +14,19 @@
 // 本 command 在用户点击语音按钮时主动请求语音识别授权，授权后
 // SpeechRecognition 即可正常工作；denied 时引导条展开提示用户放行。
 
+#[cfg(target_os = "macos")]
 use std::sync::mpsc;
+#[cfg(target_os = "macos")]
 use std::time::Duration;
 
 /// 授权状态字符串（与前端 SpeechInputHook 的语义对齐）。
+#[cfg(target_os = "macos")]
 const NOT_DETERMINED: i64 = 0;
+#[cfg(target_os = "macos")]
 const DENIED: i64 = 1;
+#[cfg(target_os = "macos")]
 const RESTRICTED: i64 = 2;
+#[cfg(target_os = "macos")]
 const AUTHORIZED: i64 = 3;
 
 /// macOS：主动请求「语音识别」系统权限。
