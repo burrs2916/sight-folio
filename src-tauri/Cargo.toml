@@ -26,15 +26,15 @@ serde_json = "1"
 url = "2"
 bitflags = "2"
 
-rusqlite = { version = "0.37", features = ["bundled", "backup"] }
+rusqlite = { version = "0.43", features = ["bundled", "backup"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 base64 = "0.22"
 tokio = { version = "1", features = ["full"] }
 # EPUB 导出：zip 打包（deflate 压缩正文，mimetype 用 STORED）
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 # 语料库导入：epub/docx 的 OPF/container.xml 与 document.xml 轻量 XML 解析（复用 zip 解包）
-quick-xml = "0.37"
+quick-xml = "0.41"
 # 语料库导入：MOBI/AZW3（Kindle）解析。仅能导入无 DRM 的文件；有 DRM 的 AZW/AZW4 本就不支持。
 mobi = "0.8"
 # DOCX 导出：轻量 zip 打包 word/document.xml，无外部依赖。

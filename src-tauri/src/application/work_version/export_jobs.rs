@@ -1815,7 +1815,7 @@ mod tests {
                 let mut xhtml = String::new();
                 for idx in 0..archive.len() {
                     let mut entry = archive.by_index(idx).unwrap();
-                    if entry.name().ends_with(".xhtml") {
+                    if entry.name().unwrap().ends_with(".xhtml") {
                         entry.read_to_string(&mut xhtml).unwrap();
                     }
                 }
@@ -2656,7 +2656,7 @@ mod tests {
         .expect("图已定格，源文件删了也必须能导出");
         let f = std::fs::File::open(&epub).unwrap();
         let zip = zip::ZipArchive::new(f).unwrap();
-        let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
+        let names: Vec<String> = zip.file_names().map(|s| s.unwrap().to_string()).collect();
         assert!(
             names
                 .iter()
@@ -2692,7 +2692,7 @@ mod tests {
         let mut found = false;
         for i in 0..zip2.len() {
             let mut rf = zip2.by_index(i).unwrap();
-            if rf.name().starts_with("OEBPS/images/") {
+            if rf.name().unwrap().starts_with("OEBPS/images/") {
                 let mut buf = Vec::new();
                 std::io::Read::read_to_end(&mut rf, &mut buf).unwrap();
                 assert_eq!(buf, png, "包内字节必须等于定格字节");
@@ -2947,8 +2947,8 @@ mod tests {
         let zip = zip::ZipArchive::new(std::fs::File::open(&docx).unwrap()).unwrap();
         let media: Vec<String> = zip
             .file_names()
-            .filter(|n| n.starts_with("word/media/"))
-            .map(|s| s.to_string())
+            .filter(|n| n.as_ref().unwrap().starts_with("word/media/"))
+            .map(|s| s.as_ref().unwrap().to_string())
             .collect();
         assert!(
             media.iter().any(|n| n.ends_with(".png")),
@@ -3461,7 +3461,7 @@ mod tests {
 
         let f = std::fs::File::open(&out).unwrap();
         let mut zip = zip::ZipArchive::new(f).unwrap();
-        let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
+        let names: Vec<String> = zip.file_names().map(|s| s.unwrap().to_string()).collect();
         // 一次性把要看的条目读出来（借用 zip mutably，读完才继续用它做断言）
         let mut zip_text = |name: &str| -> String {
             let mut buf = String::new();

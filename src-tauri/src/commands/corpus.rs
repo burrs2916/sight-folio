@@ -1124,8 +1124,11 @@ fn extract_docx_text(bytes: &[u8]) -> AppResult<String> {
             },
             Ok(Event::Text(e)) => {
                 if in_t {
-                    if let Ok(t) = e.unescape() {
-                        out.push_str(&t);
+                    // quick-xml 0.38+ 移除了 BytesText::unescape()，改用 escape::unescape
+                    if let Ok(decoded) = e.decode() {
+                        if let Ok(t) = quick_xml::escape::unescape(&decoded) {
+                            out.push_str(&t);
+                        }
                     }
                 }
             }
@@ -1169,8 +1172,11 @@ fn extract_fb2_text(bytes: &[u8]) -> AppResult<String> {
             }
             Ok(Event::Text(e)) => {
                 if skip_depth == 0 {
-                    if let Ok(t) = e.unescape() {
-                        out.push_str(&t);
+                    // quick-xml 0.38+ 移除了 BytesText::unescape()，改用 escape::unescape
+                    if let Ok(decoded) = e.decode() {
+                        if let Ok(t) = quick_xml::escape::unescape(&decoded) {
+                            out.push_str(&t);
+                        }
                     }
                 }
             }
@@ -2016,7 +2022,10 @@ fn parse_rootfile_path(container: &str) -> Option<String> {
                 if e.name().as_ref() == b"rootfile" {
                     for a in e.attributes().flatten() {
                         if a.key.as_ref() == b"full-path" {
-                            return a.unescape_value().ok().map(|c| c.to_string());
+                            return a
+                                .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                                .ok()
+                                .map(|c| c.to_string());
                         }
                     }
                 }
@@ -2046,13 +2055,13 @@ fn parse_spine_hrefs(opf: &str) -> Vec<String> {
                         match a.key.as_ref() {
                             b"id" => {
                                 id = a
-                                    .unescape_value()
+                                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                     .map(|c| c.to_string())
                                     .unwrap_or_default()
                             }
                             b"href" => {
                                 href = a
-                                    .unescape_value()
+                                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                     .map(|c| c.to_string())
                                     .unwrap_or_default()
                             }
@@ -2067,7 +2076,7 @@ fn parse_spine_hrefs(opf: &str) -> Vec<String> {
                     for a in e.attributes().flatten() {
                         if a.key.as_ref() == b"idref" {
                             spine.push(
-                                a.unescape_value()
+                                a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                     .map(|c| c.to_string())
                                     .unwrap_or_default(),
                             );
@@ -2278,7 +2287,7 @@ mod tests {
     /// 在内存构造一个最小 zip（用于 epub/docx 测试夹具）。
     fn build_zip(entries: &[(&str, &str)]) -> Vec<u8> {
         let mut z = ZipWriter::new(Cursor::new(Vec::<u8>::new()));
-        let opts: FileOptions<'_, ()> = FileOptions::default();
+        let opts: FileOptions<'_, '_, ()> = FileOptions::default();
         for (name, content) in entries {
             z.start_file(*name, opts).unwrap();
             z.write_all(content.as_bytes()).unwrap();

@@ -1801,7 +1801,7 @@ mod export_smoke_tests {
         // 用 zip 读取验证结构
         let f = std::fs::File::open(&out).unwrap();
         let mut zip = zip::ZipArchive::new(f).unwrap();
-        let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
+        let names: Vec<String> = zip.file_names().map(|s| s.unwrap().to_string()).collect();
         assert!(names.contains(&"[Content_Types].xml".to_string())); // zip 层可能去掉前缀
         assert!(
             names.iter().any(|n| n.contains("word/document.xml")),
@@ -1925,7 +1925,7 @@ mod epub_export_smoke_tests {
 
         let f = std::fs::File::open(&out).unwrap();
         let mut zip = zip::ZipArchive::new(f).expect("epub must be a valid zip");
-        let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
+        let names: Vec<String> = zip.file_names().map(|s| s.unwrap().to_string()).collect();
 
         // 1. mimetype 首条目、内容精确
         let buf = read_entry(&mut zip, "mimetype");
@@ -1970,7 +1970,7 @@ mod epub_export_smoke_tests {
             "missing cover manifest item"
         );
         assert!(
-            zip.file_names().any(|n| n == "OEBPS/cover.xhtml"),
+            zip.file_names().any(|n| n.unwrap() == "OEBPS/cover.xhtml"),
             "cover.xhtml not packaged"
         );
         let spine_cover_first = {
@@ -2027,7 +2027,7 @@ mod epub_export_smoke_tests {
         );
         // T5 样式表：style.css 入包、章节头部引用、正文章标题注入
         assert!(
-            zip.file_names().any(|n| n == "OEBPS/style.css"),
+            zip.file_names().any(|n| n.unwrap() == "OEBPS/style.css"),
             "style.css not packaged"
         );
         let sbuf = read_entry(&mut zip, "OEBPS/style.css");
@@ -2210,7 +2210,7 @@ mod epub_export_smoke_tests {
         assert!(r.is_ok(), "export failed: {:?}", r.err());
         let f = std::fs::File::open(&out).unwrap();
         let mut zip = zip::ZipArchive::new(f).unwrap();
-        let names: Vec<String> = zip.file_names().map(|s| s.to_string()).collect();
+        let names: Vec<String> = zip.file_names().map(|s| s.unwrap().to_string()).collect();
         assert!(
             !names.iter().any(|n| n.starts_with("OEBPS/images/")),
             "no images expected"
