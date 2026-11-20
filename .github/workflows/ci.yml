@@ -156,7 +156,16 @@ jobs:
       - name: Run vulnerability scan
         run: |
           cd src-tauri
-          cargo audit
+          # 白名单用命令行 --ignore 而非 audit.toml：cargo-audit 对项目级
+          # audit.toml 的发现路径在不同版本间不稳定（CI 实测未加载，白名单失效），
+          # 命令行参数是确定性生效的唯一方式。逐条豁免理由见 src-tauri/audit.toml。
+          # - lopdf（RUSTSEC-2026-0187）：项目只把 lopdf 当 PDF **生成器**（导出写作产物），
+          #   从不解析外部/不可信 PDF，触发面是深层嵌套对象解析栈溢出——不可达。
+          # - rsa（RUSTSEC-2023-0071）：sqlx-mysql 封存域的传递依赖，主线代码无任何 RSA 运算，
+          #   Marvin 时序侧信道不可利用。
+          cargo audit \
+            --ignore RUSTSEC-2026-0187 \
+            --ignore RUSTSEC-2023-0071
 
   publish-tauri:
     name: Publish ${{ matrix.platform }}
