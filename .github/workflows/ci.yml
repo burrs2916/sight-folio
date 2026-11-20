@@ -271,6 +271,67 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      # ─── Windows 本地测试版（免安装 portable）───
+      # 与商城发布版（MSI/NSIS）并行产出：本地测试不必装安装包，解压双击即可运行。
+      # exe 同级目录运行后会生成 debug.log（启动横幅/panic/前端 JS 错误全在这一个文件），
+      # 测试报错时把该文件发回来即可定位。前端已打包进 exe，但要求机器预装 WebView2
+      # （MSI/NSIS 安装器可以引导安装，裸 exe 不会）。
+      - name: Prepare Windows portable package (local test build)
+        if: matrix.platform == 'Windows'
+        shell: pwsh
+        run: |
+          $releaseDir = "src-tauri/target/release"
+          $portableDir = "src-tauri/target/windows-portable"
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+
+          $exe = Get-ChildItem -Path $releaseDir -Filter "*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "uninstall|unins000" } |
+            Select-Object -First 1
+          if (-not $exe) { Write-Host "✗ main exe not found in $releaseDir"; exit 1 }
+          Copy-Item -Path $exe.FullName -Destination $portableDir -Force
+          Write-Host "✓ main exe: $($exe.Name)"
+
+          Get-ChildItem -Path $releaseDir -Filter "*.dll" -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item -Path $_.FullName -Destination $portableDir -Force }
+
+          @"
+          Sight Folio — Windows 本地测试版（免安装，未签名）
+
+          运行：$($exe.Name)
+
+          依赖：
+          - Microsoft Edge WebView2 Runtime（Win10/11 通常已内置；白屏请先安装：
+            https://developer.microsoft.com/microsoft-edge/webview2/ ）
+          - Visual C++ Redistributable（Win10/11 通常已内置）
+
+          诊断日志（运行后生成，报错时整个发回来即可）：
+          - exe 同级目录 debug.log    ← 主诊断通道（启动/panic/前端错误全在这）
+          - %LOCALAPPDATA%\com.sight.folio\debug.log   （exe 目录只读时的兜底）
+          - %LOCALAPPDATA%\com.sight.folio\logs\app-*.log（业务日志）
+          "@ | Set-Content -Path (Join-Path $portableDir "README.txt") -Encoding UTF8
+
+          Compress-Archive -Path (Join-Path $portableDir "*") `
+            -DestinationPath "src-tauri/target/windows-portable.zip" -Force
+          Write-Host "✓ Created windows-portable.zip"
+
+      - name: Upload standalone EXE (Windows)
+        if: matrix.platform == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-standalone-exe
+          path: src-tauri/target/release/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload portable ZIP (Windows)
+        if: matrix.platform == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: src-tauri/target/windows-portable.zip
+          if-no-files-found: error
+          retention-days: 30
+
       # 同步上传一份 workflow Artifacts（Actions 运行页的 Artifacts 栏）。
       # tauri-action 只把产物传到 Releases，Actions 页那个栏默认是空的；
       # bundle 目录里只有安装包成品（dmg/exe/msi/AppImage/deb/rpm），

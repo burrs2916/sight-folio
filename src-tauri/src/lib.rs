@@ -126,6 +126,23 @@ fn apply_dev_dock_icon() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // ─── debug.log 诊断日志（商城发布兼容性准备）───
+    // 尽早初始化（Builder 之前）：panic hook 必须在应用逻辑运行前就位，
+    // 否则启动阶段的 panic（DB schema 升级失败等）只打到 stderr——打包版
+    // （windows_subsystem = "windows"）没有控制台，panic 就彻底无痕了。
+    // 路径优先级：exe 同级（本地测试主位置）→ 系统数据目录（安装版兜底）→ cwd。
+    let debug_paths = infrastructure::logging::debug_log::resolve_default_paths();
+    infrastructure::logging::debug_log::init_paths(debug_paths);
+    infrastructure::logging::debug_log::install_panic_hook();
+    infrastructure::logging::debug_log::boot_banner();
+    infrastructure::logging::debug_log::info(
+        "boot",
+        &format!(
+            "logs: {:?}",
+            infrastructure::logging::debug_log::resolve_default_paths()
+        ),
+    );
+
     tauri::Builder::default()
         // ─── WebView 权限处理器（tauri 2.12+）───
         // 默认情况下（tauri 2.11 及以前）宿主不注册 WebView 的权限请求事件，
@@ -143,7 +160,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            let db = Database::new(app.handle())?;
+            let db = match Database::new(app.handle()) {
+                Ok(db) => db,
+                Err(e) => {
+                    // 启动失败是打包版最难排查的场景（无控制台可看），必须留痕 debug.log。
+                    infrastructure::logging::debug_log::error(
+                        "boot",
+                        &format!("database init failed: {e}"),
+                    );
+                    return Err(e.into());
+                }
+            };
 
             {
                 let conn = db.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -228,6 +255,10 @@ pub fn run() {
                 }
                 Err(e) => {
                     eprintln!("[sight-folio] corpus database unavailable, degrading: {e}");
+                    infrastructure::logging::debug_log::warn(
+                        "corpus",
+                        &format!("corpus database unavailable, degrading: {e}"),
+                    );
                     CorpusState::unavailable(e.to_string())
                 }
             };
@@ -365,6 +396,7 @@ pub fn run() {
             commands::delete_analysis_category,
             commands::write_log_entry,
             commands::write_log_batch,
+            commands::append_debug_log,
             commands::get_log_dir_path,
             commands::read_file_as_data_url,
             commands::save_background_asset,
