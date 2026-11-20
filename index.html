@@ -8,19 +8,11 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%234A338F'/%3E%3Cpath d='M50 26 L56 44 L74 50 L56 56 L50 74 L44 56 L26 50 L44 44 Z' fill='%23E0A93B'/%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sight Folio</title>
-    <style>
-      *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body, #root { width: 100%; height: 100%; overflow: hidden; }
-      .moveable-control-box {
-        z-index: 99999 !important;
-      }
-      .moveable-control {
-        width: 20px !important;
-        height: 20px !important;
-        margin-top: -10px !important;
-        margin-left: -10px !important;
-      }
-    </style>
+    <!-- ⚠️ 这里绝不能再放内联样式标签：
+         Tauri 构建时会对 HTML 内联样式内容算 hash 注入 CSP style-src，
+         按 CSP 规范 hash 出现后 'unsafe-inline' 被忽略 → MUI/emotion 运行时
+         注入的动态样式表全部被拦 → 整个应用失真（生产版实锤复现）。
+         全局基础样式已迁至 src/base.css（详见其文件头注释）。 -->
   </head>
   <body>
     <div id="root"></div>

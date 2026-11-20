@@ -79,3 +79,4 @@ dist-i18n/
 
 # One-off UI verification screenshots (cleanup 快照, 不入库)
 .ui-shots/
+.trae-html-share-packages/
