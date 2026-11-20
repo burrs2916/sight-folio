@@ -76,7 +76,11 @@ jobs:
         run: npm ci --legacy-peer-deps --no-audit --no-fund
 
       - name: Unit tests
-        run: npm test
+        # CI runner（4 核）上 324 个文件并行跑，jsdom 环境把 worker 挤到 RPC 上报超时
+        # （"Timeout calling onTaskUpdate"——4898 条测试全过仍 exit 1，纯负载问题）。
+        # 关掉文件级并行改单 worker 顺序跑：慢 3~4 倍（约 10 分钟）但彻底消除
+        # worker 争抢，换确定性。本地机器核多，`npm test` 不带该参数，速度不变。
+        run: npm test -- --no-file-parallelism
 
   rust-check:
     name: Rust Check
