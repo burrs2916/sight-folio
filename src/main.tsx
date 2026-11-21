@@ -85,6 +85,20 @@ const reportSheets = (phase: string) => {
 document.addEventListener("DOMContentLoaded", () => reportSheets("DOMContentLoaded"));
 window.addEventListener("load", () => reportSheets("load"));
 
+// React 挂载后再探一次（关键）：MUI/emotion 的样式是运行时注入的动态样式表，
+// DOMContentLoaded/load 时刻只有 3 个外部 CSS；挂载后应涨到 20+。
+// 若 +3s/+8s 仍停在 3 且无 [csp] 违规 → emotion 注入本身失败（非 CSP），
+// 这行日志就是直接证据。同时探 body 计算样式，直接反映样式是否生效。
+const probeSheets = (label: string) => {
+  void invoke("append_debug_log", {
+    level: "info",
+    tag: "boot",
+    message: `${label}: stylesheets=${document.styleSheets.length}, bodyBg=${getComputedStyle(document.body).backgroundColor}`,
+  }).catch(() => {});
+};
+window.setTimeout(() => probeSheets("boot+3s"), 3000);
+window.setTimeout(() => probeSheets("boot+8s"), 8000);
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />

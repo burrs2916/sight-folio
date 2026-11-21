@@ -15,6 +15,9 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # 编译时注入构建 commit（option_env! 读取），窗口标题显示 build-xxxxxxx，
+  # 用户一眼确认运行的是哪次构建的产物。
+  BUILD_SHA: ${{ github.sha }}
   # 依赖树巨大（mongodb/sqlx/tree-sitter 全家桶 + 封存域），debug 构建含全量
   # debuginfo 时 target 目录 25GB+，会把 runner 磁盘吃满（os error 28）。
   # 关闭 dev/test profile 的 debuginfo + 增量编译，target 体积降 80%+。
