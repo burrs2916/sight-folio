@@ -2362,6 +2362,7 @@ mod import_tests {
     fn import_rejects_oversize_file_without_writing() {
         let repo = make_repo();
         let dir = std::env::temp_dir().join("sightfolio_import_test");
+        std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("huge.txt");
         let big = "a".repeat(10 * 1024 * 1024 + 1);
         std::fs::write(&path, &big).unwrap();
