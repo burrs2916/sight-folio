@@ -344,9 +344,13 @@ jobs:
       # MSIX 是微软现代包格式，上架后微软商城代为签名，提交前本地无需自签。
       # Package.appxmanifest 里的 Publisher 必须精确匹配 Partner Center Publisher ID，
       # 通过 MICROSOFT_STORE_PUBLISHER secret 注入替换占位符。
-      - name: Setup winapp CLI (Windows)
+      - name: Install winapp CLI (Windows)
         if: matrix.platform == 'Windows'
-        uses: microsoft/setup-WinAppCli@v1
+        shell: pwsh
+        run: |
+          winget install --id Microsoft.WinAppCli --source winget --accept-package-agreements --accept-source-agreements
+          $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+          winapp --help | Select-Object -First 3
 
       - name: Package as MSIX (Microsoft Store)
         if: matrix.platform == 'Windows'
