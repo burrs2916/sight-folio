@@ -2,7 +2,8 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-  IgnorableNamespaces="uap">
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
 
   <!-- Publisher ID: Partner Center → Account settings → Identifiers → Windows publisher ID -->
   <Identity
@@ -10,7 +11,7 @@
     Publisher="CN=6BF20FE5-8F53-448E-9DD3-67F8E30B4B9E"
     Version="1.0.0.0" />
 
-  <!-- Properties 元素严格只允许三个子元素：DisplayName, PublisherDisplayName, Logo -->
+  <!-- Properties 严格只允许三个子元素 -->
   <Properties>
     <DisplayName>Sight Folio</DisplayName>
     <PublisherDisplayName>Sight Folio Studio</PublisherDisplayName>
@@ -43,10 +44,11 @@
   </Applications>
 
   <!--
-    FullTrust 桌面应用对文件系统有完全访问权限，不需要声明 documentLibrary 等受限能力。
-    只声明 internetClient 供 AI 助手 API 调用。
+    runFullTrust: FullTrust 桌面应用的必需受限能力（微软官方规范）
+    internetClient: AI 助手 API 调用
   -->
   <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
     <Capability Name="internetClient" />
   </Capabilities>
 
