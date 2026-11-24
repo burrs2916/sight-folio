@@ -397,10 +397,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Write-Host "✗ winapp pack failed"; exit 1 }
 
           # 7. 找出生成的 MSIX 文件，移到方便上传的位置
-          $msixFile = Get-ChildItem -Path $msixDir -Filter "*.msix" | Select-Object -First 1
-          if (-not $msixFile) { Write-Host "✗ no .msix produced"; exit 1 }
+          #    winapp pack 会把包输出到仓库根目录（如 SightFolio_1.0.0.0_x64.msix），
+          #    同时兼容输出在 staging 目录的情况
+          $msixFile = Get-ChildItem -Path $msixDir, "." -Filter "*.msix" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch "msix-staging\\Package" } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $msixFile) { Write-Host "✗ no .msix produced"; Get-ChildItem -Filter "*.msix" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  found: $($_.FullName)" }; exit 1 }
           Copy-Item -Path $msixFile.FullName -Destination "src-tauri/target/sight-folio.msix" -Force
-          Write-Host "✓ MSIX ready: sight-folio.msix ($([math]::Round($msixFile.Length / 1MB, 2)) MB)"
+          Write-Host "✓ MSIX ready: sight-folio.msix ($([math]::Round($msixFile.Length / 1MB, 2)) MB) ← $($msixFile.FullName)"
 
       - name: Upload MSIX (Microsoft Store submission)
         if: matrix.platform == 'Windows'
