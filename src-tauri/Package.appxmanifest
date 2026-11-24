@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <!-- Publisher ID: Partner Center → Account settings → Identifiers → Windows publisher ID -->
+  <Identity
+    Name="SightFolio"
+    Publisher="CN=6BF20FE5-8F53-448E-9DD3-67F8E30B4B9E"
+    Version="0.1.0.0" />
+
+  <Properties>
+    <DisplayName>Sight Folio</DisplayName>
+    <PublisherDisplayName>Sight Folio Studio</PublisherDisplayName>
+    <Logo>icons/StoreLogo.png</Logo>
+    <Description>Sight Folio — Desktop writing editor for novel &amp; long-form content</Description>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+  </Properties>
+
+  <Resources>
+    <Resource Language="zh-CN" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Applications>
+    <Application Id="App"
+      Executable="sight-folio.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Sight Folio"
+        Description="Sight Folio — Desktop writing editor for novel &amp; long-form content"
+        BackgroundColor="transparent"
+        Square150x150Logo="icons/Square150x150Logo.png"
+        Square44x44Logo="icons/Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="icons/Square310x310Logo.png" />
+        <uap:SplashScreen Image="icons/Square310x310Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- 文件访问：写作内容读写 -->
+    <rescap:Capability Name="documentLibrary" />
+    <rescap:Capability Name="picturesLibrary" />
+    <rescap:Capability Name="downloadsFolder" />
+    <!-- 网络：AI 助手 API 调用 -->
+    <Capability Name="internetClient" />
+    <!-- 通知（未来可能用到） -->
+    <uap:Capability Name="userNotificationListener" />
+  </Capabilities>
+
+  <Extensions>
+    <!-- 全信任桌面应用扩展（Tauri 应用必须声明） -->
+    <Extension Category="windows.extension">
+      <InProcessServer>
+        <Path>sight-folio.exe</Path>
+      </InProcessServer>
+    </Extension>
+  </Extensions>
+
+</Package>

@@ -339,6 +339,87 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # ─── Windows MSIX 打包（微软商城上架用）───
+      # 用 winapp CLI 将 Tauri release 构建产物打成 MSIX 包。
+      # MSIX 是微软现代包格式，上架后微软商城代为签名，提交前本地无需自签。
+      # Package.appxmanifest 里的 Publisher 必须精确匹配 Partner Center Publisher ID，
+      # 通过 MICROSOFT_STORE_PUBLISHER secret 注入替换占位符。
+      - name: Setup winapp CLI (Windows)
+        if: matrix.platform == 'Windows'
+        uses: microsoft/setup-WinAppCli@v1
+
+      - name: Package as MSIX (Microsoft Store)
+        if: matrix.platform == 'Windows'
+        shell: pwsh
+        env:
+          # 仓库 Settings → Secrets and variables → Actions 里配置
+          # 值从 Partner Center → Account settings → Organization profile → Publisher ID 获取
+          MICROSOFT_STORE_PUBLISHER: ${{ secrets.MICROSOFT_STORE_PUBLISHER }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $releaseDir = "src-tauri/target/release"
+          $msixDir = "src-tauri/target/msix-staging"
+          Remove-Item -Recurse -Force $msixDir -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $msixDir | Out-Null
+
+          # 1. 拷主 exe（排除卸载器）
+          $exe = Get-ChildItem -Path $releaseDir -Filter "*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch "uninstall|unins000" } |
+            Select-Object -First 1
+          if (-not $exe) { Write-Host "✗ main exe not found"; exit 1 }
+          Copy-Item -Path $exe.FullName -Destination $msixDir -Force
+          Write-Host "✓ exe: $($exe.Name)"
+
+          # 2. 拷依赖 dll
+          Get-ChildItem -Path $releaseDir -Filter "*.dll" -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item -Path $_.FullName -Destination $msixDir -Force }
+          Write-Host "✓ dlls copied"
+
+          # 3. 拷 icons（MSIX manifest 引用的图标路径）
+          $iconsDest = Join-Path $msixDir "icons"
+          New-Item -ItemType Directory -Force -Path $iconsDest | Out-Null
+          Copy-Item -Path "src-tauri/icons/*.png" -Destination $iconsDest -Force
+          Write-Host "✓ icons copied"
+
+          # 4. 拷自定义 resources（jieba userdict 等）
+          $resourceSrc = "src-tauri/resources"
+          if (Test-Path $resourceSrc) {
+            Copy-Item -Path $resourceSrc -Destination (Join-Path $msixDir "resources") -Recurse -Force
+            Write-Host "✓ resources copied"
+          }
+
+          # 5. 处理 Package.appxmanifest — 替换 Publisher 占位符
+          #    无 secret 时保持占位（开发者自测场景）；有 secret 时注入真实 Publisher
+          $manifestSrc = "src-tauri/Package.appxmanifest"
+          $manifestDest = Join-Path $msixDir "Package.appxmanifest"
+          $manifest = Get-Content -Path $manifestSrc -Raw -Encoding UTF8
+          if ($env:MICROSOFT_STORE_PUBLISHER) {
+            $manifest = $manifest -replace '<PUBLISHER_ID_PLACEHOLDER>', $env:MICROSOFT_STORE_PUBLISHER
+            Write-Host "✓ Publisher ID injected from secret"
+          } else {
+            Write-Host "⚠ MICROSOFT_STORE_PUBLISHER secret not set — manifest uses placeholder (dev test only)"
+          }
+          Set-Content -Path $manifestDest -Value $manifest -Encoding UTF8
+
+          # 6. 用 winapp pack 打 MSIX（微软商城代为签名，CI 产出不需自签）
+          winapp pack $msixDir
+          if ($LASTEXITCODE -ne 0) { Write-Host "✗ winapp pack failed"; exit 1 }
+
+          # 7. 找出生成的 MSIX 文件，移到方便上传的位置
+          $msixFile = Get-ChildItem -Path $msixDir -Filter "*.msix" | Select-Object -First 1
+          if (-not $msixFile) { Write-Host "✗ no .msix produced"; exit 1 }
+          Copy-Item -Path $msixFile.FullName -Destination "src-tauri/target/sight-folio.msix" -Force
+          Write-Host "✓ MSIX ready: sight-folio.msix ($([math]::Round($msixFile.Length / 1MB, 2)) MB)"
+
+      - name: Upload MSIX (Microsoft Store submission)
+        if: matrix.platform == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msix
+          path: src-tauri/target/sight-folio.msix
+          if-no-files-found: error
+          retention-days: 30
+
       # 同步上传一份 workflow Artifacts（Actions 运行页的 Artifacts 栏）。
       # tauri-action 只把产物传到 Releases，Actions 页那个栏默认是空的；
       # bundle 目录里只有安装包成品（dmg/exe/msi/AppImage/deb/rpm），
