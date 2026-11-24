@@ -1,6 +1,6 @@
 [package]
 name = "sight-folio"
-version = "0.1.0"
+version = "1.0.0"
 description = "Sight Folio - Desktop novel & long-form writing editor"
 authors = ["you"]
 edition = "2021"
