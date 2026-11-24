@@ -355,10 +355,6 @@ jobs:
       - name: Package as MSIX (Microsoft Store)
         if: matrix.platform == 'Windows'
         shell: pwsh
-        env:
-          # 仓库 Settings → Secrets and variables → Actions 里配置
-          # 值从 Partner Center → Account settings → Organization profile → Publisher ID 获取
-          MICROSOFT_STORE_PUBLISHER: ${{ secrets.MICROSOFT_STORE_PUBLISHER }}
         run: |
           $ErrorActionPreference = "Stop"
           $releaseDir = "src-tauri/target/release"
@@ -392,18 +388,9 @@ jobs:
             Write-Host "✓ resources copied"
           }
 
-          # 5. 处理 Package.appxmanifest — 替换 Publisher 占位符
-          #    无 secret 时保持占位（开发者自测场景）；有 secret 时注入真实 Publisher
-          $manifestSrc = "src-tauri/Package.appxmanifest"
-          $manifestDest = Join-Path $msixDir "Package.appxmanifest"
-          $manifest = Get-Content -Path $manifestSrc -Raw -Encoding UTF8
-          if ($env:MICROSOFT_STORE_PUBLISHER) {
-            $manifest = $manifest -replace '<PUBLISHER_ID_PLACEHOLDER>', $env:MICROSOFT_STORE_PUBLISHER
-            Write-Host "✓ Publisher ID injected from secret"
-          } else {
-            Write-Host "⚠ MICROSOFT_STORE_PUBLISHER secret not set — manifest uses placeholder (dev test only)"
-          }
-          Set-Content -Path $manifestDest -Value $manifest -Encoding UTF8
+          # 5. 拷 Package.appxmanifest（Publisher 已硬编码：CN=6BF20FE5-...）
+          Copy-Item -Path "src-tauri/Package.appxmanifest" -Destination (Join-Path $msixDir "Package.appxmanifest") -Force
+          Write-Host "✓ manifest copied"
 
           # 6. 用 winapp pack 打 MSIX（微软商城代为签名，CI 产出不需自签）
           winapp pack $msixDir

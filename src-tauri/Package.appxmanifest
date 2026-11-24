@@ -11,12 +11,11 @@
     Publisher="CN=6BF20FE5-8F53-448E-9DD3-67F8E30B4B9E"
     Version="1.0.0.0" />
 
+  <!-- ⚠️ Properties 元素严格只允许三个子元素：DisplayName, PublisherDisplayName, Logo -->
   <Properties>
     <DisplayName>Sight Folio</DisplayName>
     <PublisherDisplayName>Sight Folio Studio</PublisherDisplayName>
     <Logo>icons/StoreLogo.png</Logo>
-    <Description>Sight Folio — Desktop writing editor for novel &amp; long-form content</Description>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
   </Properties>
 
   <Resources>
@@ -54,14 +53,5 @@
     <!-- 通知（未来可能用到） -->
     <uap:Capability Name="userNotificationListener" />
   </Capabilities>
-
-  <Extensions>
-    <!-- 全信任桌面应用扩展（Tauri 应用必须声明） -->
-    <Extension Category="windows.extension">
-      <InProcessServer>
-        <Path>sight-folio.exe</Path>
-      </InProcessServer>
-    </Extension>
-  </Extensions>
 
 </Package>
