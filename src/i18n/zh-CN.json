@@ -623,6 +623,10 @@
     "ollamaHint": "打开本页会自动扫描并接入发现的模型（只新增、不删除；上下文窗口按模型自报的值自动填，你手工改过的不动）",
     "ollamaScanning": "正在扫描本机 Ollama…",
     "ollamaIdle": "尚未扫描。",
+    "about": {
+      "appName": "应用名称",
+      "appVersion": "应用版本"
+    },
     "ollamaFound": "已发现 {n} 个模型 · {url}",
     "ollamaOnlineNoModels": "Ollama 在线（{url}），但还没有拉取任何模型；先执行 ollama pull 再扫描。",
     "ollamaNotFound": "未发现本机 Ollama：{reason}",
@@ -762,7 +766,9 @@
       "providerDesc": "管理 AI 服务提供商（OpenAI、Anthropic 等）",
       "endpointDesc": "配置 API 接入地址和认证方式",
       "modelDesc": "注册可用的 AI 模型及其参数",
-      "agentDesc": "创建 AI Agent，绑定模型和工具"
+      "agentDesc": "创建 AI Agent，绑定模型和工具",
+      "about": "关于",
+      "aboutDesc": "应用的产品与版本信息"
     },
     "form": {
       "addProvider": "添加 Provider",

@@ -60,6 +60,7 @@ import { useAgentStore } from '../store/agentStore';
 import { useWritingStore } from '../store/writingStore';
 import { useToastStore } from '../store/toastStore';
 import OllamaLocalPanel from './OllamaLocalPanel';
+import AboutPanel from './AboutPanel';
 import { L } from '../ai/aiLang';
 import { quickActionCopyFor, quickActionTermsFor, buildAnalyzePrompt, buildOutlinePrompt, buildCharacterPrompt } from '../ai/quickActionPrompts';
 import { genreTagLabelKey } from '../utils/writingSchema';
@@ -1669,11 +1670,12 @@ function getSectionMeta() {
     endpoint: { label: t('agent.section.endpoint'), desc: t('agent.section.endpointDesc') },
     model: { label: t('agent.section.model'), desc: t('agent.section.modelDesc') },
     agent: { label: t('agent.section.agent'), desc: t('agent.section.agentDesc') },
+    about: { label: t('agent.section.about'), desc: t('agent.section.aboutDesc') },
   } as const;
 }
 
 function SettingsView() {
-  const [section, setSection] = useState<'provider' | 'endpoint' | 'model' | 'agent'>('provider');
+  const [section, setSection] = useState<'provider' | 'endpoint' | 'model' | 'agent' | 'about'>('provider');
   const sectionMeta = getSectionMeta();
 
   return (
@@ -1688,7 +1690,7 @@ function SettingsView() {
           py: 1,
         }}
       >
-        {(['provider', 'endpoint', 'model', 'agent'] as const).map((s) => {
+        {(['provider', 'endpoint', 'model', 'agent', 'about'] as const).map((s) => {
           const active = section === s;
           return (
             <Box
@@ -1739,6 +1741,7 @@ function SettingsView() {
         {section === 'endpoint' && <EndpointConfig />}
         {section === 'model' && <ModelConfig />}
         {section === 'agent' && <AgentConfig />}
+        {section === 'about' && <AboutPanel />}
       </Box>
     </Box>
   );

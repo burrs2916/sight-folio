@@ -623,6 +623,10 @@
     "ollamaHint": "Opening this page scans automatically and adopts whatever it finds (adds only, never deletes; context windows come from what each model reports — values you edited by hand are left alone)",
     "ollamaScanning": "Scanning this machine for Ollama\u2026",
     "ollamaIdle": "Not scanned yet.",
+    "about": {
+      "appName": "App name",
+      "appVersion": "App version"
+    },
     "ollamaFound": "Found {n} model(s) \u00b7 {url}",
     "ollamaOnlineNoModels": "Ollama is online ({url}) but no model has been pulled yet; run ollama pull first, then rescan.",
     "ollamaNotFound": "No local Ollama found: {reason}",
@@ -762,7 +766,9 @@
       "providerDesc": "Manage AI service providers (OpenAI, Anthropic, etc.)",
       "endpointDesc": "Configure API endpoints and authentication",
       "modelDesc": "Register available AI models and their parameters",
-      "agentDesc": "Create an AI Agent bound to a model and tools"
+      "agentDesc": "Create an AI Agent bound to a model and tools",
+      "about": "About",
+      "aboutDesc": "Product and version information about this app"
     },
     "form": {
       "addProvider": "Add Provider",
