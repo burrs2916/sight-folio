@@ -626,6 +626,8 @@
     "ollamaFound": "Found {n} model(s) \u00b7 {url}",
     "ollamaOnlineNoModels": "Ollama is online ({url}) but no model has been pulled yet; run ollama pull first, then rescan.",
     "ollamaNotFound": "No local Ollama found: {reason}",
+    "ollamaNotFoundMulti": "No local Ollama found: {reason} ({n} addresses tried)",
+    "ollamaNoCandidate": "No local Ollama found: no candidate address to probe (the Ollama client may not have started).",
     "ollamaAdded": "Auto-adopted {n} local model(s)",
     "ollamaRefreshed": "Filled in the context window for {n} model(s)",
     "ollamaCtx": "{k}K context",

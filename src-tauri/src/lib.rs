@@ -342,18 +342,11 @@ pub fn run() {
             // 代码工作台集成终端会话表
             app.manage(TerminalManager::new());
 
-            let window = app
+            // 主窗口必须在 setup 阶段存在；标题用 tauri.conf.json 的默认值（"Sight Folio"），
+            // 不在用户可见的标题栏注入构建/版本信息。
+            let _main_window = app
                 .get_webview_window("main")
                 .expect("main webview window must exist in setup");
-            // 标题带上构建标识：CI 里 BUILD_SHA=github.sha（workflow env 注入），
-            // 本地无此环境变量则显示 dev。用户一眼即可确认运行的是哪次构建，
-            // 彻底消除「下载到旧产物还以为是新包」的排查歧义。
-            window.set_title(&format!(
-                "Sight Folio v0.1.0 · build-{}",
-                option_env!("BUILD_SHA")
-                    .map(|s| &s[..7.min(s.len())])
-                    .unwrap_or("dev")
-            ))?;
 
             // macOS dev 模式 Dock 图标（debug 构建才需要；打包版由 .app bundle 提供）
             #[cfg(target_os = "macos")]

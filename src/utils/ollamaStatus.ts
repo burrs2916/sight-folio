@@ -32,17 +32,18 @@ export function ollamaStatusView(scanning: boolean, scan: OllamaScanResult | nul
   if (scan.found) {
     return { tone: 'online-no-models', messageKey: 'agent.ollamaOnlineNoModels', args: { url: scan.baseUrl } };
   }
-  return { tone: 'not-found', messageKey: 'agent.ollamaNotFound', args: { reason: ollamaFailReason(scan.attempts) } };
-}
-
-/**
- * 死因串：拿 Rust 侧逐地址记的 attempts，不编。
- * 一个都没有（客户端都没起来）也要有话说，但不能假装有探测过。
- */
-export function ollamaFailReason(attempts: string[]): string {
-  if (attempts.length === 0) return 'no-candidate';
-  if (attempts.length === 1) return attempts[0];
-  return `${attempts[0]}（共试了 ${attempts.length} 个地址）`;
+  // 未扫到：死因分层——没候选地址（客户端没起来）/ 单条原样 / 多条报出试了几个。
+  // 这层只选 key 和传数据，自然语言文案一律由 i18n 资源负责（禁止中英文案混进 args）。
+  const attempts = scan.attempts;
+  if (attempts.length === 0) return { tone: 'not-found', messageKey: 'agent.ollamaNoCandidate' };
+  if (attempts.length === 1) {
+    return { tone: 'not-found', messageKey: 'agent.ollamaNotFound', args: { reason: attempts[0] } };
+  }
+  return {
+    tone: 'not-found',
+    messageKey: 'agent.ollamaNotFoundMulti',
+    args: { reason: attempts[0], n: attempts.length },
+  };
 }
 
 /** 模型体积：Ollama 给的是字节数；拿不到（0）就显示空串，不显示 "0 B" 冒充测量值。 */

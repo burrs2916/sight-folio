@@ -626,6 +626,8 @@
     "ollamaFound": "已发现 {n} 个模型 · {url}",
     "ollamaOnlineNoModels": "Ollama 在线（{url}），但还没有拉取任何模型；先执行 ollama pull 再扫描。",
     "ollamaNotFound": "未发现本机 Ollama：{reason}",
+    "ollamaNotFoundMulti": "未发现本机 Ollama：{reason}（共试了 {n} 个地址）",
+    "ollamaNoCandidate": "未发现本机 Ollama：没有可探测的候选地址（Ollama 客户端可能未启动）。",
     "ollamaAdded": "已自动接入 {n} 个本地模型",
     "ollamaRefreshed": "已补齐 {n} 个模型的上下文窗口",
     "ollamaCtx": "{k}K 上下文",

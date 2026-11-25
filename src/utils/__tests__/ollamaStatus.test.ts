@@ -2,7 +2,7 @@
 // 最容易出错的两处：把"没扫到"说成"扫到了"、把"在线但没拉模型"说成"没装 Ollama"——
 // 这两句会让作者去做完全不同的下一步，混了就等于把人支走。
 import { describe, expect, it } from 'vitest';
-import { ollamaContextK, ollamaReasoningFlag, ollamaSizeLabel, ollamaFailReason, ollamaStatusView } from '../ollamaStatus';
+import { ollamaContextK, ollamaReasoningFlag, ollamaSizeLabel, ollamaStatusView } from '../ollamaStatus';
 import type { OllamaScanResult } from '../../services/agent';
 
 function scan(over: Partial<OllamaScanResult> = {}): OllamaScanResult {
@@ -60,11 +60,19 @@ describe('ollamaStatusView', () => {
   });
 });
 
-describe('ollamaFailReason / ollamaSizeLabel', () => {
-  it('一条地址原样；多条报出试过几个', () => {
-    expect(ollamaFailReason([])).toBe('no-candidate');
-    expect(ollamaFailReason(['a'])).toBe('a');
-    expect(ollamaFailReason(['a', 'b', 'c'])).toBe('a（共试了 3 个地址）');
+describe('ollamaStatusView 未扫到的死因分层 / ollamaSizeLabel', () => {
+  it('零条 → ollamaNoCandidate；一条 → 原样透传；多条 → ollamaNotFoundMulti 报出条数', () => {
+    const zero = ollamaStatusView(false, scan({ attempts: [] }));
+    expect(zero.messageKey).toBe('agent.ollamaNoCandidate');
+    expect(zero.args).toBeUndefined();
+
+    const single = ollamaStatusView(false, scan({ attempts: ['a → refused'] }));
+    expect(single.messageKey).toBe('agent.ollamaNotFound');
+    expect(single.args).toEqual({ reason: 'a → refused' });
+
+    const multi = ollamaStatusView(false, scan({ attempts: ['a', 'b', 'c'] }));
+    expect(multi.messageKey).toBe('agent.ollamaNotFoundMulti');
+    expect(multi.args).toEqual({ reason: 'a', n: 3 });
   });
 
   it('拿不到体积不显示 0 B 冒充测量值', () => {
