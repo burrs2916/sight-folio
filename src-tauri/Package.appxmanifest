@@ -5,16 +5,17 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap rescap">
 
-  <!-- Publisher ID: Partner Center → Account settings → Identifiers → Windows publisher ID -->
+  <!-- 身份三件套必须与 Partner Center → Product Identity 精确一致（Store ID: 9MVKZ53LWGW9）：
+       Identity Name = BURRS.SightFolio，Publisher = Windows publisher ID，DisplayName = BURRS -->
   <Identity
-    Name="SightFolio"
+    Name="BURRS.SightFolio"
     Publisher="CN=6BF20FE5-8F53-448E-9DD3-67F8E30B4B9E"
     Version="1.0.0.0" />
 
   <!-- Properties 严格只允许三个子元素 -->
   <Properties>
     <DisplayName>Sight Folio</DisplayName>
-    <PublisherDisplayName>Sight Folio Studio</PublisherDisplayName>
+    <PublisherDisplayName>BURRS</PublisherDisplayName>
     <Logo>icons/StoreLogo.png</Logo>
   </Properties>
 
